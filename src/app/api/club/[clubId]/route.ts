@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/firebase/admin';
 import { getMatchDataForClub } from '@/lib/matches';
 import { NewsArticle } from '@/types/news';
@@ -64,7 +64,7 @@ async function getClubData(clubId: string) {
   };
 }
 
-export async function GET(request: Request, { params }: { params: { clubId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { clubId: string } }) {
   try {
     const { clubId } = params;
     const clubData = await getClubData(clubId);
