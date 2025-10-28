@@ -64,9 +64,9 @@ async function getClubData(clubId: string) {
   };
 }
 
-export async function GET(request: NextRequest, { params }: { params: { clubId: string } }) {
+export async function GET(request: NextRequest, context: { params: { clubId: string } }) {
   try {
-    const { clubId } = params;
+    const { clubId } = context.params;
     const clubData = await getClubData(clubId);
     return NextResponse.json(clubData);
   } catch (error) {
