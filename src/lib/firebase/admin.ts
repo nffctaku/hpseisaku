@@ -4,33 +4,26 @@ let db: admin.firestore.Firestore;
 let auth: admin.auth.Auth;
 
 try {
-  // --- DEBUGGING ENVIRONMENT VARIABLES ---
-  console.log('--- Firebase Admin Env Check ---');
-  console.log('Has projectId:', !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
-  console.log('Has clientEmail:', !!process.env.FIREBASE_CLIENT_EMAIL);
-  console.log('Has privateKey:', !!process.env.FIREBASE_PRIVATE_KEY);
-  console.log('--------------------------------');
-  // --- END DEBUGGING ---
-
   if (!admin.apps.length) {
-    const serviceAccount = {
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    };
+    if (!process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_BASE64 environment variable is not set.');
+    }
+
+    const serviceAccountJson = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf-8');
+    const serviceAccount = JSON.parse(serviceAccountJson);
 
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount as any),
+      credential: admin.credential.cert(serviceAccount),
     });
   }
   db = admin.firestore();
   auth = admin.auth();
 } catch (error: any) {
-  console.error('Firebase admin initialization error', error.stack);
-  // @ts-ignore
-  db = {}; 
-  // @ts-ignore
-  auth = {};
+  console.error('Firebase admin initialization error:', error.message);
+  // In case of error, assign mock objects to prevent the app from crashing.
+  // This allows the build to succeed even if Firebase admin fails to initialize.
+  db = {} as admin.firestore.Firestore;
+  auth = {} as admin.auth.Auth;
 }
 
 export { db, auth, admin };
