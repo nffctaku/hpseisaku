@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { notFound, useRouter } from 'next/navigation';
+import { Loader2 } from "lucide-react";
 import { Hero } from "@/components/hero";
 import { MatchSection } from "@/components/match-section";
 import { LeagueTable } from "@/components/league-table";
@@ -54,6 +55,22 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
         fetchData();
     }, [clubId]);
 
+    if (loading) {
+        return (
+            <main className="min-h-screen flex flex-col bg-background">
+                <ClubHeader 
+                    clubId={clubId} 
+                    clubName={clubInfo.profile?.clubName || ""} 
+                    logoUrl={clubInfo.profile?.logoUrl || null} 
+                />
+                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
+                    <Loader2 className="h-7 w-7 animate-spin" />
+                    <p className="text-sm">クラブページを読み込み中です…</p>
+                </div>
+            </main>
+        );
+    }
+
     return (
         <main>
             <ClubHeader 
@@ -74,9 +91,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                         <NewsSection news={clubInfo.news || []} clubId={clubId} />
                     </div>
                     <div className="lg:col-span-1">
-                        {!loading && (
-                            <LeagueTable competitions={clubInfo.competitions || []} />
-                        )}
+                        <LeagueTable competitions={clubInfo.competitions || []} />
                     </div>
                 </div>
             </div>
