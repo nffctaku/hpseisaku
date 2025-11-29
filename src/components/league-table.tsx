@@ -40,26 +40,21 @@ interface LeagueTableProps {
 }
 
 export function LeagueTable({ competitions }: LeagueTableProps) {
-  const [selectedCompetitionId, setSelectedCompetitionId] = useState<string | null>(null);
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (competitions && competitions.length > 0) {
-      setSelectedCompetitionId(competitions[0].id);
-    } else {
+    if (!competitions || competitions.length === 0) {
       setLoading(false);
+      return;
     }
-  }, [competitions]);
-
-  useEffect(() => {
-    if (!selectedCompetitionId || !competitions.length) return;
 
     const fetchStandings = async () => {
-      if (!selectedCompetitionId) return;
       setLoading(true);
       try {
-        const selectedComp = competitions.find(c => c.id === selectedCompetitionId);
+        const selectedComp =
+          (competitions.find((c) => (c as any).showOnHome) as Competition | undefined) ||
+          competitions[0];
         if (!selectedComp) return;
 
         // 1. Fetch all teams for the club to get their details
@@ -70,7 +65,7 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
         });
 
         // 2. Fetch the competition document to get the list of participating teams
-        const competitionDocRef = doc(db, `clubs/${selectedComp.ownerUid}/competitions`, selectedCompetitionId);
+        const competitionDocRef = doc(db, `clubs/${selectedComp.ownerUid}/competitions`, selectedComp.id);
         const competitionSnap = await getDoc(competitionDocRef);
         const competitionData = competitionSnap.data();
 
@@ -168,7 +163,7 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
     };
 
     fetchStandings();
-  }, [selectedCompetitionId, competitions]);
+  }, [competitions]);
 
   if (!competitions || competitions.length === 0) {
     return (
@@ -180,21 +175,6 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
 
   return (
     <div className="bg-card p-2 sm:p-4 rounded-lg">
-      <div className="flex flex-wrap gap-2 mb-4">
-        {competitions.map(comp => (
-          <button
-            key={comp.id}
-            onClick={() => setSelectedCompetitionId(comp.id)}
-            className={`px-3 py-1 text-sm rounded-full transition-colors ${
-              selectedCompetitionId === comp.id
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20'
-            }`}>
-            {comp.name}
-          </button>
-        ))}
-      </div>
-
       {loading ? (
         <div className="flex justify-center items-center h-48">
           <Loader2 className="h-8 w-8 animate-spin" />
