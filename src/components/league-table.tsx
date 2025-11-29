@@ -241,7 +241,7 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
                 <TableCell className="text-right p-1 sm:p-2 hidden md:table-cell">{team.goalDifference}</TableCell>
                 <TableCell className="text-right font-bold p-1 sm:p-2 align-top">
                   <div>{team.points}</div>
-                  <div className="mt-0.5 text-[10px] text-muted-foreground md:hidden">
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">
                     試{team.played}
                     {" "}勝{team.wins}
                     {" "}分{team.draws}
