@@ -204,20 +204,30 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[28px] p-1 sm:w-[40px] sm:p-2">#</TableHead>
-              <TableHead className='p-1 sm:p-2'>Club</TableHead>
-              <TableHead className="text-right p-1 sm:p-2 hidden sm:table-cell">P</TableHead>
-              <TableHead className="text-right p-1 sm:p-2 hidden sm:table-cell">GD</TableHead>
-              <TableHead className="text-right p-1 sm:p-2">Pts</TableHead>
+              <TableHead className="p-1 sm:p-2">Club</TableHead>
+              {/* スマホでは詳細スタッツは下の行にまとめて表示する */}
+              <TableHead className="text-right p-1 sm:p-2 hidden sm:table-cell">試</TableHead>
+              <TableHead className="text-right p-1 sm:p-2 hidden sm:table-cell">勝</TableHead>
+              <TableHead className="text-right p-1 sm:p-2 hidden sm:table-cell">分</TableHead>
+              <TableHead className="text-right p-1 sm:p-2 hidden sm:table-cell">負</TableHead>
+              <TableHead className="text-right p-1 sm:p-2 hidden md:table-cell">得失</TableHead>
+              <TableHead className="text-right p-1 sm:p-2">勝点</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {standings.map((team, index) => (
+            {standings.map((team) => (
               <TableRow key={team.id}>
                 <TableCell className="font-medium p-1 sm:p-2">{team.rank}</TableCell>
-                <TableCell className='p-1 sm:p-2'>
+                <TableCell className="p-1 sm:p-2">
                   <div className="flex items-center gap-2">
                     {team.logoUrl ? (
-                      <Image src={team.logoUrl} alt={team.teamName} width={24} height={24} className="rounded-full object-contain" />
+                      <Image
+                        src={team.logoUrl}
+                        alt={team.teamName}
+                        width={24}
+                        height={24}
+                        className="rounded-full object-contain"
+                      />
                     ) : (
                       <div className="w-6 h-6 bg-muted rounded-full" />
                     )}
@@ -225,8 +235,20 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
                   </div>
                 </TableCell>
                 <TableCell className="text-right p-1 sm:p-2 hidden sm:table-cell">{team.played}</TableCell>
-                <TableCell className="text-right p-1 sm:p-2 hidden sm:table-cell">{team.goalDifference}</TableCell>
-                <TableCell className="text-right font-bold p-1 sm:p-2">{team.points}</TableCell>
+                <TableCell className="text-right p-1 sm:p-2 hidden sm:table-cell">{team.wins}</TableCell>
+                <TableCell className="text-right p-1 sm:p-2 hidden sm:table-cell">{team.draws}</TableCell>
+                <TableCell className="text-right p-1 sm:p-2 hidden sm:table-cell">{team.losses}</TableCell>
+                <TableCell className="text-right p-1 sm:p-2 hidden md:table-cell">{team.goalDifference}</TableCell>
+                <TableCell className="text-right font-bold p-1 sm:p-2 align-top">
+                  <div>{team.points}</div>
+                  <div className="mt-0.5 text-[10px] text-muted-foreground sm:hidden">
+                    試{team.played}
+                    {" "}勝{team.wins}
+                    {" "}分{team.draws}
+                    {" "}負{team.losses}
+                    {" "}得失{team.goalDifference}
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

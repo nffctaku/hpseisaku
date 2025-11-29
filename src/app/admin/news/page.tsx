@@ -45,6 +45,8 @@ export default function NewsAdminPage() {
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
 
+  const MAX_NEWS_FREE = 5;
+
   const form = useForm<NewsFormValues>({
     resolver: zodResolver(newsSchema),
     defaultValues: { title: '', content: '', publishedAt: new Date(), imageUrl: '' },
@@ -75,6 +77,10 @@ export default function NewsAdminPage() {
   }, [user]);
 
   const handleOpenDialog = (article: NewsArticle | null) => {
+    if (!article && news.length >= MAX_NEWS_FREE) {
+      toast.info("無料プランではニュースは5件まで登録できます。既存のニュースを編集するか、不要なニュースを削除してください。");
+      return;
+    }
     setEditingArticle(article);
     form.reset(article ? { ...article, imageUrl: article.imageUrl || '' } : { title: '', content: '', publishedAt: new Date(), imageUrl: '' });
     setIsDialogOpen(true);

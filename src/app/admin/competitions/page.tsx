@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, query, onSnapshot, doc, deleteDoc } from "firebase/firestore";
@@ -35,10 +36,14 @@ interface Competition {
   teams?: string[];
 }
 
+const MAX_COMPETITIONS_FREE = 1;
+
 export default function CompetitionsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [deletingCompetition, setDeletingCompetition] = useState<Competition | null>(null);
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -57,6 +62,15 @@ export default function CompetitionsPage() {
   }, [user]);
 
 
+  const handleCreateCompetition = () => {
+    if (competitions.length >= MAX_COMPETITIONS_FREE) {
+      setLimitDialogOpen(true);
+      return;
+    }
+    router.push("/admin/competitions/new");
+  };
+
+
   const handleDelete = async () => {
     if (!user || !deletingCompetition) return;
     try {
@@ -72,19 +86,19 @@ export default function CompetitionsPage() {
     <div className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-white">大会管理</h1>
-        <Link href="/admin/competitions/new">
-          <Button variant="outline" className="bg-white text-gray-900 hover:bg-gray-100">
-            新規大会を追加
-          </Button>
-        </Link>
+        <Button
+          variant="outline"
+          className="bg-white text-gray-900 hover:bg-gray-100"
+          onClick={handleCreateCompetition}
+        >
+          新規大会を追加
+        </Button>
       </div>
       <div className="bg-white text-gray-900 border rounded-lg">
         {competitions.length === 0 ? (
           <div className="p-8 text-center">
             <p className="mb-4">まだ大会が登録されていません。</p>
-            <Link href="/admin/competitions/new">
-              <Button>最初の大会を作成する</Button>
-            </Link>
+            <Button onClick={handleCreateCompetition}>最初の大会を作成する</Button>
           </div>
         ) : (
           <div className="divide-y">
@@ -129,6 +143,20 @@ export default function CompetitionsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete}>削除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={limitDialogOpen} onOpenChange={setLimitDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>無料プランの上限に達しました</AlertDialogTitle>
+            <AlertDialogDescription>
+              無料プランでは大会は1つまで作成できます。既存の大会を編集するか、不要な大会を削除してください。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setLimitDialogOpen(false)}>OK</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
