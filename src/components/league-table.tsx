@@ -205,11 +205,11 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
             <TableRow>
               <TableHead className="w-[28px] p-1 sm:w-[40px] sm:p-2">#</TableHead>
               <TableHead className="p-1 sm:p-2">Club</TableHead>
-              {/* スマホでは詳細スタッツは下の行にまとめて表示する */}
-              <TableHead className="text-right p-1 sm:p-2 hidden sm:table-cell">試</TableHead>
-              <TableHead className="text-right p-1 sm:p-2 hidden sm:table-cell">勝</TableHead>
-              <TableHead className="text-right p-1 sm:p-2 hidden sm:table-cell">分</TableHead>
-              <TableHead className="text-right p-1 sm:p-2 hidden sm:table-cell">負</TableHead>
+              {/* md以上で詳細スタッツを列として表示 */}
+              <TableHead className="text-right p-1 sm:p-2 hidden md:table-cell">試</TableHead>
+              <TableHead className="text-right p-1 sm:p-2 hidden md:table-cell">勝</TableHead>
+              <TableHead className="text-right p-1 sm:p-2 hidden md:table-cell">分</TableHead>
+              <TableHead className="text-right p-1 sm:p-2 hidden md:table-cell">負</TableHead>
               <TableHead className="text-right p-1 sm:p-2 hidden md:table-cell">得失</TableHead>
               <TableHead className="text-right p-1 sm:p-2">勝点</TableHead>
             </TableRow>
@@ -234,14 +234,14 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
                     <span className="truncate max-w-[120px] sm:max-w-none">{team.teamName}</span>
                   </div>
                 </TableCell>
-                <TableCell className="text-right p-1 sm:p-2 hidden sm:table-cell">{team.played}</TableCell>
-                <TableCell className="text-right p-1 sm:p-2 hidden sm:table-cell">{team.wins}</TableCell>
-                <TableCell className="text-right p-1 sm:p-2 hidden sm:table-cell">{team.draws}</TableCell>
-                <TableCell className="text-right p-1 sm:p-2 hidden sm:table-cell">{team.losses}</TableCell>
+                <TableCell className="text-right p-1 sm:p-2 hidden md:table-cell">{team.played}</TableCell>
+                <TableCell className="text-right p-1 sm:p-2 hidden md:table-cell">{team.wins}</TableCell>
+                <TableCell className="text-right p-1 sm:p-2 hidden md:table-cell">{team.draws}</TableCell>
+                <TableCell className="text-right p-1 sm:p-2 hidden md:table-cell">{team.losses}</TableCell>
                 <TableCell className="text-right p-1 sm:p-2 hidden md:table-cell">{team.goalDifference}</TableCell>
                 <TableCell className="text-right font-bold p-1 sm:p-2 align-top">
                   <div>{team.points}</div>
-                  <div className="mt-0.5 text-[10px] text-muted-foreground sm:hidden">
+                  <div className="mt-0.5 text-[10px] text-muted-foreground md:hidden">
                     試{team.played}
                     {" "}勝{team.wins}
                     {" "}分{team.draws}
