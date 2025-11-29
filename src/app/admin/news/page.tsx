@@ -24,9 +24,20 @@ import Image from 'next/image';
 
 const newsSchema = z.object({
   title: z.string().min(1, { message: "タイトルは必須です。" }),
-  content: z.string().min(1, { message: "本文は必須です。" }),
+  content: z.string().optional(),
+  noteUrl: z.union([
+    z.string().url({ message: "無効なURLです。" }),
+    z.literal("")
+  ]).optional(),
   publishedAt: z.date(),
   imageUrl: z.string().url({ message: "無効なURLです。" }).optional(),
+}).refine((data) => {
+  const hasContent = !!data.content && data.content.trim() !== "";
+  const hasNoteUrl = !!data.noteUrl && data.noteUrl !== "";
+  return hasContent || hasNoteUrl;
+}, {
+  path: ["noteUrl"],
+  message: "本文または外部記事のURLを入力してください。",
 });
 
 interface NewsArticle extends z.infer<typeof newsSchema> {
@@ -49,10 +60,8 @@ export default function NewsAdminPage() {
 
   const form = useForm<NewsFormValues>({
     resolver: zodResolver(newsSchema),
-    defaultValues: { title: '', content: '', publishedAt: new Date(), imageUrl: '' },
+    defaultValues: { title: '', content: '', noteUrl: '', publishedAt: new Date(), imageUrl: '' },
   });
-
-  const watchedImageUrl = form.watch('imageUrl');
 
   useEffect(() => {
     if (!user) {
@@ -82,7 +91,11 @@ export default function NewsAdminPage() {
       return;
     }
     setEditingArticle(article);
-    form.reset(article ? { ...article, imageUrl: article.imageUrl || '' } : { title: '', content: '', publishedAt: new Date(), imageUrl: '' });
+    form.reset(
+      article
+        ? { ...article, imageUrl: article.imageUrl || '', noteUrl: (article as any).noteUrl || '' }
+        : { title: '', content: '', noteUrl: '', publishedAt: new Date(), imageUrl: '' }
+    );
     setIsDialogOpen(true);
   };
 
@@ -93,6 +106,8 @@ export default function NewsAdminPage() {
     try {
       const processedValues = { 
         ...values, 
+        content: values.content?.trim() || "",
+        noteUrl: values.noteUrl?.toString().trim() || "",
         publishedAt: Timestamp.fromDate(values.publishedAt),
         updatedAt: serverTimestamp(),
       };
@@ -190,29 +205,26 @@ export default function NewsAdminPage() {
                   <FormControl>
                     <ImageUploader value={field.value || ''} onChange={field.onChange} />
                   </FormControl>
-                  <div className="mt-4 border rounded-md overflow-hidden">
-                    <div className="relative w-full aspect-[16/9] bg-muted">
-                      {watchedImageUrl ? (
-                        <Image
-                          src={watchedImageUrl}
-                          alt="プレビュー"
-                          fill
-                          className="object-cover object-[center_top]"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
-                          ヒーロー画像のプレビューがここに表示されます
-                        </div>
-                      )}
-                    </div>
-                  </div>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="content" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>本文 (Markdown対応)</FormLabel>
+                  <FormLabel>本文 (Markdown対応・任意)</FormLabel>
                   <FormControl><Textarea {...field} rows={10} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="noteUrl" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>外部記事URL（本文の代わりに外部の記事へリンクする場合）</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="url"
+                      placeholder="https://example.com/..."
+                      {...field}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />

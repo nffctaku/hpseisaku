@@ -35,7 +35,7 @@ export function ClubFooter({ clubId, sponsors = [], snsLinks = {}, legalPages = 
   if (sponsors.length === 0 && !hasSns && !hasLegal) return null;
 
   return (
-    <footer className="mt-12 border-t border-border bg-muted/40">
+    <footer className="mt-12 border-t border-border bg-white">
       <div className="container mx-auto px-4 py-8 space-y-8">
         {sponsors.length > 0 && (
           <div className="flex flex-col items-center gap-4">

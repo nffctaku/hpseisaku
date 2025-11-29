@@ -55,9 +55,14 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
         fetchData();
     }, [clubId]);
 
+    const homeBgColor = clubInfo.profile?.homeBgColor as string | undefined;
+
     if (loading) {
         return (
-            <main className="min-h-screen flex flex-col bg-background">
+            <main
+              className="min-h-screen flex flex-col"
+              style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}
+            >
                 <ClubHeader 
                     clubId={clubId} 
                     clubName={clubInfo.profile?.clubName || ""} 
@@ -72,7 +77,10 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
     }
 
     return (
-        <main>
+        <main
+          className="min-h-screen"
+          style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}
+        >
             <ClubHeader 
                 clubId={clubId} 
                 clubName={clubInfo.profile?.clubName || ""} 

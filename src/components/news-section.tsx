@@ -25,7 +25,7 @@ export function NewsSection({ news, clubId }: NewsSectionProps) {
 
   return (
     <section className="py-8 md:py-12">
-      <div className="container mx-auto">
+      <div className="container mx-auto bg-white rounded-lg shadow-sm p-4 md:p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl md:text-3xl font-bold">NEWS</h2>
           <Link href={clubId ? `/${clubId}/news` : "/news"} className="text-sm text-primary hover:underline">
@@ -34,8 +34,14 @@ export function NewsSection({ news, clubId }: NewsSectionProps) {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {news.map((item) => (
-            <Link href={`/news/${item.id}`} key={item.id} className="bg-card rounded-lg overflow-hidden group block">
-              <div className="relative w-full h-40 sm:h-48">
+            <Link
+              key={item.id}
+              href={(item as any).noteUrl && (item as any).noteUrl !== '' ? (item as any).noteUrl : `/news/${item.id}`}
+              target={(item as any).noteUrl && (item as any).noteUrl !== '' ? "_blank" : undefined}
+              rel={(item as any).noteUrl && (item as any).noteUrl !== '' ? "noopener noreferrer" : undefined}
+              className="rounded-lg overflow-hidden group block"
+            >
+              <div className="relative w-full aspect-[16/9]">
                 {item.imageUrl ? (
                   <Image
                     src={item.imageUrl}

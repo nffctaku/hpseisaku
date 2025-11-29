@@ -41,6 +41,7 @@ export default function ClubInfoPage() {
   const { user, refreshUserProfile } = useAuth();
   const [clubName, setClubName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [homeBgColor, setHomeBgColor] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
@@ -100,6 +101,10 @@ export default function ClubInfoPage() {
               }))
             );
           }
+
+          if (typeof data.homeBgColor === 'string') {
+            setHomeBgColor(data.homeBgColor);
+          }
         }
       } catch (error) {
         console.error('Error loading main team for club info:', error);
@@ -148,7 +153,7 @@ export default function ClubInfoPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ clubName, logoUrl, layoutType, mainTeamId: selectedTeamId, sponsors, snsLinks, legalPages }),
+        body: JSON.stringify({ clubName, logoUrl, layoutType, mainTeamId: selectedTeamId, sponsors, snsLinks, legalPages, homeBgColor }),
       });
 
       if (!updateResponse.ok) {
@@ -185,6 +190,40 @@ export default function ClubInfoPage() {
                 <div className="w-full rounded-md border bg-white text-gray-900 px-3 py-2 text-sm">
                   {teams.find(t => t.id === selectedTeamId)?.name || '未設定'}
                 </div>
+          <div className="space-y-2 pt-4 border-t">
+            <Label htmlFor="homeBgColor">HPトップ背景色</Label>
+            <p className="text-xs text-muted-foreground mb-1">下の色から選択してください。</p>
+            <div className="flex flex-wrap gap-3 items-center">
+              {[
+                '#ffffff', // 白（デフォルト）
+                '#0b1f3b', // 紺
+                '#60a5fa', // 水色
+                '#facc15', // 黄色
+                '#ef4444', // 赤
+                '#7f1d1d', // 暗めの赤
+                '#16a34a', // 緑
+              ].map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setHomeBgColor(color)}
+                  className={`w-8 h-8 rounded-full border transition-transform ${
+                    homeBgColor === color ? 'ring-2 ring-primary scale-110' : 'hover:scale-105'
+                  }`}
+                  style={{ backgroundColor: color }}
+                  aria-label={color}
+                />
+              ))}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground ml-2">
+                <span>現在の色:</span>
+                <div
+                  className="w-10 h-6 rounded border"
+                  style={{ backgroundColor: homeBgColor || '#ffffff' }}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">クラブのHPトップ全体の背景色を変更できます。未選択の場合は標準の背景色になります。</p>
+          </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   自チームは一度設定すると変更できません。チーム情報の編集はチーム管理画面から行ってください。
                 </p>

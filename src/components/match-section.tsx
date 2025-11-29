@@ -29,7 +29,7 @@ function LatestResult({ match, clubName }: { match: MatchDetails | null, clubNam
                   (match.awayTeamName === clubName && match.scoreAway < match.scoreHome));
 
   return (
-    <div className="bg-card-foreground/5 rounded-lg p-4 md:p-6 flex flex-col items-center">
+    <div className="rounded-lg p-4 md:p-6 flex flex-col items-center">
       <div className="w-full flex justify-around items-center">
         <TeamDisplay logo={match.homeTeamLogo} name={match.homeTeamName} />
         <div className="text-center px-1">
@@ -51,7 +51,7 @@ function NextMatch({ match }: { match: MatchDetails | null }) {
   const matchDate = new Date(match.matchDate);
 
   return (
-    <div className="bg-card-foreground/5 rounded-lg p-4 md:p-6 flex flex-col items-center">
+    <div className="bg-white rounded-lg p-4 md:p-6 flex flex-col items-center shadow-sm">
       <div className="w-full flex justify-around items-center">
         <TeamDisplay logo={match.homeTeamLogo} name={match.homeTeamName} />
         <div className="text-center px-1">
@@ -75,19 +75,21 @@ export function MatchSection({ latestResult, nextMatch, clubName }: MatchSection
   return (
     <section className="py-8 md:py-12">
       <div className="container mx-auto">
-        <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center">MATCHES</h2>
-        <Tabs defaultValue="latest-result" className="w-full max-w-2xl mx-auto">
-          <TabsList className="grid w-full grid-cols-2 bg-muted">
-            <TabsTrigger value="latest-result">Latest Result</TabsTrigger>
-            <TabsTrigger value="next-match">Next Match</TabsTrigger>
-          </TabsList>
-          <TabsContent value="latest-result">
-            <LatestResult match={latestResult} clubName={clubName} />
-          </TabsContent>
-          <TabsContent value="next-match">
-            <NextMatch match={nextMatch} />
-          </TabsContent>
-        </Tabs>
+        <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 w-full max-w-2xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center">MATCHES</h2>
+          <Tabs defaultValue="latest-result" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 bg-muted">
+              <TabsTrigger value="latest-result">Latest Result</TabsTrigger>
+              <TabsTrigger value="next-match">Next Match</TabsTrigger>
+            </TabsList>
+            <TabsContent value="latest-result">
+              <LatestResult match={latestResult} clubName={clubName} />
+            </TabsContent>
+            <TabsContent value="next-match">
+              <NextMatch match={nextMatch} />
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </section>
   );

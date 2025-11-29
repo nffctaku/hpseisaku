@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       return new NextResponse(JSON.stringify({ message: '認証されていません。' }), { status: 401 });
     }
 
-    const { clubName, logoUrl, layoutType, mainTeamId, sponsors, snsLinks, legalPages } = await request.json();
+    const { clubName, logoUrl, layoutType, mainTeamId, sponsors, snsLinks, legalPages, homeBgColor } = await request.json();
 
     if (!clubName) {
       return new NextResponse(JSON.stringify({ message: 'クラブ名は必須です。' }), { status: 400 });
@@ -68,6 +68,10 @@ export async function POST(request: Request) {
     // テキストページ（プライバシーポリシー等）最大3件想定
     if (Array.isArray(legalPages)) {
       updateData.legalPages = legalPages;
+    }
+
+    if (typeof homeBgColor === 'string') {
+      updateData.homeBgColor = homeBgColor;
     }
 
     await clubDocRef.update(updateData);

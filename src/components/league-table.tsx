@@ -42,6 +42,7 @@ interface LeagueTableProps {
 export function LeagueTable({ competitions }: LeagueTableProps) {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCompetition, setSelectedCompetition] = useState<{ name: string; logoUrl?: string } | null>(null);
 
   useEffect(() => {
     if (!competitions || competitions.length === 0) {
@@ -68,6 +69,12 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
         const competitionDocRef = doc(db, `clubs/${selectedComp.ownerUid}/competitions`, selectedComp.id);
         const competitionSnap = await getDoc(competitionDocRef);
         const competitionData = competitionSnap.data();
+
+        // Save selected competition info (name/logo) for display
+        setSelectedCompetition({
+          name: (competitionData && (competitionData as any).name) || selectedComp.name,
+          logoUrl: competitionData ? (competitionData as any).logoUrl : undefined,
+        });
 
         if (!competitionData || !competitionData.teams) {
             console.log("No teams in this competition");
@@ -167,14 +174,30 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
 
   if (!competitions || competitions.length === 0) {
     return (
-      <div className="bg-card p-4 rounded-lg text-center text-muted-foreground">
+      <div className="bg-white p-4 rounded-lg text-center text-muted-foreground shadow-sm">
         <p>表示できる大会がありません。</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-card p-2 sm:p-4 rounded-lg">
+    <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm">
+      {selectedCompetition && (
+        <div className="flex items-center gap-2 mb-3">
+          {selectedCompetition.logoUrl && (
+            <Image
+              src={selectedCompetition.logoUrl}
+              alt={selectedCompetition.name}
+              width={28}
+              height={28}
+              className="rounded-full object-contain"
+            />
+          )}
+          <h3 className="text-sm sm:text-base font-semibold truncate">
+            {selectedCompetition.name}
+          </h3>
+        </div>
+      )}
       {loading ? (
         <div className="flex justify-center items-center h-48">
           <Loader2 className="h-8 w-8 animate-spin" />
