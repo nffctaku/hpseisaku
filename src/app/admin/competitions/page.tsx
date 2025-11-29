@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, deleteDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ interface Competition {
   name: string;
   season: string;
   teams?: string[];
+  showOnHome?: boolean;
 }
 
 const MAX_COMPETITIONS_FREE = 1;
@@ -61,6 +62,24 @@ export default function CompetitionsPage() {
     return () => unsubscribe();
   }, [user]);
 
+
+  const handleSetShowOnHome = async (target: Competition) => {
+    if (!user) return;
+    try {
+      // すべての大会の showOnHome を一旦 false にし、選択した大会だけ true にする
+      const updates = competitions.map(async (comp) => {
+        const ref = doc(db, `clubs/${user.uid}/competitions`, comp.id);
+        const value = comp.id === target.id;
+        // 変更がある大会だけ更新
+        if ((comp.showOnHome ?? false) !== value) {
+          await updateDoc(ref, { showOnHome: value });
+        }
+      });
+      await Promise.all(updates);
+    } catch (error) {
+      console.error("Error updating showOnHome: ", error);
+    }
+  };
 
   const handleCreateCompetition = () => {
     if (competitions.length >= MAX_COMPETITIONS_FREE) {
@@ -103,12 +122,26 @@ export default function CompetitionsPage() {
         ) : (
           <div className="divide-y">
             {competitions.map(comp => (
-              <div key={comp.id} className="p-4 flex justify-between items-center">
-                <Link href={`/admin/competitions/${comp.id}`} className="hover:underline">
-                  <span className="font-medium">{comp.name}</span>
-                  <span className="text-sm text-muted-foreground ml-2">({comp.season})</span>
-                </Link>
-                <div className="flex items-center gap-2">
+              <div key={comp.id} className="p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col">
+                    <Link href={`/admin/competitions/${comp.id}`} className="hover:underline">
+                      <span className="font-medium">{comp.name}</span>
+                      <span className="text-sm text-muted-foreground ml-2">({comp.season})</span>
+                    </Link>
+                    <label className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="radio"
+                        name="showOnHome"
+                        className="h-3 w-3"
+                        checked={!!comp.showOnHome}
+                        onChange={() => handleSetShowOnHome(comp)}
+                      />
+                      <span>HPに表示</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 self-end sm:self-auto">
                   <Link href={`/admin/competitions/${comp.id}`}>
                     <Button variant="outline" size="icon"><CalendarDays className="h-4 w-4" /></Button>
                   </Link>
