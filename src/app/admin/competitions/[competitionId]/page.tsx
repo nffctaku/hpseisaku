@@ -176,7 +176,7 @@ export default function CompetitionDetailPage() {
           <p className="text-muted-foreground">{competition?.season}</p>
         </div>
         <Link href={`/admin/competitions/${competitionId}/standings`}>
-          <Button variant="outline">順位表</Button>
+          <Button variant="outline" className="text-gray-900">順位表</Button>
         </Link>
       </div>
 
@@ -218,7 +218,7 @@ export default function CompetitionDetailPage() {
               </div>
             </div>
           ))}
-          <Button variant="outline" className="w-full" onClick={handleAddMatch}><PlusCircle className="mr-2 h-4 w-4" />試合を追加</Button>
+          <Button variant="outline" className="w-full text-gray-900" onClick={handleAddMatch}><PlusCircle className="mr-2 h-4 w-4" />試合を追加</Button>
         </div>
       ) : (
         <div className="text-center py-10 text-muted-foreground">

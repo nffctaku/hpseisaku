@@ -29,10 +29,10 @@ import { columns } from "./players-columns";
 import { PlayersDataTable } from "./players-data-table";
 
 interface PlayerManagementProps {
-  season: string;
+  teamId: string;
 }
 
-export function PlayerManagement({ season }: PlayerManagementProps) {
+export function PlayerManagement({ teamId }: PlayerManagementProps) {
   const { user } = useAuth();
   const [players, setPlayers] = useState<Player[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -40,9 +40,9 @@ export function PlayerManagement({ season }: PlayerManagementProps) {
   const [deletingPlayer, setDeletingPlayer] = useState<Player | null>(null);
 
   useEffect(() => {
-    if (!user || !season) return;
-    const rosterColRef = collection(db, `clubs/${user.uid}/seasons/${season}/roster`);
-    const q = query(rosterColRef);
+    if (!user || !teamId) return;
+    const playersColRef = collection(db, `clubs/${user.uid}/teams/${teamId}/players`);
+    const q = query(playersColRef);
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const playersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
@@ -50,17 +50,17 @@ export function PlayerManagement({ season }: PlayerManagementProps) {
     });
 
     return () => unsubscribe();
-  }, [user, season]);
+  }, [user, teamId]);
 
   const handleFormSubmit = async (values: PlayerFormValues) => {
-    if (!user || !season) return;
+    if (!user || !teamId) return;
     try {
-      const rosterColRef = collection(db, `clubs/${user.uid}/seasons/${season}/roster`);
+      const playersColRef = collection(db, `clubs/${user.uid}/teams/${teamId}/players`);
       if (editingPlayer) {
-        const playerDocRef = doc(rosterColRef, editingPlayer.id);
+        const playerDocRef = doc(playersColRef, editingPlayer.id);
         await updateDoc(playerDocRef, values);
       } else {
-        await addDoc(rosterColRef, values);
+        await addDoc(playersColRef, values);
       }
       setIsDialogOpen(false);
       setEditingPlayer(null);
@@ -71,10 +71,9 @@ export function PlayerManagement({ season }: PlayerManagementProps) {
 
 
   const handleDeletePlayer = async () => {
-    if (!user || !deletingPlayer) return;
+    if (!user || !deletingPlayer || !teamId) return;
     try {
-      if (!user || !season || !deletingPlayer) return;
-      const playerDocRef = doc(db, `clubs/${user.uid}/seasons/${season}/roster`, deletingPlayer.id);
+      const playerDocRef = doc(db, `clubs/${user.uid}/teams/${teamId}/players`, deletingPlayer.id);
       await deleteDoc(playerDocRef);
       setDeletingPlayer(null);
     } catch (error) {
@@ -99,7 +98,12 @@ export function PlayerManagement({ season }: PlayerManagementProps) {
           <h2 className="text-2xl font-bold">選手管理</h2>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openAddDialog}>選手を追加</Button>
+              <Button
+                onClick={openAddDialog}
+                className="bg-white text-gray-900 hover:bg-gray-100 border border-border"
+              >
+                選手を追加
+              </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>

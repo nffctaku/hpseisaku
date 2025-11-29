@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { format, isToday, isYesterday, isTomorrow, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -29,7 +30,8 @@ interface EnrichedMatch {
 
 interface MatchListProps {
   allMatches: EnrichedMatch[];
-  clubId: string;
+  clubId: string; // internal ID used for filtering
+  clubSlug: string; // public clubId used in URLs
   clubName: string;
 }
 
@@ -48,7 +50,7 @@ const getSeason = (date: Date): string => {
   return month >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
 };
 
-export function MatchList({ allMatches, clubId, clubName }: MatchListProps) {
+export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListProps) {
   const [showAll, setShowAll] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState<string>('all');
   const [selectedSeason, setSelectedSeason] = useState<string>('all');
@@ -67,7 +69,9 @@ export function MatchList({ allMatches, clubId, clubName }: MatchListProps) {
 
   const filteredByTeam = showAll
     ? filteredByCompetition
-    : filteredByCompetition.filter(match => match.homeTeamId === clubId || match.awayTeamId === clubId);
+    : filteredByCompetition.filter(
+        (match) => match.homeTeamId === clubId || match.awayTeamId === clubId
+      );
 
   const filteredMatches = filteredByTeam;
 
@@ -114,12 +118,13 @@ export function MatchList({ allMatches, clubId, clubName }: MatchListProps) {
               ))}
             </div>
           </div>
-          <div className="flex items-center justify-center space-x-2">
+          <div className="flex items-center justify-center space-x-2 text-sm">
               <Label htmlFor="filter-switch">自チームのみ</Label>
               <Switch 
                   id="filter-switch" 
                   checked={!showAll}
                   onCheckedChange={(checked) => setShowAll(!checked)}
+                  className="border border-gray-300 data-[state=unchecked]:bg-gray-200 data-[state=checked]:bg-emerald-500"
               />
               <Label htmlFor="filter-switch">すべて表示</Label>
           </div>
@@ -134,8 +139,32 @@ export function MatchList({ allMatches, clubId, clubName }: MatchListProps) {
                         <h2 className="font-semibold text-lg mb-3 text-muted-foreground">{dateGroup}</h2>
                         <div className="space-y-3">
                             {matchesInGroup.map(match => {
-                                const isFinished = typeof match.scoreHome === 'number' && typeof match.scoreAway === 'number';
-                                const resultColor = 'bg-gray-500';
+                                const isFinished =
+                                  typeof match.scoreHome === "number" &&
+                                  typeof match.scoreAway === "number";
+
+                                // 自チーム視点での勝敗判定（自チームのみ表示のときだけ色付け）
+                                let scoreBgClass = "";
+                                if (!showAll && isFinished) {
+                                  const isHome = match.homeTeamId === clubId;
+                                  const selfScore = isHome
+                                    ? (match.scoreHome as number)
+                                    : (match.scoreAway as number);
+                                  const oppScore = isHome
+                                    ? (match.scoreAway as number)
+                                    : (match.scoreHome as number);
+
+                                  if (selfScore > oppScore) {
+                                    scoreBgClass =
+                                      "bg-emerald-500 text-white rounded-md px-2 py-0.5 text-base";
+                                  } else if (selfScore < oppScore) {
+                                    scoreBgClass =
+                                      "bg-red-500 text-white rounded-md px-2 py-0.5 text-base";
+                                  } else {
+                                    scoreBgClass =
+                                      "bg-gray-500 text-white rounded-md px-2 py-0.5 text-base";
+                                  }
+                                }
 
                                 return (
                                     <div key={match.id} className="block p-4 bg-card rounded-lg border">
@@ -150,13 +179,25 @@ export function MatchList({ allMatches, clubId, clubName }: MatchListProps) {
                                             </div>
 
                                             <div className="col-span-2 text-center">
-                                                {isFinished ? (
-                                                    <div className={`px-2 py-1 rounded-md font-bold text-lg`}>
-                                                        {match.scoreHome} - {match.scoreAway}
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-sm text-muted-foreground">{match.matchTime || 'VS'}</div>
-                                                )}
+                                                <Link
+                                                    href={`/${clubSlug}/matches/${match.competitionId}/${match.roundId}/${match.id}`}
+                                                    className="inline-block"
+                                                >
+                                                    {isFinished ? (
+                                                        <div
+                                                          className={`font-bold text-base transition-colors ${
+                                                            scoreBgClass ||
+                                                            "px-2 py-0.5 rounded-md hover:text-primary"
+                                                          }`}
+                                                        >
+                                                            {match.scoreHome} - {match.scoreAway}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                                                            {match.matchTime || 'VS'}
+                                                        </div>
+                                                    )}
+                                                </Link>
                                             </div>
 
                                             <div className="col-span-5 flex items-center gap-2">

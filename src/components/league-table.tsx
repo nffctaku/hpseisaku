@@ -172,12 +172,9 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
 
   if (!competitions || competitions.length === 0) {
     return (
-        <div className="bg-card p-4 rounded-lg text-center text-muted-foreground">
-            <p>表示できる大会がありません。</p>
-            <pre className="mt-4 text-xs text-left bg-background p-2 rounded-md overflow-auto">
-                {JSON.stringify({ competitions_received: competitions }, null, 2)}
-            </pre>
-        </div>
+      <div className="bg-card p-4 rounded-lg text-center text-muted-foreground">
+        <p>表示できる大会がありません。</p>
+      </div>
     );
   }
 

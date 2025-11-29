@@ -13,7 +13,7 @@ async function getClubData(clubId: string) {
 
   const clubProfileDoc = profilesSnap.docs[0];
   const profileData = clubProfileDoc.data()!;
-  const ownerUid = clubProfileDoc.id;
+  const ownerUid = (profileData as any).ownerUid || clubProfileDoc.id;
 
   if (!ownerUid) {
     throw new Error('Club owner UID not found');
@@ -23,7 +23,7 @@ async function getClubData(clubId: string) {
   const clubDataSnap = await clubDataRef.get();
   const clubData = clubDataSnap.exists ? clubDataSnap.data() : { headerImageUrl: null };
 
-  const { latestResult, nextMatch } = await getMatchDataForClub(ownerUid);
+  const { latestResult, nextMatch, recentMatches, upcomingMatches } = await getMatchDataForClub(ownerUid);
 
   const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy('publishedAt', 'desc').limit(3);
   const newsSnap = await newsQuery.get();
@@ -58,6 +58,8 @@ async function getClubData(clubId: string) {
     data: clubData,
     latestResult,
     nextMatch,
+    recentMatches,
+    upcomingMatches,
     news,
     videos,
     competitions: Array.isArray(competitions) ? competitions : [competitions].filter(Boolean),

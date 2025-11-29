@@ -44,24 +44,30 @@ export function PlayerPhotoUploader({ value, onChange }: PlayerPhotoUploaderProp
   };
 
   return (
-    <div className="relative w-full aspect-square border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center text-gray-500 hover:border-gray-400 hover:text-gray-400 transition-colors cursor-pointer">
-      <input
-        type="file"
-        accept="image/*"
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        onChange={handleFileChange}
-        disabled={uploading}
-      />
-      {uploading ? (
-        <Loader2 className="animate-spin" size={48} />
-      ) : value ? (
-        <Image src={value} alt="Player Photo" fill className="object-cover rounded-lg" />
-      ) : (
-        <div className="text-center">
-          <UserSquare className="mx-auto h-12 w-12" />
-          <p className="mt-2 text-sm">選手写真をアップロード</p>
-        </div>
-      )}
+    <div
+      className="mt-2 mx-auto flex justify-center"
+    >
+      <div
+        className="relative h-40 w-40 rounded-lg border border-dashed border-gray-300 flex items-center justify-center"
+      >
+        <input
+          type="file"
+          accept="image/*"
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          onChange={handleFileChange}
+          disabled={uploading}
+        />
+        {uploading ? (
+          <Loader2 className="animate-spin" size={32} />
+        ) : value ? (
+          <Image src={value} alt="Player Photo" fill className="object-cover rounded-lg" />
+        ) : (
+          <div className="text-center">
+            <UserSquare className="mx-auto h-10 w-10" />
+            <p className="mt-2 text-xs">選手写真をアップロード</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

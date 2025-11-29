@@ -12,13 +12,12 @@ export default function RegisterClubPage() {
   const { user, refreshUserProfile } = useAuth();
   const router = useRouter();
   const [clubId, setClubId] = useState('');
-  const [clubName, setClubName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!clubId || !clubName) {
-      setError('クラブIDとチーム名は必須です。');
+    if (!clubId) {
+      setError('クラブIDは必須です。');
       return;
     }
     if (!/^[a-z0-9-]+$/.test(clubId)) {
@@ -33,7 +32,7 @@ export default function RegisterClubPage() {
       const response = await fetch('/api/club/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clubId, clubName, ownerUid: user?.uid }),
+        body: JSON.stringify({ clubId, ownerUid: user?.uid }),
       });
 
       if (!response.ok) {
@@ -56,11 +55,13 @@ export default function RegisterClubPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
+    <div className="flex items-center justify-center min-h-screen bg-background text-gray-900">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>クラブ情報の初期登録</CardTitle>
-          <CardDescription>あなたのクラブ情報を登録してください。クラブIDは後から変更できません。</CardDescription>
+          <CardDescription>
+            公開用URLとして使用するクラブIDを登録してください。クラブ名やメインチームは後から設定できます。
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -74,22 +75,15 @@ export default function RegisterClubPage() {
             />
             <p className="text-xs text-muted-foreground">URLに使用されます (半角英数字とハイフンのみ)</p>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="clubName">チーム名</Label>
-            <Input 
-              id="clubName" 
-              placeholder="例: レアル・マドリード" 
-              value={clubName}
-              onChange={(e) => setClubName(e.target.value)}
-              required 
-            />
-          </div>
         </CardContent>
         <CardFooter className="flex flex-col items-start">
           {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
           <Button onClick={handleRegister} disabled={loading} className="w-full">
             {loading ? '登録中...' : '登録する'}
           </Button>
+          <p className="mt-3 text-xs text-muted-foreground">
+            ※ 自チームの登録は「チーム管理」から行い、HPに表示するメインチームの設定は「クラブ情報」画面で行ってください。
+          </p>
         </CardFooter>
       </Card>
     </div>

@@ -21,28 +21,13 @@ import { User } from 'lucide-react';
 
 export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const { user } = useAuth();
+  console.log('[AuthButton] render', { hasUser: !!user, user });
 
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      const userDocRef = doc(db, "users", user.uid);
-
-      // 既存のドキュメントを削除してクリーンな状態にする
-      await deleteDoc(userDocRef).catch((error) => {
-        console.info("No existing user doc to delete or failed to delete:", error);
-      });
-
-      // 新しいユーザー情報を保存
-      await setDoc(userDocRef, {
-        uid: user.uid,
-        displayName: user.displayName,
-        email: user.email,
-        photoURL: user.photoURL,
-        lastLogin: new Date(),
-      });
+      console.log('[AuthButton] handleSignIn start');
+      await signInWithPopup(auth, provider);
     } catch (error) {
       console.error("Error signing in with Google", error);
     }
@@ -50,6 +35,7 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
 
   const handleSignOut = async () => {
     try {
+      console.log('[AuthButton] handleSignOut start');
       await signOut(auth);
       window.location.href = '/';
     } catch (error) {

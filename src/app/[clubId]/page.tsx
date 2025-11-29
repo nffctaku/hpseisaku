@@ -1,9 +1,10 @@
 import ClubPageContent from './ClubPageContent';
 
 interface ClubPageProps {
-  params: { clubId: string };
+  params: Promise<{ clubId: string }>;
 }
 
 export default async function ClubPage({ params }: ClubPageProps) {
-  return <ClubPageContent clubId={params.clubId} />;
+  const { clubId } = await params;
+  return <ClubPageContent clubId={clubId} />;
 }

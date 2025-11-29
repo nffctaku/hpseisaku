@@ -50,6 +50,8 @@ export default function NewsAdminPage() {
     defaultValues: { title: '', content: '', publishedAt: new Date(), imageUrl: '' },
   });
 
+  const watchedImageUrl = form.watch('imageUrl');
+
   useEffect(() => {
     if (!user) {
         setPageLoading(false);
@@ -182,6 +184,22 @@ export default function NewsAdminPage() {
                   <FormControl>
                     <ImageUploader value={field.value || ''} onChange={field.onChange} />
                   </FormControl>
+                  <div className="mt-4 border rounded-md overflow-hidden">
+                    <div className="relative w-full aspect-[16/9] bg-muted">
+                      {watchedImageUrl ? (
+                        <Image
+                          src={watchedImageUrl}
+                          alt="プレビュー"
+                          fill
+                          className="object-cover object-[center_top]"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
+                          ヒーロー画像のプレビューがここに表示されます
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )} />

@@ -138,13 +138,24 @@ export default function TeamPlayersPage() {
           </SelectContent>
         </Select>
         {selectedSeason && (
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
             <Switch
               id={`public-switch-${selectedSeason}`}
               checked={seasons.find(s => s.id === selectedSeason)?.isPublic || false}
               onCheckedChange={(checked) => handleTogglePublic(selectedSeason, checked)}
+              className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-gray-500"
             />
-            <Label htmlFor={`public-switch-${selectedSeason}`}>公開する</Label>
+            <div className="flex flex-col leading-tight text-sm">
+              <Label
+                htmlFor={`public-switch-${selectedSeason}`}
+                className="text-sm text-white"
+              >
+                HPに公開する
+              </Label>
+              <span className="text-xs text-muted-foreground">
+                {seasons.find(s => s.id === selectedSeason)?.isPublic ? '現在: 公開中' : '現在: 非公開'}
+              </span>
+            </div>
           </div>
         )}
         <div className="flex items-center gap-2">
@@ -156,9 +167,20 @@ export default function TeamPlayersPage() {
               {availableSeasonsToAdd.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button onClick={handleAddSeason} disabled={!newSeason}>追加</Button>
+          <Button
+            onClick={handleAddSeason}
+            disabled={!newSeason}
+            className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white"
+          >
+            追加
+          </Button>
         </div>
-        <Button variant="outline" onClick={handleCopyFromPreviousSeason} disabled={!selectedSeason}>
+        <Button
+          variant="outline"
+          onClick={handleCopyFromPreviousSeason}
+          disabled={!selectedSeason}
+          className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white"
+        >
           昨シーズンから選手をコピー
         </Button>
       </div>

@@ -1,0 +1,125 @@
+"use client";
+
+import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+
+interface ClubHeaderProps {
+  clubId: string;
+  clubName?: string;
+  logoUrl?: string | null;
+}
+
+export function ClubHeader({ clubId, clubName, logoUrl }: ClubHeaderProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <header className="w-full border-b border-border/60 bg-background/80 backdrop-blur relative z-20">
+      <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link href={`/${clubId}`} className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-white flex items-center justify-center overflow-hidden border border-border">
+            {logoUrl ? (
+              <Image
+                src={logoUrl}
+                alt={clubName || "Club emblem"}
+                width={48}
+                height={48}
+                className="object-contain"
+              />
+            ) : (
+              <span className="text-xs text-muted-foreground">LOGO</span>
+            )}
+          </Link>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">CLUB</span>
+            <span className="text-xs sm:text-sm md:text-lg font-semibold leading-tight max-w-[8rem] xs:max-w-[10rem] sm:max-w-none truncate">
+              {clubName || "クラブ名未設定"}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-[11px] sm:text-xs md:text-sm">
+          {/* Mobile hamburger */}
+          <button
+            type="button"
+            className="sm:hidden px-2 py-1 rounded-md border border-border text-xs hover:bg-muted"
+            onClick={() => setMenuOpen((prev) => !prev)}
+          >
+            メニュー
+          </button>
+
+          {/* Desktop navigation */}
+          <nav className="hidden sm:flex items-center gap-2.5 sm:gap-4 md:gap-6">
+            <Link href={`/${clubId}/news`} className="hover:text-primary transition-colors">
+              ニュース
+            </Link>
+            <Link href={`/${clubId}/tv`} className="hover:text-primary transition-colors">
+              TV
+            </Link>
+            <Link href={`/${clubId}/results`} className="hover:text-primary transition-colors">
+              試合
+            </Link>
+            <Link href={`/${clubId}/table`} className="hover:text-primary transition-colors">
+              順位表
+            </Link>
+            <Link href={`/${clubId}/players`} className="hover:text-primary transition-colors">
+              スタッツ
+            </Link>
+            <Link href={`/${clubId}/players`} className="hover:text-primary transition-colors">
+              スカッド
+            </Link>
+          </nav>
+        </div>
+      </div>
+
+      {/* Mobile dropdown menu */}
+      {menuOpen && (
+        <div className="sm:hidden border-t border-border/60 bg-background/95 backdrop-blur">
+          <nav className="container mx-auto px-3 py-2 flex flex-col gap-1 text-xs">
+            <Link
+              href={`/${clubId}/news`}
+              className="py-1 hover:text-primary transition-colors"
+              onClick={() => setMenuOpen(false)}
+            >
+              ニュース
+            </Link>
+            <Link
+              href={`/${clubId}/tv`}
+              className="py-1 hover:text-primary transition-colors"
+              onClick={() => setMenuOpen(false)}
+            >
+              TV
+            </Link>
+            <Link
+              href={`/${clubId}/results`}
+              className="py-1 hover:text-primary transition-colors"
+              onClick={() => setMenuOpen(false)}
+            >
+              試合
+            </Link>
+            <Link
+              href={`/${clubId}/table`}
+              className="py-1 hover:text-primary transition-colors"
+              onClick={() => setMenuOpen(false)}
+            >
+              順位表
+            </Link>
+            <Link
+              href={`/${clubId}/players`}
+              className="py-1 hover:text-primary transition-colors"
+              onClick={() => setMenuOpen(false)}
+            >
+              スタッツ
+            </Link>
+            <Link
+              href={`/${clubId}/players`}
+              className="py-1 hover:text-primary transition-colors"
+              onClick={() => setMenuOpen(false)}
+            >
+              スカッド
+            </Link>
+          </nav>
+        </div>
+      )}
+    </header>
+  );
+}

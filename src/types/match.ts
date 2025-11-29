@@ -36,6 +36,7 @@ export interface PlayerStats {
   playerId: string;
   playerName: string;
   position: string;
+  teamId?: string;
   rating: number;
   minutesPlayed: number;
   goals: number;

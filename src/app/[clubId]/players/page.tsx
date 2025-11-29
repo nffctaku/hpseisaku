@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase/admin";
-import { notFound } from 'next/navigation';
-import { PlayerList } from './player-list';
+import { notFound } from "next/navigation";
+import { PlayerList } from "./player-list";
+import { ClubHeader } from "@/components/club-header";
 
 interface Player {
   id: string;
@@ -8,61 +9,112 @@ interface Player {
   number: number;
   position: string;
   photoUrl: string;
+  seasons?: string[];
+  isPublished?: boolean;
 }
 
-async function getPlayersData(clubId: string, season?: string): Promise<{ clubName: string, players: Player[], allSeasons: string[], activeSeason: string } | null> {
-  let clubProfileDoc: FirebaseFirestore.DocumentSnapshot | undefined;
+async function getPlayersData(
+  clubId: string,
+  season?: string
+): Promise<{
+  clubName: string;
+  logoUrl: string | null;
+  players: Player[];
+  allSeasons: string[];
+  activeSeason: string;
+} | null> {
+  // club_profiles から clubId に対応するオーナーUIDとクラブ名・ロゴを取得
+  let clubName = clubId;
+  let logoUrl: string | null = null;
+  let ownerUid: string | null = null;
 
-  // 1. Try to find the club profile by clubId field
-  const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId);
-  const profileSnap = await profilesQuery.get();
+  try {
+    const profilesQuery = db
+      .collection("club_profiles")
+      .where("clubId", "==", clubId);
+    const profileSnap = await profilesQuery.get();
 
-  if (!profileSnap.empty) {
-    clubProfileDoc = profileSnap.docs[0];
-  } else {
-    // 2. Fallback: Try to find by using clubId as the document ID
-    const directProfileRef = db.collection('club_profiles').doc(clubId);
-    const directProfileSnap = await directProfileRef.get();
-    if (directProfileSnap.exists) {
-      clubProfileDoc = directProfileSnap;
+    if (!profileSnap.empty) {
+      const doc = profileSnap.docs[0];
+      const data = doc.data() as any;
+      ownerUid = (data.ownerUid as string) || doc.id;
+      clubName = data.clubName || clubName;
+      logoUrl = data.logoUrl || null;
+    } else {
+      const directSnap = await db.collection("club_profiles").doc(clubId).get();
+      if (directSnap.exists) {
+        const data = directSnap.data() as any;
+        ownerUid = (data.ownerUid as string) || directSnap.id;
+        clubName = data.clubName || clubName;
+        logoUrl = data.logoUrl || null;
+      }
     }
+  } catch (e) {
+    console.error("Failed to load club profile for players page", e);
   }
 
-  if (!clubProfileDoc) {
-    return null; // Club not found
+  const baseClubDocId = ownerUid || clubId;
+
+  // シーズン一覧はまず clubs/{ownerUid}/seasons を見て、なければ clubs/{clubId}/seasons を見る
+  let seasonsSnap = await db.collection(`clubs/${baseClubDocId}/seasons`).get();
+  if (seasonsSnap.empty && baseClubDocId !== clubId) {
+    seasonsSnap = await db.collection(`clubs/${clubId}/seasons`).get();
+  }
+  const allSeasons = seasonsSnap
+    .docs
+    .map((doc) => doc.id)
+    .sort((a, b) => b.localeCompare(a));
+
+  const activeSeason = allSeasons.length
+    ? season && allSeasons.includes(season)
+      ? season
+      : allSeasons[0]
+    : "";
+
+  // 選手データもまず clubs/{ownerUid}/teams/*/players を見て、なければ clubs/{clubId}/teams を見る
+  let teamsSnap = await db.collection(`clubs/${baseClubDocId}/teams`).get();
+  if (teamsSnap.empty && baseClubDocId !== clubId) {
+    teamsSnap = await db.collection(`clubs/${clubId}/teams`).get();
+  }
+  const players: Player[] = [];
+
+  for (const teamDoc of teamsSnap.docs) {
+    const teamPlayersRef = teamDoc.ref.collection("players").orderBy("number", "asc");
+    const teamPlayersSnap = await teamPlayersRef.get();
+    teamPlayersSnap.docs.forEach((pDoc) => {
+      players.push({ id: pDoc.id, ...(pDoc.data() as any) } as Player);
+    });
   }
 
-  const profileData = clubProfileDoc.data()!;
-  const ownerUid = clubProfileDoc.id; // Use the document ID as ownerUid
-  const clubName = profileData.clubName || 'Unknown Club';
+  // シーズンでフィルタ（seasons 未設定 or 空配列は全シーズン所属として扱う）
+  let filteredPlayers = activeSeason
+    ? players.filter((p) => {
+        if (!p.seasons || p.seasons.length === 0) return true;
+        return p.seasons.includes(activeSeason);
+      })
+    : players;
 
-  if (!ownerUid) {
-    return null;
-  }
+  // HP非表示フラグ（isPublished === false）は一覧から除外
+  filteredPlayers = filteredPlayers.filter((p) => p.isPublished !== false);
 
-    // Get all seasons to display in the dropdown
-  const seasonsRef = db.collection(`clubs/${ownerUid}/seasons`).where('isPublic', '==', true);
-  const seasonsSnap = await seasonsRef.get();
-  const allSeasons = seasonsSnap.docs.map(doc => doc.id).sort((a, b) => b.localeCompare(a));
+  // 背番号でソート（重複しても一旦そのまま）
+  filteredPlayers.sort((a, b) => (a.number || 0) - (b.number || 0));
 
-  if (allSeasons.length === 0) {
-    return { clubName, players: [], allSeasons: [], activeSeason: '' };
-  }
-
-  const activeSeason = season && allSeasons.includes(season) ? season : allSeasons[0];
-
-  const playersRef = db.collection(`clubs/${ownerUid}/seasons/${activeSeason}/roster`).orderBy('number', 'asc');
-  const snapshot = await playersRef.get();
-  const players = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
-
-  return { clubName, players, allSeasons, activeSeason };
+  return { clubName, logoUrl, players: filteredPlayers, allSeasons, activeSeason };
 }
 
-export default async function PlayersPage({ params, searchParams }: { params: { clubId: string }, searchParams: { [key: string]: string | string[] | undefined } }) {
+export default async function PlayersPage({
+  params,
+  searchParams,
+}: {
+  params: { clubId: string };
+  searchParams: { [key: string]: string | string[] | undefined };
+}) {
   const { clubId } = params;
-  const season = typeof searchParams.season === 'string' ? searchParams.season : undefined;
+  const season =
+    typeof searchParams.season === "string" ? searchParams.season : undefined;
 
-  if (clubId === 'admin') {
+  if (clubId === "admin") {
     notFound();
   }
 
@@ -72,5 +124,18 @@ export default async function PlayersPage({ params, searchParams }: { params: { 
     notFound();
   }
 
-  return <PlayerList {...data} clubId={clubId} />;
+  const { clubName, logoUrl, players, allSeasons, activeSeason } = data;
+
+  return (
+    <>
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
+      <PlayerList
+        clubId={clubId}
+        clubName={clubName}
+        players={players}
+        allSeasons={allSeasons}
+        activeSeason={activeSeason}
+      />
+    </>
+  );
 }

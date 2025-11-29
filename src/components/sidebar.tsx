@@ -16,9 +16,8 @@ export function Sidebar() {
     { href: `/admin/news`, label: 'ニュース管理', icon: Newspaper, requiredClub: true },
     { href: `/admin/tv`, label: 'TV管理', icon: Tv, requiredClub: true },
     { href: `/admin/records`, label: 'チーム記録', icon: BarChart, requiredClub: true },
-    { href: `/admin/players`, label: '選手管理', icon: Users, requiredClub: true },
-    { href: `/admin/stats`, label: 'スタッツ管理', icon: BarChart, requiredClub: true },
     { href: `/admin/matches`, label: '試合管理', icon: Calendar, requiredClub: true },
+    { href: `/admin/players`, label: '選手管理', icon: Users, requiredClub: true },
     { href: `/admin/competitions`, label: '大会管理', icon: Trophy, requiredClub: true },
     { href: '/admin/teams', label: 'チーム登録', icon: Shield, requiredClub: false },
   ];

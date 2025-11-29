@@ -98,7 +98,7 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
   };
 
   return (
-    <Card className="mt-4">
+    <Card className="mt-4 bg-white text-gray-900">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>チーム別データ</CardTitle>
         <div className="flex items-center gap-4">
@@ -121,12 +121,16 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
             const isPossession = field.id === 'possession' || field.id === 'passAccuracy';
 
             return (
-              <div key={field.id} className="grid grid-cols-3 items-center gap-4">
+              <div key={field.id} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-4">
                 <Controller
                   name={`teamStats.${index}.homeValue`}
                   control={form.control}
                   render={({ field }) => (
-                    <Input {...field} type="text" className={`text-center font-bold text-lg ${homeVal > awayVal ? 'bg-red-500/80 text-white' : ''}`} />
+                    <Input
+                      {...field}
+                      type="text"
+                      className={`text-center font-bold text-lg bg-white text-gray-900 ${homeVal > awayVal ? 'bg-red-500/80 text-white' : ''}`}
+                    />
                   )}
                 />
                 
@@ -137,7 +141,13 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
                   <Controller
                     name={`teamStats.${index}.name`}
                     control={form.control}
-                    render={({ field }) => <Input {...field} placeholder="項目名" className="text-center text-sm" />}
+                    render={({ field }) => (
+                      <Input
+                        {...field}
+                        placeholder="項目名"
+                        className="text-center text-sm bg-white text-gray-900"
+                      />
+                    )}
                   />
                 )}
                 </div>
@@ -146,9 +156,26 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
                   name={`teamStats.${index}.awayValue`}
                   control={form.control}
                   render={({ field }) => (
-                    <Input {...field} type="text" className={`text-center font-bold text-lg ${awayVal > homeVal ? 'bg-red-500/80 text-white' : ''}`} />
+                    <Input
+                      {...field}
+                      type="text"
+                      className={`text-center font-bold text-lg bg-white text-gray-900 ${awayVal > homeVal ? 'bg-red-500/80 text-white' : ''}`}
+                    />
                   )}
                 />
+
+                <div className="flex items-center justify-center">
+                  {!isDefault && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => remove(index)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })}

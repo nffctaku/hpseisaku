@@ -1,12 +1,11 @@
 "use client";
 
-"use client";
-
 import { useState, ReactNode } from 'react';
 import { Sidebar } from '@/components/sidebar';
 import { Header } from '@/components/header';
 import { useAuth } from '@/contexts/AuthContext';
 import { ClubProvider, useClub } from '@/contexts/ClubContext';
+import { AuthButton } from '@/components/auth-button';
 
 function AdminLayoutContent({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -14,6 +13,23 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   const { clubInfo } = useClub();
   
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  // 未ログイン時は、管理画面の代わりにログイン画面を表示
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white px-4">
+        <div className="max-w-sm w-full text-center space-y-4">
+          <h1 className="text-2xl font-bold">ログインまたは新規作成</h1>
+          <p className="text-sm text-gray-300">
+            Googleアカウントでログインすると、この画面からクラブや大会の管理を始められます。
+          </p>
+          <div className="flex justify-center mt-4">
+            <AuthButton />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">

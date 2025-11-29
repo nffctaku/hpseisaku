@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import Image from 'next/image';
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { ClubEmblemUploader } from "@/components/club-emblem-uploader";
 
 // NOTE: This is largely a copy of the new page, but adapted for editing.
 // It does not support changing the competition format or re-generating rounds after creation.
@@ -31,6 +32,7 @@ const formSchema = z.object({
   name: z.string().min(1, "大会名は必須です。"),
   season: z.string().min(1, "シーズンを選択してください。"),
   teams: z.array(z.string()).min(1, "最低1チームは選択してください。"),
+  logoUrl: z.string().url().optional().or(z.literal('')),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -56,6 +58,7 @@ export default function EditCompetitionPage() {
       name: "",
       season: "",
       teams: [],
+      logoUrl: "",
     },
   });
 
@@ -80,6 +83,7 @@ export default function EditCompetitionPage() {
             name: data.name,
             season: data.season,
             teams: data.teams || [],
+            logoUrl: data.logoUrl || "",
           });
         } else {
           toast.error("大会が見つかりません。");
@@ -104,6 +108,7 @@ export default function EditCompetitionPage() {
         name: data.name,
         season: data.season,
         teams: data.teams, // Save array of team IDs
+        logoUrl: data.logoUrl || null,
       });
       toast.success("大会情報が更新されました。");
       router.push("/admin/competitions");
@@ -121,21 +126,30 @@ export default function EditCompetitionPage() {
 
   return (
     <div className="container mx-auto py-10 max-w-2xl">
-      <h1 className="text-3xl font-bold mb-8">大会を編集</h1>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>大会名</FormLabel>
-                <FormControl><Input {...field} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
+      <h1 className="text-3xl font-bold mb-8 text-white">大会を編集</h1>
+      <div className="bg-white text-gray-900 rounded-lg shadow p-8 space-y-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <FormField
+              control={form.control}
+              name="logoUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>大会ロゴ</FormLabel>
+                  <FormControl>
+                    <ClubEmblemUploader
+                      value={field.value || ''}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    大会ごとのロゴ画像を設定できます（任意）。
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
             control={form.control}
             name="season"
             render={({ field }) => (
@@ -157,8 +171,8 @@ export default function EditCompetitionPage() {
               </FormItem>
             )}
           />
-          
-          <FormField
+            
+            <FormField
             control={form.control}
             name="teams"
             render={() => (
@@ -216,12 +230,13 @@ export default function EditCompetitionPage() {
             )}
           />
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            更新する
-          </Button>
-        </form>
-      </Form>
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              更新する
+            </Button>
+          </form>
+        </Form>
+      </div>
     </div>
   );
 }

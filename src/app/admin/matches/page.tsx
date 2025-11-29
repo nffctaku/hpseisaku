@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, query, getDocs, collectionGroup, doc, getDoc } from "firebase/firestore";
+import { collection, query, getDocs } from "firebase/firestore";
 import { format, isToday, isYesterday, isTomorrow, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { Loader2, FilePenLine } from "lucide-react";
@@ -17,6 +17,12 @@ interface Team {
   id: string;
   name: string;
   logoUrl?: string;
+}
+
+interface CompetitionOption {
+  id: string;
+  name: string;
+  season?: string;
 }
 
 interface EnrichedMatch {
@@ -41,7 +47,9 @@ export default function MatchesPage() {
   const { user } = useAuth();
   const [allMatches, setAllMatches] = useState<EnrichedMatch[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [competitions, setCompetitions] = useState<CompetitionOption[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
+  const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [upcomingMatchId, setUpcomingMatchId] = useState<string | null>(null);
 
@@ -56,14 +64,22 @@ export default function MatchesPage() {
       try {
         // 1. Fetch all teams into a single map
         const teamsMap = new Map<string, Team>();
-        const teamsQuery = query(collection(db, `clubs/${user.uid}/teams`));
-        const teamsSnap = await getDocs(teamsQuery);
+        const teamsQueryRef = query(collection(db, `clubs/${user.uid}/teams`));
+        const teamsSnap = await getDocs(teamsQueryRef);
         teamsSnap.forEach(doc => teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as Team));
 
         // 2. Fetch all competitions, rounds, and matches
         const enrichedMatches: EnrichedMatch[] = [];
-        const competitionsQuery = query(collection(db, `clubs/${user.uid}/competitions`));
-        const competitionsSnap = await getDocs(competitionsQuery);
+        const competitionsQueryRef = query(collection(db, `clubs/${user.uid}/competitions`));
+        const competitionsSnap = await getDocs(competitionsQueryRef);
+
+        const competitionOptions: CompetitionOption[] = competitionsSnap.docs.map(doc => ({
+          id: doc.id,
+          name: (doc.data().name as string) || doc.id,
+          season: doc.data().season as string | undefined,
+        }));
+        competitionOptions.sort((a, b) => a.name.localeCompare(b.name));
+        setCompetitions(competitionOptions);
 
         for (const compDoc of competitionsSnap.docs) {
           const competitionData = compDoc.data();
@@ -147,7 +163,8 @@ export default function MatchesPage() {
   };
 
   const filteredMatches = allMatches.filter(match => 
-    selectedTeamId === 'all' || match.homeTeamId === selectedTeamId || match.awayTeamId === selectedTeamId
+    (selectedTeamId === 'all' || match.homeTeamId === selectedTeamId || match.awayTeamId === selectedTeamId) &&
+    (selectedCompetitionId === 'all' || match.competitionId === selectedCompetitionId)
   );
 
   const groupedMatches = filteredMatches.reduce((acc, match) => {
@@ -168,9 +185,23 @@ export default function MatchesPage() {
     <div className="container mx-auto py-10 px-4 md:px-0">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">試合日程・結果</h1>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4">
+          <Select value={selectedCompetitionId} onValueChange={setSelectedCompetitionId}>
+            <SelectTrigger className="w-[260px] bg-white text-gray-900">
+              <SelectValue placeholder="大会を選択" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">すべての大会</SelectItem>
+              {competitions.map(comp => (
+                <SelectItem key={comp.id} value={comp.id}>
+                  {comp.season ? `${comp.name} (${comp.season})` : comp.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-            <SelectTrigger className="w-[280px]">
+            <SelectTrigger className="w-[260px] bg-white text-gray-900">
               <SelectValue placeholder="チームを選択" />
             </SelectTrigger>
             <SelectContent>
@@ -185,8 +216,9 @@ export default function MatchesPage() {
               ))}
             </SelectContent>
           </Select>
-          <Link href="/admin/matches/new" className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md whitespace-nowrap">
-            新しい試合を追加
+
+          <Link href="/admin/competitions" className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md whitespace-nowrap text-center">
+            大会管理へ
           </Link>
         </div>
       </div>

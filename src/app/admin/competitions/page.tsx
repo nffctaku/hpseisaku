@@ -71,31 +71,49 @@ export default function CompetitionsPage() {
   return (
     <div className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">大会管理</h1>
+        <h1 className="text-3xl font-bold text-white">大会管理</h1>
         <Link href="/admin/competitions/new">
-          <Button>新規大会を追加</Button>
+          <Button variant="outline" className="bg-white text-gray-900 hover:bg-gray-100">
+            新規大会を追加
+          </Button>
         </Link>
       </div>
-      <div className="bg-card border rounded-lg">
-        <div className="divide-y">
-          {competitions.map(comp => (
-            <div key={comp.id} className="p-4 flex justify-between items-center">
-              <Link href={`/admin/competitions/${comp.id}`} className="hover:underline">
-                <span className="font-medium">{comp.name}</span>
-                <span className="text-sm text-muted-foreground ml-2">({comp.season})</span>
-              </Link>
-              <div className="flex items-center gap-2">
-                <Link href={`/admin/competitions/${comp.id}`}>
-                  <Button variant="outline" size="icon"><CalendarDays className="h-4 w-4" /></Button>
+      <div className="bg-white text-gray-900 border rounded-lg">
+        {competitions.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="mb-4">まだ大会が登録されていません。</p>
+            <Link href="/admin/competitions/new">
+              <Button>最初の大会を作成する</Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {competitions.map(comp => (
+              <div key={comp.id} className="p-4 flex justify-between items-center">
+                <Link href={`/admin/competitions/${comp.id}`} className="hover:underline">
+                  <span className="font-medium">{comp.name}</span>
+                  <span className="text-sm text-muted-foreground ml-2">({comp.season})</span>
                 </Link>
-                <Link href={`/admin/competitions/${comp.id}/edit`}>
-                  <Button variant="outline" size="icon"><Pencil className="h-4 w-4" /></Button>
-                </Link>
-                <Button variant="destructive" size="icon" onClick={() => setDeletingCompetition(comp)}><Trash2 className="h-4 w-4" /></Button>
+                <div className="flex items-center gap-2">
+                  <Link href={`/admin/competitions/${comp.id}`}>
+                    <Button variant="outline" size="icon"><CalendarDays className="h-4 w-4" /></Button>
+                  </Link>
+                  <Link href={`/admin/competitions/${comp.id}/edit`}>
+                    <Button variant="outline" size="icon"><Pencil className="h-4 w-4" /></Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="border-red-500 text-red-500 hover:bg-red-50"
+                    onClick={() => setDeletingCompetition(comp)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
 

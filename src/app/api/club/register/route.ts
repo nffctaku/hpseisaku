@@ -3,9 +3,10 @@ import { db } from '@/lib/firebase/admin';
 
 export async function POST(request: Request) {
   try {
-    const { clubId, clubName, ownerUid } = await request.json();
+    const { clubId, ownerUid } = await request.json();
 
-    if (!clubId || !clubName || !ownerUid) {
+    // UI 側ではクラブIDのみ入力する仕様になったため、必須項目は clubId と ownerUid のみ
+    if (!clubId || !ownerUid) {
       return new NextResponse(JSON.stringify({ message: '必須項目が不足しています。' }), { status: 400 });
     }
 
@@ -33,7 +34,6 @@ export async function POST(request: Request) {
     const newClubRef = db.collection('club_profiles').doc();
     await newClubRef.set({
       clubId,
-      clubName,
       ownerUid,
       createdAt: new Date(),
     });

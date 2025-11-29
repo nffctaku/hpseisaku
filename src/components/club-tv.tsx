@@ -9,9 +9,10 @@ interface Video {
 
 interface ClubTvProps {
   videos: Video[];
+  clubId?: string;
 }
 
-export function ClubTv({ videos }: ClubTvProps) {
+export function ClubTv({ videos, clubId }: ClubTvProps) {
   const latestVideo = videos?.[0];
   const otherVideos = videos?.slice(1);
 
@@ -19,7 +20,7 @@ export function ClubTv({ videos }: ClubTvProps) {
     <div className="bg-card p-4 md:p-6 rounded-lg">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl md:text-2xl font-bold">CLUB TV</h2>
-        <Link href="/tv" className="text-sm text-primary hover:underline">
+        <Link href={clubId ? `/${clubId}/tv` : "/tv"} className="text-sm text-primary hover:underline">
           すべての動画を見る
         </Link>
       </div>

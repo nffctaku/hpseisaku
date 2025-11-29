@@ -50,11 +50,14 @@ export function PlayersDataTable<TData, TValue>({
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
+            <Button
+              variant="outline"
+              className="ml-auto bg-white text-gray-900 border border-border hover:bg-gray-100"
+            >
               表示列
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="bg-white text-gray-900">
             {table
               .getAllColumns()
               .filter(
@@ -125,6 +128,7 @@ export function PlayersDataTable<TData, TValue>({
         <Button
           variant="outline"
           size="sm"
+          className="bg-white text-gray-900 border border-border hover:bg-gray-100"
           onClick={() => table.previousPage()}
           disabled={!table.getCanPreviousPage()}
         >
@@ -133,6 +137,7 @@ export function PlayersDataTable<TData, TValue>({
         <Button
           variant="outline"
           size="sm"
+          className="bg-white text-gray-900 border border-border hover:bg-gray-100"
           onClick={() => table.nextPage()}
           disabled={!table.getCanNextPage()}
         >

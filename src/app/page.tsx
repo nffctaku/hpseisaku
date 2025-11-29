@@ -1,75 +1,68 @@
-import { db } from "@/lib/firebase/admin"; // Use admin SDK for server-side fetching
-import Link from 'next/link';
-import Image from 'next/image';
-import { MatchSchedule } from '@/components/match-schedule';
+"use client";
 
-interface ClubProfile {
-  id: string;
-  clubName: string;
-  emblemUrl?: string;
-}
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
-async function getClubs(): Promise<ClubProfile[]> {
-  const clubsRef = db.collection("club_profiles");
-  const querySnapshot = await clubsRef.get();
-  
-  if (querySnapshot.empty) {
-    return [];
-  }
+export default function LandingPage() {
+  const router = useRouter();
+  const { user } = useAuth();
 
-  return querySnapshot.docs.map(doc => ({
-    id: doc.id,
-    clubName: doc.data().clubName,
-    emblemUrl: doc.data().emblemUrl,
-  }));
-}
-
-export default async function ClubsPage() {
-  const clubs = await getClubs();
+  const handleViewClub = () => {
+    const clubId = user?.clubId;
+    if (clubId) {
+      router.push(`/${clubId}`);
+    } else {
+      // まだクラブプロフィールがないユーザーは、管理画面（チーム/クラブ設定）からスタート
+      router.push("/admin/competitions");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-    <main className="container mx-auto px-4 py-8 flex-grow">
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold tracking-tight">クラブを探す</h1>
-        <p className="mt-2 text-lg text-muted-foreground">お気に入りのクラブを見つけて、ホームページをチェックしよう。</p>
-      </div>
+      <header className="w-full bg-gray-900 text-white flex items-center justify-between px-4 py-3">
+        <div className="text-xl font-bold tracking-tight">CLUB APP</div>
+        <Link
+          href="/admin/competitions"
+          className="text-sm px-3 py-1 rounded-md border border-white/30 hover:bg-white hover:text-gray-900 transition-colors"
+        >
+          管理画面へ
+        </Link>
+      </header>
 
-      {clubs.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          {clubs.map((club) => (
-            <Link href={`/${club.id}`} key={club.id} className="group block">
-              <div className="aspect-square bg-card rounded-lg border shadow-sm transition-all duration-300 ease-in-out group-hover:shadow-md group-hover:-translate-y-1">
-                <div className="relative h-full w-full flex items-center justify-center p-4">
-                  <Image
-                    src={club.emblemUrl || '/placeholder-emblem.svg'}
-                    alt={`${club.clubName} Emblem`}
-                    width={128}
-                    height={128}
-                    className="object-contain h-32 w-32 transition-transform duration-300 group-hover:scale-110"
-                  />
-                </div>
-              </div>
-              <h2 className="mt-3 text-lg font-semibold text-center truncate">{club.clubName}</h2>
+      <main className="flex-grow flex items-center justify-center px-4">
+        <div className="max-w-xl w-full text-center space-y-8 py-12">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+              クラブ運営オールインワン
+            </h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
+              試合結果・スタッツ・ニュース・動画をひとつの場所で管理し、そのままクラブ公式サイトとして公開できます。
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              type="button"
+              onClick={handleViewClub}
+              className="inline-flex items-center justify-center px-6 py-3 rounded-md bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-colors"
+            >
+              クラブHPを見る
+            </button>
+            <Link
+              href="/admin/competitions"
+              className="inline-flex items-center justify-center px-6 py-3 rounded-md border border-input bg-background hover:bg-muted font-semibold text-sm"
+            >
+              ログインして管理する
             </Link>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-16 border-2 border-dashed rounded-lg">
-          <p className="text-muted-foreground">まだ登録されているクラブがありません。</p>
-          <p className="mt-2">最初のクラブを登録しませんか？</p>
-        </div>
-      )}
+          </div>
 
-      <div className="mt-16">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold tracking-tight">試合日程</h2>
-          <p className="mt-2 text-lg text-muted-foreground">最新の試合情報をチェックしよう。</p>
+          <p className="text-xs text-muted-foreground">
+            ※ ログインしている場合は自分のクラブページへ、未設定の場合はチーム管理画面へ移動します。
+          </p>
         </div>
-        <MatchSchedule />
-      </div>
+      </main>
 
-    </main>
       <footer className="p-4 md:p-6 text-center text-muted-foreground text-sm">
         <div className="flex justify-center items-center space-x-6 mb-4">
           <Link href="/terms" className="hover:text-primary transition-colors">

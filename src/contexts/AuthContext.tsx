@@ -11,6 +11,7 @@ export interface UserProfile extends User {
   clubId?: string;
   clubName?: string;
   logoUrl?: string;
+  layoutType?: string;
 }
 
 interface AuthContextType {
@@ -35,20 +36,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
 
   const fetchUserProfile = async (authUser: User) => {
+    console.log('[AuthContext] fetchUserProfile start', { uid: authUser.uid });
     const q = query(collection(db, 'club_profiles'), where('ownerUid', '==', authUser.uid));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
       const profileData = querySnapshot.docs[0].data();
       setUser({ ...authUser, ...profileData } as UserProfile);
       setClubProfileExists(true);
+      console.log('[AuthContext] profile found, user set', { uid: authUser.uid, profileData });
     } else {
       setUser(authUser as UserProfile);
       setClubProfileExists(false);
+      console.log('[AuthContext] no profile, using authUser only', { uid: authUser.uid });
     }
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      console.log('[AuthContext] onAuthStateChanged triggered', { authUser });
       if (authUser) {
         setLoading(true);
         await fetchUserProfile(authUser);
@@ -57,6 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         setClubProfileExists(false);
         setLoading(false);
+        console.log('[AuthContext] no authUser, signed out');
       }
     });
     return () => unsubscribe();

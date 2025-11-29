@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       return new NextResponse(JSON.stringify({ message: '認証されていません。' }), { status: 401 });
     }
 
-    const { clubName, logoUrl } = await request.json();
+    const { clubName, logoUrl, layoutType, mainTeamId, sponsors, snsLinks, legalPages } = await request.json();
 
     if (!clubName) {
       return new NextResponse(JSON.stringify({ message: 'クラブ名は必須です。' }), { status: 400 });
@@ -41,10 +41,36 @@ export async function POST(request: Request) {
     }
 
     const clubDocRef = querySnapshot.docs[0].ref;
-    await clubDocRef.update({
+
+    const updateData: Record<string, any> = {
       clubName,
       logoUrl: logoUrl || null, // URLが空の場合はnullを保存
-    });
+    };
+
+    if (typeof layoutType === 'string' && layoutType.length > 0) {
+      updateData.layoutType = layoutType;
+    }
+
+    if (typeof mainTeamId === 'string' && mainTeamId.length > 0) {
+      updateData.mainTeamId = mainTeamId;
+    }
+
+    // スポンサー情報（画像URLとリンク先URLの配列）
+    if (Array.isArray(sponsors)) {
+      updateData.sponsors = sponsors;
+    }
+
+    // SNSリンク（X, YouTube, TikTok, Instagram）
+    if (snsLinks && typeof snsLinks === 'object') {
+      updateData.snsLinks = snsLinks;
+    }
+
+    // テキストページ（プライバシーポリシー等）最大3件想定
+    if (Array.isArray(legalPages)) {
+      updateData.legalPages = legalPages;
+    }
+
+    await clubDocRef.update(updateData);
 
     return new NextResponse(JSON.stringify({ message: 'クラブ情報が正常に更新されました。' }), { status: 200 });
 

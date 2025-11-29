@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase/admin";
 import { notFound } from 'next/navigation';
 import { MatchList } from '@/components/match-list';
+import { ClubHeader } from '@/components/club-header';
 
 // This interface should be defined or imported if it's not already global.
 // For now, we'll define a basic structure.
@@ -29,9 +30,11 @@ async function getMatchesForClub(clubId: string) {
     if (profilesSnap.empty) {
         return null;
     }
-    const profileData = profilesSnap.docs[0].data();
-    const ownerUid = profileData.ownerUid;
+    const profileData = profilesSnap.docs[0].data() as any;
+    const ownerUid = profileData.ownerUid as string | undefined;
     const clubName = profileData.clubName || 'Unknown Club';
+    const logoUrl = profileData.logoUrl || null;
+    const mainTeamId = profileData.mainTeamId as string | undefined;
     if (!ownerUid) {
         return null;
     }
@@ -86,15 +89,15 @@ async function getMatchesForClub(clubId: string) {
     // 4. Sort all matches by date
     enrichedMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
 
-    return { matches: enrichedMatches, clubName, ownerUid };
+    return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId };
 }
 
-interface ResultsPageProps {
+export default async function ResultsPage({
+  params,
+}: {
   params: { clubId: string };
-}
-
-export default async function ResultsPage({ params }: ResultsPageProps) {
-    const clubId = params.clubId;
+}) {
+    const { clubId } = params; // public slug
 
     if (clubId === 'admin') {
         notFound();
@@ -106,13 +109,17 @@ export default async function ResultsPage({ params }: ResultsPageProps) {
         notFound();
     }
 
-    const { matches, clubName, ownerUid } = data;
+    const { matches, clubName, ownerUid, logoUrl, mainTeamId } = data as any;
 
     return (
-        <MatchList 
+        <>
+          <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
+          <MatchList 
             allMatches={matches} 
-            clubId={ownerUid} // Pass the internal team ID (ownerUid) for filtering
+            clubId={mainTeamId || ownerUid} // 自チーム判定にはメインチームIDを優先
+            clubSlug={clubId} // public clubId slug for URLs
             clubName={clubName} 
-        />
+          />
+        </>
     );
 }

@@ -24,3 +24,16 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Admin用セレクトのドロップダウンを常に白背景＋黒文字にする */
+[data-slot="select-content"],
+[data-slot="select-content"] [data-slot="select-item"],
+[data-slot="select-item"] {
+  background-color: #ffffff !important;
+  color: #111827 !important; /* gray-900 相当 */
+}
+
+[data-slot="select-item"]:hover,
+[data-slot="select-item"][data-state="checked"] {
+  background-color: #f3f4f6 !important; /* gray-100 相当 */
+}

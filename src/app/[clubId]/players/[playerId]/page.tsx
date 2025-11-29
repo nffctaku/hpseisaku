@@ -1,7 +1,7 @@
 import { db } from "@/lib/firebase/admin";
-import { notFound } from 'next/navigation';
-import Image from 'next/image';
-import Link from 'next/link';
+import { notFound } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
 
 interface PlayerPageProps {
   params: { clubId: string; playerId: string };
@@ -62,42 +62,60 @@ async function getPlayerStats(ownerUid: string, playerId: string): Promise<Playe
   return aggregatedStats;
 }
 
-async function getPlayer(clubId: string, playerId: string): Promise<{ clubName: string, player: PlayerData, ownerUid: string } | null> {
-  let clubProfileDoc: FirebaseFirestore.DocumentSnapshot | undefined;
+async function getPlayer(
+  clubId: string,
+  playerId: string
+): Promise<{ clubName: string; player: PlayerData; ownerUid: string } | null> {
+  let clubName = clubId;
+  let ownerUid: string | null = null;
 
-  // 1. Try to find the club profile by clubId field
-  const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId);
+  // club_profiles から ownerUid と clubName を取得
+  const profilesQuery = db
+    .collection("club_profiles")
+    .where("clubId", "==", clubId);
   const profileSnap = await profilesQuery.get();
 
   if (!profileSnap.empty) {
-    clubProfileDoc = profileSnap.docs[0];
+    const doc = profileSnap.docs[0];
+    const data = doc.data() as any;
+    ownerUid = (data.ownerUid as string) || doc.id;
+    clubName = data.clubName || clubName;
   } else {
-    // 2. Fallback: Try to find by using clubId as the document ID
-    const directProfileRef = db.collection('club_profiles').doc(clubId);
-    const directProfileSnap = await directProfileRef.get();
-    if (directProfileSnap.exists) {
-      clubProfileDoc = directProfileSnap;
+    const directSnap = await db.collection("club_profiles").doc(clubId).get();
+    if (directSnap.exists) {
+      const data = directSnap.data() as any;
+      ownerUid = (data.ownerUid as string) || directSnap.id;
+      clubName = data.clubName || clubName;
     }
   }
 
-  if (!clubProfileDoc) {
-    return null; // Club not found
+  if (!ownerUid) {
+    return null;
   }
 
-  const ownerUid = clubProfileDoc.id; // Use the document ID as ownerUid
-  const clubName = clubProfileDoc.data()!.clubName;
-  const playerRef = db.collection(`clubs/${ownerUid}/players`).doc(playerId);
-  const playerSnap = await playerRef.get();
-
-  if (!playerSnap.exists) {
-    return null; // Player not found
+  // 管理画面と同様に、全チームの players サブコレクションから選手を探す
+  const teamsSnap = await db.collection(`clubs/${ownerUid}/teams`).get();
+  for (const teamDoc of teamsSnap.docs) {
+    const playerDocRef = teamDoc.ref.collection("players").doc(playerId);
+    const playerSnap = await playerDocRef.get();
+    if (playerSnap.exists) {
+      return {
+        clubName,
+        player: playerSnap.data() as PlayerData,
+        ownerUid,
+      };
+    }
   }
 
-  return { clubName, player: playerSnap.data() as PlayerData, ownerUid };
+  return null;
 }
 
-export default async function PlayerPage({ params }: { params: Promise<{ clubId: string; playerId: string }> }) {
-  const { clubId, playerId } = await params;
+export default async function PlayerPage({
+  params,
+}: {
+  params: { clubId: string; playerId: string };
+}) {
+  const { clubId, playerId } = params;
   const result = await getPlayer(clubId, playerId);
 
   if (!result) {

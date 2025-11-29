@@ -34,7 +34,7 @@ export function Hero({ news }: HeroProps) {
                   src={item.imageUrl}
                   alt={item.title}
                   fill
-                  className="object-cover"
+                  className="object-cover object-[center_top]"
                   priority={index === 0}
                 />
               ) : (

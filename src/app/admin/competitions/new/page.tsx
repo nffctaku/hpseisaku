@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import Image from 'next/image';
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { ClubEmblemUploader } from "@/components/club-emblem-uploader";
 
 // Generate a list of seasons from 1960/61 to 2050/51
 const seasons = Array.from({ length: 91 }, (_, i) => {
@@ -32,6 +33,7 @@ const formSchema = z.object({
   leagueRounds: z.coerce.number().int().positive("1以上の数値を入力してください。").optional(),
   cupRounds: z.array(z.object({ name: z.string().min(1, "回戦名は必須です。") })).optional(),
   teams: z.array(z.string()).min(1, "最低1チームは選択してください。"),
+  logoUrl: z.string().url().optional().or(z.literal('')),
 }).refine(data => {
   if (data.format === 'league' || data.format === 'league_cup') {
     return !!data.leagueRounds && data.leagueRounds > 0;
@@ -72,6 +74,7 @@ export default function NewCompetitionPage() {
       format: "league",
       cupRounds: [],
       teams: [],
+      logoUrl: "",
     },
   });
 
@@ -109,6 +112,7 @@ export default function NewCompetitionPage() {
         season: data.season,
         format: data.format,
         teams: data.teams, // Save array of team IDs
+        logoUrl: data.logoUrl || null,
       });
 
       const batch = writeBatch(db);
@@ -141,10 +145,30 @@ export default function NewCompetitionPage() {
 
   return (
     <div className="container mx-auto py-10 max-w-2xl">
-      <h1 className="text-3xl font-bold mb-8">新規大会登録</h1>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <FormField
+      <h1 className="text-3xl font-bold mb-8 text-white">新規大会登録</h1>
+      <div className="bg-white text-gray-900 rounded-lg shadow p-8 space-y-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <FormField
+            control={form.control}
+            name="logoUrl"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>大会ロゴ</FormLabel>
+                <FormControl>
+                  <ClubEmblemUploader
+                    value={field.value || ''}
+                    onChange={field.onChange}
+                  />
+                </FormControl>
+                <FormDescription>
+                  大会ごとのロゴ画像を設定できます（任意）。
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+            <FormField
             control={form.control}
             name="name"
             render={({ field }) => (
@@ -155,7 +179,7 @@ export default function NewCompetitionPage() {
               </FormItem>
             )}
           />
-          <FormField
+            <FormField
             control={form.control}
             name="season"
             render={({ field }) => (
@@ -177,7 +201,7 @@ export default function NewCompetitionPage() {
               </FormItem>
             )}
           />
-          <FormField
+            <FormField
             control={form.control}
             name="format"
             render={({ field }) => (
@@ -204,8 +228,8 @@ export default function NewCompetitionPage() {
             )}
           />
 
-          {(selectedFormat === 'league' || selectedFormat === 'league_cup') && (
-            <FormField
+            {(selectedFormat === 'league' || selectedFormat === 'league_cup') && (
+              <FormField
               control={form.control}
               name="leagueRounds"
               render={({ field }) => (
@@ -215,11 +239,11 @@ export default function NewCompetitionPage() {
                   <FormMessage />
                 </FormItem>
               )}
-            />
-          )}
+              />
+            )}
 
-          {(selectedFormat === 'cup' || selectedFormat === 'league_cup') && (
-            <div className="space-y-4">
+            {(selectedFormat === 'cup' || selectedFormat === 'league_cup') && (
+              <div className="space-y-4">
               <FormLabel>回戦名</FormLabel>
               {cupRoundFields.map((field, index) => (
                 <div key={field.id} className="flex items-center gap-2">
@@ -238,14 +262,14 @@ export default function NewCompetitionPage() {
                   </Button>
                 </div>
               ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => appendCupRound({ name: "" })}>
+                <Button type="button" variant="outline" size="sm" onClick={() => appendCupRound({ name: "" })}>
                 <Plus className="mr-2 h-4 w-4" />
                 回戦を追加
               </Button>
-            </div>
-          )}
+              </div>
+            )}
 
-          <FormField
+            <FormField
             control={form.control}
             name="teams"
             render={() => (
@@ -303,12 +327,13 @@ export default function NewCompetitionPage() {
             )}
           />
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            大会を作成する
-          </Button>
-        </form>
-      </Form>
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              大会を作成する
+            </Button>
+          </form>
+        </Form>
+      </div>
     </div>
   );
 }

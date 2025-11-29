@@ -1,219 +1,401 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { ClubRecord, CompetitionForRecord } from '@/types/record';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { collection, getDocs, query } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { PlusCircle, Edit, Trash2, Check, ChevronsUpDown } from 'lucide-react';
-import { toast } from 'sonner';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2 } from 'lucide-react';
+import { TeamStat } from '@/types/match';
 
-const recordSchema = z.object({
-  competition: z.object({
-    id: z.string(),
-    name: z.string().min(1, '大会名は必須です。'),
-    logoUrl: z.string().optional(),
-  }),
-  result: z.string().min(1, '結果は必須です。'),
-});
-
-interface RecordManagementProps {
-  season: string;
+interface TeamOption {
+  id: string;
+  name: string;
 }
 
-export function RecordManagement({ season }: RecordManagementProps) {
-  const { user } = useAuth();
-  const [records, setRecords] = useState<ClubRecord[]>([]);
-  const [competitions, setCompetitions] = useState<CompetitionForRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-  const [comboboxInputValue, setComboboxInputValue] = useState('');
-  const [editingRecord, setEditingRecord] = useState<ClubRecord | null>(null);
+interface CompetitionDoc {
+  id: string;
+  name: string;
+  season?: string;
+}
 
-  const form = useForm<z.infer<typeof recordSchema>>({
-    resolver: zodResolver(recordSchema),
-  });
+interface MatchForRecords {
+  id: string;
+  competitionId: string;
+  competitionName: string;
+  competitionSeason?: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  matchDate: string;
+  scoreHome?: number | null;
+  scoreAway?: number | null;
+  teamStats?: TeamStat[];
+}
+
+interface CompetitionRecordRow {
+  competitionId: string;
+  competitionName: string;
+  competitionSeason?: string;
+  matches: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  shots?: number;
+  shotsOnTarget?: number;
+  possessionAvg?: number;
+}
+
+export function RecordManagement() {
+  const { user } = useAuth();
+  const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('');
+  const [seasons, setSeasons] = useState<string[]>([]);
+  const [selectedSeason, setSelectedSeason] = useState<string>('all');
+  const [competitions, setCompetitions] = useState<CompetitionDoc[]>([]);
+  const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>('all');
+  const [matches, setMatches] = useState<MatchForRecords[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    if (!user) return;
-    // Fetch competitions
-    const compsColRef = collection(db, `clubs/${user.uid}/competitions`);
-    const compsUnsub = onSnapshot(compsColRef, (snapshot) => {
-      const compsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CompetitionForRecord));
-      setCompetitions(compsData);
-    });
-
-    // Fetch records for the selected season
-    const recordsColRef = collection(db, `clubs/${user.uid}/records`);
-    const q = query(recordsColRef, where('season', '==', season));
-    const recordsUnsub = onSnapshot(q, (snapshot) => {
-      const recordsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClubRecord));
-      setRecords(recordsData);
+    if (!user) {
       setLoading(false);
-    });
-
-    return () => {
-      compsUnsub();
-      recordsUnsub();
-    };
-  }, [user, season]);
-
-  const handleDialogOpen = (record: ClubRecord | null = null) => {
-    setEditingRecord(record);
-    if (record) {
-      form.reset(record);
-    } else {
-      form.reset({ competition: { id: '', name: '' }, result: '' });
+      return;
     }
-    setIsDialogOpen(true);
-  };
 
-  const onSubmit = async (values: z.infer<typeof recordSchema>) => {
-    if (!user) return;
-    try {
-      const dataToSave = { ...values, season };
-      if (editingRecord) {
-        const recordDocRef = doc(db, `clubs/${user.uid}/records`, editingRecord.id);
-        await updateDoc(recordDocRef, dataToSave);
-        toast.success('記録を更新しました。');
-      } else {
-        const recordsColRef = collection(db, `clubs/${user.uid}/records`);
-        await addDoc(recordsColRef, dataToSave);
-        toast.success('記録を追加しました。');
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // 1. Fetch teams for the club
+        const teamsQueryRef = query(collection(db, `clubs/${user.uid}/teams`));
+        const teamsSnap = await getDocs(teamsQueryRef);
+        const teamsData: TeamOption[] = teamsSnap.docs.map(doc => ({
+          id: doc.id,
+          name: (doc.data().name as string) || doc.id,
+        }));
+        teamsData.sort((a, b) => a.name.localeCompare(b.name));
+        setTeams(teamsData);
+
+        // 2. Fetch competitions, rounds, and matches
+        const competitionsQueryRef = query(collection(db, `clubs/${user.uid}/competitions`));
+        const competitionsSnap = await getDocs(competitionsQueryRef);
+
+        const competitionsData: CompetitionDoc[] = competitionsSnap.docs.map(doc => {
+          const data = doc.data() as any;
+          return {
+            id: doc.id,
+            name: (data.name as string) || doc.id,
+            season: data.season as string | undefined,
+          };
+        });
+
+        // Build season and competition options
+        const seasonSet = new Set<string>();
+        competitionsData.forEach(comp => {
+          if (comp.season && typeof comp.season === 'string' && comp.season.trim() !== '') {
+            seasonSet.add(comp.season);
+          }
+        });
+        const seasonList = Array.from(seasonSet).sort((a, b) => a.localeCompare(b));
+        setSeasons(seasonList);
+        setCompetitions(competitionsData);
+
+        const allMatches: MatchForRecords[] = [];
+
+        for (const compDoc of competitionsData) {
+          // Filter by selected season
+          if (selectedSeason !== 'all' && compDoc.season && compDoc.season !== selectedSeason) {
+            continue;
+          }
+
+          // Filter by selected competition
+          if (selectedCompetitionId !== 'all' && compDoc.id !== selectedCompetitionId) {
+            continue;
+          }
+
+          const roundsQueryRef = query(collection(db, `clubs/${user.uid}/competitions/${compDoc.id}/rounds`));
+          const roundsSnap = await getDocs(roundsQueryRef);
+
+          for (const roundDoc of roundsSnap.docs) {
+            const matchesQueryRef = query(collection(db, `clubs/${user.uid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`));
+            const matchesSnap = await getDocs(matchesQueryRef);
+
+            for (const matchDoc of matchesSnap.docs) {
+              const matchData = matchDoc.data() as any;
+              allMatches.push({
+                id: matchDoc.id,
+                competitionId: compDoc.id,
+                competitionName: compDoc.name,
+                competitionSeason: compDoc.season,
+                homeTeamId: matchData.homeTeam,
+                awayTeamId: matchData.awayTeam,
+                matchDate: matchData.matchDate,
+                scoreHome: matchData.scoreHome,
+                scoreAway: matchData.scoreAway,
+                teamStats: matchData.teamStats as TeamStat[] | undefined,
+              });
+            }
+          }
+        }
+
+        // Sort matches by date for stable processing
+        allMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
+        setMatches(allMatches);
+
+        // If no team selected yet, default to first team
+        if (!selectedTeamId && teamsData.length > 0) {
+          setSelectedTeamId(teamsData[0].id);
+        }
+      } finally {
+        setLoading(false);
       }
-      setIsDialogOpen(false);
-      setEditingRecord(null);
-    } catch (error) {
-      console.error('Error saving record:', error);
-      toast.error('保存に失敗しました。');
-    }
-  };
+    };
 
-  const handleDelete = async (id: string) => {
-    if (!user || !window.confirm('本当にこの記録を削除しますか？')) return;
-    try {
-      const recordDocRef = doc(db, `clubs/${user.uid}/records`, id);
-      await deleteDoc(recordDocRef);
-      toast.success('記録を削除しました。');
-    } catch (error) {
-      console.error('Error deleting record:', error);
-      toast.error('削除に失敗しました。');
+    fetchData();
+  }, [user, selectedSeason, selectedCompetitionId]);
+
+  const recordsByCompetition: CompetitionRecordRow[] = useMemo(() => {
+    if (!selectedTeamId) return [];
+
+    const byComp = new Map<string, CompetitionRecordRow>();
+
+    for (const match of matches) {
+      const isHome = match.homeTeamId === selectedTeamId;
+      const isAway = match.awayTeamId === selectedTeamId;
+      if (!isHome && !isAway) continue;
+
+      const key = match.competitionId;
+      if (!byComp.has(key)) {
+        byComp.set(key, {
+          competitionId: match.competitionId,
+          competitionName: match.competitionName,
+          competitionSeason: match.competitionSeason,
+          matches: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          shots: 0,
+          shotsOnTarget: 0,
+          possessionAvg: undefined,
+        });
+      }
+
+      const row = byComp.get(key)!;
+      row.matches += 1;
+
+      // Goals and W/D/L only when scores are present
+      if (typeof match.scoreHome === 'number' && typeof match.scoreAway === 'number') {
+        const gf = isHome ? match.scoreHome : match.scoreAway;
+        const ga = isHome ? match.scoreAway : match.scoreHome;
+        row.goalsFor += gf;
+        row.goalsAgainst += ga;
+
+        if (gf > ga) row.wins += 1;
+        else if (gf === ga) row.draws += 1;
+        else row.losses += 1;
+      }
+
+      // Aggregate key teamStats: shots, shotsOnTarget, possession
+      if (match.teamStats && Array.isArray(match.teamStats)) {
+        const sideKey = isHome ? 'homeValue' : 'awayValue';
+
+        for (const stat of match.teamStats) {
+          const rawVal = (stat as any)[sideKey];
+          const numVal = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal));
+          if (isNaN(numVal)) {
+            continue;
+          }
+
+          if (stat.id === 'shots') {
+            row.shots = (row.shots || 0) + numVal;
+          } else if (stat.id === 'shotsOnTarget') {
+            row.shotsOnTarget = (row.shotsOnTarget || 0) + numVal;
+          } else if (stat.id === 'possession') {
+            // For possession we later convert to average
+            row.possessionAvg = (row.possessionAvg || 0) + numVal;
+          }
+        }
+      }
     }
-  };
+
+    // Finalize possession average per competition
+    for (const row of byComp.values()) {
+      if (row.matches > 0 && typeof row.possessionAvg === 'number') {
+        row.possessionAvg = row.possessionAvg / row.matches;
+      } else {
+        row.possessionAvg = undefined;
+      }
+    }
+
+    return Array.from(byComp.values()).sort((a, b) => a.competitionName.localeCompare(b.competitionName));
+  }, [matches, selectedTeamId]);
+
+  if (!user) {
+    return <div className="py-6 text-center text-muted-foreground">ログインが必要です。</div>;
+  }
 
   return (
-    <div className="py-6">
-      <div className="flex justify-end mb-4">
-        <Button onClick={() => handleDialogOpen()}><PlusCircle className="mr-2 h-4 w-4" />記録を追加</Button>
-      </div>
-      {loading ? <p>読み込み中...</p> : (
-        <Table>
-          <TableHeader><TableRow><TableHead>大会</TableHead><TableHead>成績</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader>
-          <TableBody>
-            {records.length > 0 ? records.map((rec) => (
-              <TableRow key={rec.id}>
-                <TableCell className="font-medium flex items-center">
-                  {rec.competition.logoUrl && <img src={rec.competition.logoUrl} alt={rec.competition.name} className="h-6 w-6 mr-2 object-contain" />}
-                  {rec.competition.name}
-                </TableCell>
-                <TableCell>{rec.result}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => handleDialogOpen(rec)}><Edit className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(rec.id)}><Trash2 className="h-4 w-4" /></Button>
-                </TableCell>
-              </TableRow>
-            )) : (
-              <TableRow><TableCell colSpan={3} className="text-center">記録がありません。</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
-      )}
+    <div className="py-6 space-y-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+        <div className="font-semibold">チームごとの大会記録</div>
+        <div className="flex flex-wrap items-center gap-2 justify-end">
+          <Select value={selectedSeason} onValueChange={setSelectedSeason}>
+            <SelectTrigger className="w-[180px] bg-white text-gray-900">
+              <SelectValue placeholder="シーズンを選択" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">すべてのシーズン</SelectItem>
+              {seasons.map(s => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editingRecord ? '記録を編集' : '記録を追加'}</DialogTitle></DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField control={form.control} name="competition" render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>大会</FormLabel>
-                  <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button variant="outline" role="combobox" className={cn('w-full justify-between', !field.value?.name && 'text-muted-foreground')}>
-                          {field.value?.name || '大会を選択または入力...'}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                      <Command>
-                        <CommandInput placeholder="大会を検索または新規入力..." value={comboboxInputValue} onValueChange={setComboboxInputValue} />
-                        <CommandList>
-                                                                              <CommandEmpty>該当する大会がありません。</CommandEmpty>
-                          <CommandGroup>
-                            {comboboxInputValue && !competitions.find(c => c.name.toLowerCase() === comboboxInputValue.toLowerCase()) && (
-                               <CommandItem
-                                 value={comboboxInputValue}
-                                 onSelect={() => {
-                                   field.onChange({ id: `custom-${Date.now()}`, name: comboboxInputValue });
-                                   setIsPopoverOpen(false);
-                                 }}
-                               >
-                                 <PlusCircle className="mr-2 h-4 w-4" />
-                                 <span>「{comboboxInputValue}」を新規追加</span>
-                               </CommandItem>
-                             )}
-                            {competitions.map((comp) => (
-                              <CommandItem
-                                value={comp.name}
-                                key={comp.id}
-                                onSelect={() => {
-                                  field.onChange(comp);
-                                  setIsPopoverOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    'mr-2 h-4 w-4',
-                                    field.value?.id === comp.id ? 'opacity-100' : 'opacity-0'
-                                  )}
-                                />
-                                {comp.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="result" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>成績</FormLabel>
-                  <FormControl><Input placeholder="優勝" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <div className="flex justify-end"><Button type="submit">保存</Button></div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+          <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+            <SelectTrigger className="w-[180px] bg-white text-gray-900">
+              <SelectValue placeholder="チームを選択" />
+            </SelectTrigger>
+            <SelectContent>
+              {teams.map(team => (
+                <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedCompetitionId} onValueChange={setSelectedCompetitionId}>
+            <SelectTrigger className="w-[180px] bg-white text-gray-900">
+              <SelectValue placeholder="大会を選択" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">すべての大会</SelectItem>
+              {competitions.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-10 text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          <span>集計中...</span>
+        </div>
+      ) : !selectedTeamId ? (
+        <div className="text-center py-10 text-muted-foreground">チームを選択すると大会ごとの成績が表示されます。</div>
+      ) : recordsByCompetition.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground">選択したチームの試合記録がありません。</div>
+      ) : (
+        <div className="bg-white text-gray-900 border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>大会</TableHead>
+                <TableHead>シーズン</TableHead>
+                <TableHead className="text-right">試合</TableHead>
+                <TableHead className="text-right">勝</TableHead>
+                <TableHead className="text-right">分</TableHead>
+                <TableHead className="text-right">敗</TableHead>
+                <TableHead className="text-right">得点</TableHead>
+                <TableHead className="text-right">失点</TableHead>
+                <TableHead className="text-right">得失点</TableHead>
+                <TableHead className="text-right">シュート</TableHead>
+                <TableHead className="text-right">枠内S</TableHead>
+                <TableHead className="text-right">支配率(平均)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {recordsByCompetition.map(row => {
+                const goalDiff = row.goalsFor - row.goalsAgainst;
+                const possessionDisplay =
+                  typeof row.possessionAvg === 'number'
+                    ? `${row.possessionAvg.toFixed(1)}%`
+                    : '-';
+
+                return (
+                  <TableRow key={row.competitionId}>
+                    <TableCell>{row.competitionName}</TableCell>
+                    <TableCell>{row.competitionSeason || '-'}</TableCell>
+                    <TableCell className="text-right">{row.matches}</TableCell>
+                    <TableCell className="text-right">{row.wins}</TableCell>
+                    <TableCell className="text-right">{row.draws}</TableCell>
+                    <TableCell className="text-right">{row.losses}</TableCell>
+                    <TableCell className="text-right">{row.goalsFor}</TableCell>
+                    <TableCell className="text-right">{row.goalsAgainst}</TableCell>
+                    <TableCell className="text-right">{goalDiff}</TableCell>
+                    <TableCell className="text-right">{row.shots ?? '-'}</TableCell>
+                    <TableCell className="text-right">{row.shotsOnTarget ?? '-'}</TableCell>
+                    <TableCell className="text-right">{possessionDisplay}</TableCell>
+                  </TableRow>
+                );
+              })}
+
+              {(() => {
+                const totals = recordsByCompetition.reduce(
+                  (acc, row) => {
+                    acc.matches += row.matches;
+                    acc.wins += row.wins;
+                    acc.draws += row.draws;
+                    acc.losses += row.losses;
+                    acc.goalsFor += row.goalsFor;
+                    acc.goalsAgainst += row.goalsAgainst;
+                    if (typeof row.shots === 'number') acc.shots += row.shots;
+                    if (typeof row.shotsOnTarget === 'number') acc.shotsOnTarget += row.shotsOnTarget;
+                    if (typeof row.possessionAvg === 'number') {
+                      acc.possessionSum += row.possessionAvg;
+                      acc.possessionCount += 1;
+                    }
+                    return acc;
+                  },
+                  {
+                    matches: 0,
+                    wins: 0,
+                    draws: 0,
+                    losses: 0,
+                    goalsFor: 0,
+                    goalsAgainst: 0,
+                    shots: 0,
+                    shotsOnTarget: 0,
+                    possessionSum: 0,
+                    possessionCount: 0,
+                  }
+                );
+
+                const totalGoalDiff = totals.goalsFor - totals.goalsAgainst;
+                const totalPossessionAvg =
+                  totals.possessionCount > 0
+                    ? totals.possessionSum / totals.possessionCount
+                    : undefined;
+                const totalPossessionDisplay =
+                  typeof totalPossessionAvg === 'number'
+                    ? `${totalPossessionAvg.toFixed(1)}%`
+                    : '-';
+
+                return (
+                  <TableRow className="font-semibold bg-gray-50">
+                    <TableCell>合計</TableCell>
+                    <TableCell>-</TableCell>
+                    <TableCell className="text-right">{totals.matches}</TableCell>
+                    <TableCell className="text-right">{totals.wins}</TableCell>
+                    <TableCell className="text-right">{totals.draws}</TableCell>
+                    <TableCell className="text-right">{totals.losses}</TableCell>
+                    <TableCell className="text-right">{totals.goalsFor}</TableCell>
+                    <TableCell className="text-right">{totals.goalsAgainst}</TableCell>
+                    <TableCell className="text-right">{totalGoalDiff}</TableCell>
+                    <TableCell className="text-right">{totals.shots || '-'}</TableCell>
+                    <TableCell className="text-right">{totals.shotsOnTarget || '-'}</TableCell>
+                    <TableCell className="text-right">{totalPossessionDisplay}</TableCell>
+                  </TableRow>
+                );
+              })()}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }

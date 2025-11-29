@@ -246,7 +246,7 @@ export default function StandingsPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">順位表編集: {competitionName}</h1>
         <div>
-          <Button onClick={handleRecalculate} disabled={loading || !user} variant="outline" className="mr-2">
+          <Button onClick={handleRecalculate} disabled={loading || !user} variant="outline" className="mr-2 text-gray-900">
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             全試合結果から順位を再計算
           </Button>
@@ -256,7 +256,7 @@ export default function StandingsPage() {
           </Button>
         </div>
       </div>
-      <div className="bg-card rounded-lg p-4">
+      <div className="bg-white text-gray-900 rounded-lg p-4">
         <Table>
           <TableHeader>
             <TableRow>
@@ -276,18 +276,18 @@ export default function StandingsPage() {
             {standings.map(s => (
               <TableRow key={s.id}>
                 <TableCell>
-                  <Input value={s.rank} onChange={e => handleInputChange(s.id, 'rank', e.target.value)} className="w-16" />
+                  <Input value={s.rank} onChange={e => handleInputChange(s.id, 'rank', e.target.value)} className="w-16 bg-white text-gray-900" />
                 </TableCell>
                 <TableCell className="font-medium flex items-center">
                   {s.logoUrl && <img src={s.logoUrl} alt={s.teamName} className="w-6 h-6 mr-2" />}
                   {s.teamName}
                 </TableCell>
-                <TableCell><Input value={s.played} onChange={e => handleInputChange(s.id, 'played', e.target.value)} className="w-16" /></TableCell>
-                <TableCell><Input value={s.wins} onChange={e => handleInputChange(s.id, 'wins', e.target.value)} className="w-16" /></TableCell>
-                <TableCell><Input value={s.draws} onChange={e => handleInputChange(s.id, 'draws', e.target.value)} className="w-16" /></TableCell>
-                <TableCell><Input value={s.losses} onChange={e => handleInputChange(s.id, 'losses', e.target.value)} className="w-16" /></TableCell>
-                <TableCell><Input value={s.goalsFor} onChange={e => handleInputChange(s.id, 'goalsFor', e.target.value)} className="w-16" /></TableCell>
-                <TableCell><Input value={s.goalsAgainst} onChange={e => handleInputChange(s.id, 'goalsAgainst', e.target.value)} className="w-16" /></TableCell>
+                <TableCell><Input value={s.played} onChange={e => handleInputChange(s.id, 'played', e.target.value)} className="w-16 bg-white text-gray-900" /></TableCell>
+                <TableCell><Input value={s.wins} onChange={e => handleInputChange(s.id, 'wins', e.target.value)} className="w-16 bg-white text-gray-900" /></TableCell>
+                <TableCell><Input value={s.draws} onChange={e => handleInputChange(s.id, 'draws', e.target.value)} className="w-16 bg-white text-gray-900" /></TableCell>
+                <TableCell><Input value={s.losses} onChange={e => handleInputChange(s.id, 'losses', e.target.value)} className="w-16 bg-white text-gray-900" /></TableCell>
+                <TableCell><Input value={s.goalsFor} onChange={e => handleInputChange(s.id, 'goalsFor', e.target.value)} className="w-16 bg-white text-gray-900" /></TableCell>
+                <TableCell><Input value={s.goalsAgainst} onChange={e => handleInputChange(s.id, 'goalsAgainst', e.target.value)} className="w-16 bg-white text-gray-900" /></TableCell>
                 <TableCell>{s.goalDifference}</TableCell>
                 <TableCell>{s.points}</TableCell>
               </TableRow>

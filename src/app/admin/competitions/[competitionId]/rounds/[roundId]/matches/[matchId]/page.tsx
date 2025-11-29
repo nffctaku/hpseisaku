@@ -6,11 +6,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
 import Image from 'next/image';
 import { MatchDetails, Player } from '@/types/match';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MatchTeamStatsForm } from '@/components/match-team-stats-form';
 import { SquadRegistrationForm } from '@/components/squad-registration-form';
+import { MatchEventsPreview } from '@/components/match-events-preview';
 
 export default function MatchAdminPage() {
   const { user } = useAuth();
@@ -32,12 +34,19 @@ export default function MatchAdminPage() {
       setLoading(true);
       try {
         const matchDocRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${matchId}`);
-        const matchDoc = await getDoc(matchDocRef);
+        let matchDoc = await getDoc(matchDocRef);
 
+        // Fallback: if not found under competitions/rounds, try legacy top-level matches collection
         if (!matchDoc.exists()) {
-          console.error("Match document not found!");
-          setMatch(null);
-          return;
+          const legacyMatchRef = doc(db, `clubs/${user.uid}/matches`, matchId as string);
+          const legacySnap = await getDoc(legacyMatchRef);
+          if (!legacySnap.exists()) {
+            console.error("Match document not found in either competitions/rounds or legacy matches collection");
+            setMatch(null);
+            return;
+          }
+          console.log("Loaded match from legacy collection:", legacySnap.data());
+          matchDoc = legacySnap;
         }
 
         console.log("Raw data from Firestore:", matchDoc.data());
@@ -68,12 +77,11 @@ export default function MatchAdminPage() {
         console.log("Final match data being set:", matchData);
         setMatch(matchData);
 
-        // Fetch players for both teams
+        // Fetch players for both teams (per-team collection path)
         const fetchPlayers = async (teamId: string): Promise<Player[]> => {
           if (!teamId || !user) return [];
-          const playersRef = collection(db, `clubs/${user.uid}/players`);
-          const q = query(playersRef, where('teamId', '==', teamId));
-          const querySnapshot = await getDocs(q);
+          const playersRef = collection(db, `clubs/${user.uid}/teams/${teamId}/players`);
+          const querySnapshot = await getDocs(playersRef);
           return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
         };
 
@@ -103,7 +111,17 @@ export default function MatchAdminPage() {
   }
 
   if (!match) {
-    return <div className="flex h-screen items-center justify-center">試合データが見つかりませんでした。URLを確認してください。</div>;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="bg-white text-gray-900 rounded-lg shadow p-8 text-center space-y-4">
+          <p>試合データが見つかりませんでした。</p>
+          <p className="text-sm text-gray-500">URLが古いか、試合が削除された可能性があります。</p>
+          <Link href={`/admin/competitions/${competitionId}`}>
+            <span className="inline-flex items-center px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">大会ページに戻る</span>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -132,7 +150,7 @@ export default function MatchAdminPage() {
       <Tabs defaultValue="match-stats" className="mt-8">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="match-stats">試合スタッツ</TabsTrigger>
-          <TabsTrigger value="match-events" disabled>試合イベント</TabsTrigger>
+          <TabsTrigger value="match-events">試合イベント</TabsTrigger>
           <TabsTrigger value="player-stats">選手スタッツ</TabsTrigger>
         </TabsList>
         <TabsContent value="match-stats">
@@ -141,6 +159,13 @@ export default function MatchAdminPage() {
             userId={user.uid}
             competitionId={competitionId as string}
             roundId={roundId as string}
+          />
+        </TabsContent>
+        <TabsContent value="match-events">
+          <MatchEventsPreview
+            match={match}
+            homePlayers={homePlayers}
+            awayPlayers={awayPlayers}
           />
         </TabsContent>
         <TabsContent value="player-stats">

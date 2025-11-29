@@ -14,6 +14,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { PlayerStatsTable } from './player-stats-table';
+import { MatchEventsTable } from './match-events-table';
 
 const formSchema = z.object({
   customStatHeaders: z.array(z.object({ id: z.string(), name: z.string().min(1, '必須') })).max(15, '最大15項目です。'),
@@ -22,6 +23,7 @@ const formSchema = z.object({
       playerId: z.string(),
       playerName: z.string(),
       position: z.string(),
+      role: z.string().optional(),
       rating: z.coerce.number().min(0).max(10).step(0.1).optional(),
       minutesPlayed: z.coerce.number().min(0).optional(),
       goals: z.coerce.number().min(0).optional(),
@@ -31,6 +33,22 @@ const formSchema = z.object({
       customStats: z.array(z.object({ id: z.string(), name: z.string(), value: z.string().optional() })).optional(),
     })
   ),
+  events: z
+    .array(
+      z.object({
+        id: z.string(),
+        minute: z.coerce.number().min(0).max(145),
+        teamId: z.string(),
+        type: z.enum(['goal', 'card', 'substitution', 'note']),
+        playerId: z.string().optional(),
+        assistPlayerId: z.string().optional(),
+        cardColor: z.enum(['yellow', 'red']).optional(),
+        inPlayerId: z.string().optional(),
+        outPlayerId: z.string().optional(),
+        text: z.string().optional(),
+      })
+    )
+    .optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -56,6 +74,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     defaultValues: {
       customStatHeaders: [],
       playerStats: [],
+      events: [],
     },
   });
 
@@ -73,6 +92,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           methods.reset({
             customStatHeaders: data.customStatHeaders || [],
             playerStats: data.playerStats || [],
+            events: data.events || [],
           });
         }
       } catch (error) {
@@ -93,11 +113,92 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     setSaving(true);
     try {
       const matchDocRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`);
-      await setDoc(matchDocRef, { 
+
+      // イベントから G/A/Y/R を集計
+      const goalCounts = new Map<string, number>();
+      const assistCounts = new Map<string, number>();
+      const yellowCounts = new Map<string, number>();
+      const redCounts = new Map<string, number>();
+
+      (data.events || []).forEach((ev) => {
+        if (ev.type === 'goal') {
+          if (ev.playerId) {
+            goalCounts.set(ev.playerId, (goalCounts.get(ev.playerId) || 0) + 1);
+          }
+          if (ev.assistPlayerId) {
+            assistCounts.set(ev.assistPlayerId, (assistCounts.get(ev.assistPlayerId) || 0) + 1);
+          }
+        }
+        if (ev.type === 'card' && ev.playerId) {
+          if (ev.cardColor === 'yellow') {
+            yellowCounts.set(ev.playerId, (yellowCounts.get(ev.playerId) || 0) + 1);
+          }
+          if (ev.cardColor === 'red') {
+            redCounts.set(ev.playerId, (redCounts.get(ev.playerId) || 0) + 1);
+          }
+        }
+      });
+
+      // 選手ID → 名前のマップ（得点者表示用にイベントへ埋め込む）
+      const playerNameMap = new Map<string, string>();
+      [...homePlayers, ...awayPlayers].forEach((p) => {
+        if (p.id && p.name) {
+          playerNameMap.set(p.id, p.name);
+        }
+      });
+
+      const normalizedPlayerStats = data.playerStats.map((ps) => {
+        const playerId = ps.playerId;
+        return {
+          role: 'role' in ps && ps.role ? ps.role : 'starter',
+          ...ps,
+          goals: goalCounts.get(playerId) ?? 0,
+          assists: assistCounts.get(playerId) ?? 0,
+          yellowCards: yellowCounts.get(playerId) ?? 0,
+          redCards: redCounts.get(playerId) ?? 0,
+        };
+      });
+
+      // Firestore は undefined を許可しないため、events から undefined のフィールドを取り除く
+      // 併せて playerName / assistPlayerName もイベントに埋め込む
+      const sanitizedEvents = (data.events || []).map((ev) => {
+        const {
+          id,
+          minute,
+          teamId,
+          type,
+          playerId,
+          assistPlayerId,
+          cardColor,
+          inPlayerId,
+          outPlayerId,
+          text,
+        } = ev;
+
+        const base: any = { id, minute, teamId, type };
+        if (playerId) {
+          base.playerId = playerId;
+          const name = playerNameMap.get(playerId);
+          if (name) base.playerName = name;
+        }
+        if (assistPlayerId) {
+          base.assistPlayerId = assistPlayerId;
+          const aName = playerNameMap.get(assistPlayerId);
+          if (aName) base.assistPlayerName = aName;
+        }
+        if (cardColor) base.cardColor = cardColor;
+        if (inPlayerId) base.inPlayerId = inPlayerId;
+        if (outPlayerId) base.outPlayerId = outPlayerId;
+        if (text) base.text = text;
+        return base;
+      });
+
+      await setDoc(matchDocRef, {
         customStatHeaders: data.customStatHeaders,
-        playerStats: data.playerStats
+        playerStats: normalizedPlayerStats,
+        events: sanitizedEvents,
       }, { merge: true });
-      toast.success('出場選手とスタッツを更新しました。');
+      toast.success('出場選手・スタッツ・イベントを更新しました。');
     } catch (error) {
       console.error("Error saving squad data:", error);
       toast.error('更新に失敗しました。');
@@ -130,6 +231,14 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                 <PlayerStatsTable teamId={match.awayTeam} allPlayers={awayPlayers} />
               </TabsContent>
             </Tabs>
+
+            <div className="mt-10">
+              <MatchEventsTable
+                match={match}
+                homePlayers={homePlayers}
+                awayPlayers={awayPlayers}
+              />
+            </div>
             <div className="mt-8 flex justify-end">
               <Button type="submit" disabled={saving}>
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

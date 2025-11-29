@@ -9,9 +9,7 @@ import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { Trash2, CalendarIcon } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { toast } from "sonner";
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -29,9 +27,10 @@ const getSeasonDateRange = (season: string): { fromDate: Date, toDate: Date } | 
 };
 
 export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpdate, onDelete }: { match: Match, teams: Team[], allTeamsMap: Map<string, Team>, roundId: string, season: string, onUpdate: Function, onDelete: Function }) {
-  const [isPopoverOpen, setPopoverOpen] = useState(false);
-  const [pendingDate, setPendingDate] = useState<Date | undefined>(match.matchDate ? parseISO(match.matchDate) : undefined);
-  const [month, setMonth] = useState<Date>(match.matchDate ? parseISO(match.matchDate) : new Date());
+  const initialDate = match.matchDate ? parseISO(match.matchDate) : new Date();
+  const [selectedYear, setSelectedYear] = useState<number>(initialDate.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(initialDate.getMonth() + 1); // 1-12
+  const [selectedDay, setSelectedDay] = useState<number>(initialDate.getDate());
 
   const seasonRange = useMemo(() => {
     if (!season) return undefined;
@@ -57,62 +56,107 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
     }
   }
 
+  const years = useMemo(() => {
+    if (!seasonRange) return [selectedYear];
+    const start = seasonRange.fromDate.getFullYear();
+    const end = seasonRange.toDate.getFullYear();
+    const list: number[] = [];
+    for (let y = start; y <= end; y++) list.push(y);
+    return list;
+  }, [seasonRange, selectedYear]);
+
+  const daysInMonth = useMemo(() => {
+    const year = selectedYear;
+    const month = selectedMonth;
+    return new Date(year, month, 0).getDate();
+  }, [selectedYear, selectedMonth]);
+
+  const clampDay = (day: number) => Math.min(day, daysInMonth);
+
+  const updateMatchDate = (y: number, m: number, d: number) => {
+    const yearStr = y.toString();
+    const monthStr = m.toString().padStart(2, '0');
+    const dayStr = d.toString().padStart(2, '0');
+    onUpdate(match.id, 'matchDate', `${yearStr}-${monthStr}-${dayStr}`);
+  };
+
   return (
-    <div className="grid grid-cols-6 lg:grid-cols-12 items-center gap-2 p-3 bg-card rounded-md border">
-      {/* Date Picker */}
-      <div className="col-span-6 lg:col-span-3">
-        <Popover open={isPopoverOpen} onOpenChange={(open) => {
-            if (open && pendingDate) {
-              setMonth(pendingDate);
-            }
-            setPopoverOpen(open);
-          }}>
-          <PopoverTrigger asChild>
-            <Button
-              variant={"outline"}
-              className={cn(
-                "w-full justify-start text-left font-normal",
-                !match.matchDate && "text-muted-foreground"
-              )}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {match.matchDate ? format(parseISO(match.matchDate), 'PPP', { locale: ja }) : <span>日付を選択</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0">
-            <Calendar
-              mode="single"
-              selected={pendingDate}
-              onSelect={setPendingDate}
-              initialFocus
-              month={month}
-              onMonthChange={setMonth}
-              fromDate={seasonRange?.fromDate}
-              toDate={seasonRange?.toDate}
-            />
-            <div className="p-2 border-t flex justify-end space-x-2">
-              <Button variant="ghost" size="sm" onClick={() => {
-                setPendingDate(match.matchDate ? parseISO(match.matchDate) : undefined);
-                setPopoverOpen(false);
-              }}>キャンセル</Button>
-              <Button size="sm" onClick={() => {
-                if (pendingDate) {
-                  const year = pendingDate.getFullYear();
-                  const month = (pendingDate.getMonth() + 1).toString().padStart(2, '0');
-                  const day = pendingDate.getDate().toString().padStart(2, '0');
-                  onUpdate(match.id, 'matchDate', `${year}-${month}-${day}`);
-                }
-                setPopoverOpen(false);
-              }}>適用</Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+    <div className="grid grid-cols-6 lg:grid-cols-12 items-center gap-2 p-3 bg-card text-gray-900 rounded-md border">
+      {/* Date Picker (Year / Month / Day Selects) */}
+      <div className="col-span-6 lg:col-span-3 flex gap-2">
+        {/* Year */}
+        <Select
+          value={selectedYear.toString()}
+          onValueChange={(val) => {
+            const y = parseInt(val, 10);
+            setSelectedYear(y);
+            const newDay = clampDay(selectedDay);
+            setSelectedDay(newDay);
+            updateMatchDate(y, selectedMonth, newDay);
+          }}
+        >
+          <SelectTrigger className="w-1/3 bg-white text-gray-900">
+            <SelectValue placeholder="年" />
+          </SelectTrigger>
+          <SelectContent>
+            {years.map((y) => (
+              <SelectItem key={y} value={y.toString()}>
+                {y}年
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Month */}
+        <Select
+          value={selectedMonth.toString()}
+          onValueChange={(val) => {
+            const m = parseInt(val, 10);
+            setSelectedMonth(m);
+            const newDay = clampDay(selectedDay);
+            setSelectedDay(newDay);
+            updateMatchDate(selectedYear, m, newDay);
+          }}
+        >
+          <SelectTrigger className="w-1/4 bg-white text-gray-900">
+            <SelectValue placeholder="月" />
+          </SelectTrigger>
+          <SelectContent>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+              <SelectItem key={m} value={m.toString()}>
+                {m}月
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Day */}
+        <Select
+          value={selectedDay.toString()}
+          onValueChange={(val) => {
+            const d = parseInt(val, 10);
+            const clamped = clampDay(d);
+            setSelectedDay(clamped);
+            updateMatchDate(selectedYear, selectedMonth, clamped);
+          }}
+        >
+          <SelectTrigger className="flex-1 bg-white text-gray-900">
+            <SelectValue placeholder="日" />
+          </SelectTrigger>
+          <SelectContent>
+            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
+              <SelectItem key={d} value={d.toString()}>
+                {d}日
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Home Team Selector */}
       <div className="col-span-2 lg:col-span-3 flex items-center justify-end gap-2">
         <Select value={match.homeTeam} onValueChange={(value) => onUpdate(match.id, 'homeTeam', value)}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full bg-white text-gray-900">
             <SelectValue placeholder="ホーム">
               {match.homeTeam && allTeamsMap.get(match.homeTeam) ? (
                 <div className="flex items-center gap-2">
@@ -122,11 +166,23 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
               ) : "ホーム"}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-white text-gray-900">
             {teams.map(t => (
-              <SelectItem key={t.id} value={t.id}>
+              <SelectItem
+                key={t.id}
+                value={t.id}
+                className="bg-white text-gray-900 hover:bg-gray-100 focus:bg-gray-100 data-[state=checked]:bg-gray-100"
+              >
                 <div className="flex items-center gap-2">
-                  {t.logoUrl && <Image src={t.logoUrl} alt={t.name} width={20} height={20} className="rounded-full object-contain" />}
+                  {t.logoUrl && (
+                    <Image
+                      src={t.logoUrl}
+                      alt={t.name}
+                      width={20}
+                      height={20}
+                      className="rounded-full object-contain"
+                    />
+                  )}
                   <span>{t.name}</span>
                 </div>
               </SelectItem>
@@ -139,7 +195,7 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
       <div className="col-span-2 lg:col-span-2 flex justify-center items-center gap-2">
         <Input 
           type="number" 
-          className="w-14 text-center font-bold text-lg" 
+          className="w-14 text-center font-bold text-lg bg-white text-gray-900" 
           value={match.scoreHome ?? ''}
           onChange={(e) => onUpdate(match.id, 'scoreHome', e.target.value === '' ? null : parseInt(e.target.value))}
           placeholder="-"
@@ -147,7 +203,7 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
         <span className="text-lg">-</span>
         <Input 
           type="number" 
-          className="w-14 text-center font-bold text-lg" 
+          className="w-14 text-center font-bold text-lg bg-white text-gray-900" 
           value={match.scoreAway ?? ''}
           onChange={(e) => onUpdate(match.id, 'scoreAway', e.target.value === '' ? null : parseInt(e.target.value))}
           placeholder="-"
@@ -157,7 +213,7 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
       {/* Away Team Selector */}
       <div className="col-span-2 lg:col-span-3">
         <Select value={match.awayTeam} onValueChange={(value) => onUpdate(match.id, 'awayTeam', value)}>
-           <SelectTrigger className="w-full">
+           <SelectTrigger className="w-full bg-white text-gray-900">
             <SelectValue placeholder="アウェイ">
               {match.awayTeam && allTeamsMap.get(match.awayTeam) ? (
                 <div className="flex items-center gap-2">
@@ -167,11 +223,23 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
               ) : "アウェイ"}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-white text-gray-900">
             {teams.map(t => (
-              <SelectItem key={t.id} value={t.id}>
+              <SelectItem
+                key={t.id}
+                value={t.id}
+                className="bg-white text-gray-900 hover:bg-gray-100 focus:bg-gray-100 data-[state=checked]:bg-gray-100"
+              >
                 <div className="flex items-center gap-2">
-                  {t.logoUrl && <Image src={t.logoUrl} alt={t.name} width={20} height={20} className="rounded-full object-contain" />}
+                  {t.logoUrl && (
+                    <Image
+                      src={t.logoUrl}
+                      alt={t.name}
+                      width={20}
+                      height={20}
+                      className="rounded-full object-contain"
+                    />
+                  )}
                   <span>{t.name}</span>
                 </div>
               </SelectItem>
@@ -182,7 +250,15 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
 
       {/* Delete Button */}
       <div className="col-span-6 lg:col-span-1 flex justify-end">
-          <Button variant="ghost" size="icon" onClick={handleDelete}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="border-destructive text-destructive hover:bg-destructive/10 bg-background"
+          onClick={handleDelete}
+          aria-label="試合を削除"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );

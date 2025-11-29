@@ -28,6 +28,14 @@ export const columns = (openEditDialog: (player: Player) => void, setDeletingPla
     },
   },
   {
+    accessorKey: "number",
+    header: "背番号",
+    cell: ({ row }) => {
+      const value = row.getValue<number | undefined>("number");
+      return value != null ? value : "-";
+    },
+  },
+  {
     accessorKey: "name",
     header: ({ column }) => {
       return (
@@ -58,6 +66,14 @@ export const columns = (openEditDialog: (player: Player) => void, setDeletingPla
     header: "国籍",
   },
   {
+    accessorKey: "height",
+    header: "身長(cm)",
+    cell: ({ row }) => {
+      const value = row.getValue<number | undefined>("height");
+      return value != null ? value : "-";
+    },
+  },
+  {
     accessorKey: "age",
     header: "年齢",
   },
@@ -74,7 +90,7 @@ export const columns = (openEditDialog: (player: Player) => void, setDeletingPla
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="bg-white text-gray-900">
             <DropdownMenuLabel>操作</DropdownMenuLabel>
             <DropdownMenuItem
               onClick={() => navigator.clipboard.writeText(player.id)}

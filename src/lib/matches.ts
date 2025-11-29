@@ -36,15 +36,25 @@ export async function getMatchesGroupedByCompetition(): Promise<Record<string, M
   return groupedMatches;
 }
 
-export async function getMatchDataForClub(ownerUid: string): Promise<{ latestResult: MatchDetails | null; nextMatch: MatchDetails | null; clubName: string | null }> {
+export async function getMatchDataForClub(ownerUid: string): Promise<{
+  latestResult: MatchDetails | null;
+  nextMatch: MatchDetails | null;
+  clubName: string | null;
+  recentMatches: MatchDetails[];
+  upcomingMatches: MatchDetails[];
+}> {
   if (!ownerUid) {
-    return { latestResult: null, nextMatch: null, clubName: null };
+    return { latestResult: null, nextMatch: null, clubName: null, recentMatches: [], upcomingMatches: [] };
   }
 
-  // 1. Get club name
-  const clubProfileRef = db.collection('club_profiles').doc(ownerUid);
-  const clubProfileSnap = await clubProfileRef.get();
-  const clubName = clubProfileSnap.exists ? clubProfileSnap.data()?.clubName : null;
+  // 1. Get club name and main team id
+  // club_profiles のドキュメントIDは ownerUid とは限らないので、ownerUid で検索する
+  const clubProfilesRef = db.collection('club_profiles');
+  const profileQuery = clubProfilesRef.where('ownerUid', '==', ownerUid).limit(1);
+  const profileSnap = await profileQuery.get();
+  const clubProfileData = !profileSnap.empty ? profileSnap.docs[0].data() : null;
+  const clubName = clubProfileData?.clubName ?? null;
+  const mainTeamId = (clubProfileData as any)?.mainTeamId || ownerUid;
 
   // 2. Fetch all teams for the club
   const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
@@ -68,12 +78,10 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{ latestRes
         const homeTeam = teamsMap.get(matchData.homeTeam);
         const awayTeam = teamsMap.get(matchData.awayTeam);
         allMatches.push({
-          ...matchData,
+          ...(matchData as any),
           id: matchDoc.id,
           competitionName: compDoc.data().name,
           roundName: roundDoc.data().name,
-          homeTeamId: matchData.homeTeam,
-          awayTeamId: matchData.awayTeam,
           homeTeamName: homeTeam?.name || '不明',
           awayTeamName: awayTeam?.name || '不明',
           homeTeamLogo: homeTeam?.logoUrl,
@@ -83,10 +91,14 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{ latestRes
     }
   }
 
-  // 4. Filter for own team's matches
-  const ownMatches = allMatches.filter(m => m.homeTeamId === ownerUid || m.awayTeamId === ownerUid);
+  // 4. Filter for own team's matches based on mainTeamId.
+  // If該当試合が1件もない場合は、他クラブ同士の試合は出さず、null を返す。
+  const ownMatches = allMatches.filter(
+    (m) => (m as any).homeTeam === mainTeamId || (m as any).awayTeam === mainTeamId
+  );
+
   if (ownMatches.length === 0) {
-    return { latestResult: null, nextMatch: null, clubName };
+    return { latestResult: null, nextMatch: null, clubName, recentMatches: [], upcomingMatches: [] };
   }
 
   // 5. Find latest result and next match based on score presence
@@ -101,5 +113,8 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{ latestRes
   const latestResult = pastMatches.length > 0 ? pastMatches[0] : null;
   const nextMatch = futureMatches.length > 0 ? futureMatches[0] : null;
 
-  return { latestResult, nextMatch, clubName };
+  const recentMatches = pastMatches.slice(0, 3);
+  const upcomingMatches = futureMatches.slice(0, 7);
+
+  return { latestResult, nextMatch, clubName, recentMatches, upcomingMatches };
 }

@@ -26,4 +26,8 @@ export interface Player {
   contractStartDate: string; // or Date
   contractEndDate: string; // or Date
   transfers?: Transfer[];
+  // 所属シーズン（複数シーズンにまたがる場合もある）
+  seasons?: string[];
+  // HP に表示するかどうか（未設定は表示扱い）
+  isPublished?: boolean;
 }

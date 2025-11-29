@@ -20,11 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { PlayerPhotoUploader } from "./player-photo-uploader";
 import { Textarea } from "@/components/ui/textarea";
-import { collection, query, onSnapshot } from "firebase/firestore";
+import { collection, query, onSnapshot, setDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -45,6 +46,8 @@ const formSchema = z.object({
   profile: z.string().max(200, { message: "プロフィールは200文字以内です。" }).optional(),
   nationality: z.string().optional(),
   teamId: z.string().optional(),
+  seasons: z.array(z.string()).optional(),
+  isPublished: z.boolean().optional(),
 });
 
 export type PlayerFormValues = z.infer<typeof formSchema>;
@@ -56,11 +59,56 @@ interface PlayerFormProps {
 
 export function PlayerForm({ onSubmit, defaultValues }: PlayerFormProps) {
   const [loading, setLoading] = useState(false);
+  const [seasonOptions, setSeasonOptions] = useState<string[]>([]);
+  const [newSeason, setNewSeason] = useState("");
+  const { user } = useAuth();
 
   const form = useForm<PlayerFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: defaultValues || { name: "", number: undefined, position: undefined, photoUrl: "", height: undefined, age: undefined, profile: "", nationality: "", teamId: "" },
+    defaultValues: defaultValues || {
+      name: "",
+      number: undefined,
+      position: undefined,
+      photoUrl: "",
+      height: undefined,
+      age: undefined,
+      profile: "",
+      nationality: "",
+      teamId: "",
+      seasons: [],
+      isPublished: true,
+    },
   });
+
+  // 1960-2050 の中で、まだ存在しないシーズン候補を生成（チーム側と同じ考え方）
+  const generateSeasons = (startYear: number, endYear: number) => {
+    const seasons: string[] = [];
+    for (let year = endYear; year >= startYear; year--) {
+      const end = (year + 1).toString().slice(-2);
+      seasons.push(`${year}-${end}`);
+    }
+    return seasons;
+  };
+
+  const availableSeasonsToAdd = generateSeasons(1960, 2050).filter(
+    (s) => !seasonOptions.includes(s)
+  );
+
+  // シーズン一覧を取得して、複数選択できるようにする
+  useEffect(() => {
+    if (!user) return;
+    const seasonsColRef = collection(db, `clubs/${user.uid}/seasons`);
+    const q = query(seasonsColRef);
+    const unsub = onSnapshot(q, (snapshot) => {
+      const ids = snapshot.docs.map((doc) => doc.id).sort((a, b) => b.localeCompare(a));
+      setSeasonOptions(ids);
+      const current = form.getValues("seasons") || [];
+      if (current.length === 0 && ids.length > 0) {
+        form.setValue("seasons", [ids[0]]);
+      }
+    });
+    return () => unsub();
+  }, [user, form]);
 
   const handleSubmit = async (values: PlayerFormValues) => {
     setLoading(true);
@@ -87,6 +135,99 @@ export function PlayerForm({ onSubmit, defaultValues }: PlayerFormProps) {
             </FormItem>
           )}
         />
+        {/* 所属シーズン（複数選択可） */}
+        <FormField
+          control={form.control}
+          name="seasons"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>所属シーズン（複数選択可）</FormLabel>
+              <div className="space-y-1">
+                <div className="flex flex-wrap gap-2">
+                  {seasonOptions.map((seasonId) => {
+                    const checked = (field.value || []).includes(seasonId);
+                    return (
+                      <button
+                        key={seasonId}
+                        type="button"
+                        className={`px-2 py-1 rounded-full border text-xs font-medium transition-colors ${
+                          checked
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-white text-gray-900 border-border hover:bg-gray-100"
+                        }`}
+                        onClick={() => {
+                          const current: string[] = field.value || [];
+                          if (current.includes(seasonId)) {
+                            field.onChange(current.filter((s) => s !== seasonId));
+                          } else {
+                            field.onChange([...current, seasonId]);
+                          }
+                        }}
+                      >
+                        {seasonId}
+                      </button>
+                    );
+                  })}
+                </div>
+                {seasonOptions.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    シーズンがまだ作成されていません。下のプルダウンから追加してください。
+                  </p>
+                )}
+                <div className="flex items-center gap-2 pt-1">
+                  <Select
+                    value={newSeason}
+                    onValueChange={(value) => setNewSeason(value)}
+                  >
+                    <SelectTrigger className="w-[150px] h-8 text-xs">
+                      <SelectValue placeholder="シーズンを追加" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSeasonsToAdd.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!newSeason}
+                    className="h-8 px-3 text-xs bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white"
+                    onClick={async () => {
+                      if (!user || !newSeason) return;
+                      try {
+                        const seasonsColRef = collection(db, `clubs/${user.uid}/seasons`);
+                        const seasonDocRef = doc(seasonsColRef, newSeason);
+                        await setDoc(seasonDocRef, { name: newSeason }, { merge: true });
+
+                        if (!seasonOptions.includes(newSeason)) {
+                          const updated = [newSeason, ...seasonOptions].sort((a, b) =>
+                            b.localeCompare(a)
+                          );
+                          setSeasonOptions(updated);
+                        }
+
+                        const current = form.getValues("seasons") || [];
+                        if (!current.includes(newSeason)) {
+                          form.setValue("seasons", [...current, newSeason]);
+                        }
+
+                        setNewSeason("");
+                      } catch (e) {
+                        console.error("Failed to add season from player form", e);
+                      }
+                    }}
+                  >
+                    追加
+                  </Button>
+                </div>
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="name"
@@ -94,7 +235,7 @@ export function PlayerForm({ onSubmit, defaultValues }: PlayerFormProps) {
             <FormItem>
               <FormLabel>選手名</FormLabel>
               <FormControl>
-                <Input placeholder="例: 風間 カスケ" {...field} />
+                <Input placeholder="選手名" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -189,6 +330,27 @@ export function PlayerForm({ onSubmit, defaultValues }: PlayerFormProps) {
                 <Textarea placeholder="選手の経歴や特徴など" {...field} />
               </FormControl>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="isPublished"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+              <div className="space-y-0.5">
+                <FormLabel>HPで表示する</FormLabel>
+                <p className="text-xs text-muted-foreground">
+                  OFF にすると、この選手はHPの選手一覧には表示されません。
+                </p>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value ?? true}
+                  onCheckedChange={(checked) => field.onChange(checked)}
+                  className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-gray-300"
+                />
+              </FormControl>
             </FormItem>
           )}
         />
