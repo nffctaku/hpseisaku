@@ -65,10 +65,20 @@ export default function LandingPage() {
 
       <footer className="p-4 md:p-6 text-center text-muted-foreground text-sm">
         <div className="flex justify-center items-center space-x-6 mb-4">
-          <Link href="/terms" className="hover:text-primary transition-colors">
+          <Link
+            href="https://www.footballtop.net/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-primary transition-colors"
+          >
             利用規約
           </Link>
-          <Link href="/privacy" className="hover:text-primary transition-colors">
+          <Link
+            href="https://www.locofootball.com/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-primary transition-colors"
+          >
             プライバシーポリシー
           </Link>
           <Link href="/tokusho" className="hover:text-primary transition-colors">
