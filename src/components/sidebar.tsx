@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { Trophy, Shield, Home, Newspaper, Tv, BarChart, Users, Calendar, Settings } from 'lucide-react';
+import { Trophy, Shield, Home, Newspaper, Tv, BarChart, Users, Calendar, Settings, CreditCard } from 'lucide-react';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -20,6 +20,7 @@ export function Sidebar() {
     { href: `/admin/players`, label: '選手管理', icon: Users, requiredClub: true },
     { href: `/admin/competitions`, label: '大会管理', icon: Trophy, requiredClub: true },
     { href: '/admin/teams', label: 'チーム登録', icon: Shield, requiredClub: false },
+    { href: `/admin/plan`, label: 'プラン', icon: CreditCard, requiredClub: true },
   ];
 
   return (

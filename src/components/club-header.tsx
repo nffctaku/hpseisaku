@@ -61,7 +61,7 @@ export function ClubHeader({ clubId, clubName, logoUrl }: ClubHeaderProps) {
             <Link href={`/${clubId}/table`} className="hover:text-primary transition-colors">
               順位表
             </Link>
-            <Link href={`/${clubId}/players`} className="hover:text-primary transition-colors">
+            <Link href={`/${clubId}/stats`} className="hover:text-primary transition-colors">
               スタッツ
             </Link>
             <Link href={`/${clubId}/players`} className="hover:text-primary transition-colors">
@@ -104,7 +104,7 @@ export function ClubHeader({ clubId, clubName, logoUrl }: ClubHeaderProps) {
               順位表
             </Link>
             <Link
-              href={`/${clubId}/players`}
+              href={`/${clubId}/stats`}
               className="py-1 hover:text-primary transition-colors"
               onClick={() => setMenuOpen(false)}
             >

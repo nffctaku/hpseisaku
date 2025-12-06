@@ -71,6 +71,9 @@ export default function LandingPage() {
           <Link href="/privacy" className="hover:text-primary transition-colors">
             プライバシーポリシー
           </Link>
+          <Link href="/tokusho" className="hover:text-primary transition-colors">
+            特定商取引法に基づく表記
+          </Link>
         </div>
         <p>&copy; {new Date().getFullYear()} Your Club Site. All rights reserved.</p>
       </footer>
