@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 interface ClubInfo {
   id: string | null;
@@ -25,10 +25,21 @@ export function ClubProvider({ children }: { children: ReactNode }) {
   const fetchClubInfo = useCallback(async () => {
     if (user && !loading) {
       try {
-        // 1. Single source of truth: club_profiles document whose ID is the user's UID
-        const clubProfileRef = doc(db, 'club_profiles', user.uid);
-        const clubProfileSnap = await getDoc(clubProfileRef);
-        const clubProfileData = clubProfileSnap.exists() ? clubProfileSnap.data() : {};
+        // 1. Prefer club_profiles document where ownerUid == uid (existing schema)
+        const profilesColRef = collection(db, 'club_profiles');
+        const profilesQuery = query(profilesColRef, where('ownerUid', '==', user.uid));
+        const profilesSnap = await getDocs(profilesQuery);
+
+        let clubProfileData: any = {};
+
+        if (!profilesSnap.empty) {
+          clubProfileData = profilesSnap.docs[0].data();
+        } else {
+          // Fallback: document whose ID is the uid (newer schema)
+          const clubProfileRef = doc(db, 'club_profiles', user.uid);
+          const clubProfileSnap = await getDoc(clubProfileRef);
+          clubProfileData = clubProfileSnap.exists() ? clubProfileSnap.data() : {};
+        }
 
         // 2. Fetch from clubs collection (fallback)
         const clubDocRef = doc(db, "clubs", user.uid);
