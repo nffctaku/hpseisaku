@@ -149,6 +149,7 @@ export default function ClubInfoPage() {
     try {
       const mainTeam = teams.find((t) => t.id === selectedTeamId);
       const effectiveLogoUrl = mainTeam?.logoUrl || logoUrl;
+      const effectiveClubName = clubName && clubName.length > 0 ? clubName : (mainTeam?.name || '');
 
       const idToken = await auth.currentUser.getIdToken();
       const updateResponse = await fetch('/api/club/update', {
@@ -157,7 +158,7 @@ export default function ClubInfoPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ clubName, logoUrl: effectiveLogoUrl, layoutType, mainTeamId: selectedTeamId, sponsors, snsLinks, legalPages, homeBgColor }),
+        body: JSON.stringify({ clubName: effectiveClubName, logoUrl: effectiveLogoUrl, layoutType, mainTeamId: selectedTeamId, sponsors, snsLinks, legalPages, homeBgColor }),
       });
 
       if (!updateResponse.ok) {
