@@ -57,6 +57,13 @@ export function ClubProvider({ children }: { children: ReactNode }) {
           (clubData as any).clubId ||
           null;
 
+        console.log('[ClubContext] resolved club info', {
+          clubProfileData,
+          clubData,
+          teamData,
+          resolvedClubId,
+        });
+
         setClubInfo({
           id: resolvedClubId,
           clubName: clubProfileData.clubName || clubData.clubName || teamData.name || null,

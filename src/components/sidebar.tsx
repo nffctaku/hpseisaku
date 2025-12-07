@@ -15,6 +15,12 @@ export function Sidebar() {
   const { clubInfo } = useClub();
   const clubId = clubInfo.id || user?.clubId || null;
 
+  console.log('[Sidebar] club id debug', {
+    clubInfo,
+    userClubId: user?.clubId,
+    resolvedClubId: clubId,
+  });
+
   const handleSignOut = async () => {
     try {
       await signOut(auth);

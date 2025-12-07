@@ -28,17 +28,16 @@ export async function POST(request: Request) {
 
     const { clubName, logoUrl, layoutType, mainTeamId, sponsors, snsLinks, legalPages, homeBgColor } = await request.json();
 
-    if (!clubName) {
-      return new NextResponse(JSON.stringify({ message: 'クラブ名は必須です。' }), { status: 400 });
-    }
-
     const clubProfilesRef = db.collection('club_profiles');
 
     const updateData: Record<string, any> = {
-      clubName,
       logoUrl: logoUrl || null, // URLが空の場合はnullを保存
       ownerUid: uid,
     };
+
+    if (typeof clubName === 'string' && clubName.length > 0) {
+      updateData.clubName = clubName;
+    }
 
     if (typeof layoutType === 'string' && layoutType.length > 0) {
       updateData.layoutType = layoutType;
