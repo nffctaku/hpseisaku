@@ -49,8 +49,8 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
 
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header 
-          logoUrl={clubInfo.logoUrl}
-          clubName={clubInfo.clubName}
+          logoUrl={user?.logoUrl || clubInfo.logoUrl}
+          clubName={user?.clubName || clubInfo.clubName}
           homePath={user ? `/admin/club/${user.uid}` : '/admin'}
           navLinks={null} // No nav links in admin header
           onMenuClick={toggleSidebar}
