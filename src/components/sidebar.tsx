@@ -13,7 +13,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const { clubInfo } = useClub();
-  const clubId = clubInfo.id;
+  const clubId = clubInfo.id || user?.clubId || null;
 
   const handleSignOut = async () => {
     try {
