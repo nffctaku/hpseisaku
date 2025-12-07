@@ -57,7 +57,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
           isMenuOpen={isSidebarOpen}
           isAdminPage={true}
         />
-        <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
+        <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8 overflow-y-auto">
           {children}
         </main>
       </div>
