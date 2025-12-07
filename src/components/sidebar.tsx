@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useClub } from '@/contexts/ClubContext';
 import { cn } from '@/lib/utils';
 import { Trophy, Shield, Home, Newspaper, Tv, BarChart, Users, Calendar, Settings, CreditCard } from 'lucide-react';
 import { signOut } from 'firebase/auth';
@@ -11,7 +12,8 @@ import { auth } from '@/lib/firebase';
 export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const clubId = user?.clubId;
+  const { clubInfo } = useClub();
+  const clubId = clubInfo.id;
 
   const handleSignOut = async () => {
     try {
