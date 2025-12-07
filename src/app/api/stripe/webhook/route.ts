@@ -38,10 +38,17 @@ export async function POST(req: NextRequest) {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
       const ownerUid = session.client_reference_id;
+      const customerId = typeof session.customer === 'string' ? session.customer : undefined;
 
       if (ownerUid) {
         const profileRef = db.collection('club_profiles').doc(ownerUid);
-        await profileRef.set({ plan: 'pro' }, { merge: true });
+        const updateData: Record<string, unknown> = { plan: 'pro' };
+
+        if (customerId) {
+          updateData.stripeCustomerId = customerId;
+        }
+
+        await profileRef.set(updateData, { merge: true });
       } else {
         console.warn('checkout.session.completed without client_reference_id');
       }

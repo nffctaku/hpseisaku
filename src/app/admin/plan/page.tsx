@@ -43,6 +43,41 @@ export default function PlanPage() {
     }
   };
 
+  const handleOpenBillingPortal = async () => {
+    setLoading(true);
+    try {
+      const authModule = await import("firebase/auth");
+      const idToken = await authModule.getAuth().currentUser?.getIdToken();
+
+      if (!idToken) {
+        alert("ログインしてから請求情報を確認してください。");
+        return;
+      }
+
+      const res = await fetch("/api/stripe/create-portal-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      if (!res.ok) {
+        alert("請求情報画面の作成に失敗しました。");
+        return;
+      }
+
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert("請求情報画面のURLを取得できませんでした。");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-2xl md:text-3xl font-bold mb-4">プラン</h1>
@@ -64,8 +99,17 @@ export default function PlanPage() {
                 現在 Pro プランをご利用中です。
               </p>
               <p className="text-xs text-muted-foreground">
-                決済と請求管理は Stripe 上で行われます。プランの変更や解約は Stripe の画面から行ってください。
+                決済と請求管理は Stripe 上で行われます。プランの変更や解約は、下記ボタンから開く Stripe の画面で行ってください。
               </p>
+              <Button
+                onClick={handleOpenBillingPortal}
+                disabled={loading}
+                variant="outline"
+                className="w-full md:w-auto text-sm"
+              >
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                契約内容の確認・解約はこちら
+              </Button>
             </>
           ) : (
             <>
