@@ -38,13 +38,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchUserProfile = async (authUser: User) => {
     console.log('[AuthContext] fetchUserProfile start', { uid: authUser.uid });
+    // 1. Try to load club profile by document ID (uid)
+    const profileDocRef = doc(db, 'club_profiles', authUser.uid);
+    const profileDocSnap = await getDoc(profileDocRef);
+
+    if (profileDocSnap.exists()) {
+      const profileData = profileDocSnap.data();
+      setUser({ ...authUser, ...profileData } as UserProfile);
+      setClubProfileExists(true);
+      console.log('[AuthContext] profile found by doc id, user set', { uid: authUser.uid, profileData });
+      return;
+    }
+
+    // 2. Fallback: query by ownerUid field for older documents
     const q = query(collection(db, 'club_profiles'), where('ownerUid', '==', authUser.uid));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
       const profileData = querySnapshot.docs[0].data();
       setUser({ ...authUser, ...profileData } as UserProfile);
       setClubProfileExists(true);
-      console.log('[AuthContext] profile found, user set', { uid: authUser.uid, profileData });
+      console.log('[AuthContext] profile found by ownerUid, user set', { uid: authUser.uid, profileData });
     } else {
       setUser(authUser as UserProfile);
       setClubProfileExists(false);
