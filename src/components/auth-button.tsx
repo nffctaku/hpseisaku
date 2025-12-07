@@ -54,7 +54,7 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
             <AvatarFallback><User /></AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" className="bg-white text-gray-900">
           <DropdownMenuLabel>{user.displayName}</DropdownMenuLabel>
           <DropdownMenuSeparator />
                     <Link href="/admin/club">

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { auth } from '@/lib/firebase';
+import { auth } from '@/lib/firebase/admin';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const priceId = process.env.STRIPE_PRICE_ID;
