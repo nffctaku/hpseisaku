@@ -30,6 +30,23 @@ export async function POST(request: Request) {
 
     const clubProfilesRef = db.collection('club_profiles');
 
+    // 既存の club_profiles ドキュメントから clubId を引き継ぐ
+    const existingUidDocSnap = await clubProfilesRef.doc(uid).get();
+    const existingOwnerQuerySnap = await clubProfilesRef.where('ownerUid', '==', uid).get();
+
+    let existingClubId: string | null = null;
+    if (existingUidDocSnap.exists) {
+      const uidData = existingUidDocSnap.data() as any;
+      if (uidData && typeof uidData.clubId === 'string') {
+        existingClubId = uidData.clubId as string;
+      }
+    } else if (!existingOwnerQuerySnap.empty) {
+      const firstOwnerDoc = existingOwnerQuerySnap.docs[0].data() as any;
+      if (typeof firstOwnerDoc.clubId === 'string') {
+        existingClubId = firstOwnerDoc.clubId;
+      }
+    }
+
     const updateData: Record<string, any> = {
       logoUrl: logoUrl || null, // URLが空の場合はnullを保存
       ownerUid: uid,
@@ -37,6 +54,10 @@ export async function POST(request: Request) {
 
     if (typeof clubName === 'string' && clubName.length > 0) {
       updateData.clubName = clubName;
+    }
+
+    if (existingClubId) {
+      updateData.clubId = existingClubId;
     }
 
     if (typeof layoutType === 'string' && layoutType.length > 0) {
