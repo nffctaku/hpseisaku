@@ -38,8 +38,9 @@ export function Header({
         {navLinks}
         <AuthButton />
       </nav>
-      <div className="md:hidden flex items-center">
-        <button onClick={onMenuClick} className="ml-4">
+      <div className="md:hidden flex items-center gap-3">
+        {isAdminPage && <AuthButton />}
+        <button onClick={onMenuClick} className="ml-1">
           <Menu size={24} />
         </button>
       </div>

@@ -5,11 +5,22 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { Trophy, Shield, Home, Newspaper, Tv, BarChart, Users, Calendar, Settings, CreditCard } from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const clubId = user?.clubId;
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Error signing out from sidebar', error);
+    }
+  };
 
   const navItems = [
     { href: `/admin/club/info`, label: 'クラブ情報', icon: Settings },
@@ -37,7 +48,7 @@ export function Sidebar() {
           <span className="truncate min-w-0">HP表示</span>
         </Link>
       )}
-      <nav className="flex flex-col space-y-1">
+      <nav className="flex flex-col space-y-1 flex-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const href = item.href;
@@ -58,6 +69,13 @@ export function Sidebar() {
           );
         })}
       </nav>
+      <button
+        type="button"
+        onClick={handleSignOut}
+        className="mt-4 w-full rounded-lg px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+      >
+        ログアウト
+      </button>
     </aside>
   );
 }
