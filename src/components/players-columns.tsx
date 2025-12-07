@@ -5,28 +5,9 @@ import { Player } from "../types/player";
 import { ArrowUpDown, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import Image from "next/image";
 import Link from 'next/link';
 
 export const columns = (openEditDialog: (player: Player) => void, setDeletingPlayer: (player: Player) => void): ColumnDef<Player>[] => [
-  {
-    accessorKey: "photoUrl",
-    header: "",
-    cell: ({ row }) => {
-      const player = row.original;
-      return (
-        <div className="relative h-10 w-10 flex-shrink-0">
-          <Image 
-            src={player.photoUrl || '/placeholder-person.svg'} 
-            alt={player.name} 
-            fill
-            sizes="40px"
-            className="rounded-full object-cover"
-          />
-        </div>
-      );
-    },
-  },
   {
     accessorKey: "number",
     header: "背番号",

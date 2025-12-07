@@ -1,6 +1,5 @@
 import { db } from "@/lib/firebase/admin";
 import { notFound } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 
 interface PlayerPageProps {
@@ -135,13 +134,9 @@ export default async function PlayerPage({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-1">
-          <div className="relative aspect-[4/5] bg-gray-800 rounded-lg overflow-hidden">
-            <Image
-              src={player.photoUrl || '/placeholder-person.svg'}
-              alt={player.name}
-              fill
-              className="object-cover"
-            />
+          <div className="aspect-[4/5] rounded-lg border bg-card flex flex-col items-center justify-center p-6">
+            <p className="text-7xl font-black text-primary tracking-tighter">{player.number}</p>
+            <h1 className="mt-4 text-3xl font-bold uppercase text-center break-words">{player.name}</h1>
           </div>
         </div>
         <div className="md:col-span-2">

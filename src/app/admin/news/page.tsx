@@ -49,6 +49,7 @@ type NewsFormValues = z.infer<typeof newsSchema>;
 
 export default function NewsAdminPage() {
   const { user } = useAuth();
+  const isPro = user?.plan === "pro";
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [editingArticle, setEditingArticle] = useState<NewsArticle | null>(null);
   const [deletingArticle, setDeletingArticle] = useState<NewsArticle | null>(null);
@@ -86,7 +87,7 @@ export default function NewsAdminPage() {
   }, [user]);
 
   const handleOpenDialog = (article: NewsArticle | null) => {
-    if (!article && news.length >= MAX_NEWS_FREE) {
+    if (!isPro && !article && news.length >= MAX_NEWS_FREE) {
       toast.info("無料プランではニュースは5件まで登録できます。既存のニュースを編集するか、不要なニュースを削除してください。");
       return;
     }

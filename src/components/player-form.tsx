@@ -23,11 +23,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
-import { PlayerPhotoUploader } from "./player-photo-uploader";
 import { Textarea } from "@/components/ui/textarea";
 import { collection, query, onSnapshot, setDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { PlayerPhotoUploader } from "@/components/player-photo-uploader";
 
 interface Team {
   id: string;
@@ -62,6 +62,7 @@ export function PlayerForm({ onSubmit, defaultValues }: PlayerFormProps) {
   const [seasonOptions, setSeasonOptions] = useState<string[]>([]);
   const [newSeason, setNewSeason] = useState("");
   const { user } = useAuth();
+  const isPro = user?.plan === "pro";
 
   const form = useForm<PlayerFormValues>({
     resolver: zodResolver(formSchema),
@@ -119,22 +120,6 @@ export function PlayerForm({ onSubmit, defaultValues }: PlayerFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="photoUrl"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>選手写真</FormLabel>
-              <FormControl>
-                <PlayerPhotoUploader
-                  value={field.value || ''}
-                  onChange={field.onChange}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
         {/* 所属シーズン（複数選択可） */}
         <FormField
           control={form.control}
@@ -228,6 +213,24 @@ export function PlayerForm({ onSubmit, defaultValues }: PlayerFormProps) {
             </FormItem>
           )}
         />
+        {isPro && (
+          <FormField
+            control={form.control}
+            name="photoUrl"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>選手写真</FormLabel>
+                <FormControl>
+                  <PlayerPhotoUploader
+                    value={field.value || ""}
+                    onChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={form.control}
           name="name"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -10,8 +10,31 @@ export default function PlanPage() {
   const handleUpgrade = async () => {
     setLoading(true);
     try {
-      // Stripe の決済リンクへリダイレクト
-      window.location.href = "https://buy.stripe.com/6oU00l2ny8ITbQxgx2cbC00";
+      const idToken = await (await import("firebase/auth")).getAuth().currentUser?.getIdToken();
+      if (!idToken) {
+        alert("ログインしてからプランを変更してください。");
+        return;
+      }
+
+      const res = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      if (!res.ok) {
+        alert("決済ページの作成に失敗しました。");
+        return;
+      }
+
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert("決済ページのURLを取得できませんでした。");
+      }
     } finally {
       setLoading(false);
     }

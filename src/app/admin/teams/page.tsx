@@ -31,6 +31,7 @@ type TeamFormValues = z.infer<typeof teamSchema>;
 
 export default function TeamsPage() {
   const { user } = useAuth();
+  const isPro = user?.plan === "pro";
   const [teams, setTeams] = useState<Team[]>([]);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [deletingTeam, setDeletingTeam] = useState<Team | null>(null);
@@ -83,6 +84,10 @@ export default function TeamsPage() {
     let logoUrl = editingTeam?.logoUrl || '';
 
     try {
+      if (!isPro && !editingTeam && teams.length >= 24) {
+        toast.error("無料プランではチームは最大24チームまで登録できます。");
+        return;
+      }
       if (selectedFile) {
         const formData = new FormData();
         formData.append('file', selectedFile);
@@ -135,7 +140,19 @@ export default function TeamsPage() {
     <div className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">チーム管理</h1>
-        <Button onClick={() => handleOpenDialog(null)}>新規チームを追加</Button>
+        <div className="flex flex-col items-end gap-1">
+          <Button
+            onClick={() => handleOpenDialog(null)}
+            disabled={!isPro && teams.length >= 24}
+          >
+            新規チームを追加
+          </Button>
+          {!isPro && (
+            <p className="text-xs text-muted-foreground">
+              無料プランでは最大24チームまで登録できます。
+            </p>
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {teams.map(team => (

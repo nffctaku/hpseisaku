@@ -12,6 +12,7 @@ export interface UserProfile extends User {
   clubName?: string;
   logoUrl?: string;
   layoutType?: string;
+  plan?: string;
 }
 
 interface AuthContextType {

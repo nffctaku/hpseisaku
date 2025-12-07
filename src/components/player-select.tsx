@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Player } from '@/types/match';
-import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -38,11 +37,9 @@ export function PlayerSelect({ allPlayers, availablePlayers, selectedPlayerId, o
           type="button"
           className="w-24 h-10 rounded-full bg-primary text-primary-foreground focus:ring-0 flex items-center justify-center p-0 border-2 border-primary-foreground/50"
         >
-          {selectedPlayer && selectedPlayer.photoURL ? (
-            <Image src={selectedPlayer.photoURL} alt={selectedPlayer.name} width={36} height={36} className="rounded-full object-cover" />
-          ) : (
-            <span className="text-sm font-semibold">{selectedPlayer ? selectedPlayer.name.substring(0, 10) : placeholder}</span>
-          )}
+          <span className="text-sm font-semibold">
+            {selectedPlayer ? selectedPlayer.name.substring(0, 10) : placeholder}
+          </span>
         </Button>
       </DialogTrigger>
       <DialogContent>

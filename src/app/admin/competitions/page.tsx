@@ -41,6 +41,7 @@ const MAX_COMPETITIONS_FREE = 1;
 
 export default function CompetitionsPage() {
   const { user } = useAuth();
+  const isPro = user?.plan === "pro";
   const router = useRouter();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [deletingCompetition, setDeletingCompetition] = useState<Competition | null>(null);
@@ -82,7 +83,7 @@ export default function CompetitionsPage() {
   };
 
   const handleCreateCompetition = () => {
-    if (competitions.length >= MAX_COMPETITIONS_FREE) {
+    if (!isPro && competitions.length >= MAX_COMPETITIONS_FREE) {
       setLimitDialogOpen(true);
       return;
     }

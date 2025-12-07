@@ -1,7 +1,6 @@
 "use client";
 
 import { usePathname, useRouter } from 'next/navigation';
-import Image from 'next/image';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -11,7 +10,6 @@ interface Player {
   name: string;
   number: number;
   position: string;
-  photoUrl: string;
 }
 
 export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason }: {
@@ -75,19 +73,9 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {players.map(player => (
                   <Link href={`/${clubId}/players/${player.id}`} key={player.id} className="block">
-                    <div className="relative aspect-square bg-gray-800 rounded-lg overflow-hidden group">
-                      <Image
-                        src={player.photoUrl || '/placeholder-person.svg'}
-                        alt={player.name}
-                        fill
-                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 20vw"
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-                      <div className="absolute bottom-0 left-0 p-4 text-white w-full">
-                        <p className="text-4xl font-black tracking-tighter">{player.number}</p>
-                        <h3 className="text-2xl font-bold truncate uppercase">{player.name}</h3>
-                      </div>
+                    <div className="aspect-square rounded-lg border bg-card flex flex-col items-center justify-center p-4 hover:bg-muted/60 transition-colors">
+                      <p className="text-4xl font-black tracking-tighter">{player.number}</p>
+                      <h3 className="mt-2 text-lg font-semibold text-center break-words">{player.name}</h3>
                     </div>
                   </Link>
                 ))}

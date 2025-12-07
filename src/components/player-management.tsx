@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, where } from "firebase/firestore";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,7 @@ interface PlayerManagementProps {
 
 export function PlayerManagement({ teamId }: PlayerManagementProps) {
   const { user } = useAuth();
+  const isPro = user?.plan === "pro";
   const [players, setPlayers] = useState<Player[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
@@ -87,6 +89,10 @@ export function PlayerManagement({ teamId }: PlayerManagementProps) {
   };
 
   const openAddDialog = () => {
+    if (!isPro && players.length >= 26) {
+      toast.error("無料プランでは1チームあたり選手は最大26人まで登録できます。");
+      return;
+    }
     setEditingPlayer(null);
     setIsDialogOpen(true);
   };
@@ -100,6 +106,7 @@ export function PlayerManagement({ teamId }: PlayerManagementProps) {
             <DialogTrigger asChild>
               <Button
                 onClick={openAddDialog}
+                disabled={!isPro && players.length >= 26}
                 className="bg-white text-gray-900 hover:bg-gray-100 border border-border"
               >
                 選手を追加

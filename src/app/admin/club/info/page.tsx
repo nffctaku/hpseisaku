@@ -39,6 +39,7 @@ const slugify = (value: string): string => {
 
 export default function ClubInfoPage() {
   const { user, refreshUserProfile } = useAuth();
+  const isPro = user?.plan === "pro";
   const [clubName, setClubName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [homeBgColor, setHomeBgColor] = useState<string>('');
@@ -260,20 +261,11 @@ export default function ClubInfoPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="layoutType">表示レイアウト</Label>
-            <Select
-              value={layoutType}
-              onValueChange={(value) => setLayoutType(value)}
-            >
-              <SelectTrigger className="w-full bg-white text-gray-900">
-                <SelectValue placeholder="レイアウトを選択" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">標準レイアウト</SelectItem>
-                <SelectItem value="pattern1">パターン1（ニュース・動画・試合カード）</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="w-full rounded-md border bg-white text-gray-900 px-3 py-2 text-sm">
+              標準レイアウト
+            </div>
             <p className="text-xs text-muted-foreground">
-              クラブページのトップ画面レイアウトを選択できます。
+              現在は標準レイアウトのみ利用できます。今後プランに応じてレイアウトが追加される予定です。
             </p>
           </div>
           <div className="space-y-2">
@@ -339,8 +331,12 @@ export default function ClubInfoPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full bg-white text-gray-900"
-                onClick={() => setSponsors([...sponsors, { imageUrl: '', linkUrl: '' }])}
+                className="w-full bg-white text-gray-900 disabled:opacity-60"
+                disabled={!isPro && sponsors.length >= 1}
+                onClick={() => {
+                  if (!isPro && sponsors.length >= 1) return;
+                  setSponsors([...sponsors, { imageUrl: '', linkUrl: '' }]);
+                }}
               >
                 スポンサーを追加
               </Button>
