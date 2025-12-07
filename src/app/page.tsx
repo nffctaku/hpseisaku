@@ -31,13 +31,13 @@ export default function LandingPage() {
       </header>
 
       <main className="flex-grow flex items-center justify-center px-4">
-        <div className="max-w-xl w-full text-center space-y-8 py-12">
+        <div className="max-w-xl w-full text-center space-y-6 sm:space-y-8 py-10 sm:py-12">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+            <h1 className="text-2xl sm:text-4xl font-bold tracking-tight mb-2 sm:mb-3 leading-snug">
               チーム運営に必要なページを、全部かんたん作成。
             </h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              クラブHP／大会管理／試合記録／選手一覧を一元管理。
+            <p className="text-xs sm:text-base text-muted-foreground leading-relaxed">
+              クラブHP／大会管理／試合記録／選手一覧を一括管理。
             </p>
           </div>
 
