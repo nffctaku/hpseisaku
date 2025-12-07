@@ -32,11 +32,12 @@ export async function POST(request: Request) {
       return new NextResponse(JSON.stringify({ message: 'クラブ名は必須です。' }), { status: 400 });
     }
 
-    const clubDocRef = db.collection('club_profiles').doc(uid);
+    const clubProfilesRef = db.collection('club_profiles');
 
     const updateData: Record<string, any> = {
       clubName,
       logoUrl: logoUrl || null, // URLが空の場合はnullを保存
+      ownerUid: uid,
     };
 
     if (typeof layoutType === 'string' && layoutType.length > 0) {
@@ -66,7 +67,22 @@ export async function POST(request: Request) {
       updateData.homeBgColor = homeBgColor;
     }
 
-    await clubDocRef.set(updateData, { merge: true });
+    // ID が uid の doc を更新
+    const clubDocRef = clubProfilesRef.doc(uid);
+
+    // 既存の ownerUid ベースの doc もあれば同じ内容で更新
+    const ownerQuerySnapshot = await clubProfilesRef.where('ownerUid', '==', uid).get();
+
+    const writePromises: Promise<FirebaseFirestore.WriteResult>[] = [];
+    writePromises.push(clubDocRef.set(updateData, { merge: true }));
+
+    ownerQuerySnapshot.forEach((docSnap) => {
+      if (docSnap.id !== uid) {
+        writePromises.push(docSnap.ref.set(updateData, { merge: true }));
+      }
+    });
+
+    await Promise.all(writePromises);
 
     return new NextResponse(JSON.stringify({ message: 'クラブ情報が正常に更新されました。' }), { status: 200 });
 
