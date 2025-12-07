@@ -112,7 +112,7 @@ export function PlayerManagement({ teamId }: PlayerManagementProps) {
                 選手を追加
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh]">
               <DialogHeader>
                 <DialogTitle>{editingPlayer ? '選手を編集' : '選手を追加'}</DialogTitle>
               </DialogHeader>
