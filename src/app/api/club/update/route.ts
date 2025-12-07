@@ -32,15 +32,7 @@ export async function POST(request: Request) {
       return new NextResponse(JSON.stringify({ message: 'クラブ名は必須です。' }), { status: 400 });
     }
 
-    const clubProfilesRef = db.collection('club_profiles');
-    const q = clubProfilesRef.where('ownerUid', '==', uid).limit(1);
-    const querySnapshot = await q.get();
-
-    if (querySnapshot.empty) {
-      return new NextResponse(JSON.stringify({ message: '更新対象のクラブが見つかりません。' }), { status: 404 });
-    }
-
-    const clubDocRef = querySnapshot.docs[0].ref;
+    const clubDocRef = db.collection('club_profiles').doc(uid);
 
     const updateData: Record<string, any> = {
       clubName,
@@ -74,7 +66,7 @@ export async function POST(request: Request) {
       updateData.homeBgColor = homeBgColor;
     }
 
-    await clubDocRef.update(updateData);
+    await clubDocRef.set(updateData, { merge: true });
 
     return new NextResponse(JSON.stringify({ message: 'クラブ情報が正常に更新されました。' }), { status: 200 });
 

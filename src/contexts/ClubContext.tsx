@@ -25,7 +25,7 @@ export function ClubProvider({ children }: { children: ReactNode }) {
   const fetchClubInfo = useCallback(async () => {
     if (user && !loading) {
       try {
-        // 1. Fetch from club_profiles (main source for header)
+        // 1. Single source of truth: club_profiles document whose ID is the user's UID
         const clubProfileRef = doc(db, 'club_profiles', user.uid);
         const clubProfileSnap = await getDoc(clubProfileRef);
         const clubProfileData = clubProfileSnap.exists() ? clubProfileSnap.data() : {};
