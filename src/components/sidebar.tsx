@@ -12,15 +12,15 @@ export function Sidebar() {
   const clubId = user?.clubId;
 
   const navItems = [
-    { href: `/admin/club/info`, label: 'クラブ情報', icon: Settings, requiredClub: true },
-    { href: `/admin/news`, label: 'ニュース管理', icon: Newspaper, requiredClub: true },
-    { href: `/admin/tv`, label: 'TV管理', icon: Tv, requiredClub: true },
-    { href: `/admin/records`, label: 'チーム記録', icon: BarChart, requiredClub: true },
-    { href: `/admin/matches`, label: '試合管理', icon: Calendar, requiredClub: true },
-    { href: `/admin/players`, label: '選手管理', icon: Users, requiredClub: true },
-    { href: `/admin/competitions`, label: '大会管理', icon: Trophy, requiredClub: true },
-    { href: '/admin/teams', label: 'チーム登録', icon: Shield, requiredClub: false },
-    { href: `/admin/plan`, label: 'プラン', icon: CreditCard, requiredClub: true },
+    { href: `/admin/club/info`, label: 'クラブ情報', icon: Settings },
+    { href: `/admin/news`, label: 'ニュース管理', icon: Newspaper },
+    { href: `/admin/tv`, label: 'TV管理', icon: Tv },
+    { href: `/admin/records`, label: 'チーム記録', icon: BarChart },
+    { href: `/admin/matches`, label: '試合管理', icon: Calendar },
+    { href: `/admin/players`, label: '選手管理', icon: Users },
+    { href: `/admin/competitions`, label: '大会管理', icon: Trophy },
+    { href: '/admin/teams', label: 'チーム登録', icon: Shield },
+    { href: `/admin/plan`, label: 'プラン', icon: CreditCard },
   ];
 
   return (
@@ -40,10 +40,7 @@ export function Sidebar() {
       <nav className="flex flex-col space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          // A link is disabled if it requires a clubId and it's not available yet.
-          const isDisabled = item.requiredClub && !clubId;
-          // Adjust href for disabled links to prevent navigation.
-          const href = isDisabled ? '#' : item.href;
+          const href = item.href;
 
           return (
             <Link
@@ -51,17 +48,9 @@ export function Sidebar() {
               href={href}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-gray-300 transition-all',
-                isDisabled
-                  ? 'cursor-not-allowed text-gray-500' // Style for disabled link
-                  : 'hover:bg-gray-700 hover:text-white', // Style for enabled link
-                !isDisabled && pathname.startsWith(item.href) && 'bg-gray-900 text-white' // Style for active link
+                'hover:bg-gray-700 hover:text-white', // Style for enabled link
+                pathname.startsWith(item.href) && 'bg-gray-900 text-white' // Style for active link
               )}
-              aria-disabled={isDisabled}
-              onClick={(e) => {
-                if (isDisabled) {
-                  e.preventDefault(); // Prevent navigation for disabled links
-                }
-              }}
             >
               <Icon className="h-4 w-4" />
               {item.label}
