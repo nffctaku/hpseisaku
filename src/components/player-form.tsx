@@ -119,7 +119,10 @@ export function PlayerForm({ onSubmit, defaultValues }: PlayerFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form
+        onSubmit={form.handleSubmit(handleSubmit)}
+        className="space-y-4 pb-24 max-h-[80vh] overflow-y-auto"
+      >
         {/* 所属シーズン（複数選択可） */}
         <FormField
           control={form.control}
