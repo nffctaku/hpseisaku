@@ -34,10 +34,10 @@ export default function LandingPage() {
         <div className="max-w-xl w-full text-center space-y-8 py-12">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
-              クラブ運営オールインワン
+              チーム運営に必要なページを、全部かんたん作成。
             </h1>
             <p className="text-sm sm:text-base text-muted-foreground">
-              試合結果・スタッツ・ニュース・動画をひとつの場所で管理し、そのままクラブ公式サイトとして公開できます。
+              クラブHP／大会管理／試合記録／選手一覧を一元管理。
             </p>
           </div>
 
