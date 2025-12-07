@@ -52,10 +52,20 @@ export function ClubProvider({ children }: { children: ReactNode }) {
         const teamData = teamDocSnap.exists() ? teamDocSnap.data() : {};
 
         // 4. Consolidate and set the club info
+        const resolvedClubId =
+          (clubProfileData as any).clubId ||
+          (clubData as any).clubId ||
+          null;
+
         setClubInfo({
-          id: clubProfileData.clubId || null,
+          id: resolvedClubId,
           clubName: clubProfileData.clubName || clubData.clubName || teamData.name || null,
-          logoUrl: clubProfileData.logoUrl || clubData.logoUrl || teamData.logoUrl || clubProfileData.photoURL || null,
+          logoUrl:
+            clubProfileData.logoUrl ||
+            clubData.logoUrl ||
+            teamData.logoUrl ||
+            clubProfileData.photoURL ||
+            null,
         });
       } catch (error) {
         console.error("Error fetching club info for context:", error);
