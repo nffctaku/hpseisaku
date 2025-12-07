@@ -31,7 +31,7 @@ export function Header({
           {logoUrl && (
             <Image src={logoUrl} alt={clubName || 'Club Logo'} width={32} height={32} className="rounded-full object-contain" />
           )}
-          <span>{clubName || 'CLUB'}</span>
+          {!isAdminPage && <span>{clubName || 'CLUB'}</span>}
         </Link>
       </div>
       <nav className="hidden md:flex items-center space-x-6">
