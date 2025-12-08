@@ -182,42 +182,55 @@ export default function MatchesPage() {
   }
 
   return (
-    <div className="container mx-auto py-10 px-4 md:px-0">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">試合日程・結果</h1>
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4">
-          <Select value={selectedCompetitionId} onValueChange={setSelectedCompetitionId}>
-            <SelectTrigger className="w-[260px] bg-white text-gray-900">
-              <SelectValue placeholder="大会を選択" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべての大会</SelectItem>
-              {competitions.map(comp => (
-                <SelectItem key={comp.id} value={comp.id}>
-                  {comp.season ? `${comp.name} (${comp.season})` : comp.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="container mx-auto py-8 sm:py-10 px-4 md:px-0">
+      <div className="mb-6 sm:mb-8 space-y-4 sm:space-y-0 sm:flex sm:items-end sm:justify-between">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">試合日程・結果</h1>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 flex-1">
+            <Select value={selectedCompetitionId} onValueChange={setSelectedCompetitionId}>
+              <SelectTrigger className="w-full sm:w-[220px] bg-white text-gray-900">
+                <SelectValue placeholder="すべての大会" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべての大会</SelectItem>
+                {competitions.map(comp => (
+                  <SelectItem key={comp.id} value={comp.id}>
+                    {comp.season ? `${comp.name} (${comp.season})` : comp.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-            <SelectTrigger className="w-[260px] bg-white text-gray-900">
-              <SelectValue placeholder="チームを選択" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべてのチーム</SelectItem>
-              {teams.map(team => (
-                <SelectItem key={team.id} value={team.id}>
-                  <div className="flex items-center gap-2">
-                    {team.logoUrl && <Image src={team.logoUrl} alt={team.name} width={20} height={20} className="rounded-full object-contain" />}
-                    <span>{team.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+              <SelectTrigger className="w-full sm:w-[220px] bg-white text-gray-900">
+                <SelectValue placeholder="すべてのチーム" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべてのチーム</SelectItem>
+                {teams.map(team => (
+                  <SelectItem key={team.id} value={team.id}>
+                    <div className="flex items-center gap-2">
+                      {team.logoUrl && (
+                        <Image
+                          src={team.logoUrl}
+                          alt={team.name}
+                          width={20}
+                          height={20}
+                          className="rounded-full object-contain"
+                        />
+                      )}
+                      <span>{team.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Link href="/admin/competitions" className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md whitespace-nowrap text-center">
+          <Link
+            href="/admin/competitions"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md whitespace-nowrap text-center text-sm"
+          >
             大会管理へ
           </Link>
         </div>
@@ -232,44 +245,48 @@ export default function MatchesPage() {
               <div className="space-y-3">
                 {matchesInGroup.map(match => {
                   const isFinished = typeof match.scoreHome === 'number' && typeof match.scoreAway === 'number';
-                  const isHomeGame = match.homeTeamId === user?.uid;
                   const resultColor = 'bg-gray-500';
 
                   return (
-                    <div id={match.id} key={match.id} className="flex items-center p-4 bg-card rounded-lg border">
-                      <div className="grid grid-cols-12 items-center gap-2 flex-grow">
-                        <div className="col-span-12 md:col-span-5 flex items-center justify-end gap-2">
-                          <span className="font-medium text-right flex-1 truncate">{match.homeTeamName}</span>
-                          {match.homeTeamLogo ? (
-                            <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={28} height={28} className="rounded-full object-contain" />
-                          ) : (
-                            <div className="w-7 h-7 bg-muted rounded-full" />
-                          )}
-                        </div>
-
-                        <div className="col-span-12 md:col-span-2 text-center">
+                    <div
+                      id={match.id}
+                      key={match.id}
+                      className="flex items-center p-3 sm:p-4 bg-card rounded-lg"
+                    >
+                      <div className="flex flex-col flex-grow gap-1">
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+                            <span className="font-medium text-sm truncate text-right">{match.homeTeamName}</span>
+                            {match.homeTeamLogo ? (
+                              <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={22} height={22} className="rounded-full object-contain" />
+                            ) : (
+                              <div className="w-[22px] h-[22px] bg-muted rounded-full" />
+                            )}
+                          </div>
                           {isFinished ? (
-                            <div className={`px-2 py-1 rounded-md font-bold text-white text-lg ${resultColor}`}>
+                            <div className={`inline-block min-w-[60px] px-2 py-1 rounded-md font-bold text-white text-sm text-center ${resultColor}`}>
                               {match.scoreHome} - {match.scoreAway}
                             </div>
                           ) : (
-                            <div className="text-sm text-muted-foreground">{match.matchTime || 'VS'}</div>
+                            <div className="text-xs text-muted-foreground text-center min-w-[60px]">
+                              {match.matchTime || 'VS'}
+                            </div>
                           )}
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            {match.awayTeamLogo ? (
+                              <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={22} height={22} className="rounded-full object-contain" />
+                            ) : (
+                              <div className="w-[22px] h-[22px] bg-muted rounded-full" />
+                            )}
+                            <span className="font-medium text-sm truncate">{match.awayTeamName}</span>
+                          </div>
                         </div>
 
-                        <div className="col-span-12 md:col-span-5 flex items-center gap-2">
-                          {match.awayTeamLogo ? (
-                            <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={28} height={28} className="rounded-full object-contain" />
-                          ) : (
-                            <div className="w-7 h-7 bg-muted rounded-full" />
-                          )}
-                          <span className="font-medium flex-1 truncate">{match.awayTeamName}</span>
-                        </div>
-                        <div className="col-span-12 text-xs text-muted-foreground text-center mt-2">
+                        <div className="text-[11px] text-muted-foreground text-center mt-1">
                           {match.competitionName} / {match.roundName}
                         </div>
                       </div>
-                      <Link href={`/admin/competitions/${match.competitionId}/rounds/${match.roundId}/matches/${match.id}`} className="ml-4 p-2 text-muted-foreground hover:text-primary transition-colors">
+                      <Link href={`/admin/competitions/${match.competitionId}/rounds/${match.roundId}/matches/${match.id}`} className="ml-2 p-2 text-muted-foreground hover:text-primary transition-colors">
                         <FilePenLine className="h-5 w-5" />
                       </Link>
                     </div>

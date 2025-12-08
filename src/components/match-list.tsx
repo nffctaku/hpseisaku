@@ -85,9 +85,12 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
   }, {} as Record<string, EnrichedMatch[]>);
 
   return (
-    <div className="container mx-auto py-10 px-4 md:px-0">
+    <div className="container mx-auto py-8 px-4 md:px-0">
         <div className="text-center mb-4">
-            <h1 className="text-3xl font-bold">{clubName} 試合日程・結果</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
+              <span className="block">{clubName}</span>
+              <span className="block">試合日程・結果</span>
+            </h1>
         </div>
         <div className="mb-8 flex flex-col items-center gap-4">
           <div className="flex flex-wrap items-center justify-center gap-4">
@@ -133,11 +136,11 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
         {Object.keys(groupedMatches).length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">表示する試合がありません。</div>
         ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
                 {Object.entries(groupedMatches).map(([dateGroup, matchesInGroup]) => (
                     <div key={dateGroup}>
-                        <h2 className="font-semibold text-lg mb-3 text-muted-foreground">{dateGroup}</h2>
-                        <div className="space-y-3">
+                        <h2 className="font-semibold text-xs sm:text-sm mb-1 text-muted-foreground">{dateGroup}</h2>
+                        <div className="space-y-2">
                             {matchesInGroup.map(match => {
                                 const isFinished =
                                   typeof match.scoreHome === "number" &&

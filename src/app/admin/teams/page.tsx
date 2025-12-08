@@ -137,34 +137,45 @@ export default function TeamsPage() {
   };
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">チーム管理</h1>
-        <div className="flex flex-col items-end gap-1">
-          <Button
-            onClick={() => handleOpenDialog(null)}
-            disabled={!isPro && teams.length >= 24}
-          >
-            新規チームを追加
-          </Button>
+    <div className="container mx-auto py-8 sm:py-10">
+      <div className="mb-6 sm:mb-8 space-y-3 sm:space-y-0 sm:flex sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">チーム管理</h1>
           {!isPro && (
-            <p className="text-xs text-muted-foreground">
+            <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
               無料プランでは最大24チームまで登録できます。
             </p>
           )}
         </div>
+        <Button
+          onClick={() => handleOpenDialog(null)}
+          disabled={!isPro && teams.length >= 24}
+          className="w-full sm:w-auto"
+        >
+          新規チームを追加
+        </Button>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {teams.map(team => (
-          <Link href={`/admin/teams/${team.id}`} key={team.id} className="block bg-card border rounded-lg p-4 text-center relative group transition-colors hover:bg-muted/50">
+          <Link
+            href={`/admin/teams/${team.id}`}
+            key={team.id}
+            className="block bg-card border rounded-lg p-3 sm:p-4 text-center relative group transition-colors hover:bg-muted/50"
+          >
             <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                <Button variant="destructive" size="icon" className="h-7 w-7" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletingTeam(team); }}><Trash2 className="h-4 w-4" /></Button>
             </div>
-            <div className="w-20 h-20 mb-4 flex items-center justify-center mx-auto">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 mb-3 sm:mb-4 flex items-center justify-center mx-auto">
               {team.logoUrl ? (
-                <Image src={team.logoUrl} alt={team.name} width={80} height={80} className="rounded-full object-contain" />
+                <Image
+                  src={team.logoUrl}
+                  alt={team.name}
+                  width={80}
+                  height={80}
+                  className="rounded-full object-contain"
+                />
               ) : (
-                <div className="w-20 h-20 bg-muted rounded-full" />
+                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-muted rounded-full" />
               )}
             </div>
             <span className="font-medium text-sm break-all">{team.name}</span>

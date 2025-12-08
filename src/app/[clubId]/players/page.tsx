@@ -107,12 +107,15 @@ export default async function PlayersPage({
   params,
   searchParams,
 }: {
-  params: { clubId: string };
-  searchParams: { [key: string]: string | string[] | undefined };
+  params: Promise<{ clubId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { clubId } = params;
+  const { clubId } = await params;
+  const resolvedSearchParams = await searchParams;
   const season =
-    typeof searchParams.season === "string" ? searchParams.season : undefined;
+    typeof resolvedSearchParams.season === "string"
+      ? resolvedSearchParams.season
+      : undefined;
 
   if (clubId === "admin") {
     notFound();

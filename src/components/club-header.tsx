@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Menu } from "lucide-react";
 
 interface ClubHeaderProps {
   clubId: string;
@@ -41,10 +42,11 @@ export function ClubHeader({ clubId, clubName, logoUrl }: ClubHeaderProps) {
           {/* Mobile hamburger */}
           <button
             type="button"
-            className="sm:hidden px-2 py-1 rounded-md border border-border text-xs hover:bg-muted"
+            className="sm:hidden p-2 flex items-center justify-center hover:opacity-80"
             onClick={() => setMenuOpen((prev) => !prev)}
+            aria-label="メニューを開く"
           >
-            メニュー
+            <Menu className="w-5 h-5" strokeWidth={2.2} />
           </button>
 
           {/* Desktop navigation */}

@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase/admin";
 import { notFound } from 'next/navigation';
 import { Timestamp } from 'firebase-admin/firestore';
 import PaginationControls from '@/components/pagination-controls';
+import { ClubHeader } from '@/components/club-header';
 
 const VIDEOS_PER_PAGE = 9;
 
@@ -69,47 +70,54 @@ export default async function TvPage({ params: { clubId }, searchParams }: TvPag
   const totalPages = Math.ceil(totalVideos / VIDEOS_PER_PAGE);
 
   return (
-    <div className="container mx-auto py-10 px-4">
-      <h1 className="text-3xl font-bold mb-8 text-center">TV</h1>
-      {videos.length > 0 ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {videos.map(video => (
-              <div key={video.id} className="bg-card border rounded-lg overflow-hidden">
-                <div className="aspect-video">
-                  <iframe
-                    width="100%"
-                    height="100%"
-                    src={`https://www.youtube.com/embed/${video.youtubeVideoId}`}
-                    title={video.title}
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  ></iframe>
+    <div className="min-h-screen bg-background">
+      <ClubHeader
+        clubId={clubId}
+        clubName={clubInfo.clubName as string | undefined}
+        logoUrl={clubInfo.logoUrl as string | undefined}
+      />
+      <main className="container mx-auto py-6 sm:py-8 px-4">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8 text-center sm:text-left">TV</h1>
+        {videos.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {videos.map(video => (
+                <div key={video.id} className="bg-card rounded-lg overflow-hidden">
+                  <div className="aspect-video">
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      src={`https://www.youtube.com/embed/${video.youtubeVideoId}`}
+                      title={video.title}
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    ></iframe>
+                  </div>
+                  <div className="p-4">
+                    <h2 className="text-lg font-semibold mb-2">{video.title}</h2>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      公開日: {video.publishedAt.toDate().toLocaleDateString('ja-JP')}
+                    </p>
+                    {video.description && <p className="text-sm">{video.description}</p>}
+                  </div>
                 </div>
-                <div className="p-4">
-                  <h2 className="text-lg font-semibold mb-2">{video.title}</h2>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    公開日: {video.publishedAt.toDate().toLocaleDateString('ja-JP')}
-                  </p>
-                  {video.description && <p className="text-sm">{video.description}</p>}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            <div className="mt-8">
+              <PaginationControls
+                currentPage={page}
+                totalPages={totalPages}
+                basePath={`/${clubId}/tv`}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-20">
+            <p className="text-muted-foreground">投稿された動画はありません。</p>
           </div>
-          <div className="mt-8">
-            <PaginationControls
-              currentPage={page}
-              totalPages={totalPages}
-              basePath={`/${clubId}/tv`}
-            />
-          </div>
-        </>
-      ) : (
-        <div className="text-center py-20">
-          <p className="text-muted-foreground">投稿された動画はありません。</p>
-        </div>
-      )}
+        )}
+      </main>
     </div>
   );
 }

@@ -6,6 +6,8 @@ import { Header } from '@/components/header';
 import { useAuth } from '@/contexts/AuthContext';
 import { ClubProvider, useClub } from '@/contexts/ClubContext';
 import { AuthButton } from '@/components/auth-button';
+import Link from 'next/link';
+import Image from 'next/image';
 
 function AdminLayoutContent({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -32,7 +34,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white">
+    <div className="flex h-screen bg-gray-900 text-white overflow-x-hidden">
       {/* Sidebar for mobile (overlay) */}
       <div
         className={`fixed inset-0 z-30 bg-black/60 transition-opacity duration-300 md:hidden ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
@@ -47,7 +49,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
         <Sidebar />
       </div>
 
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1">
         <Header 
           logoUrl={user?.logoUrl || clubInfo.logoUrl}
           clubName={user?.clubName || clubInfo.clubName}
@@ -57,9 +59,47 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
           isMenuOpen={isSidebarOpen}
           isAdminPage={true}
         />
-        <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8 overflow-y-auto">
+        <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8 overflow-y-auto overflow-x-hidden">
           {children}
         </main>
+        <footer className="border-t border-gray-800 px-4 sm:px-6 md:px-8 py-4 text-xs text-gray-400">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1">
+              <Link
+                href="https://www.footballtop.net/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors whitespace-nowrap"
+              >
+                利用規約
+              </Link>
+              <Link
+                href="https://www.locofootball.com/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors whitespace-nowrap"
+              >
+                プライバシーポリシー
+              </Link>
+              <Link
+                href="/tokusho"
+                className="hover:text-white transition-colors whitespace-nowrap"
+              >
+                特定商取引法に基づく表記
+              </Link>
+            </div>
+            <div className="flex items-center justify-center sm:justify-end gap-2">
+              <span className="text-[10px] text-gray-500">Powered by</span>
+              <Image
+                src="/footballtop-logo-13.png"
+                alt="footballtop"
+                width={120}
+                height={24}
+                className="h-5 w-auto"
+              />
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );

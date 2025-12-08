@@ -8,6 +8,7 @@ import { notFound } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import PaginationControls from '@/components/pagination-controls';
+import { ClubHeader } from '@/components/club-header';
 
 const NEWS_PER_PAGE = 9;
 
@@ -52,7 +53,10 @@ async function getNewsData(clubId: string, page: number) {
   const snapshot = await newsQuery.get();
   const news = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as NewsArticle[];
 
-  return { news, totalNews };
+  const clubName = (profileData.clubName as string) || undefined;
+  const logoUrl = (profileData.logoUrl as string) || undefined;
+
+  return { news, totalNews, clubName, logoUrl };
 }
 
 function NewsCard({ article, clubId }: { article: NewsArticle, clubId: string }) {
@@ -101,14 +105,15 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
     notFound();
   }
 
-  const { news, totalNews } = newsData;
+  const { news, totalNews, clubName, logoUrl } = newsData;
   const totalPages = Math.ceil(totalNews / NEWS_PER_PAGE);
 
   return (
-    <div className="min-h-screen">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center border-b pb-2 mb-8">
-            <h1 className="text-3xl font-bold">ALL NEWS</h1>
+    <div className="min-h-screen bg-background">
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
+      <main className="container mx-auto px-4 py-6 sm:py-8">
+        <div className="flex items-center border-b pb-2 mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold">ALL NEWS</h1>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {news.map(article => (
@@ -116,13 +121,13 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
           ))}
         </div>
         <div className="mt-8">
-            <PaginationControls
-                currentPage={page}
-                totalPages={totalPages}
-                basePath={`/${clubId}/news`}
-            />
+          <PaginationControls
+            currentPage={page}
+            totalPages={totalPages}
+            basePath={`/${clubId}/news`}
+          />
         </div>
-      </div>
+      </main>
     </div>
   );
 }

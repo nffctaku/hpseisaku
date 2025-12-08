@@ -33,8 +33,10 @@ export default function LandingPage() {
       <main className="flex-grow flex items-center justify-center px-4">
         <div className="max-w-xl w-full text-center space-y-6 sm:space-y-8 py-10 sm:py-12">
           <div>
-            <h1 className="text-2xl sm:text-4xl font-bold tracking-tight mb-2 sm:mb-3 leading-snug">
-              チーム運営に必要なページを、全部かんたん作成。
+            <h1 className="text-2xl sm:text-4xl font-bold tracking-tight mb-3 sm:mb-4 leading-relaxed sm:leading-snug">
+              チーム運営に必要なページを、
+              <br />
+              全部かんたん作成。
             </h1>
             <p className="text-xs sm:text-base text-muted-foreground leading-relaxed">
               クラブHP／大会管理／試合記録／選手一覧を一括管理。
@@ -64,12 +66,12 @@ export default function LandingPage() {
       </main>
 
       <footer className="p-4 md:p-6 text-center text-muted-foreground text-sm">
-        <div className="flex justify-center items-center space-x-6 mb-4">
+        <div className="flex justify-center items-center space-x-4 sm:space-x-6 mb-4 text-xs sm:text-sm">
           <Link
             href="https://www.footballtop.net/terms"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-primary transition-colors"
+            className="hover:text-primary transition-colors whitespace-nowrap"
           >
             利用規約
           </Link>
@@ -77,11 +79,11 @@ export default function LandingPage() {
             href="https://www.locofootball.com/privacy"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-primary transition-colors"
+            className="hover:text-primary transition-colors whitespace-nowrap"
           >
             プライバシーポリシー
           </Link>
-          <Link href="/tokusho" className="hover:text-primary transition-colors">
+          <Link href="/tokusho" className="hover:text-primary transition-colors whitespace-nowrap">
             特定商取引法に基づく表記
           </Link>
         </div>
