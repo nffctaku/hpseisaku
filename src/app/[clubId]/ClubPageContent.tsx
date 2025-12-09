@@ -20,7 +20,6 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
         videos: [],
         competitions: [],
     });
-    const [loading, setLoading] = useState(true);
     const router = useRouter();
 
     useEffect(() => {
@@ -45,7 +44,6 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                 }
                 const summaryData = await summaryRes.json();
                 setClubInfo(summaryData);
-                setLoading(false);
 
                 // 2. バックグラウンドで重いフルデータを取得し、到着したら上書き
                 try {
@@ -62,7 +60,6 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
             } catch (e) {
                 console.error("Failed to fetch club summary:", e);
                 // Continue with empty state even if fetch fails
-                setLoading(false);
             }
         };
 
@@ -70,25 +67,6 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
     }, [clubId]);
 
     const homeBgColor = clubInfo.profile?.homeBgColor as string | undefined;
-
-    if (loading) {
-        return (
-            <main
-              className="min-h-screen flex flex-col"
-              style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}
-            >
-                <ClubHeader 
-                    clubId={clubId} 
-                    clubName={clubInfo.profile?.clubName || ""} 
-                    logoUrl={clubInfo.profile?.logoUrl || null} 
-                />
-                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
-                    <Loader2 className="h-7 w-7 animate-spin" />
-                    <p className="text-sm">クラブページを読み込み中です…</p>
-                </div>
-            </main>
-        );
-    }
 
     return (
         <main
