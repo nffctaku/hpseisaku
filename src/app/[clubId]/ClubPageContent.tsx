@@ -31,23 +31,37 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
 
         const fetchData = async () => {
             try {
-                const response = await fetch(`/api/club/${clubId}`);
-                if (!response.ok) {
-                    if (response.status === 404) {
-                        console.error("Club not found, clearing stored ID and redirecting.");
+                // 1. まず軽量なサマリーデータを取得して、素早く初期表示する
+                const summaryRes = await fetch(`/api/club-summary/${clubId}`);
+                if (!summaryRes.ok) {
+                    if (summaryRes.status === 404) {
+                        console.error("Club summary not found, clearing stored ID and redirecting.");
                         localStorage.removeItem('selectedClubId');
                         router.push('/');
                     } else {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        throw new Error(`Summary HTTP error! status: ${summaryRes.status}`);
                     }
                     return;
                 }
-                const data = await response.json();
-                setClubInfo(data);
+                const summaryData = await summaryRes.json();
+                setClubInfo(summaryData);
+                setLoading(false);
+
+                // 2. バックグラウンドで重いフルデータを取得し、到着したら上書き
+                try {
+                    const fullRes = await fetch(`/api/club/${clubId}`);
+                    if (fullRes.ok) {
+                        const fullData = await fullRes.json();
+                        setClubInfo(fullData);
+                    } else {
+                        console.error(`Full club data HTTP error: ${fullRes.status}`);
+                    }
+                } catch (fullErr) {
+                    console.error("Failed to fetch full club data:", fullErr);
+                }
             } catch (e) {
-                console.error("Failed to fetch club data:", e);
+                console.error("Failed to fetch club summary:", e);
                 // Continue with empty state even if fetch fails
-            } finally {
                 setLoading(false);
             }
         };
