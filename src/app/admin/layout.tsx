@@ -34,7 +34,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white overflow-x-hidden">
+    <div className="flex min-h-screen bg-gray-900 text-white">
       {/* Sidebar for mobile (overlay) */}
       <div
         className={`fixed inset-0 z-30 bg-black/60 transition-opacity duration-300 md:hidden ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
