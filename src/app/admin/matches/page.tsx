@@ -182,7 +182,7 @@ export default function MatchesPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 sm:py-10 px-4 md:px-0">
+    <div className="w-full mx-auto py-8 sm:py-10 px-4 md:px-0">
       <div className="mb-6 sm:mb-8 space-y-4 sm:space-y-0 sm:flex sm:items-end sm:justify-between">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">試合日程・結果</h1>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
@@ -286,8 +286,11 @@ export default function MatchesPage() {
                           {match.competitionName} / {match.roundName}
                         </div>
                       </div>
-                      <Link href={`/admin/competitions/${match.competitionId}/rounds/${match.roundId}/matches/${match.id}`} className="ml-2 p-2 text-muted-foreground hover:text-primary transition-colors">
-                        <FilePenLine className="h-5 w-5" />
+                      <Link
+                        href={`/admin/competitions/${match.competitionId}/rounds/${match.roundId}/matches/${match.id}`}
+                        className="ml-1 px-1 py-1 text-muted-foreground hover:text-primary transition-colors flex items-center justify-center"
+                      >
+                        <FilePenLine className="h-4 w-4" />
                       </Link>
                     </div>
                   );

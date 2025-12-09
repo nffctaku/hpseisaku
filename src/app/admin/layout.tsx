@@ -34,7 +34,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-900 text-white">
+    <div className="flex min-h-screen w-screen bg-gray-900 text-white">
       {/* Sidebar for mobile (overlay) */}
       <div
         className={`fixed inset-0 z-30 bg-black/60 transition-opacity duration-300 md:hidden ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
@@ -49,7 +49,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
         <Sidebar />
       </div>
 
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-col flex-1 w-full">
         <Header 
           logoUrl={user?.logoUrl || clubInfo.logoUrl}
           clubName={user?.clubName || clubInfo.clubName}
@@ -59,7 +59,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
           isMenuOpen={isSidebarOpen}
           isAdminPage={true}
         />
-        <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8 overflow-y-auto overflow-x-hidden">
+        <main className="flex-1 w-full p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8 overflow-y-auto overflow-x-hidden">
           {children}
         </main>
         <footer className="border-t border-gray-800 px-4 sm:px-6 md:px-8 py-4 text-xs text-gray-400">

@@ -155,12 +155,12 @@ export default function TeamsPage() {
           新規チームを追加
         </Button>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
         {teams.map(team => (
           <Link
             href={`/admin/teams/${team.id}`}
             key={team.id}
-            className="block bg-card border rounded-lg p-3 sm:p-4 text-center relative group transition-colors hover:bg-muted/50"
+            className="block bg-card border rounded-lg p-2 sm:p-3 lg:p-4 text-center relative group transition-colors hover:bg-muted/50"
           >
             <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                <Button variant="destructive" size="icon" className="h-7 w-7" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletingTeam(team); }}><Trash2 className="h-4 w-4" /></Button>
