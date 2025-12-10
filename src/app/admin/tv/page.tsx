@@ -151,12 +151,14 @@ export default function TvAdminPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">動画管理</h1>
         <div className="flex flex-col items-end gap-1">
-          <Button onClick={handleAddNew} disabled={videos.length >= MAX_VIDEOS_FREE}>
+          <Button onClick={handleAddNew} disabled={!isPro && videos.length >= MAX_VIDEOS_FREE}>
             新規追加
           </Button>
-          <p className="text-xs text-muted-foreground">
-            無料プランでは動画は最大5件まで登録できます。
-          </p>
+          {!isPro && (
+            <p className="text-xs text-muted-foreground">
+              無料プランでは動画は最大5件まで登録できます。
+            </p>
+          )}
         </div>
       </div>
 
