@@ -27,12 +27,20 @@ export function Header({
   return (
     <header className="bg-gray-900 text-white p-4 flex justify-between items-center">
       <div className="flex items-center">
-        <Link href={homePath} className="flex items-center space-x-2 text-xl font-bold">
-          {logoUrl && (
-            <Image src={logoUrl} alt={clubName || 'Club Logo'} width={32} height={32} className="rounded-full object-contain" />
-          )}
-          {!isAdminPage && <span>{clubName || 'CLUB'}</span>}
-        </Link>
+        {isAdminPage ? (
+          <div className="flex items-center space-x-2 text-xl font-bold">
+            {logoUrl && (
+              <Image src={logoUrl} alt={clubName || 'Club Logo'} width={32} height={32} className="rounded-full object-contain" />
+            )}
+          </div>
+        ) : (
+          <Link href={homePath} className="flex items-center space-x-2 text-xl font-bold">
+            {logoUrl && (
+              <Image src={logoUrl} alt={clubName || 'Club Logo'} width={32} height={32} className="rounded-full object-contain" />
+            )}
+            <span>{clubName || 'CLUB'}</span>
+          </Link>
+        )}
       </div>
       <nav className="hidden md:flex items-center space-x-6">
         {navLinks}

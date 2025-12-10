@@ -188,9 +188,9 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
                                                 >
                                                     {isFinished ? (
                                                         <div
-                                                          className={`font-bold text-base transition-colors ${
+                                                          className={`inline-flex items-center justify-center whitespace-nowrap font-bold text-sm min-w-[52px] px-2 py-0.5 rounded-md transition-colors ${
                                                             scoreBgClass ||
-                                                            "px-2 py-0.5 rounded-md hover:text-primary"
+                                                            "bg-gray-500 text-white hover:bg-primary"
                                                           }`}
                                                         >
                                                             {match.scoreHome} - {match.scoreAway}

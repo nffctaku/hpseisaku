@@ -54,7 +54,7 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
           <h1 className="text-4xl font-bold tracking-tight">選手一覧</h1>
           {allSeasons.length > 0 && (
             <Select value={activeSeason} onValueChange={handleSeasonChange}>
-              <SelectTrigger className="w-full sm:w-[180px] mt-4 sm:mt-0">
+              <SelectTrigger className="w-full sm:w-[180px] mt-4 sm:mt-0 bg-white text-gray-900">
                 <SelectValue placeholder="シーズンを選択" />
               </SelectTrigger>
               <SelectContent>
@@ -73,9 +73,9 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {players.map(player => (
                   <Link href={`/${clubId}/players/${player.id}`} key={player.id} className="block">
-                    <div className="aspect-square rounded-lg border bg-card flex flex-col items-center justify-center p-4 hover:bg-muted/60 transition-colors">
-                      <p className="text-4xl font-black tracking-tighter">{player.number}</p>
-                      <h3 className="mt-2 text-lg font-semibold text-center break-words">{player.name}</h3>
+                    <div className="aspect-square rounded-xl border bg-white shadow-md flex flex-col items-center justify-center p-4 hover:shadow-lg transition-shadow">
+                      <p className="text-4xl font-black tracking-tighter text-gray-900">{player.number}</p>
+                      <h3 className="mt-2 text-lg font-semibold text-center break-words text-gray-900">{player.name}</h3>
                     </div>
                   </Link>
                 ))}

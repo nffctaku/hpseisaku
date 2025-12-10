@@ -19,6 +19,7 @@ async function getPlayersData(
 ): Promise<{
   clubName: string;
   logoUrl: string | null;
+  homeBgColor?: string | null;
   players: Player[];
   allSeasons: string[];
   activeSeason: string;
@@ -27,6 +28,7 @@ async function getPlayersData(
   let clubName = clubId;
   let logoUrl: string | null = null;
   let ownerUid: string | null = null;
+  let homeBgColor: string | null = null;
 
   try {
     const profilesQuery = db
@@ -40,6 +42,7 @@ async function getPlayersData(
       ownerUid = (data.ownerUid as string) || doc.id;
       clubName = data.clubName || clubName;
       logoUrl = data.logoUrl || null;
+      homeBgColor = typeof data.homeBgColor === 'string' ? data.homeBgColor : null;
     } else {
       const directSnap = await db.collection("club_profiles").doc(clubId).get();
       if (directSnap.exists) {
@@ -47,6 +50,7 @@ async function getPlayersData(
         ownerUid = (data.ownerUid as string) || directSnap.id;
         clubName = data.clubName || clubName;
         logoUrl = data.logoUrl || null;
+        homeBgColor = typeof data.homeBgColor === 'string' ? data.homeBgColor : null;
       }
     }
   } catch (e) {
@@ -100,7 +104,7 @@ async function getPlayersData(
   // 背番号でソート（重複しても一旦そのまま）
   filteredPlayers.sort((a, b) => (a.number || 0) - (b.number || 0));
 
-  return { clubName, logoUrl, players: filteredPlayers, allSeasons, activeSeason };
+  return { clubName, logoUrl, homeBgColor, players: filteredPlayers, allSeasons, activeSeason };
 }
 
 export default async function PlayersPage({
@@ -127,10 +131,13 @@ export default async function PlayersPage({
     notFound();
   }
 
-  const { clubName, logoUrl, players, allSeasons, activeSeason } = data;
+  const { clubName, logoUrl, homeBgColor, players, allSeasons, activeSeason } = data;
 
   return (
-    <>
+    <main
+      className="min-h-screen"
+      style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}
+    >
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
       <PlayerList
         clubId={clubId}
@@ -139,6 +146,6 @@ export default async function PlayersPage({
         allSeasons={allSeasons}
         activeSeason={activeSeason}
       />
-    </>
+    </main>
   );
 }

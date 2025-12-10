@@ -52,22 +52,22 @@ export function ClubHeader({ clubId, clubName, logoUrl }: ClubHeaderProps) {
           {/* Desktop navigation */}
           <nav className="hidden sm:flex items-center gap-2.5 sm:gap-4 md:gap-6">
             <Link href={`/${clubId}/news`} className="hover:text-primary transition-colors">
-              ニュース
+              News
             </Link>
             <Link href={`/${clubId}/tv`} className="hover:text-primary transition-colors">
               TV
             </Link>
             <Link href={`/${clubId}/results`} className="hover:text-primary transition-colors">
-              試合
+              Matches
             </Link>
             <Link href={`/${clubId}/table`} className="hover:text-primary transition-colors">
-              順位表
+              Table
             </Link>
             <Link href={`/${clubId}/stats`} className="hover:text-primary transition-colors">
-              スタッツ
+              Stats
             </Link>
             <Link href={`/${clubId}/players`} className="hover:text-primary transition-colors">
-              スカッド
+              Squad
             </Link>
           </nav>
         </div>
@@ -75,49 +75,49 @@ export function ClubHeader({ clubId, clubName, logoUrl }: ClubHeaderProps) {
 
       {/* Mobile dropdown menu */}
       {menuOpen && (
-        <div className="sm:hidden border-t border-border/60 bg-background/95 backdrop-blur">
-          <nav className="container mx-auto px-3 py-2 flex flex-col gap-1 text-xs">
+        <div className="sm:hidden border-t border-border/60 bg-black text-white">
+          <nav className="container mx-auto px-3 py-2 flex flex-col gap-1 text-xs text-right">
             <Link
               href={`/${clubId}/news`}
-              className="py-1 hover:text-primary transition-colors"
+              className="py-1 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
-              ニュース
+              News
             </Link>
             <Link
               href={`/${clubId}/tv`}
-              className="py-1 hover:text-primary transition-colors"
+              className="py-1 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
               TV
             </Link>
             <Link
               href={`/${clubId}/results`}
-              className="py-1 hover:text-primary transition-colors"
+              className="py-1 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
-              試合
+              Matches
             </Link>
             <Link
               href={`/${clubId}/table`}
-              className="py-1 hover:text-primary transition-colors"
+              className="py-1 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
-              順位表
+              Table
             </Link>
             <Link
               href={`/${clubId}/stats`}
-              className="py-1 hover:text-primary transition-colors"
+              className="py-1 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
-              スタッツ
+              Stats
             </Link>
             <Link
               href={`/${clubId}/players`}
-              className="py-1 hover:text-primary transition-colors"
+              className="py-1 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
-              スカッド
+              Squad
             </Link>
           </nav>
         </div>
