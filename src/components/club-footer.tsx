@@ -37,6 +37,16 @@ export function ClubFooter({ clubId, sponsors = [], snsLinks = {}, legalPages = 
   return (
     <footer className="mt-12 border-t border-border bg-white">
       <div className="container mx-auto px-4 py-8 space-y-8">
+        <div className="flex justify-center">
+          <div className="relative w-12 h-12">
+            <Image
+              src="/footballtop.png"
+              alt="Football Top"
+              fill
+              className="object-contain rounded-full"
+            />
+          </div>
+        </div>
         {sponsors.length > 0 && (
           <div className="flex flex-col items-center gap-4">
             <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">PARTNERS</span>

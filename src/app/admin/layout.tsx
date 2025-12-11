@@ -91,7 +91,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
             <div className="flex items-center justify-center sm:justify-end gap-2">
               <span className="text-[10px] text-gray-500">Powered by</span>
               <Image
-                src="/footballtop-logo-13.png"
+                src="/footballtop-logo-13 (1).png"
                 alt="footballtop"
                 width={120}
                 height={24}
