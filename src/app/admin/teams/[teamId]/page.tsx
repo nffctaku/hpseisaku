@@ -128,17 +128,20 @@ export default function TeamPlayersPage() {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">選手管理</h1>
-      <div className="flex items-center gap-4 mb-6">
-        <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="シーズンを選択" />
-          </SelectTrigger>
-          <SelectContent>
-            {seasons.map(s => <SelectItem key={s.id} value={s.id}>{s.id}</SelectItem>)}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="w-full sm:w-auto">
+          <Select value={selectedSeason} onValueChange={setSelectedSeason}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="シーズンを選択" />
+            </SelectTrigger>
+            <SelectContent>
+              {seasons.map(s => <SelectItem key={s.id} value={s.id}>{s.id}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+
         {selectedSeason && (
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
             <Switch
               id={`public-switch-${selectedSeason}`}
               checked={seasons.find(s => s.id === selectedSeason)?.isPublic || false}
@@ -158,9 +161,10 @@ export default function TeamPlayersPage() {
             </div>
           </div>
         )}
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center">
           <Select value={newSeason} onValueChange={setNewSeason}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="シーズンを追加" />
             </SelectTrigger>
             <SelectContent>
@@ -170,23 +174,24 @@ export default function TeamPlayersPage() {
           <Button
             onClick={handleAddSeason}
             disabled={!newSeason}
-            className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white"
+            className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white w-full sm:w-auto"
           >
             追加
           </Button>
         </div>
+
         <Button
           variant="outline"
           onClick={handleCopyFromPreviousSeason}
           disabled={!selectedSeason}
-          className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white"
+          className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white w-full sm:w-auto"
         >
           昨シーズンから選手をコピー
         </Button>
       </div>
 
       {selectedSeason ? (
-        <PlayerManagement season={selectedSeason} />
+        <PlayerManagement teamId={teamId} />
       ) : (
         <p>シーズンを選択または追加してください。</p>
       )}

@@ -39,20 +39,12 @@ export function PlayersDataTable<TData, TValue>({
 
   return (
     <div>
-      <div className="flex items-center py-4">
-        <Input
-          placeholder="選手名で絞り込み..."
-          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("name")?.setFilterValue(event.target.value)
-          }
-          className="max-w-sm"
-        />
+      <div className="flex items-center justify-end py-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              className="ml-auto bg-white text-gray-900 border border-border hover:bg-gray-100"
+              className="bg-white text-gray-900 border border-border hover:bg-gray-100"
             >
               表示列
             </Button>

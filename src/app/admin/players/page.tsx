@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { PlayerManagement } from '@/components/player-management';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +22,7 @@ interface Team {
 
 export default function PlayersAdminPage() {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [fetchingTeams, setFetchingTeams] = useState(false);
@@ -81,31 +82,38 @@ export default function PlayersAdminPage() {
         ) : teams.length === 0 ? (
           <p className="text-gray-900">クラブ（チーム）が登録されていません。先にクラブ情報を登録してください。</p>
         ) : (
-          <div className="max-w-xs">
-            <Select
-              value={selectedTeamId}
-              onValueChange={(value) => setSelectedTeamId(value)}
+          <div className="flex flex-col sm:flex-row gap-4 items-center">
+            <div className="w-full sm:w-64">
+              <Select
+                value={selectedTeamId}
+                onValueChange={(value) => setSelectedTeamId(value)}
+              >
+                <SelectTrigger className="bg-white text-gray-900">
+                  <SelectValue placeholder="クラブを選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teams.map((team) => (
+                    <SelectItem key={team.id} value={team.id}>
+                      {team.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              type="button"
+              disabled={!selectedTeamId}
+              className="bg-gray-900 text-white hover:bg-gray-800 w-full sm:w-auto"
+              onClick={() => {
+                if (!selectedTeamId) return;
+                router.push(`/admin/teams/${selectedTeamId}`);
+              }}
             >
-              <SelectTrigger className="bg-white text-gray-900">
-                <SelectValue placeholder="クラブを選択" />
-              </SelectTrigger>
-              <SelectContent>
-                {teams.map((team) => (
-                  <SelectItem key={team.id} value={team.id}>
-                    {team.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              このクラブの選手管理へ
+            </Button>
           </div>
         )}
       </div>
-
-      {selectedTeamId && (
-        <div className="bg-white rounded-lg p-6">
-          <PlayerManagement teamId={selectedTeamId} />
-        </div>
-      )}
     </div>
   );
 }
