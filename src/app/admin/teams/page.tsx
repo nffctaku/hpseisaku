@@ -62,6 +62,17 @@ export default function TeamsPage() {
   }, [user]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const primaryTeamId = teams[0]?.id;
+    const isEditingPrimary = editingTeam && editingTeam.id === primaryTeamId;
+    const isCreatingFirstTeam = !editingTeam && teams.length === 0;
+    const canUseLogo = isPro || isEditingPrimary || isCreatingFirstTeam;
+
+    if (!canUseLogo) {
+      // 無料プランの2チーム目以降ではロゴ画像は設定できない
+      toast.info("無料プランではメインチームのみロゴ画像を設定できます。");
+      return;
+    }
+
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
@@ -83,12 +94,17 @@ export default function TeamsPage() {
 
     let logoUrl = editingTeam?.logoUrl || '';
 
+    const primaryTeamId = teams[0]?.id;
+    const isEditingPrimary = editingTeam && editingTeam.id === primaryTeamId;
+    const isCreatingFirstTeam = !editingTeam && teams.length === 0;
+    const canUseLogo = isPro || isEditingPrimary || isCreatingFirstTeam;
+
     try {
       if (!isPro && !editingTeam && teams.length >= 24) {
         toast.error("無料プランではチームは最大24チームまで登録できます。");
         return;
       }
-      if (selectedFile) {
+      if (selectedFile && canUseLogo) {
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
@@ -204,15 +220,43 @@ export default function TeamsPage() {
               <FormItem>
                 <FormLabel>チームロゴ</FormLabel>
                 <FormControl>
-                  <div className="flex items-center gap-4">
-                    <label className="cursor-pointer border-2 border-dashed rounded-md w-24 h-24 flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/50">
-                      {previewUrl ? (
-                        <Image src={previewUrl} alt="Preview" width={96} height={96} className="object-contain" />
-                      ) : (
-                        <><ImagePlus className="h-8 w-8" /><span className="text-xs mt-1">画像を選択</span></>
-                      )}
-                      <Input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-                    </label>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-4">
+                      {/* ロゴ画像アップロードは、無料プランではメインチーム（最初の1チーム）のみ許可 */}
+                      {(() => {
+                        const primaryTeamId = teams[0]?.id;
+                        const isEditingPrimary = editingTeam && editingTeam.id === primaryTeamId;
+                        const isCreatingFirstTeam = !editingTeam && teams.length === 0;
+                        const canUseLogo = isPro || isEditingPrimary || isCreatingFirstTeam;
+
+                        return (
+                          <label
+                            className={`border-2 border-dashed rounded-md w-24 h-24 flex flex-col items-center justify-center text-muted-foreground transition-colors ${
+                              canUseLogo
+                                ? 'cursor-pointer hover:bg-muted/50'
+                                : 'opacity-50 cursor-not-allowed'
+                            }`}
+                          >
+                            {previewUrl ? (
+                              <Image src={previewUrl} alt="Preview" width={96} height={96} className="object-contain" />
+                            ) : (
+                              <>
+                                <ImagePlus className="h-8 w-8" />
+                                <span className="text-xs mt-1">画像を選択</span>
+                              </>
+                            )}
+                            {canUseLogo && (
+                              <Input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                            )}
+                          </label>
+                        );
+                      })()}
+                    </div>
+                    {!isPro && teams.length > 0 && !editingTeam && (
+                      <p className="text-xs text-muted-foreground">
+                        無料プランではメインチーム以外のロゴ画像は設定できません。
+                      </p>
+                    )}
                   </div>
                 </FormControl>
                 <FormMessage />
