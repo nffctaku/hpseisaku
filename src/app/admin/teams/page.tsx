@@ -173,14 +173,12 @@ export default function TeamsPage() {
       </div>
       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
         {teams.map(team => (
-          <Link
-            href={`/admin/teams/${team.id}`}
+          <button
+            type="button"
             key={team.id}
-            className="block bg-card border rounded-lg p-2 sm:p-3 lg:p-4 text-center relative group transition-colors hover:bg-muted/50"
+            onClick={() => handleOpenDialog(team)}
+            className="bg-card border rounded-lg p-2 sm:p-3 lg:p-4 text-center transition-colors hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
-            <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-               <Button variant="destructive" size="icon" className="h-7 w-7" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletingTeam(team); }}><Trash2 className="h-4 w-4" /></Button>
-            </div>
             <div className="w-16 h-16 sm:w-20 sm:h-20 mb-3 sm:mb-4 flex items-center justify-center mx-auto">
               {team.logoUrl ? (
                 <Image
@@ -195,7 +193,7 @@ export default function TeamsPage() {
               )}
             </div>
             <span className="font-medium text-sm break-all">{team.name}</span>
-          </Link>
+          </button>
         ))}
       </div>
 
@@ -261,10 +259,53 @@ export default function TeamsPage() {
                 </FormControl>
                 <FormMessage />
               </FormItem>
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                保存する
-              </Button>
+              <div className="flex flex-col gap-2">
+                {editingTeam ? (
+                  <div className="flex gap-2">
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      variant="outline"
+                      className="flex-1 border-gray-400 text-gray-900 hover:bg-gray-50"
+                    >
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      保存する
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1 border-red-500 text-red-600 hover:bg-red-50"
+                      onClick={() => {
+                        setIsDialogOpen(false);
+                        setDeletingTeam(editingTeam);
+                      }}
+                    >
+                      削除
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    variant="outline"
+                    className="w-full border-gray-400 text-gray-900 hover:bg-gray-50"
+                  >
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    保存する
+                  </Button>
+                )}
+
+                {editingTeam && (
+                  <Link
+                    href={`/admin/teams/${editingTeam.id}`}
+                    className="block w-full"
+                  >
+                    <Button type="button" variant="outline" className="w-full">
+                      選手管理へ
+                    </Button>
+                  </Link>
+                )}
+              </div>
             </form>
           </Form>
         </DialogContent>
