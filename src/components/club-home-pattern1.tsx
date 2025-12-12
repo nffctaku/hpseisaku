@@ -44,34 +44,32 @@ function NewsGrid({ news }: { news: NewsArticle[] }) {
             MORE NEWS
           </Link>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {items.map((item, index) => (
+
+        <div className="bg-card rounded-md shadow-sm divide-y divide-border">
+          {items.map((item) => (
             <Link
               key={item.id}
               href={`/news/${item.id}`}
-              className={`bg-card rounded-lg overflow-hidden shadow-sm group flex flex-col ${
-                index === 0 ? "sm:col-span-2 lg:col-span-2 lg:row-span-2" : ""
-              }`}
+              className="flex gap-3 p-3 md:p-4 hover:bg-muted/60 transition-colors"
             >
-              <div className="relative w-full h-40 sm:h-48 lg:h-64">
+              <div className="relative w-24 h-16 md:w-32 md:h-20 flex-shrink-0">
                 <Image
                   src={item.imageUrl || "/no-image.png"}
                   alt={item.title}
                   fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  className="object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                <div className="absolute bottom-0 left-0 p-4">
-                  <p className="text-xs text-gray-300">
-                    {(() => {
-                      const d = resolvePublishedDate((item as any).publishedAt);
-                      return d ? format(d, "yyyy/MM/dd") : "";
-                    })()}
-                  </p>
-                  <h3 className="text-white text-base md:text-lg font-semibold leading-tight line-clamp-2 group-hover:text-primary">
-                    {item.title}
-                  </h3>
-                </div>
+              </div>
+              <div className="flex flex-col justify-center gap-1 min-w-0">
+                <p className="text-[11px] md:text-xs text-muted-foreground">
+                  {(() => {
+                    const d = resolvePublishedDate((item as any).publishedAt);
+                    return d ? format(d, "yyyy/MM/dd") : "";
+                  })()}
+                </p>
+                <h3 className="text-sm md:text-base font-semibold leading-snug line-clamp-2">
+                  {item.title}
+                </h3>
               </div>
             </Link>
           ))}

@@ -24,30 +24,24 @@ export function NewsSection({ news, clubId }: NewsSectionProps) {
   }
 
   return (
-    <section className="py-8 md:py-12">
-      <div className="container mx-auto bg-white rounded-lg shadow-sm p-4 md:p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl md:text-3xl font-bold">NEWS</h2>
-          <Link href={clubId ? `/${clubId}/news` : "/news"} className="text-sm text-primary hover:underline">
-            すべてのニュースを見る
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <section className="py-0 md:py-6 -mx-4 md:mx-0">
+      <div className="w-full">
+        <div className="space-y-0">
           {news.map((item) => (
             <Link
               key={item.id}
               href={(item as any).noteUrl && (item as any).noteUrl !== '' ? (item as any).noteUrl : `/news/${item.id}`}
               target={(item as any).noteUrl && (item as any).noteUrl !== '' ? "_blank" : undefined}
               rel={(item as any).noteUrl && (item as any).noteUrl !== '' ? "noopener noreferrer" : undefined}
-              className="rounded-lg overflow-hidden group block"
+              className="flex gap-4 md:gap-5 p-3 bg-white shadow-sm hover:shadow-md transition-shadow rounded-none md:rounded-none w-full"
             >
-              <div className="relative w-full aspect-[16/9]">
+              <div className="relative w-32 h-24 md:w-40 md:h-28 flex-shrink-0">
                 {item.imageUrl ? (
                   <Image
                     src={item.imageUrl}
                     alt={item.title}
                     fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="object-cover"
                   />
                 ) : (
                   <Image
@@ -57,16 +51,17 @@ export function NewsSection({ news, clubId }: NewsSectionProps) {
                     className="object-cover"
                   />
                 )}
-                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                 <div className="absolute bottom-0 left-0 p-4">
-                    <p className="text-gray-300 text-xs">
-                      {(() => {
-                        const d = resolvePublishedDate((item as any).publishedAt);
-                        return d ? format(d, 'yyyy/MM/dd') : '';
-                      })()}
-                    </p>
-                    <h3 className="text-white text-base md:text-lg font-semibold leading-tight group-hover:text-primary transition-colors">{item.title}</h3>
-                 </div>
+              </div>
+              <div className="flex flex-col justify-center gap-1.5 min-w-0">
+                <p className="text-xs md:text-sm text-muted-foreground">
+                  {(() => {
+                    const d = resolvePublishedDate((item as any).publishedAt);
+                    return d ? format(d, 'yyyy/MM/dd') : '';
+                  })()}
+                </p>
+                <h3 className="text-base md:text-lg font-semibold leading-snug line-clamp-2">
+                  {item.title}
+                </h3>
               </div>
             </Link>
           ))}
