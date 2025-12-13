@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, Timestamp, getDoc } from "firebase/firestore";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -14,8 +14,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
 import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,6 +45,7 @@ const newsSchema = z.object({
 interface NewsArticle extends z.infer<typeof newsSchema> {
   id: string;
   createdAt: Timestamp;
+  featuredInHero?: boolean;
 }
 
 type NewsFormValues = z.infer<typeof newsSchema>;
@@ -56,6 +59,7 @@ export default function NewsAdminPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
+  const [heroLimit, setHeroLimit] = useState<number>(3);
 
   const MAX_NEWS_FREE = 5;
 
@@ -68,11 +72,12 @@ export default function NewsAdminPage() {
     if (!user) {
         setPageLoading(false);
         return;
-    };
+    }
+
     const newsColRef = collection(db, `clubs/${user.uid}/news`);
     const q = query(newsColRef);
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const unsubscribeNews = onSnapshot(q, (querySnapshot) => {
       const articlesData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -83,8 +88,57 @@ export default function NewsAdminPage() {
       setPageLoading(false);
     });
 
-    return () => unsubscribe();
+    // Fetch hero news limit from club profile
+    const fetchHeroLimit = async () => {
+      try {
+        const clubDocRef = doc(db, "clubs", user.uid);
+        const snap = await getDoc(clubDocRef);
+        if (snap.exists()) {
+          const data = snap.data() as any;
+          if (typeof data.heroNewsLimit === "number" && data.heroNewsLimit >= 1 && data.heroNewsLimit <= 5) {
+            setHeroLimit(data.heroNewsLimit);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load hero news limit", e);
+      }
+    };
+
+    fetchHeroLimit();
+
+    return () => {
+      unsubscribeNews();
+    };
   }, [user]);
+
+  const handleHeroLimitChange = async (value: number) => {
+    if (!user) return;
+    try {
+      const clubDocRef = doc(db, "clubs", user.uid);
+      await updateDoc(clubDocRef, { heroNewsLimit: value });
+      setHeroLimit(value);
+      toast.success("スライドに表示するニュース枚数を更新しました。");
+    } catch (e) {
+      console.error("Failed to update hero news limit", e);
+      toast.error("スライド枚数の更新に失敗しました。");
+    }
+  };
+
+  const handleToggleFeatured = async (article: NewsArticle, next: boolean) => {
+    if (!user) return;
+    const currentFeaturedCount = news.filter(n => n.featuredInHero).length;
+    if (next && !article.featuredInHero && currentFeaturedCount >= heroLimit) {
+      toast.info(`スライドに設定できるニュースは最大${heroLimit}件までです。`);
+      return;
+    }
+    try {
+      const articleDocRef = doc(db, `clubs/${user.uid}/news`, article.id);
+      await updateDoc(articleDocRef, { featuredInHero: next });
+    } catch (e) {
+      console.error("Failed to update featuredInHero", e);
+      toast.error("スライド表示フラグの更新に失敗しました。");
+    }
+  };
 
   const handleOpenDialog = (article: NewsArticle | null) => {
     if (!isPro && !article && news.length >= MAX_NEWS_FREE) {
@@ -150,9 +204,30 @@ export default function NewsAdminPage() {
 
   return (
     <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">ニュース管理</h1>
-        <Button onClick={() => handleOpenDialog(null)}>新規ニュースを追加</Button>
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">ニュース管理</h1>
+          <Button onClick={() => handleOpenDialog(null)}>新規ニュースを追加</Button>
+        </div>
+        <div className="flex flex-col gap-2 text-sm max-w-xs">
+          <span className="font-medium">トップのスライドに表示するニュース数</span>
+          <Select
+            value={String(heroLimit)}
+            onValueChange={(val) => handleHeroLimitChange(Number(val))}
+          >
+            <SelectTrigger className="bg-white text-gray-900 h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n}件
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground">※ 最新ニュースまたはチェックされたニュースが表示されます。</span>
+        </div>
       </div>
       <div className="bg-card border rounded-lg">
         <Table>
@@ -161,6 +236,7 @@ export default function NewsAdminPage() {
               <TableHead>画像</TableHead>
               <TableHead className="w-[50%]">タイトル</TableHead>
               <TableHead>公開日</TableHead>
+              <TableHead>スライド</TableHead>
               <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -176,6 +252,14 @@ export default function NewsAdminPage() {
                 </TableCell>
                 <TableCell className="font-medium">{article.title}</TableCell>
                 <TableCell>{format(article.publishedAt, 'yyyy/MM/dd')}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={!!article.featuredInHero}
+                      onCheckedChange={(checked) => handleToggleFeatured(article, checked)}
+                    />
+                  </div>
+                </TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(article)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => setDeletingArticle(article)}><Trash2 className="h-4 w-4 text-destructive" /></Button>

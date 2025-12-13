@@ -21,11 +21,20 @@ async function getClubSummary(clubId: string) {
   const clubDataRef = db.collection('clubs').doc(ownerUid);
   const clubDataSnap = await clubDataRef.get();
   const clubData = clubDataSnap.exists ? clubDataSnap.data() : { headerImageUrl: null };
+  const heroLimitRaw = (clubData as any)?.heroNewsLimit;
+  const heroLimit = typeof heroLimitRaw === 'number' && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;
 
-  // 軽量化のため、ニュースだけ少数取得（試合やリーグ表は別APIに任せる）
-  const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy('publishedAt', 'desc').limit(3);
+  // 軽量化のため、ニュースは必要数の数倍だけ取得し、featured を優先して絞り込む
+  const baseLimit = heroLimit * 3;
+  const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy('publishedAt', 'desc').limit(baseLimit);
   const newsSnap = await newsQuery.get();
-  const news = newsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as NewsArticle));
+  const allNews = newsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+  const prioritized = allNews.slice().sort((a, b) => {
+    const af = a?.featuredInHero ? 1 : 0;
+    const bf = b?.featuredInHero ? 1 : 0;
+    return bf - af; // featured を優先
+  });
+  const news = prioritized.slice(0, heroLimit) as NewsArticle[];
 
   return {
     profile: profileData,

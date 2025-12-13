@@ -22,12 +22,21 @@ async function getClubData(clubId: string) {
   const clubDataRef = db.collection('clubs').doc(ownerUid);
   const clubDataSnap = await clubDataRef.get();
   const clubData = clubDataSnap.exists ? clubDataSnap.data() : { headerImageUrl: null };
+  const heroLimitRaw = (clubData as any)?.heroNewsLimit;
+  const heroLimit = typeof heroLimitRaw === 'number' && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;
 
   const { latestResult, nextMatch, recentMatches, upcomingMatches } = await getMatchDataForClub(ownerUid);
 
-  const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy('publishedAt', 'desc').limit(3);
+  const baseLimit = heroLimit * 3;
+  const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy('publishedAt', 'desc').limit(baseLimit);
   const newsSnap = await newsQuery.get();
-  const news = newsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as NewsArticle));
+  const allNews = newsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+  const prioritized = allNews.slice().sort((a, b) => {
+    const af = a?.featuredInHero ? 1 : 0;
+    const bf = b?.featuredInHero ? 1 : 0;
+    return bf - af;
+  });
+  const news = prioritized.slice(0, heroLimit) as NewsArticle[];
 
   const videosQuery = db.collection(`clubs/${ownerUid}/videos`).orderBy('publishedAt', 'desc').limit(4);
   const videosSnap = await videosQuery.get();

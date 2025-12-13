@@ -11,9 +11,10 @@ import { NewsArticle } from '@/types/news';
 
 interface HeroProps {
   news: NewsArticle[];
+  maxSlides?: number;
 }
 
-export function Hero({ news }: HeroProps) {
+export function Hero({ news, maxSlides }: HeroProps) {
 
   if (!news || news.length === 0) {
     return (
@@ -22,11 +23,18 @@ export function Hero({ news }: HeroProps) {
       </div>
     );
   }
+  const limit = maxSlides ?? 3;
+  const sorted = (news || []).slice().sort((a: any, b: any) => {
+    const af = a?.featuredInHero ? 1 : 0;
+    const bf = b?.featuredInHero ? 1 : 0;
+    return bf - af; // featured を優先
+  });
+  const items = sorted.slice(0, limit);
 
   return (
     <Carousel className="w-full">
       <CarouselContent>
-        {news.map((item, index) => (
+        {items.map((item, index) => (
           <CarouselItem key={item.id}>
             <div className="relative h-[50vh] md:h-[60vh] w-full">
               {item.imageUrl ? (

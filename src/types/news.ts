@@ -8,6 +8,8 @@ export interface NewsArticle {
   noteUrl?: string;
   imageUrl?: string;
   category?: string;
+  // トップのスライドに表示するかどうか
+  featuredInHero?: boolean;
   publishedAt: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
