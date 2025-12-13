@@ -24,17 +24,31 @@ async function getClubSummary(clubId: string) {
   const heroLimitRaw = (clubData as any)?.heroNewsLimit;
   const heroLimit = typeof heroLimitRaw === 'number' && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;
 
-  // 軽量化のため、ニュースは必要数の数倍だけ取得し、featured を優先して絞り込む
-  const baseLimit = heroLimit * 3;
+  // ニュースはスライド用と一覧用の両方に使うため、十分な件数を取得する
+  const baseLimit = Math.max(heroLimit * 3, 5);
   const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy('publishedAt', 'desc').limit(baseLimit);
   const newsSnap = await newsQuery.get();
   const allNews = newsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+
+  // スライド用: featuredInHero を優先して heroLimit 件に絞る
   const prioritized = allNews.slice().sort((a, b) => {
     const af = a?.featuredInHero ? 1 : 0;
     const bf = b?.featuredInHero ? 1 : 0;
     return bf - af; // featured を優先
   });
-  const news = prioritized.slice(0, heroLimit) as NewsArticle[];
+  const heroNews = prioritized.slice(0, heroLimit) as NewsArticle[];
+
+  // 一覧用: 常に最新順の上位 5 件を使用
+  const latestNews = allNews
+    .slice()
+    .sort((a, b) => {
+      const ad = (a as any).publishedAt?.toDate ? (a as any).publishedAt.toDate() : (a as any).publishedAt;
+      const bd = (b as any).publishedAt?.toDate ? (b as any).publishedAt.toDate() : (b as any).publishedAt;
+      const at = ad instanceof Date ? ad.getTime() : 0;
+      const bt = bd instanceof Date ? bd.getTime() : 0;
+      return bt - at;
+    })
+    .slice(0, 5) as NewsArticle[];
 
   return {
     profile: profileData,
@@ -43,7 +57,8 @@ async function getClubSummary(clubId: string) {
     nextMatch: null,
     recentMatches: [],
     upcomingMatches: [],
-    news,
+    news: latestNews,
+    heroNews,
     videos: [],
     competitions: [],
   };

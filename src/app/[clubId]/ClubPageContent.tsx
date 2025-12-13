@@ -67,7 +67,13 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
     }, [clubId]);
 
     const homeBgColor = clubInfo.profile?.homeBgColor as string | undefined;
-    const heroNewsLimit = (clubInfo.profile?.heroNewsLimit as number | undefined) ?? 3;
+    const heroNewsLimit =
+        (clubInfo.data?.heroNewsLimit as number | undefined) ??
+        (clubInfo.profile?.heroNewsLimit as number | undefined) ??
+        3;
+
+    const heroNews = (clubInfo as any).heroNews || clubInfo.news || [];
+    const listNews = clubInfo.news || [];
 
     return (
         <main
@@ -79,11 +85,11 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                 clubName={clubInfo.profile?.clubName || ""} 
                 logoUrl={clubInfo.profile?.logoUrl || null} 
             />
-            <Hero news={clubInfo.news || []} maxSlides={heroNewsLimit} />
+            <Hero news={heroNews} maxSlides={heroNewsLimit} />
             <div className="container mx-auto px-4 pt-0 pb-8 md:pt-8">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                     <div className="md:col-span-2 space-y-4 md:space-y-6">
-                        <NewsSection news={clubInfo.news || []} clubId={clubId} />
+                        <NewsSection news={listNews} clubId={clubId} />
                         <MatchSection 
                             latestResult={clubInfo.latestResult} 
                             nextMatch={clubInfo.nextMatch} 

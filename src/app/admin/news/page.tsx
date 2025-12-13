@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, Timestamp, getDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, Timestamp, getDoc, setDoc } from "firebase/firestore";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -115,7 +115,16 @@ export default function NewsAdminPage() {
     if (!user) return;
     try {
       const clubDocRef = doc(db, "clubs", user.uid);
-      await updateDoc(clubDocRef, { heroNewsLimit: value });
+      const snap = await getDoc(clubDocRef);
+      if (snap.exists()) {
+        await updateDoc(clubDocRef, { heroNewsLimit: value });
+      } else {
+        await setDoc(
+          clubDocRef,
+          { heroNewsLimit: value },
+          { merge: true }
+        );
+      }
       setHeroLimit(value);
       toast.success("スライドに表示するニュース枚数を更新しました。");
     } catch (e) {

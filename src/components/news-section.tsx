@@ -30,10 +30,14 @@ export function NewsSection({ news, clubId }: NewsSectionProps) {
           {news.map((item) => (
             <Link
               key={item.id}
-              href={(item as any).noteUrl && (item as any).noteUrl !== '' ? (item as any).noteUrl : `/news/${item.id}`}
+              href={(item as any).noteUrl && (item as any).noteUrl !== ''
+                ? (item as any).noteUrl
+                : clubId
+                  ? `/${clubId}/news/${item.id}`
+                  : `/news/${item.id}`}
               target={(item as any).noteUrl && (item as any).noteUrl !== '' ? "_blank" : undefined}
               rel={(item as any).noteUrl && (item as any).noteUrl !== '' ? "noopener noreferrer" : undefined}
-              className="flex gap-4 md:gap-5 p-3 bg-white shadow-sm hover:shadow-md transition-shadow rounded-none md:rounded-none w-full"
+              className="flex gap-4 md:gap-5 p-3 bg-white shadow-sm hover:shadow-md transition-shadow rounded-none md:rounded-none md:first:rounded-t-lg md:last:rounded-b-lg w-full"
             >
               <div className="relative w-32 h-24 md:w-40 md:h-28 flex-shrink-0">
                 {item.imageUrl ? (
