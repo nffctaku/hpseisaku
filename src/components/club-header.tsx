@@ -4,14 +4,21 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Menu } from "lucide-react";
+import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
 
 interface ClubHeaderProps {
   clubId: string;
   clubName?: string;
   logoUrl?: string | null;
+  snsLinks?: {
+    x?: string;
+    youtube?: string;
+    tiktok?: string;
+    instagram?: string;
+  };
 }
 
-export function ClubHeader({ clubId, clubName, logoUrl }: ClubHeaderProps) {
+export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -76,49 +83,73 @@ export function ClubHeader({ clubId, clubName, logoUrl }: ClubHeaderProps) {
       {/* Mobile dropdown menu */}
       {menuOpen && (
         <div className="sm:hidden border-t border-border/60 bg-black text-white">
-          <nav className="container mx-auto px-3 py-2 flex flex-col gap-1 text-xs text-right">
+          <nav className="container mx-auto px-3 py-4 flex flex-col gap-2 text-base text-center">
             <Link
               href={`/${clubId}/news`}
-              className="py-1 rounded hover:bg-white/10 transition-colors"
+              className="py-4 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
               News
             </Link>
             <Link
               href={`/${clubId}/tv`}
-              className="py-1 rounded hover:bg-white/10 transition-colors"
+              className="py-4 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
               TV
             </Link>
             <Link
               href={`/${clubId}/results`}
-              className="py-1 rounded hover:bg-white/10 transition-colors"
+              className="py-4 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
               Matches
             </Link>
             <Link
               href={`/${clubId}/table`}
-              className="py-1 rounded hover:bg-white/10 transition-colors"
+              className="py-4 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
               Table
             </Link>
             <Link
               href={`/${clubId}/stats`}
-              className="py-1 rounded hover:bg-white/10 transition-colors"
+              className="py-4 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
               Stats
             </Link>
             <Link
               href={`/${clubId}/players`}
-              className="py-1 rounded hover:bg-white/10 transition-colors"
+              className="py-4 rounded hover:bg-white/10 transition-colors"
               onClick={() => setMenuOpen(false)}
             >
               Squad
             </Link>
+            {snsLinks && (snsLinks.x || snsLinks.youtube || snsLinks.tiktok || snsLinks.instagram) && (
+              <div className="mt-3 pt-3 border-t border-border/60 flex justify-center gap-4 text-white">
+                {snsLinks.youtube && (
+                  <Link href={snsLinks.youtube} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center">
+                    <FaYoutube className="w-5 h-5" />
+                  </Link>
+                )}
+                {snsLinks.x && (
+                  <Link href={snsLinks.x} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center">
+                    <FaXTwitter className="w-4 h-4" />
+                  </Link>
+                )}
+                {snsLinks.tiktok && (
+                  <Link href={snsLinks.tiktok} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center">
+                    <FaTiktok className="w-4 h-4" />
+                  </Link>
+                )}
+                {snsLinks.instagram && (
+                  <Link href={snsLinks.instagram} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center">
+                    <FaInstagram className="w-4 h-4" />
+                  </Link>
+                )}
+              </div>
+            )}
           </nav>
         </div>
       )}

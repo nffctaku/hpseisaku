@@ -84,6 +84,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                 clubId={clubId} 
                 clubName={clubInfo.profile?.clubName || ""} 
                 logoUrl={clubInfo.profile?.logoUrl || null} 
+                snsLinks={clubInfo.profile?.snsLinks || {}}
             />
             <Hero news={heroNews} maxSlides={heroNewsLimit} />
             <div className="container mx-auto px-4 pt-0 pb-8 md:pt-8">
