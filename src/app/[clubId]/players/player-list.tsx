@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // This interface needs to be in sync with the one in page.tsx
@@ -10,14 +11,16 @@ interface Player {
   name: string;
   number: number;
   position: string;
+  photoUrl?: string;
 }
 
-export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason }: {
+export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason, accentColor }: {
   clubId: string;
   clubName: string;
   players: Player[];
   allSeasons: string[];
   activeSeason: string;
+  accentColor?: string | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -73,9 +76,38 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {players.map(player => (
                   <Link href={`/${clubId}/players/${player.id}`} key={player.id} className="block">
-                    <div className="aspect-square rounded-xl border bg-white shadow-md flex flex-col items-center justify-center p-4 hover:shadow-lg transition-shadow">
-                      <p className="text-4xl font-black tracking-tighter text-gray-900">{player.number}</p>
-                      <h3 className="mt-2 text-lg font-semibold text-center break-words text-gray-900">{player.name}</h3>
+                    <div className="rounded-xl border bg-white shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                      <div className="relative w-full h-40 sm:h-48 md:h-56 bg-gray-100">
+                        {player.photoUrl ? (
+                          <Image
+                            src={player.photoUrl}
+                            alt={player.name}
+                            fill
+                            sizes="(max-width: 768px) 50vw, 25vw"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-5xl font-black tracking-tighter text-gray-700">{player.number}</span>
+                          </div>
+                        )}
+
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/10" />
+
+                        <div className="absolute top-4 left-4">
+                          <div className="text-white text-base font-semibold leading-none">{player.number}</div>
+                          <div
+                            className={`h-1 w-6 mt-2 ${accentColor ? '' : 'bg-white'}`}
+                            style={accentColor ? { backgroundColor: accentColor } : undefined}
+                          />
+                        </div>
+
+                        <div className="absolute left-4 right-4 bottom-4">
+                          <h3 className="text-white text-xl sm:text-2xl md:text-3xl font-black tracking-tight leading-none drop-shadow-sm break-words">
+                            {player.name}
+                          </h3>
+                        </div>
+                      </div>
                     </div>
                   </Link>
                 ))}

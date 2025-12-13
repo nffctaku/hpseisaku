@@ -65,14 +65,21 @@ export default function MatchAdminPage() {
 
         setMatch(matchData);
 
-        // Fetch players
-        if (matchData.homeTeamId && matchData.awayTeamId) {
-          const playersRef = collection(db, `clubs/${user.uid}/players`);
-          const homeQuery = query(playersRef, where("teamId", "==", matchData.homeTeamId));
-          const awayQuery = query(playersRef, where("teamId", "==", matchData.awayTeamId));
-          const [homeSnapshot, awaySnapshot] = await Promise.all([getDocs(homeQuery), getDocs(awayQuery)]);
-          setHomePlayers(homeSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player)));
-          setAwayPlayers(awaySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player)));
+        // Fetch players (per-team collection path)
+        if (matchData.homeTeam && matchData.awayTeam) {
+          const fetchPlayers = async (teamId: string): Promise<Player[]> => {
+            const playersRef = collection(db, `clubs/${user.uid}/teams/${teamId}/players`);
+            const snap = await getDocs(playersRef);
+            return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
+          };
+
+          const [homePlayers, awayPlayers] = await Promise.all([
+            fetchPlayers(matchData.homeTeam),
+            fetchPlayers(matchData.awayTeam),
+          ]);
+
+          setHomePlayers(homePlayers);
+          setAwayPlayers(awayPlayers);
         }
 
         // Subscribe to events
@@ -115,6 +122,10 @@ export default function MatchAdminPage() {
     return <div className="flex h-screen items-center justify-center">試合が見つかりませんでした。</div>;
   }
 
+  if (!user) {
+    return <div className="flex h-screen items-center justify-center">ログインしてください。</div>;
+  }
+
   return (
     <div className="container mx-auto max-w-4xl py-10">
       <div className="bg-card border rounded-lg p-6">
@@ -148,7 +159,12 @@ export default function MatchAdminPage() {
           <TabsTrigger value="player-stats">選手スタッツ</TabsTrigger>
         </TabsList>
         <TabsContent value="match-stats">
-          <MatchTeamStatsForm match={match} />
+          <MatchTeamStatsForm
+            match={match}
+            userId={user.uid}
+            competitionId={competitionId as string}
+            roundId={match.roundId as string}
+          />
         </TabsContent>
         <TabsContent value="match-events">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-4">
@@ -192,7 +208,13 @@ export default function MatchAdminPage() {
           </div>
         </TabsContent>
         <TabsContent value="player-stats">
-          <SquadRegistrationForm match={match} homePlayers={homePlayers} awayPlayers={awayPlayers} />
+          <SquadRegistrationForm
+            match={match}
+            homePlayers={homePlayers}
+            awayPlayers={awayPlayers}
+            roundId={match.roundId as string}
+            competitionId={competitionId as string}
+          />
         </TabsContent>
       </Tabs>
     </div>

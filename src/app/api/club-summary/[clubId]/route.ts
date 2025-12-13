@@ -21,6 +21,23 @@ async function getClubSummary(clubId: string) {
   const clubDataRef = db.collection('clubs').doc(ownerUid);
   const clubDataSnap = await clubDataRef.get();
   const clubData = clubDataSnap.exists ? clubDataSnap.data() : { headerImageUrl: null };
+
+  // メインチームの情報を取得して、表示用のクラブ名・ロゴに反映
+  const mainTeamId = (profileData as any)?.mainTeamId;
+  let mainTeamData: any = null;
+  if (mainTeamId) {
+    const mainTeamRef = db.collection(`clubs/${ownerUid}/teams`).doc(mainTeamId);
+    const mainTeamSnap = await mainTeamRef.get();
+    if (mainTeamSnap.exists) {
+      mainTeamData = mainTeamSnap.data();
+    }
+  }
+
+  const resolvedProfile = {
+    ...profileData,
+    clubName: (mainTeamData as any)?.name || (profileData as any).clubName,
+    logoUrl: (mainTeamData as any)?.logoUrl || (profileData as any).logoUrl,
+  } as any;
   const heroLimitRaw = (clubData as any)?.heroNewsLimit;
   const heroLimit = typeof heroLimitRaw === 'number' && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;
 
@@ -51,7 +68,7 @@ async function getClubSummary(clubId: string) {
     .slice(0, 5) as NewsArticle[];
 
   return {
-    profile: profileData,
+    profile: resolvedProfile,
     data: clubData,
     latestResult: null,
     nextMatch: null,

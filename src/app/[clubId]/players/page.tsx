@@ -145,6 +145,7 @@ export default async function PlayersPage({
         players={players}
         allSeasons={allSeasons}
         activeSeason={activeSeason}
+        accentColor={homeBgColor}
       />
     </main>
   );
