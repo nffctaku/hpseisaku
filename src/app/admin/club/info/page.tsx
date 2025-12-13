@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useClub } from '@/contexts/ClubContext';
 import { auth, db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +40,7 @@ const slugify = (value: string): string => {
 
 export default function ClubInfoPage() {
   const { user, refreshUserProfile } = useAuth();
+  const { fetchClubInfo } = useClub();
   const isPro = user?.plan === "pro";
   const [clubName, setClubName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -130,6 +132,15 @@ export default function ClubInfoPage() {
         }));
         teamsData.sort((a, b) => a.name.localeCompare(b.name));
         setTeams(teamsData);
+
+        // メインチームが決まっている場合は、そのチームの名前とロゴをクラブ表示用にも反映する
+        if (selectedTeamId) {
+          const mainTeam = teamsData.find(t => t.id === selectedTeamId);
+          if (mainTeam) {
+            setClubName(mainTeam.name || '');
+            setLogoUrl(mainTeam.logoUrl || '');
+          }
+        }
       } catch (error) {
         console.error('Error fetching teams for club info:', error);
         toast.error('チーム一覧の取得に失敗しました。');
@@ -137,7 +148,7 @@ export default function ClubInfoPage() {
     };
 
     fetchTeams();
-  }, [user]);
+  }, [user, selectedTeamId]);
 
   const handleUpdate = async () => {
     if (!user || !auth.currentUser) {
@@ -148,7 +159,8 @@ export default function ClubInfoPage() {
     setLoading(true);
     try {
       const mainTeam = teams.find((t) => t.id === selectedTeamId);
-      const effectiveLogoUrl = mainTeam?.logoUrl || logoUrl;
+      // 画面で設定したクラブロゴを最優先し、それが空の場合のみメインチームのロゴを使う
+      const effectiveLogoUrl = (logoUrl && logoUrl.length > 0) ? logoUrl : (mainTeam?.logoUrl || '');
       const effectiveClubName = clubName && clubName.length > 0 ? clubName : (mainTeam?.name || '');
 
       const idToken = await auth.currentUser.getIdToken();
@@ -183,6 +195,11 @@ export default function ClubInfoPage() {
       
       if (refreshUserProfile) {
         await refreshUserProfile();
+      }
+
+      // ヘッダー左上のロゴ／クラブ名も最新の club_profiles / teams に合わせて更新
+      if (fetchClubInfo) {
+        await fetchClubInfo();
       }
 
     } catch (error: any) {

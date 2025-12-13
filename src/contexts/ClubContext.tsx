@@ -46,10 +46,14 @@ export function ClubProvider({ children }: { children: ReactNode }) {
         const clubDocSnap = await getDoc(clubDocRef);
         const clubData = clubDocSnap.exists() ? clubDocSnap.data() : {};
 
-        // 3. Fetch from teams subcollection (another fallback)
-        const teamDocRef = doc(db, `clubs/${user.uid}/teams`, user.uid);
-        const teamDocSnap = await getDoc(teamDocRef);
-        const teamData = teamDocSnap.exists() ? teamDocSnap.data() : {};
+        // 3. Fetch main team from teams subcollection (another fallback)
+        const mainTeamId = (clubProfileData as any)?.mainTeamId || null;
+        let teamData: any = {};
+        if (mainTeamId) {
+          const teamDocRef = doc(db, `clubs/${user.uid}/teams`, mainTeamId);
+          const teamDocSnap = await getDoc(teamDocRef);
+          teamData = teamDocSnap.exists() ? teamDocSnap.data() : {};
+        }
 
         // 4. Consolidate and set the club info
         const resolvedClubId =
@@ -66,12 +70,17 @@ export function ClubProvider({ children }: { children: ReactNode }) {
 
         setClubInfo({
           id: resolvedClubId,
-          clubName: clubProfileData.clubName || clubData.clubName || teamData.name || null,
+          // 表示優先度: メインチーム > club_profiles > clubs
+          clubName:
+            (teamData as any).name ||
+            (clubProfileData as any).clubName ||
+            (clubData as any).clubName ||
+            null,
           logoUrl:
-            clubProfileData.logoUrl ||
-            clubData.logoUrl ||
-            teamData.logoUrl ||
-            clubProfileData.photoURL ||
+            (teamData as any).logoUrl ||
+            (clubProfileData as any).logoUrl ||
+            (clubData as any).logoUrl ||
+            (clubProfileData as any).photoURL ||
             null,
         });
       } catch (error) {
