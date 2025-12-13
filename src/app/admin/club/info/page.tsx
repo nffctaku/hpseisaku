@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from 'sonner';
 import { ClubEmblemUploader } from '@/components/club-emblem-uploader';
 import Image from 'next/image';
-import { collection, getDocs, query, where, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit, doc, updateDoc } from 'firebase/firestore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface TeamOption {
@@ -164,6 +164,19 @@ export default function ClubInfoPage() {
       if (!updateResponse.ok) {
         const data = await updateResponse.json();
         throw new Error(data.message || '更新に失敗しました。');
+      }
+
+      // メインチームのチーム情報も同期（IDで紐付けたまま、表示だけ更新）
+      if (user && mainTeam && selectedTeamId) {
+        try {
+          const teamDocRef = doc(db, `clubs/${user.uid}/teams`, selectedTeamId);
+          await updateDoc(teamDocRef, {
+            name: effectiveClubName,
+            logoUrl: effectiveLogoUrl,
+          });
+        } catch (syncError) {
+          console.error('Failed to sync main team with club info:', syncError);
+        }
       }
 
       toast.success('クラブ情報が更新されました。');
