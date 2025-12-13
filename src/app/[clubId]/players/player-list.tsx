@@ -73,11 +73,11 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
           {Object.entries(sortedGroupedPlayers).map(([position, players]) => (
             <section key={position}>
               <h2 className="text-2xl font-bold border-b-2 border-primary pb-2 mb-6">{position}</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 gap-y-2 sm:gap-4">
                 {players.map(player => (
                   <Link href={`/${clubId}/players/${player.id}`} key={player.id} className="block">
                     <div className="rounded-xl border bg-white shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                      <div className="relative w-full h-40 sm:h-48 md:h-56 bg-gray-100">
+                      <div className="relative w-full h-52 sm:h-52 md:h-60 bg-gray-100">
                         {player.photoUrl ? (
                           <Image
                             src={player.photoUrl}

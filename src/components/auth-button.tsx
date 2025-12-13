@@ -1,6 +1,6 @@
 "use client";
 
-import { signInWithPopup, signOut } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { GoogleAuthProvider } from "firebase/auth";
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
@@ -23,13 +23,32 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const { user } = useAuth();
   console.log('[AuthButton] render', { hasUser: !!user, user });
 
+  const shouldUseRedirect = () => {
+    if (isMobile) return true;
+    if (typeof window === 'undefined') return false;
+    const ua = window.navigator.userAgent || '';
+    // iOS Safari / iOS in-app browsers often block popups
+    const isiOS = /iPhone|iPad|iPod/i.test(ua);
+    return isiOS;
+  };
+
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
       console.log('[AuthButton] handleSignIn start');
+      if (shouldUseRedirect()) {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
       await signInWithPopup(auth, provider);
     } catch (error) {
       console.error("Error signing in with Google", error);
+      // Fallback for popup-blocked / cancelled popup requests
+      try {
+        await signInWithRedirect(auth, provider);
+      } catch (e) {
+        console.error('Error signing in with redirect fallback', e);
+      }
     }
   };
 
