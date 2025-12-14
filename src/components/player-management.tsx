@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, where } from "firebase/firestore";
@@ -31,15 +31,23 @@ import { PlayersDataTable } from "./players-data-table";
 
 interface PlayerManagementProps {
   teamId: string;
+  selectedSeason?: string;
 }
 
-export function PlayerManagement({ teamId }: PlayerManagementProps) {
+export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementProps) {
   const { user } = useAuth();
   const isPro = user?.plan === "pro";
   const [players, setPlayers] = useState<Player[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<Player | null>(null);
+
+  const playerFormKey = editingPlayer ? editingPlayer.id : `new-${selectedSeason || ""}`;
+
+  const filteredPlayers = useMemo(() => {
+    if (!selectedSeason) return players;
+    return players.filter((p) => (p.seasons || []).includes(selectedSeason));
+  }, [players, selectedSeason]);
 
   useEffect(() => {
     if (!user || !teamId) return;
@@ -58,11 +66,22 @@ export function PlayerManagement({ teamId }: PlayerManagementProps) {
     if (!user || !teamId) return;
     try {
       const playersColRef = collection(db, `clubs/${user.uid}/teams/${teamId}/players`);
+
+      const resolvedValues: PlayerFormValues = editingPlayer
+        ? ({
+            ...values,
+            seasons: (editingPlayer as any)?.seasons || values.seasons,
+          } as PlayerFormValues)
+        : ({
+            ...values,
+            seasons: selectedSeason ? [selectedSeason] : [],
+          } as PlayerFormValues);
+
       if (editingPlayer) {
         const playerDocRef = doc(playersColRef, editingPlayer.id);
-        await updateDoc(playerDocRef, values);
+        await updateDoc(playerDocRef, resolvedValues);
       } else {
-        await addDoc(playersColRef, values);
+        await addDoc(playersColRef, resolvedValues);
       }
       setIsDialogOpen(false);
       setEditingPlayer(null);
@@ -89,7 +108,7 @@ export function PlayerManagement({ teamId }: PlayerManagementProps) {
   };
 
   const openAddDialog = () => {
-    if (!isPro && players.length >= 26) {
+    if (!isPro && filteredPlayers.length >= 26) {
       toast.error("無料プランでは1チームあたり選手は最大26人まで登録できます。");
       return;
     }
@@ -106,7 +125,7 @@ export function PlayerManagement({ teamId }: PlayerManagementProps) {
             <DialogTrigger asChild>
               <Button
                 onClick={openAddDialog}
-                disabled={!isPro && players.length >= 26}
+                disabled={!isPro && filteredPlayers.length >= 26}
                 className="bg-white text-gray-900 hover:bg-gray-100 border border-border"
               >
                 選手を追加
@@ -117,14 +136,16 @@ export function PlayerManagement({ teamId }: PlayerManagementProps) {
                 <DialogTitle>{editingPlayer ? '選手を編集' : '選手を追加'}</DialogTitle>
               </DialogHeader>
               <PlayerForm
+                key={playerFormKey}
                 onSubmit={handleFormSubmit}
                 defaultValues={editingPlayer || undefined}
+                defaultSeason={selectedSeason}
               />
             </DialogContent>
           </Dialog>
         </div>
 
-        <PlayersDataTable columns={columns(openEditDialog, setDeletingPlayer)} data={players} />
+        <PlayersDataTable columns={columns(openEditDialog, setDeletingPlayer)} data={filteredPlayers} />
       </div>
 
       <AlertDialog open={!!deletingPlayer} onOpenChange={() => setDeletingPlayer(null)}>

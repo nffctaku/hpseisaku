@@ -5,7 +5,6 @@ import { Player } from "../types/player";
 import { ArrowUpDown, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import Link from 'next/link';
 
 export const columns = (openEditDialog: (player: Player) => void, setDeletingPlayer: (player: Player) => void): ColumnDef<Player>[] => [
   {
@@ -32,9 +31,7 @@ export const columns = (openEditDialog: (player: Player) => void, setDeletingPla
     cell: ({ row }) => {
       const player = row.original;
       return (
-        <Link href={`/admin/players/${player.id}`} className="hover:underline">
-          {player.name}
-        </Link>
+        <span>{player.name}</span>
       );
     }
   },
@@ -72,13 +69,6 @@ export const columns = (openEditDialog: (player: Player) => void, setDeletingPla
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-white text-gray-900">
-            <DropdownMenuLabel>操作</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(player.id)}
-            >
-              選手IDをコピー
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => openEditDialog(player)}>編集</DropdownMenuItem>
             <DropdownMenuItem className="text-destructive" onClick={() => setDeletingPlayer(player)}>削除</DropdownMenuItem>
           </DropdownMenuContent>

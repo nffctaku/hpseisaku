@@ -4,13 +4,15 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { doc, collection, getDocs, setDoc, writeBatch, updateDoc } from 'firebase/firestore';
+import { doc, collection, getDocs, setDoc, writeBatch, updateDoc, query, where, arrayUnion } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { PlayerManagement } from '@/components/player-management';
+import { StaffManagement } from '@/components/staff-management';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Season {
   id: string;
@@ -24,6 +26,7 @@ export default function TeamPlayersPage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>('');
   const [newSeason, setNewSeason] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'players' | 'staff'>('players');
 
   const generateSeasons = (startYear: number, endYear: number) => {
     const seasons = [];
@@ -85,30 +88,25 @@ export default function TeamPlayersPage() {
     toast.info(`${previousSeason} シーズンから選手をコピーしています...`);
 
     try {
-      // 1. Get players from the previous season
-      const prevRosterRef = collection(db, `clubs/${user.uid}/seasons/${previousSeason}/roster`);
-      const prevPlayersSnap = await getDocs(prevRosterRef);
+      // teams/{teamId}/players の中で「前シーズン所属」の選手に、選択中シーズンを追加する（実質コピー）
+      const playersColRef = collection(db, `clubs/${user.uid}/teams/${teamId}/players`);
+      const q = query(playersColRef, where('seasons', 'array-contains', previousSeason));
+      const prevPlayersSnap = await getDocs(q);
 
       if (prevPlayersSnap.empty) {
-        toast.info(`${previousSeason} シーズンに登録されている選手がいません。`);
+        toast.info(`${previousSeason} シーズンに所属している選手がいません。`);
         return;
       }
-      const playersToCopy = prevPlayersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // 2. Get players from the current season to avoid duplicates
-      const currentRosterRef = collection(db, `clubs/${user.uid}/seasons/${selectedSeason}/roster`);
-      const currentPlayersSnap = await getDocs(currentRosterRef);
-      const existingPlayerIds = new Set(currentPlayersSnap.docs.map(doc => doc.id));
-
-      // 3. Filter out existing players and prepare the batch write
       const batch = writeBatch(db);
       let copiedCount = 0;
-      playersToCopy.forEach(player => {
-        if (!existingPlayerIds.has(player.id)) {
-          const newPlayerDocRef = doc(currentRosterRef, player.id);
-          batch.set(newPlayerDocRef, player);
-          copiedCount++;
-        }
+
+      prevPlayersSnap.docs.forEach((pDoc) => {
+        const data = pDoc.data() as any;
+        const seasons: string[] = Array.isArray(data?.seasons) ? data.seasons : [];
+        if (seasons.includes(selectedSeason)) return;
+        batch.update(pDoc.ref, { seasons: arrayUnion(selectedSeason) });
+        copiedCount++;
       });
 
       if (copiedCount === 0) {
@@ -129,15 +127,39 @@ export default function TeamPlayersPage() {
     <div>
       <h1 className="text-3xl font-bold mb-6">選手管理</h1>
       <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="w-full sm:w-auto">
-          <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue placeholder="シーズンを選択" />
-            </SelectTrigger>
-            <SelectContent>
-              {seasons.map(s => <SelectItem key={s.id} value={s.id}>{s.id}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col gap-1 w-full sm:w-auto">
+          <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center">
+            <Select value={newSeason} onValueChange={setNewSeason}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="シーズンを追加" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableSeasonsToAdd.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={handleAddSeason}
+              disabled={!newSeason}
+              className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white w-full sm:w-auto"
+            >
+              追加
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">新しい年度のシーズン枠を作成します（初期は非公開）。</p>
+        </div>
+
+        <div className="flex flex-col gap-1 w-full sm:w-auto">
+          <div className="w-full sm:w-auto">
+            <Select value={selectedSeason} onValueChange={setSelectedSeason}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="シーズンを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {seasons.map(s => <SelectItem key={s.id} value={s.id}>{s.id}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-muted-foreground">ここで選んだシーズンの選手を編集します。</p>
         </div>
 
         {selectedSeason && (
@@ -158,40 +180,37 @@ export default function TeamPlayersPage() {
               <span className="text-xs text-muted-foreground">
                 {seasons.find(s => s.id === selectedSeason)?.isPublic ? '現在: 公開中' : '現在: 非公開'}
               </span>
+              <span className="text-xs text-muted-foreground">ONにするとHPの選手一覧に表示されます。</span>
             </div>
           </div>
         )}
 
-        <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center">
-          <Select value={newSeason} onValueChange={setNewSeason}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue placeholder="シーズンを追加" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableSeasonsToAdd.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col gap-1 w-full sm:w-auto">
           <Button
-            onClick={handleAddSeason}
-            disabled={!newSeason}
+            variant="outline"
+            onClick={handleCopyFromPreviousSeason}
+            disabled={!selectedSeason}
             className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white w-full sm:w-auto"
           >
-            追加
+            昨シーズンから選手をコピー
           </Button>
+          <p className="text-xs text-muted-foreground">前年のロスターから未登録の選手だけを追加します。</p>
         </div>
-
-        <Button
-          variant="outline"
-          onClick={handleCopyFromPreviousSeason}
-          disabled={!selectedSeason}
-          className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white w-full sm:w-auto"
-        >
-          昨シーズンから選手をコピー
-        </Button>
       </div>
 
       {selectedSeason ? (
-        <PlayerManagement teamId={teamId} />
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+          <TabsList className="bg-white/10">
+            <TabsTrigger value="players">選手管理</TabsTrigger>
+            <TabsTrigger value="staff">スタッフ管理</TabsTrigger>
+          </TabsList>
+          <TabsContent value="players">
+            <PlayerManagement teamId={teamId} selectedSeason={selectedSeason} />
+          </TabsContent>
+          <TabsContent value="staff">
+            <StaffManagement teamId={teamId} selectedSeason={selectedSeason} />
+          </TabsContent>
+        </Tabs>
       ) : (
         <p>シーズンを選択または追加してください。</p>
       )}
