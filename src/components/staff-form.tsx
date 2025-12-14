@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { PlayerPhotoUploader } from "@/components/player-photo-uploader";
 import type { SubmitHandler } from "react-hook-form";
 
 const formSchema = z.object({
@@ -25,6 +26,7 @@ const formSchema = z.object({
   nationality: z.string().optional(),
   position: z.string().optional(),
   profile: z.string().max(200, { message: "プロフィールは200文字以内です。" }).optional(),
+  photoUrl: z.string().url({ message: "無効なURLです。" }).optional().or(z.literal("")),
   seasons: z.array(z.string()).optional(),
   isPublished: z.boolean().optional(),
 });
@@ -48,6 +50,7 @@ export function StaffForm({ onSubmit, defaultValues, defaultSeason }: StaffFormP
       nationality: "",
       position: "",
       profile: "",
+      photoUrl: "",
       seasons: defaultSeason ? [defaultSeason] : [],
       isPublished: true,
     },
@@ -61,6 +64,7 @@ export function StaffForm({ onSubmit, defaultValues, defaultSeason }: StaffFormP
       nationality: "",
       position: "",
       profile: "",
+      photoUrl: "",
       seasons: [],
       isPublished: true,
       ...defaultValues,
@@ -79,6 +83,19 @@ export function StaffForm({ onSubmit, defaultValues, defaultSeason }: StaffFormP
         onSubmit={form.handleSubmit(handleSubmit)}
         className="space-y-4 pb-24 max-h-[80vh] overflow-y-auto"
       >
+        <FormField
+          control={form.control}
+          name="photoUrl"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>スタッフ写真</FormLabel>
+              <FormControl>
+                <PlayerPhotoUploader value={field.value || ""} onChange={field.onChange} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={form.control}
           name="name"

@@ -79,18 +79,21 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
       if (editingStaff) {
         const staffDocRef = doc(staffColRef, editingStaff.id);
         await updateDoc(staffDocRef, resolvedValues);
+        toast.success("スタッフを更新しました。");
       } else {
         if (!isPro && filteredStaff.length >= 26) {
           toast.error("無料プランでは1シーズンあたりスタッフは最大26人まで登録できます。");
           return;
         }
         await addDoc(staffColRef, resolvedValues);
+        toast.success("スタッフを追加しました。");
       }
 
       setIsDialogOpen(false);
       setEditingStaff(null);
     } catch (error) {
       console.error("Error saving staff: ", error);
+      toast.error("スタッフの保存に失敗しました。権限（permission-denied）や入力内容をご確認ください。");
     }
   };
 
@@ -99,9 +102,11 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
     try {
       const staffDocRef = doc(db, `clubs/${user.uid}/teams/${teamId}/staff`, deletingStaff.id);
       await deleteDoc(staffDocRef);
+      toast.success("スタッフを削除しました。");
       setDeletingStaff(null);
     } catch (error) {
       console.error("Error deleting staff: ", error);
+      toast.error("スタッフの削除に失敗しました。");
     }
   };
 

@@ -5,6 +5,7 @@ export interface Staff {
   nationality?: string;
   position?: string;
   profile?: string;
+  photoUrl?: string;
   seasons?: string[];
   isPublished?: boolean;
 }
