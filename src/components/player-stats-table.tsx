@@ -86,99 +86,107 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
 
     return (
       <div key={field.id} className="space-y-1">
-        <div className="flex items-center justify-between rounded-md border bg-white px-3 py-2 text-gray-900">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
-              {field.position}
-            </span>
-            <span className="font-medium text-sm">{field.playerName}</span>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs">
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-gray-500">評価</span>
-              <Select
-                value={ratingValue}
-                onValueChange={(val) => setValue(ratingFieldName, parseFloat(val))}
-              >
-                <SelectTrigger className="h-7 w-24 text-xs bg-white text-gray-900">
-                  <SelectValue placeholder="-" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ratingOptions.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {r}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-gray-500">出場分</span>
-              <Select
-                value={watch(minutesFieldName)?.toString() ?? ''}
-                onValueChange={(val) => setValue(minutesFieldName, parseInt(val, 10))}
-              >
-                <SelectTrigger className="h-7 w-24 text-xs bg-white text-gray-900">
-                  <SelectValue placeholder="-" />
-                </SelectTrigger>
-                <SelectContent>
-                  {minutesOptions.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-gray-500">G</span>
-              <Input
-                type="number"
-                min="0"
-                max="10"
-                readOnly
-                className="h-7 w-12 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
-                {...control.register(`playerStats.${globalIndex}.goals`)}
-              />
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-gray-500">A</span>
-              <Input
-                type="number"
-                min="0"
-                max="10"
-                readOnly
-                className="h-7 w-12 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
-                {...control.register(`playerStats.${globalIndex}.assists`)}
-              />
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-gray-500">Y</span>
-              <Input
-                type="number"
-                min="0"
-                max="2"
-                readOnly
-                className="h-7 w-12 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
-                {...control.register(`playerStats.${globalIndex}.yellowCards`)}
-              />
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-gray-500">R</span>
-              <Input
-                type="number"
-                min="0"
-                max="1"
-                readOnly
-                className="h-7 w-12 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
-                {...control.register(`playerStats.${globalIndex}.redCards`)}
-              />
+        <div className="rounded-md border bg-white px-3 py-2 text-gray-900">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
+                {field.position}
+              </span>
+              <span className="font-medium text-sm truncate">{field.playerName}</span>
             </div>
 
-            <Button variant="ghost" size="icon" onClick={() => remove(globalIndex)}>
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
+            <div className="flex flex-col gap-2 text-xs min-w-0 max-w-full md:flex-row md:flex-wrap md:items-end md:justify-end">
+              <div className="flex flex-wrap items-end gap-2 justify-start md:justify-end">
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-gray-500">評価</span>
+                  <Select value={ratingValue} onValueChange={(val) => setValue(ratingFieldName, parseFloat(val))}>
+                    <SelectTrigger className="h-7 w-20 text-xs bg-white text-gray-900">
+                      <SelectValue placeholder="-" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ratingOptions.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {r}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-gray-500">出場分</span>
+                  <Select
+                    value={watch(minutesFieldName)?.toString() ?? ""}
+                    onValueChange={(val) => setValue(minutesFieldName, parseInt(val, 10))}
+                  >
+                    <SelectTrigger className="h-7 w-20 text-xs bg-white text-gray-900">
+                      <SelectValue placeholder="-" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {minutesOptions.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-end gap-2 justify-start md:justify-end">
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-gray-500">G</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="10"
+                    readOnly
+                    className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
+                    {...control.register(`playerStats.${globalIndex}.goals`)}
+                  />
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-gray-500">A</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="10"
+                    readOnly
+                    className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
+                    {...control.register(`playerStats.${globalIndex}.assists`)}
+                  />
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-gray-500">Y</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="2"
+                    readOnly
+                    className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
+                    {...control.register(`playerStats.${globalIndex}.yellowCards`)}
+                  />
+                </div>
+
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-gray-500">R</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="1"
+                    readOnly
+                    className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
+                    {...control.register(`playerStats.${globalIndex}.redCards`)}
+                  />
+                </div>
+
+                <Button variant="ghost" size="icon" onClick={() => remove(globalIndex)} className="shrink-0">
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -213,10 +221,10 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
 
       {/* Starters */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h4 className="text-sm font-semibold text-gray-300">スタメン（最大11人）</h4>
           <Select onValueChange={(val) => handleAddPlayer(val, 'starter')} value="">
-            <SelectTrigger className="bg-white text-gray-900 w-52 h-8 text-xs">
+            <SelectTrigger className="bg-white text-gray-900 w-full sm:w-52 h-8 text-xs">
               <SelectValue placeholder="スタメンに選手を追加..." />
             </SelectTrigger>
             <SelectContent>
@@ -233,10 +241,10 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
 
       {/* Bench */}
       <div className="mt-6 space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h4 className="text-sm font-semibold text-gray-300">ベンチ（最大15人）</h4>
           <Select onValueChange={(val) => handleAddPlayer(val, 'sub')} value="">
-            <SelectTrigger className="bg-white text-gray-900 w-52 h-8 text-xs">
+            <SelectTrigger className="bg-white text-gray-900 w-full sm:w-52 h-8 text-xs">
               <SelectValue placeholder="ベンチに選手を追加..." />
             </SelectTrigger>
             <SelectContent>

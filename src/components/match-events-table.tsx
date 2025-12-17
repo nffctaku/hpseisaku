@@ -112,73 +112,72 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
     return (
       <div
         key={field.id}
-        className="flex items-center gap-3 rounded-md border bg-white px-3 py-2 text-xs text-gray-900"
+        className="flex flex-col gap-2 rounded-md border bg-white px-3 py-2 text-xs text-gray-900 md:flex-row md:items-center md:gap-3"
       >
-        {/* 時間 */}
-        <div className="flex flex-col items-center">
-          <span className="text-[10px] text-gray-500">分</span>
-          <Select
-            value={(watch(`events.${index}.minute`) ?? 0).toString()}
-            onValueChange={(val) => setValue(`events.${index}.minute`, parseFloat(val))}
-          >
-            <SelectTrigger className="h-7 w-20 text-xs bg-white text-gray-900">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {minuteOptions.map((opt, idx) => (
-                <SelectItem key={`${opt.value}-${idx}`} value={opt.value.toString()}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <div className="grid grid-cols-3 gap-2 md:flex md:items-center md:gap-3 md:w-auto">
+          {/* 時間 */}
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] text-gray-500">分</span>
+            <Select
+              value={(watch(`events.${index}.minute`) ?? 0).toString()}
+              onValueChange={(val) => setValue(`events.${index}.minute`, parseFloat(val))}
+            >
+              <SelectTrigger className="h-7 w-full md:w-20 text-xs bg-white text-gray-900">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {minuteOptions.map((opt, idx) => (
+                  <SelectItem key={`${opt.value}-${idx}`} value={opt.value.toString()}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        {/* チーム */}
-        <div className="flex flex-col items-center">
-          <span className="text-[10px] text-gray-500">チーム</span>
-          <Select
-            value={teamId}
-            onValueChange={(val) => {
-              setValue(`events.${index}.teamId`, val);
-              // チーム変更時に不整合になりやすい選手選択をクリア
-              setValue(`events.${index}.playerId`, undefined);
-              setValue(`events.${index}.assistPlayerId`, undefined);
-              setValue(`events.${index}.inPlayerId`, undefined);
-              setValue(`events.${index}.outPlayerId`, undefined);
-            }}
-          >
-            <SelectTrigger className="h-7 w-24 text-xs bg-white text-gray-900">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={match.homeTeam}>{match.homeTeamName}</SelectItem>
-              <SelectItem value={match.awayTeam}>{match.awayTeamName}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+          {/* チーム */}
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] text-gray-500">チーム</span>
+            <Select
+              value={teamId}
+              onValueChange={(val) => {
+                setValue(`events.${index}.teamId`, val);
+                // チーム変更時に不整合になりやすい選手選択をクリア
+                setValue(`events.${index}.playerId`, undefined);
+                setValue(`events.${index}.assistPlayerId`, undefined);
+                setValue(`events.${index}.inPlayerId`, undefined);
+                setValue(`events.${index}.outPlayerId`, undefined);
+              }}
+            >
+              <SelectTrigger className="h-7 w-full md:w-24 text-xs bg-white text-gray-900">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={match.homeTeam}>{match.homeTeamName}</SelectItem>
+                <SelectItem value={match.awayTeam}>{match.awayTeamName}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        {/* 種別 */}
-        <div className="flex flex-col items-center">
-          <span className="text-[10px] text-gray-500">種別</span>
-          <Select
-            value={currentType}
-            onValueChange={(val) => setValue(`events.${index}.type`, val)}
-          >
-            <SelectTrigger className="h-7 w-24 text-xs bg-white text-gray-900">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="goal">ゴール</SelectItem>
-              <SelectItem value="card">カード</SelectItem>
-              <SelectItem value="substitution">交代</SelectItem>
-              <SelectItem value="note">メモ</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* 種別 */}
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] text-gray-500">種別</span>
+            <Select value={currentType} onValueChange={(val) => setValue(`events.${index}.type`, val)}>
+              <SelectTrigger className="h-7 w-full md:w-24 text-xs bg-white text-gray-900">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="goal">ゴール</SelectItem>
+                <SelectItem value="card">カード</SelectItem>
+                <SelectItem value="substitution">交代</SelectItem>
+                <SelectItem value="note">メモ</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* 詳細エリア */}
-        <div className="flex-1 flex items-center gap-2">
+        <div className="flex-1 flex flex-wrap items-center gap-2 min-w-0">
           {currentType === "goal" && (
             <>
               <Select
@@ -190,7 +189,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-36 text-xs bg-white text-gray-900">
+                <SelectTrigger className="h-7 w-full md:w-36 text-xs bg-white text-gray-900">
                   <SelectValue placeholder="得点者" />
                 </SelectTrigger>
                 <SelectContent>
@@ -211,7 +210,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-36 text-xs bg-white text-gray-900">
+                <SelectTrigger className="h-7 w-full md:w-36 text-xs bg-white text-gray-900">
                   <SelectValue placeholder="アシスト(任意)" />
                 </SelectTrigger>
                 <SelectContent>
@@ -237,7 +236,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-36 text-xs bg-white text-gray-900">
+                <SelectTrigger className="h-7 w-full md:w-36 text-xs bg-white text-gray-900">
                   <SelectValue placeholder="選手" />
                 </SelectTrigger>
                 <SelectContent>
@@ -275,7 +274,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-36 text-xs bg-white text-gray-900">
+                <SelectTrigger className="h-7 w-full md:w-36 text-xs bg-white text-gray-900">
                   <SelectValue placeholder="OUT" />
                 </SelectTrigger>
                 <SelectContent>
@@ -296,7 +295,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   )
                 }
               >
-                <SelectTrigger className="h-7 w-36 text-xs bg-white text-gray-900">
+                <SelectTrigger className="h-7 w-full md:w-36 text-xs bg-white text-gray-900">
                   <SelectValue placeholder="IN" />
                 </SelectTrigger>
                 <SelectContent>
@@ -313,21 +312,18 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
 
           {currentType === "note" && (
             <Input
-              className="h-7 text-xs bg-white text-gray-900"
+              className="h-7 text-xs bg-white text-gray-900 w-full"
               placeholder="メモ"
               {...register(`events.${index}.text`)}
             />
           )}
         </div>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => remove(index)}
-        >
-          <Trash2 className="h-4 w-4 text-destructive" />
-        </Button>
+        <div className="flex justify-end md:justify-start">
+          <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
       </div>
     );
   };

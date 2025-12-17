@@ -19,7 +19,7 @@ const formSchema = z.object({
   teamStats: z.array(
     z.object({
       id: z.string(),
-      name: z.string().min(1, '必須'),
+      name: z.string().min(1, '必須').max(8, '最大8文字です。'),
       homeValue: z.union([z.string(), z.number()]),
       awayValue: z.union([z.string(), z.number()]),
     })
@@ -99,9 +99,9 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
 
   return (
     <Card className="mt-4 bg-white text-gray-900">
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>チーム別データ</CardTitle>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
             <div className="flex items-center gap-2">
                 {match.homeTeamLogo && <img src={match.homeTeamLogo} alt={match.homeTeamName} className="w-6 h-6 object-contain" />}
                 <span className="font-semibold">{match.homeTeamName}</span>
@@ -121,7 +121,10 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
             const isPossession = field.id === 'possession' || field.id === 'passAccuracy';
 
             return (
-              <div key={field.id} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-4">
+              <div
+                key={field.id}
+                className="flex items-center gap-2"
+              >
                 <Controller
                   name={`teamStats.${index}.homeValue`}
                   control={form.control}
@@ -129,27 +132,30 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
                     <Input
                       {...field}
                       type="text"
-                      className={`text-center font-bold text-lg bg-white text-gray-900 ${homeVal > awayVal ? 'bg-emerald-500/80 text-white' : ''}`}
+                      className={`w-16 sm:w-24 text-center font-bold text-sm sm:text-lg bg-white text-gray-900 ${homeVal > awayVal ? 'bg-emerald-500/80 text-white' : ''}`}
                     />
                   )}
                 />
                 
-                <div className="text-center">
-                {isDefault ? (
-                  <span className="font-medium text-sm text-muted-foreground">{field.name}</span>
-                ) : (
-                  <Controller
-                    name={`teamStats.${index}.name`}
-                    control={form.control}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        placeholder="項目名"
-                        className="text-center text-sm bg-white text-gray-900"
-                      />
-                    )}
-                  />
-                )}
+                <div className="flex-1 min-w-0">
+                  {isDefault ? (
+                    <span className="block text-center font-medium text-xs text-muted-foreground truncate">
+                      {field.name}
+                    </span>
+                  ) : (
+                    <Controller
+                      name={`teamStats.${index}.name`}
+                      control={form.control}
+                      render={({ field }) => (
+                        <Input
+                          {...field}
+                          placeholder="項目名"
+                          maxLength={8}
+                          className="w-full text-center text-xs bg-white text-gray-900"
+                        />
+                      )}
+                    />
+                  )}
                 </div>
 
                 <Controller
@@ -159,12 +165,12 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
                     <Input
                       {...field}
                       type="text"
-                      className={`text-center font-bold text-lg bg-white text-gray-900 ${awayVal > homeVal ? 'bg-emerald-500/80 text-white' : ''}`}
+                      className={`w-16 sm:w-24 text-center font-bold text-sm sm:text-lg bg-white text-gray-900 ${awayVal > homeVal ? 'bg-emerald-500/80 text-white' : ''}`}
                     />
                   )}
                 />
 
-                <div className="flex items-center justify-center">
+                <div className="flex items-center justify-end">
                   {!isDefault && (
                     <Button
                       type="button"

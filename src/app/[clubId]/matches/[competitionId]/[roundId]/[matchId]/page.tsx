@@ -813,7 +813,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
               }
 
               return (
-                <div className="space-y-2 text-xs md:text-sm">
+                <div className="space-y-2 text-xs md:text-sm rounded-md border border-border/60 bg-background/40 px-2 py-2">
                   {rows.map((row, index) => {
                     if (row.kind === "ht" || row.kind === "ft") {
                       const label = `${row.kind.toUpperCase()} ${row.homeScore}-${row.awayScore}`;
@@ -876,61 +876,45 @@ export default async function MatchDetailPage({ params }: PageProps) {
                       mobileLines = [label];
                     }
 
+                    if (ev.type === "goal" && goalScoreLabel) {
+                      label = `${label} (${goalScoreLabel})`;
+                    }
+
                     return (
                       <div
                         key={ev.id ?? index}
-                        className="grid grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] items-center gap-2 rounded-md border border-border/60 bg-background shadow-sm px-2 py-2"
+                        className="grid grid-cols-2 items-center gap-2 px-2 py-1"
                       >
-                        {/* Home side */}
-                        <div className="flex justify-end pr-2">
+                        {/* Home side: minute at left edge, then label */}
+                        <div className="flex justify-start pr-2 min-w-0">
                           {isHome && label && (
-                            <div className="text-right max-w-[180px]">
-                              <div className="flex items-start justify-end gap-1 text-[11px] font-medium text-emerald-500">
-                                <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
-                                <div className="min-w-0">
-                                  <div className="hidden md:block truncate">{label}</div>
-                                  <div className="md:hidden whitespace-normal leading-tight">
-                                    {mobileLines.slice(0, 2).map((line, i) => (
-                                      <div key={i} className={i === 1 ? 'text-[10px] text-muted-foreground' : ''}>
-                                        {ev.type === 'goal' && i === 1 ? `A: ${line}` : line}
-                                      </div>
-                                    ))}
-                                  </div>
+                            <div className="flex items-center gap-2 min-w-0 max-w-full">
+                              <span className="inline-flex h-7 min-w-10 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums shrink-0">
+                                {formatMinute(ev.minute)}'
+                              </span>
+                              <div className="min-w-0">
+                                <div className="flex items-start justify-start gap-1 text-[11px] font-medium text-emerald-500 whitespace-nowrap">
+                                  <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
+                                  <span className="whitespace-nowrap">{label}</span>
                                 </div>
                               </div>
                             </div>
                           )}
                         </div>
 
-                        {/* Center minute + type */}
-                        <div className="flex flex-col items-center justify-center min-w-[40px]">
-                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[11px] font-semibold mb-0.5">
-                            {formatMinute(ev.minute)}'
-                          </span>
-                          {goalScoreLabel && (
-                            <span className="text-[10px] text-muted-foreground leading-none">
-                              {goalScoreLabel}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Away side */}
-                        <div className="flex justify-start pl-2">
+                        {/* Away side: minute at right edge, then label (right-aligned) */}
+                        <div className="flex justify-end pl-2 min-w-0">
                           {!isHome && label && (
-                            <div className="text-left max-w-[180px]">
-                              <div className="flex items-start justify-start gap-1 text-[11px] font-medium text-sky-500">
-                                <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
-                                <div className="min-w-0">
-                                  <div className="hidden md:block truncate">{label}</div>
-                                  <div className="md:hidden whitespace-normal leading-tight">
-                                    {mobileLines.slice(0, 2).map((line, i) => (
-                                      <div key={i} className={i === 1 ? 'text-[10px] text-muted-foreground' : ''}>
-                                        {ev.type === 'goal' && i === 1 ? `A: ${line}` : line}
-                                      </div>
-                                    ))}
-                                  </div>
+                            <div className="flex items-center gap-2 min-w-0 max-w-full">
+                              <div className="min-w-0">
+                                <div className="flex items-start justify-end gap-1 text-[11px] font-medium text-sky-500 whitespace-nowrap">
+                                  <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
+                                  <span className="whitespace-nowrap">{label}</span>
                                 </div>
                               </div>
+                              <span className="inline-flex h-7 min-w-10 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums shrink-0">
+                                {formatMinute(ev.minute)}'
+                              </span>
                             </div>
                           )}
                         </div>

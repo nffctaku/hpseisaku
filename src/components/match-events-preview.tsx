@@ -150,35 +150,38 @@ export function MatchEventsPreview({ match, homePlayers, awayPlayers }: MatchEve
         return (
           <div
             key={ev.id ?? index}
-            className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-1"
+            className="grid grid-cols-2 items-center gap-2 py-1"
           >
-            {/* Home side */}
-            <div className="flex justify-end pr-2">
+            {/* Home side: minute at left edge, then label */}
+            <div className="flex justify-start pr-2 min-w-0">
               {isHome && (
-                <div className="text-right max-w-[160px]">
-                  <div className="flex items-center justify-end gap-1 text-[11px] font-medium text-emerald-300 truncate">
-                    <span className="text-[10px] shrink-0">{renderTypeBadge(ev)}</span>
-                    <span className="truncate">{label}</span>
+                <div className="flex items-center gap-2 min-w-0 max-w-full">
+                  <span className="inline-flex h-7 min-w-10 items-center justify-center rounded-full bg-slate-800 px-2 text-[11px] font-semibold text-gray-100 shadow-sm tabular-nums shrink-0">
+                    {formatMinute(ev.minute)}'
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-start justify-start gap-1 text-[11px] font-medium text-emerald-300 whitespace-nowrap">
+                      <span className="text-[10px] shrink-0">{renderTypeBadge(ev)}</span>
+                      <span className="whitespace-nowrap">{label}</span>
+                    </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Center minute + type */}
-            <div className="flex flex-col items-center justify-center min-w-[40px]">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[11px] font-semibold mb-0.5">
-                {formatMinute(ev.minute)}'
-              </span>
-            </div>
-
-            {/* Away side */}
-            <div className="flex justify-start pl-2">
+            {/* Away side: minute at right edge, then label (right-aligned) */}
+            <div className="flex justify-end pl-2 min-w-0">
               {!isHome && (
-                <div className="text-left max-w-[160px]">
-                  <div className="flex items-center justify-start gap-1 text-[11px] font-medium text-sky-300 truncate">
-                    <span className="text-[10px] shrink-0">{renderTypeBadge(ev)}</span>
-                    <span className="truncate">{label}</span>
+                <div className="flex items-center gap-2 min-w-0 max-w-full">
+                  <div className="min-w-0">
+                    <div className="flex items-start justify-end gap-1 text-[11px] font-medium text-sky-300 whitespace-nowrap">
+                      <span className="text-[10px] shrink-0">{renderTypeBadge(ev)}</span>
+                      <span className="whitespace-nowrap">{label}</span>
+                    </div>
                   </div>
+                  <span className="inline-flex h-7 min-w-10 items-center justify-center rounded-full bg-slate-800 px-2 text-[11px] font-semibold text-gray-100 shadow-sm tabular-nums shrink-0">
+                    {formatMinute(ev.minute)}'
+                  </span>
                 </div>
               )}
             </div>

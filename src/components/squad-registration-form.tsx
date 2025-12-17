@@ -282,7 +282,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         <CardContent>
           <form onSubmit={methods.handleSubmit(onSubmit)}>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList>
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="home">{match.homeTeamName}</TabsTrigger>
                 <TabsTrigger value="away">{match.awayTeamName}</TabsTrigger>
               </TabsList>

@@ -125,23 +125,83 @@ export default function MatchAdminPage() {
   }
 
   return (
-    <div className="container mx-auto max-w-4xl py-10">
+    <div className="container mx-auto max-w-4xl py-6 sm:py-10">
       <div className="bg-card border rounded-lg p-6">
-        <div className="flex justify-center items-center mb-6">
-          <div className="flex flex-col items-center gap-2 w-1/3">
-            {match.homeTeamLogo && <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={80} height={80} className="rounded-full object-contain" />}
-            <h2 className="text-2xl font-bold text-center">{match.homeTeamName}</h2>
-          </div>
-          <div className="flex flex-col items-center justify-center px-4">
-            <p className="text-sm text-muted-foreground">{new Date(match.matchDate).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</p>
-            <div className="text-5xl font-bold">
-              {typeof match.scoreHome === 'number' ? match.scoreHome : '-'}
-              <span className="mx-4">-</span>
-              {typeof match.scoreAway === 'number' ? match.scoreAway : '-'}
+        <div className="flex flex-col sm:flex-row sm:justify-center sm:items-center gap-6 mb-6">
+          <div className="flex items-center justify-between sm:justify-center sm:w-1/3">
+            <div className="flex flex-col items-center gap-2">
+              {match.homeTeamLogo && (
+                <Image
+                  src={match.homeTeamLogo}
+                  alt={match.homeTeamName}
+                  width={56}
+                  height={56}
+                  className="rounded-full object-contain"
+                />
+              )}
+              <h2 className="text-base sm:text-2xl font-bold text-center leading-tight max-w-[10ch] break-words min-h-[2.5rem] sm:min-h-0">
+                {match.homeTeamName}
+              </h2>
+            </div>
+
+            <div className="flex flex-col items-center justify-center px-2 sm:hidden">
+              <p className="text-xs text-muted-foreground">
+                {new Date(match.matchDate).toLocaleDateString("ja-JP", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  weekday: "long",
+                })}
+              </p>
+              <div className="text-4xl font-bold">
+                {typeof match.scoreHome === "number" ? match.scoreHome : "-"}
+                <span className="mx-3">-</span>
+                {typeof match.scoreAway === "number" ? match.scoreAway : "-"}
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-2 sm:hidden">
+              {match.awayTeamLogo && (
+                <Image
+                  src={match.awayTeamLogo}
+                  alt={match.awayTeamName}
+                  width={56}
+                  height={56}
+                  className="rounded-full object-contain"
+                />
+              )}
+              <h2 className="text-base sm:text-2xl font-bold text-center leading-tight max-w-[10ch] break-words min-h-[2.5rem] sm:min-h-0">
+                {match.awayTeamName}
+              </h2>
             </div>
           </div>
-          <div className="flex flex-col items-center gap-2 w-1/3">
-            {match.awayTeamLogo && <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={80} height={80} className="rounded-full object-contain" />}
+
+          <div className="hidden sm:flex flex-col items-center justify-center px-4">
+            <p className="text-sm text-muted-foreground">
+              {new Date(match.matchDate).toLocaleDateString("ja-JP", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+                weekday: "long",
+              })}
+            </p>
+            <div className="text-5xl font-bold">
+              {typeof match.scoreHome === "number" ? match.scoreHome : "-"}
+              <span className="mx-4">-</span>
+              {typeof match.scoreAway === "number" ? match.scoreAway : "-"}
+            </div>
+          </div>
+
+          <div className="hidden sm:flex flex-col items-center gap-2 w-1/3">
+            {match.awayTeamLogo && (
+              <Image
+                src={match.awayTeamLogo}
+                alt={match.awayTeamName}
+                width={72}
+                height={72}
+                className="rounded-full object-contain"
+              />
+            )}
             <h2 className="text-2xl font-bold text-center">{match.awayTeamName}</h2>
           </div>
         </div>
@@ -149,9 +209,9 @@ export default function MatchAdminPage() {
 
       <Tabs defaultValue="match-stats" className="mt-8">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="match-stats">試合スタッツ</TabsTrigger>
-          <TabsTrigger value="match-events">試合イベント</TabsTrigger>
-          <TabsTrigger value="player-stats">選手スタッツ</TabsTrigger>
+          <TabsTrigger value="match-stats" className="px-2 text-xs sm:px-3 sm:text-sm">試合スタッツ</TabsTrigger>
+          <TabsTrigger value="match-events" className="px-2 text-xs sm:px-3 sm:text-sm">試合イベント</TabsTrigger>
+          <TabsTrigger value="player-stats" className="px-2 text-xs sm:px-3 sm:text-sm">選手スタッツ</TabsTrigger>
         </TabsList>
         <TabsContent value="match-stats">
           <MatchTeamStatsForm 
