@@ -42,13 +42,13 @@ export function Hero({ news, maxSlides }: HeroProps) {
                   src={item.imageUrl}
                   alt={item.title}
                   fill
-                  className="object-cover object-[center_top]"
+                  className="object-cover object-center"
                   priority={index === 0}
                 />
               ) : (
                 <div className="w-full h-full bg-gray-700" />
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent flex items-end p-4 md:p-8 lg:p-12">
+              <div className="absolute left-0 right-0 bottom-0 h-40 md:h-52 bg-gradient-to-t from-black/55 via-black/25 to-transparent md:from-black/45 md:via-black/20 flex items-end p-4 md:p-8 lg:p-12">
                 <div className="text-white">
                   <p className="text-sm text-gray-300">ニュース</p>
                   <h2 className="text-2xl md:text-4xl lg:text-5xl font-bold mt-2 leading-tight">{item.title}</h2>
