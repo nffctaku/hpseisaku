@@ -9,6 +9,13 @@ export interface Transfer {
   fee?: number;
 }
 
+export interface PlayerSnsLinks {
+  x?: string;
+  youtube?: string;
+  tiktok?: string;
+  instagram?: string;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -21,6 +28,7 @@ export interface Player {
   weight: number; // in kg
   preferredFoot: 'left' | 'right' | 'both';
   photoUrl?: string;
+  snsLinks?: PlayerSnsLinks;
   teamId: string;
   teamName: string;
   contractStartDate: string; // or Date

@@ -1,6 +1,8 @@
 import { db } from "@/lib/firebase/admin";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
+import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
 
 interface PlayerPageProps {
   params: { clubId: string; playerId: string };
@@ -20,6 +22,12 @@ interface PlayerData {
   number: number;
   position: string;
   photoUrl?: string;
+  snsLinks?: {
+    x?: string;
+    youtube?: string;
+    tiktok?: string;
+    instagram?: string;
+  };
   height?: number;
   age?: number;
   profile?: string;
@@ -124,6 +132,14 @@ export default async function PlayerPage({
   const { clubName, player, ownerUid } = result;
   const stats = await getPlayerStats(ownerUid, playerId);
 
+  const snsLinks = player.snsLinks || {};
+  const snsEntries = [
+    { key: "x", label: "X", url: snsLinks.x },
+    { key: "youtube", label: "YouTube", url: snsLinks.youtube },
+    { key: "tiktok", label: "TikTok", url: snsLinks.tiktok },
+    { key: "instagram", label: "Instagram", url: snsLinks.instagram },
+  ].filter((e) => typeof e.url === "string" && e.url.trim().length > 0);
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
@@ -134,9 +150,21 @@ export default async function PlayerPage({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-1">
-          <div className="aspect-[4/5] rounded-lg border bg-card flex flex-col items-center justify-center p-6">
-            <p className="text-7xl font-black text-primary tracking-tighter">{player.number}</p>
-            <h1 className="mt-4 text-3xl font-bold uppercase text-center break-words">{player.name}</h1>
+          <div className="relative aspect-[4/5] rounded-lg border bg-card overflow-hidden">
+            {player.photoUrl ? (
+              <Image
+                src={player.photoUrl}
+                alt={player.name}
+                fill
+                sizes="(max-width: 768px) 100vw, 33vw"
+                className="object-cover"
+              />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+                <p className="text-7xl font-black text-primary tracking-tighter">{player.number}</p>
+                <h1 className="mt-4 text-3xl font-bold uppercase text-center break-words">{player.name}</h1>
+              </div>
+            )}
           </div>
         </div>
         <div className="md:col-span-2">
@@ -144,6 +172,35 @@ export default async function PlayerPage({
           <h1 className="text-5xl font-bold uppercase mt-2">{player.name}</h1>
           {player.nationality && <p className="text-xl text-muted-foreground mt-2">{player.nationality}</p>}
           <p className="text-2xl text-muted-foreground mt-1">{player.position}</p>
+
+          {snsEntries.length > 0 && (
+            <div className="mt-6 flex flex-wrap gap-2">
+              {snsEntries.map((e) => {
+                const Icon =
+                  e.key === "x"
+                    ? FaXTwitter
+                    : e.key === "youtube"
+                      ? FaYoutube
+                      : e.key === "tiktok"
+                        ? FaTiktok
+                        : FaInstagram;
+
+                return (
+                  <a
+                    key={e.key}
+                    href={e.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={e.label}
+                    title={e.label}
+                    className="w-9 h-9 rounded-full bg-background flex items-center justify-center text-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                  >
+                    <Icon className={e.key === "youtube" ? "w-5 h-5" : "w-4 h-4"} />
+                  </a>
+                );
+              })}
+            </div>
+          )}
           
           <div className="mt-8 grid grid-cols-2 gap-4 text-center">
             <div className="border rounded-lg p-4">

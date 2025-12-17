@@ -29,6 +29,12 @@ import type { SubmitHandler } from "react-hook-form";
 
 const POSITIONS = ["GK", "DF", "MF", "FW"] as const;
 
+const snsLinkSchema = z
+  .string()
+  .url({ message: "無効なURLです。" })
+  .optional()
+  .or(z.literal(""));
+
 const formSchema = z.object({
   name: z.string().min(2, { message: "選手名は2文字以上で入力してください。" }),
   number: z.coerce.number().int().min(1, { message: "背番号は1以上です。" }).max(99, { message: "背番号は99以下です。" }),
@@ -38,6 +44,14 @@ const formSchema = z.object({
   age: z.coerce.number().int().optional(),
   profile: z.string().max(200, { message: "プロフィールは200文字以内です。" }).optional(),
   nationality: z.string().optional(),
+  snsLinks: z
+    .object({
+      x: snsLinkSchema,
+      youtube: snsLinkSchema,
+      tiktok: snsLinkSchema,
+      instagram: snsLinkSchema,
+    })
+    .optional(),
   teamId: z.string().optional(),
   seasons: z.array(z.string()).optional(),
   isPublished: z.boolean().optional(),
@@ -54,40 +68,44 @@ interface PlayerFormProps {
 export function PlayerForm({ onSubmit, defaultValues, defaultSeason }: PlayerFormProps) {
   const [loading, setLoading] = useState(false);
 
+  const baseDefaults: PlayerFormValues = {
+    name: "",
+    number: undefined,
+    position: undefined,
+    photoUrl: "",
+    height: undefined,
+    age: undefined,
+    profile: "",
+    nationality: "",
+    snsLinks: {
+      x: "",
+      youtube: "",
+      tiktok: "",
+      instagram: "",
+    },
+    teamId: "",
+    seasons: defaultSeason ? [defaultSeason] : [],
+    isPublished: true,
+  };
+
+  const normalizedDefaults: PlayerFormValues = {
+    ...baseDefaults,
+    ...(defaultValues as any),
+    snsLinks: {
+      ...(baseDefaults.snsLinks as any),
+      ...(((defaultValues as any)?.snsLinks || {}) as any),
+    },
+  };
+
   const form = useForm<PlayerFormValues>({
     resolver: zodResolver(formSchema) as any,
-    defaultValues: defaultValues || {
-      name: "",
-      number: undefined,
-      position: undefined,
-      photoUrl: "",
-      height: undefined,
-      age: undefined,
-      profile: "",
-      nationality: "",
-      teamId: "",
-      seasons: defaultSeason ? [defaultSeason] : [],
-      isPublished: true,
-    },
+    defaultValues: normalizedDefaults,
   });
 
   useEffect(() => {
     if (!defaultValues) return;
-    form.reset({
-      name: "",
-      number: undefined,
-      position: undefined,
-      photoUrl: "",
-      height: undefined,
-      age: undefined,
-      profile: "",
-      nationality: "",
-      teamId: "",
-      seasons: [],
-      isPublished: true,
-      ...defaultValues,
-    });
-  }, [defaultValues, form]);
+    form.reset(normalizedDefaults);
+  }, [defaultValues, form, normalizedDefaults]);
 
   const handleSubmit: SubmitHandler<PlayerFormValues> = async (values) => {
     setLoading(true);
@@ -223,6 +241,68 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason }: PlayerFor
             </FormItem>
           )}
         />
+
+        <div className="space-y-3 rounded-lg border p-3">
+          <div className="space-y-0.5">
+            <FormLabel>SNSリンク</FormLabel>
+            <p className="text-xs text-muted-foreground">
+              入力したSNSのみHPの選手詳細に表示されます。
+            </p>
+          </div>
+          <FormField
+            control={form.control}
+            name="snsLinks.x"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>X</FormLabel>
+                <FormControl>
+                  <Input placeholder="https://x.com/..." {...field} value={(field.value as any) ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="snsLinks.youtube"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>YouTube</FormLabel>
+                <FormControl>
+                  <Input placeholder="https://www.youtube.com/..." {...field} value={(field.value as any) ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="snsLinks.tiktok"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>TikTok</FormLabel>
+                <FormControl>
+                  <Input placeholder="https://www.tiktok.com/@..." {...field} value={(field.value as any) ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="snsLinks.instagram"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Instagram</FormLabel>
+                <FormControl>
+                  <Input placeholder="https://www.instagram.com/..." {...field} value={(field.value as any) ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
         <FormField
           control={form.control}
           name="isPublished"
