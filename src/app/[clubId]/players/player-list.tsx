@@ -92,7 +92,7 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
                           </div>
                         )}
 
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/10" />
+                        <div className="absolute left-0 right-0 bottom-0 h-20 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
 
                         <div className="absolute top-4 left-4">
                           <div className="text-white text-base font-semibold leading-none">{player.number}</div>

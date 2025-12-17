@@ -130,9 +130,9 @@ export function PlayerStatsView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2 justify-end">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
         <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-          <SelectTrigger className="w-[180px] bg-white text-gray-900">
+          <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900">
             <SelectValue placeholder="シーズンを選択" />
           </SelectTrigger>
           <SelectContent>
@@ -141,7 +141,7 @@ export function PlayerStatsView() {
           </SelectContent>
         </Select>
         <Select value={selectedTeam} onValueChange={setSelectedTeam}>
-          <SelectTrigger className="w-[180px] bg-white text-gray-900">
+          <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900">
             <SelectValue placeholder="チームを選択" />
           </SelectTrigger>
           <SelectContent>
@@ -152,7 +152,7 @@ export function PlayerStatsView() {
           </SelectContent>
         </Select>
         <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
-          <SelectTrigger className="w-[180px] bg-white text-gray-900">
+          <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900">
             <SelectValue placeholder="大会を選択" />
           </SelectTrigger>
           <SelectContent>
@@ -168,16 +168,16 @@ export function PlayerStatsView() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border bg-white text-gray-900">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="p-3 text-left font-semibold w-1/3">選手</th>
-                <th className="p-3 text-center font-semibold cursor-pointer" onClick={() => requestSort('appearances')}>出場 {renderSortArrow('appearances')}</th>
-                <th className="p-3 text-center font-semibold cursor-pointer hidden sm:table-cell" onClick={() => requestSort('minutes')}>分 {renderSortArrow('minutes')}</th>
-                <th className="p-3 text-center font-semibold cursor-pointer" onClick={() => requestSort('goals')}>G {renderSortArrow('goals')}</th>
-                <th className="p-3 text-center font-semibold cursor-pointer" onClick={() => requestSort('assists')}>A {renderSortArrow('assists')}</th>
-                <th className="p-3 text-center font-semibold cursor-pointer hidden sm:table-cell" onClick={() => requestSort('yellowCards')}>Y {renderSortArrow('yellowCards')}</th>
-                <th className="p-3 text-center font-semibold cursor-pointer hidden sm:table-cell" onClick={() => requestSort('redCards')}>R {renderSortArrow('redCards')}</th>
+                <th className="p-2 sm:p-3 text-left font-semibold w-[45%]">選手</th>
+                <th className="p-2 sm:p-3 text-center font-semibold cursor-pointer" onClick={() => requestSort('appearances')}>出場 {renderSortArrow('appearances')}</th>
+                <th className="p-2 sm:p-3 text-center font-semibold cursor-pointer hidden sm:table-cell" onClick={() => requestSort('minutes')}>分 {renderSortArrow('minutes')}</th>
+                <th className="p-2 sm:p-3 text-center font-semibold cursor-pointer" onClick={() => requestSort('goals')}>G {renderSortArrow('goals')}</th>
+                <th className="p-2 sm:p-3 text-center font-semibold cursor-pointer" onClick={() => requestSort('assists')}>A {renderSortArrow('assists')}</th>
+                <th className="p-2 sm:p-3 text-center font-semibold cursor-pointer hidden sm:table-cell" onClick={() => requestSort('yellowCards')}>Y {renderSortArrow('yellowCards')}</th>
+                <th className="p-2 sm:p-3 text-center font-semibold cursor-pointer hidden sm:table-cell" onClick={() => requestSort('redCards')}>R {renderSortArrow('redCards')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -185,18 +185,20 @@ export function PlayerStatsView() {
                 const playerStats = stats[player.id] || { appearances: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
                 return (
                   <tr key={player.id}>
-                    <td className="p-3 flex items-center gap-2">
-                      <span className="text-muted-foreground w-6 text-center">{player.number}</span>
-                      <Link href={`/admin/stats/${player.id}`} className="hover:underline">
-                        {player.name}
-                      </Link>
+                    <td className="p-2 sm:p-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-muted-foreground w-6 text-center shrink-0">{player.number}</span>
+                        <Link href={`/admin/stats/${player.id}`} className="hover:underline flex-1 min-w-0 whitespace-nowrap truncate">
+                          {player.name}
+                        </Link>
+                      </div>
                     </td>
-                    <td className="p-3 text-center">{playerStats.appearances}</td>
-                    <td className="p-3 text-center hidden sm:table-cell">{playerStats.minutes}</td>
-                    <td className="p-3 text-center">{playerStats.goals}</td>
-                    <td className="p-3 text-center">{playerStats.assists}</td>
-                    <td className="p-3 text-center hidden sm:table-cell">{playerStats.yellowCards}</td>
-                    <td className="p-3 text-center hidden sm:table-cell">{playerStats.redCards}</td>
+                    <td className="p-2 sm:p-3 text-center">{playerStats.appearances}</td>
+                    <td className="p-2 sm:p-3 text-center hidden sm:table-cell">{playerStats.minutes}</td>
+                    <td className="p-2 sm:p-3 text-center">{playerStats.goals}</td>
+                    <td className="p-2 sm:p-3 text-center">{playerStats.assists}</td>
+                    <td className="p-2 sm:p-3 text-center hidden sm:table-cell">{playerStats.yellowCards}</td>
+                    <td className="p-2 sm:p-3 text-center hidden sm:table-cell">{playerStats.redCards}</td>
                   </tr>
                 );
               })}

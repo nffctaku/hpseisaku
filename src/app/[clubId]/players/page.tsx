@@ -66,6 +66,10 @@ async function getPlayersData(
   }
   const allSeasons = seasonsSnap
     .docs
+    .filter((doc) => {
+      const data = doc.data() as any;
+      return data?.isPublic !== false;
+    })
     .map((doc) => doc.id)
     .sort((a, b) => b.localeCompare(a));
 
