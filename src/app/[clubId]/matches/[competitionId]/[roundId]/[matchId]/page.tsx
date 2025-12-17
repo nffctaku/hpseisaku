@@ -4,6 +4,7 @@ import Image from "next/image";
 import type { MatchDetails, TeamStat, PlayerStats, MatchEvent } from "@/types/match";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ClubHeader } from "@/components/club-header";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface PageProps {
   params: Promise<{ clubId: string; competitionId: string; roundId: string; matchId: string }>;
@@ -54,6 +55,30 @@ async function getMatchDetail(
       fetchTeamData(data.awayTeam),
     ]);
 
+    const fetchTeamPlayers = async (teamId: string | undefined) => {
+      if (!teamId) return [] as { id: string; number: number; position?: string; photoUrl?: string }[];
+      const snap = await db.collection(`clubs/${ownerUid}/teams/${teamId}/players`).get();
+      return snap.docs.map((d) => {
+        const pd = d.data() as any;
+        return {
+          id: d.id,
+          number: Number(pd.number) || 0,
+          position: pd.position,
+          photoUrl: pd.photoUrl || pd.photoURL,
+        };
+      });
+    };
+
+    const [homePlayersMeta, awayPlayersMeta] = await Promise.all([
+      fetchTeamPlayers(data.homeTeam),
+      fetchTeamPlayers(data.awayTeam),
+    ]);
+
+    const playerMetaMap: Record<string, { number: number; position?: string; photoUrl?: string }> = {};
+    [...homePlayersMeta, ...awayPlayersMeta].forEach((p) => {
+      playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl };
+    });
+
     // 大会名・ラウンド名がマッチドキュメントに無ければ、元のコレクションから補完
     let competitionName = data.competitionName as string | undefined;
     let roundName = data.roundName as string | undefined;
@@ -98,6 +123,8 @@ async function getMatchDetail(
       ...(data.stadium ? { stadium: data.stadium } : {}),
     } as any;
 
+    (match as any).playerMetaMap = playerMetaMap;
+
     return { clubName, logoUrl, match };
   }
 
@@ -120,6 +147,30 @@ async function getMatchDetail(
     fetchTeamData(data.homeTeam),
     fetchTeamData(data.awayTeam),
   ]);
+
+  const fetchTeamPlayers = async (teamId: string | undefined) => {
+    if (!teamId) return [] as { id: string; number: number; position?: string; photoUrl?: string }[];
+    const snap = await db.collection(`clubs/${ownerUid}/teams/${teamId}/players`).get();
+    return snap.docs.map((d) => {
+      const pd = d.data() as any;
+      return {
+        id: d.id,
+        number: Number(pd.number) || 0,
+        position: pd.position,
+        photoUrl: pd.photoUrl || pd.photoURL,
+      };
+    });
+  };
+
+  const [homePlayersMeta, awayPlayersMeta] = await Promise.all([
+    fetchTeamPlayers(data.homeTeam),
+    fetchTeamPlayers(data.awayTeam),
+  ]);
+
+  const playerMetaMap: Record<string, { number: number; position?: string; photoUrl?: string }> = {};
+  [...homePlayersMeta, ...awayPlayersMeta].forEach((p) => {
+    playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl };
+  });
 
   // 大会名・ラウンド名の補完
   let competitionName = data.competitionName as string | undefined;
@@ -163,7 +214,9 @@ async function getMatchDetail(
     ...(data.stadium ? { stadium: data.stadium } : {}),
   } as any;
 
-  return { clubName, match };
+  (match as any).playerMetaMap = playerMetaMap;
+
+  return { clubName, logoUrl, match };
 }
 
 export default async function MatchDetailPage({ params }: PageProps) {
@@ -178,8 +231,35 @@ export default async function MatchDetailPage({ params }: PageProps) {
 
   const matchDate = new Date(match.matchDate);
   const events: MatchEvent[] = ((match as any).events || []) as MatchEvent[];
+  const playerMetaMap = ((match as any).playerMetaMap || {}) as Record<
+    string,
+    { number: number; position?: string; photoUrl?: string }
+  >;
 
   const venue: string | undefined = (match as any).venue || (match as any).stadium;
+
+  const formatMinute = (minute: any) => {
+    const n = typeof minute === "number" ? minute : Number(minute);
+    if (!Number.isFinite(n)) return "";
+    if (Number.isInteger(n)) return `${n}`;
+
+    const base = Math.floor(n);
+    const extra = Math.round((n - base) * 1000);
+    if (base === 45 && extra >= 1) return `45+${extra}`;
+    if (base === 90 && extra >= 1) return `90+${extra}`;
+    return `${n}`;
+  };
+
+  const subOutMinuteByPlayerId = new Map<string, number>();
+  const subInMinuteByPlayerId = new Map<string, number>();
+  events.forEach((ev: any) => {
+    if (ev.type === "sub_out" && ev.playerId) {
+      subOutMinuteByPlayerId.set(ev.playerId, ev.minute);
+    }
+    if (ev.type === "sub_in" && ev.playerId) {
+      subInMinuteByPlayerId.set(ev.playerId, ev.minute);
+    }
+  });
 
   const homeGoals = events
     .filter((e) => e.type === "goal" && e.teamId === match.homeTeam)
@@ -301,7 +381,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 const label = nameFromEvent || nameFromStats || "G";
                 return (
                   <div key={g.id} className="text-muted-foreground">
-                    {`${label} (${g.minute}')`}
+                    {`${label} (${formatMinute(g.minute)}')`}
                   </div>
                 );
               })}
@@ -314,7 +394,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 const label = nameFromEvent || nameFromStats || "G";
                 return (
                   <div key={g.id} className="text-muted-foreground">
-                    {`${label} (${g.minute}')`}
+                    {`${label} (${formatMinute(g.minute)}')`}
                   </div>
                 );
               })}
@@ -324,7 +404,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
 
         {/* Tabs: Lineups / Stats */}
         <Tabs defaultValue={hasLineups || !hasTeamStats ? "lineups" : "stats"} className="w-full">
-          <TabsList className="grid grid-cols-2 md:w-80 md:mx-auto mb-4">
+          <TabsList className="grid grid-cols-2 w-80 mx-auto mb-4">
             <TabsTrigger value="lineups">
               LINEUPS
             </TabsTrigger>
@@ -337,38 +417,67 @@ export default async function MatchDetailPage({ params }: PageProps) {
           <TabsContent value="lineups" className="mt-4">
             {hasLineups ? (
               <section className="bg-card rounded-lg p-4 md:p-6">
-                <h2 className="text-lg font-semibold mb-4 text-center">メンバー</h2>
-                <div className="flex items-center justify-center gap-4 mb-4 text-sm">
-                  <span className="font-semibold">{match.homeTeamName}</span>
-                  <span className="text-muted-foreground">vs</span>
-                  <span className="font-semibold">{match.awayTeamName}</span>
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                   {/* Home */}
                   <div>
                     <h3 className="text-center text-xs font-semibold text-muted-foreground mb-2">
                       {match.homeTeamName} Starting Lineup
                     </h3>
-                    <div className="space-y-1 mb-4">
+                    <div className="space-y-2 mb-4">
                       {homeStarters.length ? (
                         homeStarters.map((ps: any, idx: number) => {
                           const minutes = Number(ps.minutesPlayed) || 0;
                           const rating = Number(ps.rating) || 0;
                           const hasRating = rating > 0;
                           const hasMinutes = minutes > 0;
+                          const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+                          const numberLabel = meta?.number ? `${meta.number}` : "";
+                          const positionLabel = meta?.position || ps.position || "";
+
+                          const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
+                          const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
+                          const pillText =
+                            typeof subOutMinute === "number"
+                              ? `${formatMinute(subOutMinute)}'`
+                              : typeof subInMinute === "number"
+                                ? `${formatMinute(subInMinute)}'`
+                                : "";
 
                           const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
 
                           return (
-                            <div key={idx} className="py-1 px-2 border-b border-muted text-sm flex items-center gap-1">
+                            <div
+                              key={idx}
+                              className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
+                            >
+                              <Avatar className="size-9">
+                                {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
+                                <AvatarFallback className="text-[11px] font-semibold">
+                                  {(ps.playerName || "").slice(0, 1)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold truncate">{ps.playerName}</div>
+                                <div className="text-[11px] text-muted-foreground truncate">
+                                  {numberLabel && `${numberLabel} `}
+                                  {positionLabel}
+                                </div>
+                              </div>
+                              {pillText && (
+                                <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+                                  {pillText}
+                                </span>
+                              )}
+                              {hasMinutes && (
+                                <span className="shrink-0 inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
+                                  {minutes}
+                                </span>
+                              )}
                               {hasRating && (
-                                <span className={`text-xs font-semibold ${ratingColor}`}>
+                                <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
                                   {rating.toFixed(1)}
                                 </span>
                               )}
-                              <span>{ps.playerName}</span>
-                              {hasMinutes && <span className="text-[11px] text-muted-foreground">({minutes}分)</span>}
                             </div>
                           );
                         })
@@ -377,25 +486,61 @@ export default async function MatchDetailPage({ params }: PageProps) {
                       )}
                     </div>
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mb-2">Substitutes</h4>
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       {homeSubs.length ? (
                         homeSubs.map((ps: any, idx: number) => {
                           const minutes = Number(ps.minutesPlayed) || 0;
                           const rating = Number(ps.rating) || 0;
                           const hasRating = rating > 0;
                           const hasMinutes = minutes > 0;
+                          const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+                          const numberLabel = meta?.number ? `${meta.number}` : "";
+                          const positionLabel = meta?.position || ps.position || "";
+
+                          const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
+                          const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
+                          const pillText =
+                            typeof subOutMinute === "number"
+                              ? `${formatMinute(subOutMinute)}'`
+                              : typeof subInMinute === "number"
+                                ? `${formatMinute(subInMinute)}'`
+                                : "";
 
                           const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
 
                           return (
-                            <div key={idx} className="py-1 px-2 border-b border-muted text-sm flex items-center gap-1">
+                            <div
+                              key={idx}
+                              className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
+                            >
+                              <Avatar className="size-9">
+                                {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
+                                <AvatarFallback className="text-[11px] font-semibold">
+                                  {(ps.playerName || "").slice(0, 1)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold truncate">{ps.playerName}</div>
+                                <div className="text-[11px] text-muted-foreground truncate">
+                                  {numberLabel && `${numberLabel} `}
+                                  {positionLabel}
+                                </div>
+                              </div>
+                              {pillText && (
+                                <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+                                  {pillText}
+                                </span>
+                              )}
+                              {hasMinutes && (
+                                <span className="shrink-0 inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
+                                  {minutes}
+                                </span>
+                              )}
                               {hasRating && (
-                                <span className={`text-xs font-semibold ${ratingColor}`}>
+                                <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
                                   {rating.toFixed(1)}
                                 </span>
                               )}
-                              <span>{ps.playerName}</span>
-                              {hasMinutes && <span className="text-[11px] text-muted-foreground">({minutes}分)</span>}
                             </div>
                           );
                         })
@@ -410,25 +555,61 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     <h3 className="text-center text-xs font-semibold text-muted-foreground mb-2">
                       {match.awayTeamName} Starting Lineup
                     </h3>
-                    <div className="space-y-1 mb-4">
+                    <div className="space-y-2 mb-4">
                       {awayStarters.length ? (
                         awayStarters.map((ps: any, idx: number) => {
                           const minutes = Number(ps.minutesPlayed) || 0;
                           const rating = Number(ps.rating) || 0;
                           const hasRating = rating > 0;
                           const hasMinutes = minutes > 0;
+                          const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+                          const numberLabel = meta?.number ? `${meta.number}` : "";
+                          const positionLabel = meta?.position || ps.position || "";
+
+                          const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
+                          const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
+                          const pillText =
+                            typeof subOutMinute === "number"
+                              ? `${formatMinute(subOutMinute)}'`
+                              : typeof subInMinute === "number"
+                                ? `${formatMinute(subInMinute)}'`
+                                : "";
 
                           const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
 
                           return (
-                            <div key={idx} className="py-1 px-2 border-b border-muted text-sm flex items-center gap-1">
+                            <div
+                              key={idx}
+                              className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
+                            >
+                              <Avatar className="size-9">
+                                {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
+                                <AvatarFallback className="text-[11px] font-semibold">
+                                  {(ps.playerName || "").slice(0, 1)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold truncate">{ps.playerName}</div>
+                                <div className="text-[11px] text-muted-foreground truncate">
+                                  {numberLabel && `${numberLabel} `}
+                                  {positionLabel}
+                                </div>
+                              </div>
+                              {pillText && (
+                                <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+                                  {pillText}
+                                </span>
+                              )}
+                              {hasMinutes && (
+                                <span className="shrink-0 inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
+                                  {minutes}
+                                </span>
+                              )}
                               {hasRating && (
-                                <span className={`text-xs font-semibold ${ratingColor}`}>
+                                <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
                                   {rating.toFixed(1)}
                                 </span>
                               )}
-                              <span>{ps.playerName}</span>
-                              {hasMinutes && <span className="text-[11px] text-muted-foreground">({minutes}分)</span>}
                             </div>
                           );
                         })
@@ -437,25 +618,61 @@ export default async function MatchDetailPage({ params }: PageProps) {
                       )}
                     </div>
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mb-2">Substitutes</h4>
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       {awaySubs.length ? (
                         awaySubs.map((ps: any, idx: number) => {
                           const minutes = Number(ps.minutesPlayed) || 0;
                           const rating = Number(ps.rating) || 0;
                           const hasRating = rating > 0;
                           const hasMinutes = minutes > 0;
+                          const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+                          const numberLabel = meta?.number ? `${meta.number}` : "";
+                          const positionLabel = meta?.position || ps.position || "";
+
+                          const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
+                          const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
+                          const pillText =
+                            typeof subOutMinute === "number"
+                              ? `${formatMinute(subOutMinute)}'`
+                              : typeof subInMinute === "number"
+                                ? `${formatMinute(subInMinute)}'`
+                                : "";
 
                           const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
 
                           return (
-                            <div key={idx} className="py-1 px-2 border-b border-muted text-sm flex items-center gap-1">
+                            <div
+                              key={idx}
+                              className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
+                            >
+                              <Avatar className="size-9">
+                                {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
+                                <AvatarFallback className="text-[11px] font-semibold">
+                                  {(ps.playerName || "").slice(0, 1)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold truncate">{ps.playerName}</div>
+                                <div className="text-[11px] text-muted-foreground truncate">
+                                  {numberLabel && `${numberLabel} `}
+                                  {positionLabel}
+                                </div>
+                              </div>
+                              {pillText && (
+                                <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+                                  {pillText}
+                                </span>
+                              )}
+                              {hasMinutes && (
+                                <span className="shrink-0 inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
+                                  {minutes}
+                                </span>
+                              )}
                               {hasRating && (
-                                <span className={`text-xs font-semibold ${ratingColor}`}>
+                                <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
                                   {rating.toFixed(1)}
                                 </span>
                               )}
-                              <span>{ps.playerName}</span>
-                              {hasMinutes && <span className="text-[11px] text-muted-foreground">({minutes}分)</span>}
                             </div>
                           );
                         })
@@ -478,13 +695,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
             {hasTeamStats ? (
               <section className="bg-card rounded-lg p-4 md:p-6">
                 <h2 className="text-lg font-semibold mb-4 text-center">チームスタッツ</h2>
-                <div className="flex items-center justify-center gap-4 mb-4 text-sm">
-                  <span className="font-semibold">{match.homeTeamName}</span>
-                  <span className="text-muted-foreground">vs</span>
-                  <span className="font-semibold">{match.awayTeamName}</span>
-                </div>
-
-                <div className="space-y-4 text-xs md:text-sm">
+                <div className="rounded-md border border-border/60 bg-background shadow-sm overflow-hidden">
                   {teamStats.map((stat) => {
                     const homeVal = Number(stat.homeValue) || 0;
                     const awayVal = Number(stat.awayValue) || 0;
@@ -493,7 +704,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     const awayPct = (awayVal / total) * 100;
 
                     return (
-                      <div key={stat.id} className="space-y-1">
+                      <div key={stat.id} className="px-3 py-2 space-y-2 text-xs md:text-sm">
                         <div className="grid grid-cols-3 items-baseline">
                           <div className="text-left font-semibold">{homeVal}</div>
                           <div className="text-center text-muted-foreground text-[11px] md:text-xs">
@@ -502,14 +713,8 @@ export default async function MatchDetailPage({ params }: PageProps) {
                           <div className="text-right font-semibold">{awayVal}</div>
                         </div>
                         <div className="h-2 rounded-full bg-muted overflow-hidden flex">
-                          <div
-                            className="h-full bg-primary"
-                            style={{ width: `${homePct}%` }}
-                          />
-                          <div
-                            className="h-full bg-destructive/80"
-                            style={{ width: `${awayPct}%` }}
-                          />
+                          <div className="h-full bg-primary" style={{ width: `${homePct}%` }} />
+                          <div className="h-full bg-destructive/80" style={{ width: `${awayPct}%` }} />
                         </div>
                       </div>
                     );
@@ -533,16 +738,33 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 .slice()
                 .sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
 
-              const renderTypeBadge = (ev: MatchEvent) => {
+              const formatMinute = (minute: any) => {
+                const n = typeof minute === 'number' ? minute : Number(minute);
+                if (!Number.isFinite(n)) return '';
+                if (Number.isInteger(n)) return `${n}`;
+
+                const base = Math.floor(n);
+                const extra = Math.round((n - base) * 1000);
+                if (base === 45 && extra >= 1) return `45+${extra}`;
+                if (base === 90 && extra >= 1) return `90+${extra}`;
+                return `${n}`;
+              };
+
+              const renderTypeBadge = (ev: any) => {
                 if (ev.type === "goal") return "⚽";
+                // HP側（Firestore events サブコレクション）
                 if (ev.type === "yellow") return "Y";
                 if (ev.type === "red") return "R";
                 if (ev.type === "sub_in" || ev.type === "sub_out") return "⇄";
+                // 管理側（match.events 配列）
+                if (ev.type === "card") return ev.cardColor === "red" ? "R" : "Y";
+                if (ev.type === "substitution") return "⇄";
+                if (ev.type === "note") return "✎";
                 return "";
               };
 
               type Row =
-                | { kind: "event"; ev: MatchEvent; homeScore: number; awayScore: number }
+                | { kind: "event"; ev: any; homeScore: number; awayScore: number }
                 | { kind: "ht"; homeScore: number; awayScore: number; id: string }
                 | { kind: "ft"; homeScore: number; awayScore: number; id: string };
 
@@ -591,7 +813,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
               }
 
               return (
-                <div className="space-y-1 text-xs md:text-sm">
+                <div className="space-y-2 text-xs md:text-sm">
                   {rows.map((row, index) => {
                     if (row.kind === "ht" || row.kind === "ft") {
                       const label = `${row.kind.toUpperCase()} ${row.homeScore}-${row.awayScore}`;
@@ -614,30 +836,67 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     const nameLabel = nameFromEvent || nameFromStats || "";
                     const assist = (ev as any).assistPlayerName as string | undefined;
 
+                    const outPlayerId = (ev as any).outPlayerId as string | undefined;
+                    const inPlayerId = (ev as any).inPlayerId as string | undefined;
+                    const outName = outPlayerId ? playerNameMap.get(outPlayerId) : undefined;
+                    const inName = inPlayerId ? playerNameMap.get(inPlayerId) : undefined;
+
                     let label = "";
+                    let mobileLines: string[] = [];
+                    let goalScoreLabel: string | null = null;
                     if (ev.type === "goal") {
                       label = nameLabel || "ゴール";
                       if (assist) label += `（A: ${assist}` + ")";
-                      label += ` (${homeScore}-${awayScore})`;
+                      goalScoreLabel = `${homeScore}-${awayScore}`;
+
+                      mobileLines = [
+                        `${nameLabel || "ゴール"}`,
+                        assist ? `${assist}` : "",
+                      ].filter(Boolean);
                     } else if (ev.type === "yellow") {
-                      label = nameLabel ? `${nameLabel} イエロー` : "イエローカード";
+                      label = nameLabel || "カード";
+                      mobileLines = [label];
                     } else if (ev.type === "red") {
-                      label = nameLabel ? `${nameLabel} レッド` : "レッドカード";
+                      label = nameLabel || "カード";
+                      mobileLines = [label];
                     } else if (ev.type === "sub_in" || ev.type === "sub_out") {
                       label = nameLabel || "交代";
+                      mobileLines = [label];
+                    } else if (ev.type === "card") {
+                      label = nameLabel || "カード";
+                      mobileLines = [label];
+                    } else if (ev.type === "substitution") {
+                      label = `${outName ?? "OUT"} → ${inName ?? "IN"}`;
+                      mobileLines = [
+                        `OUT: ${outName ?? "OUT"}`,
+                        `IN: ${inName ?? "IN"}`,
+                      ];
+                    } else if (ev.type === "note") {
+                      label = (ev as any).text || "メモ";
+                      mobileLines = [label];
                     }
 
                     return (
                       <div
                         key={ev.id ?? index}
-                        className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-1"
+                        className="grid grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] items-center gap-2 rounded-md border border-border/60 bg-background shadow-sm px-2 py-2"
                       >
                         {/* Home side */}
                         <div className="flex justify-end pr-2">
                           {isHome && label && (
                             <div className="text-right max-w-[180px]">
-                              <div className="text-[11px] font-medium text-emerald-500 truncate">
-                                {label}
+                              <div className="flex items-start justify-end gap-1 text-[11px] font-medium text-emerald-500">
+                                <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
+                                <div className="min-w-0">
+                                  <div className="hidden md:block truncate">{label}</div>
+                                  <div className="md:hidden whitespace-normal leading-tight">
+                                    {mobileLines.slice(0, 2).map((line, i) => (
+                                      <div key={i} className={i === 1 ? 'text-[10px] text-muted-foreground' : ''}>
+                                        {ev.type === 'goal' && i === 1 ? `A: ${line}` : line}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           )}
@@ -646,17 +905,31 @@ export default async function MatchDetailPage({ params }: PageProps) {
                         {/* Center minute + type */}
                         <div className="flex flex-col items-center justify-center min-w-[40px]">
                           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[11px] font-semibold mb-0.5">
-                            {ev.minute}'
+                            {formatMinute(ev.minute)}'
                           </span>
-                          <span className="text-[10px] text-muted-foreground">{renderTypeBadge(ev)}</span>
+                          {goalScoreLabel && (
+                            <span className="text-[10px] text-muted-foreground leading-none">
+                              {goalScoreLabel}
+                            </span>
+                          )}
                         </div>
 
                         {/* Away side */}
                         <div className="flex justify-start pl-2">
                           {!isHome && label && (
                             <div className="text-left max-w-[180px]">
-                              <div className="text-[11px] font-medium text-sky-500 truncate">
-                                {label}
+                              <div className="flex items-start justify-start gap-1 text-[11px] font-medium text-sky-500">
+                                <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
+                                <div className="min-w-0">
+                                  <div className="hidden md:block truncate">{label}</div>
+                                  <div className="md:hidden whitespace-normal leading-tight">
+                                    {mobileLines.slice(0, 2).map((line, i) => (
+                                      <div key={i} className={i === 1 ? 'text-[10px] text-muted-foreground' : ''}>
+                                        {ev.type === 'goal' && i === 1 ? `A: ${line}` : line}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           )}

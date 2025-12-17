@@ -9,7 +9,7 @@ import { Player, MatchDetails } from "@/types/match";
 
 // 時間プルダウン用オプション
 // 表示順: 0..45, 45+1..45+10, 46..89, 90, 90+1..90+10, 91..145
-// 値は常に実際の分（数値）を保持
+// ロスタイムは value を小数（例: 45.001）にして重複を避ける
 const minuteOptions: { value: number; label: string }[] = [];
 
 // 0-45
@@ -19,7 +19,7 @@ for (let m = 0; m <= 45; m++) {
 
 // 前半ロスタイム 45+1..45+10 （値は 46-55）
 for (let extra = 1; extra <= 10; extra++) {
-  const value = 45 + extra; // 46-55
+  const value = 45 + extra / 1000; // 45.001-45.010
   minuteOptions.push({ value, label: `45+${extra}` });
 }
 
@@ -33,7 +33,7 @@ minuteOptions.push({ value: 90, label: "90" });
 
 // 後半ロスタイム 90+1..90+10 （値は 91-100）
 for (let extra = 1; extra <= 10; extra++) {
-  const value = 90 + extra; // 91-100
+  const value = 90 + extra / 1000; // 90.001-90.010
   minuteOptions.push({ value, label: `90+${extra}` });
 }
 
@@ -41,6 +41,18 @@ for (let extra = 1; extra <= 10; extra++) {
 for (let m = 91; m <= 145; m++) {
   minuteOptions.push({ value: m, label: m.toString() });
 }
+
+const formatMinute = (minute: any) => {
+  const n = typeof minute === 'number' ? minute : Number(minute);
+  if (!Number.isFinite(n)) return '';
+  if (Number.isInteger(n)) return `${n}`;
+
+  const base = Math.floor(n);
+  const extra = Math.round((n - base) * 1000);
+  if (base === 45 && extra >= 1) return `45+${extra}`;
+  if (base === 90 && extra >= 1) return `90+${extra}`;
+  return `${n}`;
+};
 
 interface MatchEventsTableProps {
   match: MatchDetails;
@@ -86,7 +98,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
       | "card"
       | "substitution"
       | "note";
-    const teamId = field.teamId as string;
+    const teamId = (watch(`events.${index}.teamId`) ?? field.teamId ?? match.homeTeam) as string;
 
     // この試合でスタメン／ベンチに登録されている選手のみをイベント選択対象にする
     const activePlayerIds: string[] = (playerStats as any[])
@@ -107,7 +119,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
           <span className="text-[10px] text-gray-500">分</span>
           <Select
             value={(watch(`events.${index}.minute`) ?? 0).toString()}
-            onValueChange={(val) => setValue(`events.${index}.minute`, parseInt(val, 10))}
+            onValueChange={(val) => setValue(`events.${index}.minute`, parseFloat(val))}
           >
             <SelectTrigger className="h-7 w-20 text-xs bg-white text-gray-900">
               <SelectValue />
@@ -127,7 +139,14 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
           <span className="text-[10px] text-gray-500">チーム</span>
           <Select
             value={teamId}
-            onValueChange={(val) => setValue(`events.${index}.teamId`, val)}
+            onValueChange={(val) => {
+              setValue(`events.${index}.teamId`, val);
+              // チーム変更時に不整合になりやすい選手選択をクリア
+              setValue(`events.${index}.playerId`, undefined);
+              setValue(`events.${index}.assistPlayerId`, undefined);
+              setValue(`events.${index}.inPlayerId`, undefined);
+              setValue(`events.${index}.outPlayerId`, undefined);
+            }}
           >
             <SelectTrigger className="h-7 w-24 text-xs bg-white text-gray-900">
               <SelectValue />
@@ -368,7 +387,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   >
                     <div className="flex items-center gap-2">
                       <span className="inline-flex h-5 min-w-[32px] items-center justify-center rounded-full bg-slate-800 text-[11px] font-medium">
-                        {ev.minute}'
+                        {formatMinute(ev.minute)}'
                       </span>
                       <span className="text-[11px] text-gray-300">{teamName}</span>
                     </div>

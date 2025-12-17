@@ -81,6 +81,8 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     const ratingFieldName = `playerStats.${globalIndex}.rating`;
     const minutesFieldName = `playerStats.${globalIndex}.minutesPlayed`;
     const customStats = watch(customStatPath) || [];
+    const rawRating = watch(ratingFieldName);
+    const ratingValue = typeof rawRating === 'number' && Number.isFinite(rawRating) ? rawRating.toFixed(1) : '';
 
     return (
       <div key={field.id} className="space-y-1">
@@ -96,7 +98,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
             <div className="flex flex-col items-center">
               <span className="text-[10px] text-gray-500">評価</span>
               <Select
-                value={watch(ratingFieldName)?.toString() ?? ''}
+                value={ratingValue}
                 onValueChange={(val) => setValue(ratingFieldName, parseFloat(val))}
               >
                 <SelectTrigger className="h-7 w-24 text-xs bg-white text-gray-900">

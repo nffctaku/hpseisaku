@@ -5,7 +5,7 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { Player, MatchDetails } from '@/types/match';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { PlayerStatsTable } from './player-stats-table';
 import { MatchEventsTable } from './match-events-table';
+import type { SubmitHandler } from 'react-hook-form';
 
 const formSchema = z.object({
   customStatHeaders: z.array(z.object({ id: z.string(), name: z.string().min(1, '必須') })).max(15, '最大15項目です。'),
@@ -70,7 +71,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   const [activeTab, setActiveTab] = useState('home');
 
   const methods = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as any,
     defaultValues: {
       customStatHeaders: [],
       playerStats: [],
@@ -105,7 +106,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     fetchMatchData();
   }, [match.id, roundId, competitionId, user, methods]);
 
-  const onSubmit = async (data: FormValues) => {
+  const onSubmit: SubmitHandler<FormValues> = async (data) => {
     if (!user || !roundId || !competitionId) {
       toast.error('データが不完全なため保存できません。');
       return;
@@ -198,6 +199,67 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         playerStats: normalizedPlayerStats,
         events: sanitizedEvents,
       }, { merge: true });
+
+      // 交代イベントを試合イベント（サブコレクション）へ反映
+      // - 既存の手動追加イベント（goal/yellow/red/sub_*等）は保持
+      // - このフォーム由来の交代イベントは id が "sub-" で始まるドキュメントとして管理し、現状と差分を取って追加/削除
+      const eventsColRef = collection(
+        db,
+        `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}/events`
+      );
+
+      const desiredSubDocIds = new Set<string>();
+      const batch = writeBatch(db);
+
+      (data.events || [])
+        .filter((ev) => ev.type === 'substitution')
+        .forEach((ev) => {
+          const base = {
+            minute: ev.minute,
+            teamId: ev.teamId,
+            timestamp: serverTimestamp(),
+          } as any;
+
+          if (ev.outPlayerId) {
+            const outDocId = `sub-${ev.id}-out`;
+            desiredSubDocIds.add(outDocId);
+            batch.set(
+              doc(eventsColRef, outDocId),
+              {
+                ...base,
+                type: 'sub_out',
+                playerId: ev.outPlayerId,
+                playerName: playerNameMap.get(ev.outPlayerId) || '',
+              },
+              { merge: true }
+            );
+          }
+
+          if (ev.inPlayerId) {
+            const inDocId = `sub-${ev.id}-in`;
+            desiredSubDocIds.add(inDocId);
+            batch.set(
+              doc(eventsColRef, inDocId),
+              {
+                ...base,
+                type: 'sub_in',
+                playerId: ev.inPlayerId,
+                playerName: playerNameMap.get(ev.inPlayerId) || '',
+              },
+              { merge: true }
+            );
+          }
+        });
+
+      // 既存の sub- 生成イベントのうち、現在のフォームに存在しないものは削除
+      const existingEventsSnap = await getDocs(eventsColRef);
+      existingEventsSnap.docs.forEach((d) => {
+        if (d.id.startsWith('sub-') && !desiredSubDocIds.has(d.id)) {
+          batch.delete(d.ref);
+        }
+      });
+
+      await batch.commit();
       toast.success('出場選手・スタッツ・イベントを更新しました。');
     } catch (error) {
       console.error("Error saving squad data:", error);

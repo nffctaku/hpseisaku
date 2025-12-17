@@ -23,7 +23,7 @@ const formSchema = z.object({
       homeValue: z.union([z.string(), z.number()]),
       awayValue: z.union([z.string(), z.number()]),
     })
-  ).max(13, '最大13項目です。'), // 3 default + 10 custom
+  ).max(15, '最大15項目です。'), // 3 default + 10 custom
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -75,8 +75,8 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
   }, [match, replace]);
 
   const handleAddStat = () => {
-    if (fields.length >= 13) {
-      toast.warning('スタッツ項目は最大13個です。');
+    if (fields.length >= 15) {
+      toast.warning('スタッツ項目は最大15個です。');
       return;
     }
     append({ id: `custom_${Date.now()}`, name: '', homeValue: 0, awayValue: 0 });
@@ -129,7 +129,7 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
                     <Input
                       {...field}
                       type="text"
-                      className={`text-center font-bold text-lg bg-white text-gray-900 ${homeVal > awayVal ? 'bg-red-500/80 text-white' : ''}`}
+                      className={`text-center font-bold text-lg bg-white text-gray-900 ${homeVal > awayVal ? 'bg-emerald-500/80 text-white' : ''}`}
                     />
                   )}
                 />
@@ -159,7 +159,7 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
                     <Input
                       {...field}
                       type="text"
-                      className={`text-center font-bold text-lg bg-white text-gray-900 ${awayVal > homeVal ? 'bg-red-500/80 text-white' : ''}`}
+                      className={`text-center font-bold text-lg bg-white text-gray-900 ${awayVal > homeVal ? 'bg-emerald-500/80 text-white' : ''}`}
                     />
                   )}
                 />

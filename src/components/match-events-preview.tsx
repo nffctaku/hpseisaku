@@ -31,6 +31,18 @@ export function MatchEventsPreview({ match, homePlayers, awayPlayers }: MatchEve
     .slice()
     .sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
 
+  const formatMinute = (minute: any) => {
+    const n = typeof minute === 'number' ? minute : Number(minute);
+    if (!Number.isFinite(n)) return '';
+    if (Number.isInteger(n)) return `${n}`;
+
+    const base = Math.floor(n);
+    const extra = Math.round((n - base) * 1000);
+    if (base === 45 && extra >= 1) return `45+${extra}`;
+    if (base === 90 && extra >= 1) return `90+${extra}`;
+    return `${n}`;
+  };
+
   const renderLabel = (ev: any) => {
     const mainPlayer = ev.playerId ? playerMap[ev.playerId]?.name : undefined;
     const assistPlayer = ev.assistPlayerId ? playerMap[ev.assistPlayerId]?.name : undefined;
@@ -41,8 +53,7 @@ export function MatchEventsPreview({ match, homePlayers, awayPlayers }: MatchEve
         : 'ゴール';
     }
     if (ev.type === 'card') {
-      const cardLabel = ev.cardColor === 'red' ? 'レッド' : 'イエロー';
-      return mainPlayer ? `${mainPlayer} ${cardLabel}` : cardLabel;
+      return mainPlayer ? `${mainPlayer}` : 'カード';
     }
     if (ev.type === 'substitution') {
       const outName = ev.outPlayerId ? playerMap[ev.outPlayerId]?.name : undefined;
@@ -145,7 +156,10 @@ export function MatchEventsPreview({ match, homePlayers, awayPlayers }: MatchEve
             <div className="flex justify-end pr-2">
               {isHome && (
                 <div className="text-right max-w-[160px]">
-                  <div className="text-[11px] font-medium text-emerald-300 truncate">{label}</div>
+                  <div className="flex items-center justify-end gap-1 text-[11px] font-medium text-emerald-300 truncate">
+                    <span className="text-[10px] shrink-0">{renderTypeBadge(ev)}</span>
+                    <span className="truncate">{label}</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -153,16 +167,18 @@ export function MatchEventsPreview({ match, homePlayers, awayPlayers }: MatchEve
             {/* Center minute + type */}
             <div className="flex flex-col items-center justify-center min-w-[40px]">
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[11px] font-semibold mb-0.5">
-                {ev.minute}'
+                {formatMinute(ev.minute)}'
               </span>
-              <span className="text-[10px]">{renderTypeBadge(ev)}</span>
             </div>
 
             {/* Away side */}
             <div className="flex justify-start pl-2">
               {!isHome && (
                 <div className="text-left max-w-[160px]">
-                  <div className="text-[11px] font-medium text-sky-300 truncate">{label}</div>
+                  <div className="flex items-center justify-start gap-1 text-[11px] font-medium text-sky-300 truncate">
+                    <span className="text-[10px] shrink-0">{renderTypeBadge(ev)}</span>
+                    <span className="truncate">{label}</span>
+                  </div>
                 </div>
               )}
             </div>
