@@ -36,6 +36,81 @@ async function getMatchDetail(
   const logoUrl = (profileData as any).logoUrl || null;
   if (!ownerUid) return null;
 
+  // Friendly/Practice single match
+  if (competitionId === 'friendly' || competitionId === 'practice') {
+    const friendlyRef = db.doc(`clubs/${ownerUid}/friendly_matches/${matchId}`);
+    const friendlySnap = await friendlyRef.get();
+    if (friendlySnap.exists) {
+      const data = friendlySnap.data() as any;
+
+      const compId = (data.competitionId as string) === 'practice' ? 'practice' : competitionId;
+      const compName = data.competitionName || (compId === 'practice' ? '練習試合' : '親善試合');
+
+      const fetchTeamData = async (teamId: string | undefined) => {
+        if (!teamId) return null;
+        const teamDoc = await db.doc(`clubs/${ownerUid}/teams/${teamId}`).get();
+        return teamDoc.exists ? (teamDoc.data() as any) : null;
+      };
+
+      const [homeTeamData, awayTeamData] = await Promise.all([
+        fetchTeamData(data.homeTeam),
+        fetchTeamData(data.awayTeam),
+      ]);
+
+      const fetchTeamPlayers = async (teamId: string | undefined) => {
+        if (!teamId) return [] as { id: string; number: number; position?: string; photoUrl?: string }[];
+        const snap = await db.collection(`clubs/${ownerUid}/teams/${teamId}/players`).get();
+        return snap.docs.map((d) => {
+          const pd = d.data() as any;
+          return {
+            id: d.id,
+            number: Number(pd.number) || 0,
+            position: pd.position,
+            photoUrl: pd.photoUrl || pd.photoURL,
+          };
+        });
+      };
+
+      const [homePlayersMeta, awayPlayersMeta] = await Promise.all([
+        fetchTeamPlayers(data.homeTeam),
+        fetchTeamPlayers(data.awayTeam),
+      ]);
+
+      const playerMetaMap: Record<string, { number: number; position?: string; photoUrl?: string }> = {};
+      [...homePlayersMeta, ...awayPlayersMeta].forEach((p) => {
+        playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl };
+      });
+
+      const match: MatchDetails = {
+        id: friendlySnap.id,
+        competitionId: compId,
+        roundId: 'single',
+        homeTeam: data.homeTeam,
+        awayTeam: data.awayTeam,
+        homeTeamName: homeTeamData?.name || data.homeTeamName || "",
+        awayTeamName: awayTeamData?.name || data.awayTeamName || "",
+        competitionName: compName,
+        roundName: data.roundName || '単発',
+        homeTeamLogo: homeTeamData?.logoUrl || data.homeTeamLogo,
+        awayTeamLogo: awayTeamData?.logoUrl || data.awayTeamLogo,
+        matchDate: data.matchDate,
+        matchTime: data.matchTime,
+        scoreHome: data.scoreHome ?? null,
+        scoreAway: data.scoreAway ?? null,
+        userId: ownerUid,
+        teamStats: (data.teamStats || []) as TeamStat[],
+        playerStats: (data.playerStats || []) as PlayerStats[],
+        homeSquad: data.homeSquad,
+        awaySquad: data.awaySquad,
+        ...(data.events ? { events: data.events } : {}),
+      } as any;
+
+      (match as any).playerMetaMap = playerMetaMap;
+
+      return { clubName, logoUrl, match };
+    }
+  }
+
   const matchRef = db.doc(
     `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${matchId}`,
   );
@@ -311,7 +386,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           <div className="text-center space-y-1">
             <p className="text-xs font-medium">
               {match.competitionName}
-              {match.roundName && ` ${match.roundName}`}
+              {match.roundId !== 'single' && match.roundName && ` ${match.roundName}`}
             </p>
             <p className="text-xs text-muted-foreground">
               {matchDate.toLocaleDateString("ja-JP", {

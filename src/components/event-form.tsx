@@ -40,14 +40,15 @@ interface EventFormProps {
   homePlayers: Player[];
   awayPlayers: Player[];
   match: MatchDetails | null;
+  matchDocPath?: string;
 }
 
-export function EventForm({ homePlayers, awayPlayers, match }: EventFormProps) {
+export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: EventFormProps) {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<EventFormValues>({
-    resolver: zodResolver(eventFormSchema),
+    resolver: zodResolver(eventFormSchema) as any,
     defaultValues: {
       type: 'goal',
       minute: 0,
@@ -61,7 +62,7 @@ export function EventForm({ homePlayers, awayPlayers, match }: EventFormProps) {
   });
 
   const selectedTeamId = form.watch('teamId');
-  const teamPlayers = selectedTeamId === match?.homeTeamId ? homePlayers : awayPlayers;
+  const teamPlayers = selectedTeamId === match?.homeTeam ? homePlayers : awayPlayers;
   const eventType = form.watch('type');
   const selectedPlayerId = form.watch('playerId');
 
@@ -94,7 +95,10 @@ export function EventForm({ homePlayers, awayPlayers, match }: EventFormProps) {
     };
 
     try {
-      const eventsCollection = collection(db, `clubs/${user.uid}/competitions/${match.competitionId}/rounds/${match.roundId}/matches/${match.id}/events`);
+      const eventsCollection = collection(
+        db,
+        `${matchDocPath || `clubs/${user.uid}/competitions/${match.competitionId}/rounds/${match.roundId}/matches/${match.id}`}/events`
+      );
       await addDoc(eventsCollection, eventData);
       toast.success("イベントを追加しました。");
       form.reset();
@@ -108,7 +112,7 @@ export function EventForm({ homePlayers, awayPlayers, match }: EventFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={(form.handleSubmit as any)(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
           name="type"
@@ -161,8 +165,8 @@ export function EventForm({ homePlayers, awayPlayers, match }: EventFormProps) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {match && <SelectItem value={match.homeTeamId}>{match.homeTeamName}</SelectItem>}
-                  {match && <SelectItem value={match.awayTeamId}>{match.awayTeamName}</SelectItem>}
+                  {match && <SelectItem value={match.homeTeam}>{match.homeTeamName}</SelectItem>}
+                  {match && <SelectItem value={match.awayTeam}>{match.awayTeamName}</SelectItem>}
                 </SelectContent>
               </Select>
               <FormMessage />

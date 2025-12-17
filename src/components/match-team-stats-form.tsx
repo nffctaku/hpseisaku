@@ -33,6 +33,7 @@ interface MatchTeamStatsFormProps {
   userId: string;
   competitionId: string;
   roundId: string;
+  matchDocPath?: string;
 }
 
 const defaultStats: Omit<TeamStat, 'homeValue' | 'awayValue'>[] = [
@@ -48,7 +49,7 @@ const defaultStats: Omit<TeamStat, 'homeValue' | 'awayValue'>[] = [
   { id: 'corners', name: 'コーナーキック' },
 ];
 
-export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: MatchTeamStatsFormProps) {
+export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matchDocPath }: MatchTeamStatsFormProps) {
   const [isSaving, setIsSaving] = useState(false);
 
   const form = useForm<FormValues>({
@@ -86,7 +87,10 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId }: Ma
     if (!userId) return toast.error('ユーザー情報が見つかりません。');
     setIsSaving(true);
     try {
-      const matchRef = doc(db, `clubs/${userId}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`);
+      const matchRef = doc(
+        db,
+        matchDocPath || `clubs/${userId}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`
+      );
       await updateDoc(matchRef, { teamStats: data.teamStats });
       toast.success('試合スタッツを更新しました。');
     } catch (error) {

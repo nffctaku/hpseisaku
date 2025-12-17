@@ -91,6 +91,28 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
     }
   }
 
+  // 3.5 Fetch friendly/single matches
+  const friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
+  friendlySnap.forEach((doc) => {
+    const matchData = doc.data() as any;
+    const compId = (matchData.competitionId as string) === 'practice' ? 'practice' : 'friendly';
+    const compName = matchData.competitionName || (compId === 'practice' ? '練習試合' : '親善試合');
+    const homeTeam = teamsMap.get(matchData.homeTeam);
+    const awayTeam = teamsMap.get(matchData.awayTeam);
+    allMatches.push({
+      ...(matchData as any),
+      id: doc.id,
+      competitionId: compId,
+      roundId: 'single',
+      competitionName: compName,
+      roundName: matchData.roundName || '単発',
+      homeTeamName: matchData.homeTeamName || homeTeam?.name || '不明',
+      awayTeamName: matchData.awayTeamName || awayTeam?.name || '不明',
+      homeTeamLogo: matchData.homeTeamLogo || homeTeam?.logoUrl,
+      awayTeamLogo: matchData.awayTeamLogo || awayTeam?.logoUrl,
+    } as MatchDetails);
+  });
+
   // 4. Filter for own team's matches based on mainTeamId.
   // If該当試合が1件もない場合は、他クラブ同士の試合は出さず、null を返す。
   const ownMatches = allMatches.filter(

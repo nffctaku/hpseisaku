@@ -213,7 +213,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
                                             </div>
                                         </div>
                                         <div className="text-xs text-muted-foreground text-center mt-2">
-                                            {match.competitionName} / {match.roundName}
+                                            {match.roundId === 'single' ? match.competitionName : `${match.competitionName} / ${match.roundName}`}
                                         </div>
                                     </div>
                                 );

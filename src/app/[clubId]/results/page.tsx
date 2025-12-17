@@ -86,6 +86,33 @@ async function getMatchesForClub(clubId: string) {
         }
     }
 
+    const friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
+    friendlySnap.forEach((matchDoc) => {
+        const matchData = matchDoc.data() as any;
+        const compId = (matchData.competitionId as string) === 'practice' ? 'practice' : 'friendly';
+        const compName = matchData.competitionName || (compId === 'practice' ? '練習試合' : '親善試合');
+        const homeTeam = teamsMap.get(matchData.homeTeam);
+        const awayTeam = teamsMap.get(matchData.awayTeam);
+
+        enrichedMatches.push({
+            id: matchDoc.id,
+            competitionId: compId,
+            competitionName: compName,
+            roundId: 'single',
+            roundName: matchData.roundName || '単発',
+            matchDate: matchData.matchDate,
+            matchTime: matchData.matchTime,
+            homeTeamId: matchData.homeTeam,
+            awayTeamId: matchData.awayTeam,
+            homeTeamName: matchData.homeTeamName || homeTeam?.name || '不明なチーム',
+            awayTeamName: matchData.awayTeamName || awayTeam?.name || '不明なチーム',
+            homeTeamLogo: matchData.homeTeamLogo || homeTeam?.logoUrl,
+            awayTeamLogo: matchData.awayTeamLogo || awayTeam?.logoUrl,
+            scoreHome: matchData.scoreHome,
+            scoreAway: matchData.scoreAway,
+        });
+    });
+
     // 4. Sort all matches by date
     enrichedMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
 

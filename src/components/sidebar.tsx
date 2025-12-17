@@ -36,6 +36,7 @@ export function Sidebar() {
     { href: `/admin/tv`, label: 'TV管理', icon: Tv },
     { href: `/admin/records`, label: 'チーム記録', icon: BarChart },
     { href: `/admin/matches`, label: '試合管理', icon: Calendar },
+    { href: `/admin/friendly-matches`, label: '単発試合', icon: Calendar },
     { href: `/admin/players`, label: '選手管理', icon: Users },
     { href: `/admin/competitions`, label: '大会管理', icon: Trophy },
     { href: '/admin/teams', label: 'チーム登録', icon: Shield },

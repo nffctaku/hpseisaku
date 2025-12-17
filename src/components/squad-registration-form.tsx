@@ -60,9 +60,10 @@ interface SquadRegistrationFormProps {
   awayPlayers: Player[];
   roundId: string;
   competitionId: string;
+  matchDocPath?: string;
 }
 
-export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId, competitionId }: SquadRegistrationFormProps) {
+export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId, competitionId, matchDocPath }: SquadRegistrationFormProps) {
   console.log('SquadForm: Received homePlayers', homePlayers);
   console.log('SquadForm: Received awayPlayers', awayPlayers);
   const { user } = useAuth();
@@ -86,7 +87,10 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         return;
       }
       try {
-        const matchDocRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`);
+        const matchDocRef = doc(
+          db,
+          matchDocPath || `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`
+        );
         const matchDoc = await getDoc(matchDocRef);
         if (matchDoc.exists()) {
           const data = matchDoc.data();
@@ -104,7 +108,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       }
     };
     fetchMatchData();
-  }, [match.id, roundId, competitionId, user, methods]);
+  }, [match.id, roundId, competitionId, user, methods, matchDocPath]);
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     if (!user || !roundId || !competitionId) {
@@ -113,7 +117,10 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     }
     setSaving(true);
     try {
-      const matchDocRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`);
+      const matchDocRef = doc(
+        db,
+        matchDocPath || `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`
+      );
 
       // イベントから G/A/Y/R を集計
       const goalCounts = new Map<string, number>();
@@ -205,7 +212,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       // - このフォーム由来の交代イベントは id が "sub-" で始まるドキュメントとして管理し、現状と差分を取って追加/削除
       const eventsColRef = collection(
         db,
-        `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}/events`
+        `${(matchDocPath || `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`)}/events`
       );
 
       const desiredSubDocIds = new Set<string>();
