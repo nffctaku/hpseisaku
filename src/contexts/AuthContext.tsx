@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, onAuthStateChanged } from 'firebase/auth';
+import { User, onAuthStateChanged, setPersistence, browserLocalPersistence, getRedirectResult } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { useRouter, usePathname } from 'next/navigation';
@@ -66,20 +66,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
-      console.log('[AuthContext] onAuthStateChanged triggered', { authUser });
-      if (authUser) {
-        setLoading(true);
-        await fetchUserProfile(authUser);
-        setLoading(false);
-      } else {
-        setUser(null);
-        setClubProfileExists(false);
-        setLoading(false);
-        console.log('[AuthContext] no authUser, signed out');
+    let unsubscribe = () => {};
+    let cancelled = false;
+
+    const initAuth = async () => {
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+      } catch (e) {
+        console.warn('[AuthContext] setPersistence failed', e);
       }
-    });
-    return () => unsubscribe();
+
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          console.log('[AuthContext] getRedirectResult user', { uid: result.user.uid });
+        } else {
+          console.log('[AuthContext] getRedirectResult empty');
+        }
+      } catch (e) {
+        console.warn('[AuthContext] getRedirectResult failed', e);
+      }
+
+      if (cancelled) return;
+
+      unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+        console.log('[AuthContext] onAuthStateChanged triggered', { authUser });
+        if (authUser) {
+          setLoading(true);
+          await fetchUserProfile(authUser);
+          setLoading(false);
+        } else {
+          setUser(null);
+          setClubProfileExists(false);
+          setLoading(false);
+          console.log('[AuthContext] no authUser, signed out');
+        }
+      });
+    };
+
+    void initAuth();
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
