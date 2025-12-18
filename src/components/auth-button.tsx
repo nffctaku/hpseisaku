@@ -24,12 +24,12 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   console.log('[AuthButton] render', { hasUser: !!user, user });
 
   const shouldUseRedirect = () => {
-    if (isMobile) return true;
     if (typeof window === 'undefined') return false;
     const ua = window.navigator.userAgent || '';
     // iOS Safari / iOS in-app browsers often block popups
     const isiOS = /iPhone|iPad|iPod/i.test(ua);
-    return isiOS;
+    const isInApp = /(Line|FBAN|FBAV|Instagram|MicroMessenger|Twitter)/i.test(ua);
+    return isiOS || isInApp;
   };
 
   const handleSignIn = async () => {
