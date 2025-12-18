@@ -26,10 +26,9 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const shouldUseRedirect = () => {
     if (typeof window === 'undefined') return false;
     const ua = window.navigator.userAgent || '';
-    // iOS Safari / iOS in-app browsers often block popups
-    const isiOS = /iPhone|iPad|iPod/i.test(ua);
+    // In-app browsers often block popups
     const isInApp = /(Line|FBAN|FBAV|Instagram|MicroMessenger|Twitter)/i.test(ua);
-    return isiOS || isInApp;
+    return isInApp;
   };
 
   const handleSignIn = async () => {
