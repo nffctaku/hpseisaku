@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -20,49 +21,116 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="w-full bg-gray-900 text-white flex items-center justify-between px-4 py-3">
-        <div className="text-xl font-bold tracking-tight">CLUB APP</div>
+      <header className="w-full bg-white text-gray-900 flex items-center justify-between px-4 py-3 border-b">
+        <div className="text-2xl font-extrabold tracking-tight text-yellow-400 drop-shadow">
+          FHUB
+        </div>
         <Link
           href="/admin/competitions"
-          className="text-sm px-3 py-1 rounded-md border border-white/30 hover:bg-white hover:text-gray-900 transition-colors"
+          className="text-sm px-4 py-2 rounded-md bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
         >
-          管理画面へ
+          FHUBを開く
         </Link>
       </header>
 
-      <main className="flex-grow flex items-center justify-center px-4">
-        <div className="max-w-xl w-full text-center space-y-6 sm:space-y-8 py-10 sm:py-12">
-          <div>
-            <h1 className="text-2xl sm:text-4xl font-bold tracking-tight mb-3 sm:mb-4 leading-relaxed sm:leading-snug">
-              チーム運営に必要なページを、
-              <br />
-              全部かんたん作成。
-            </h1>
-            <p className="text-xs sm:text-base text-muted-foreground leading-relaxed">
-              クラブHP／大会管理／試合記録／選手一覧を一括管理。
-            </p>
-          </div>
+      <main className="flex-grow">
+        <section className="relative overflow-hidden">
+          <div className="container mx-auto px-4 py-10 sm:py-14">
+            <div className="max-w-5xl mx-auto">
+              <div className="text-center space-y-4 sm:space-y-5">
+                <div className="text-4xl sm:text-6xl font-extrabold tracking-tight text-yellow-400 drop-shadow">
+                  FHUB
+                </div>
+                <h1 className="text-2xl sm:text-4xl font-bold tracking-tight">
+                  スマホひとつで、
+                  <br />
+                  プロ仕様のクラブサイト。
+                </h1>
+              </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              type="button"
-              onClick={handleViewClub}
-              className="inline-flex items-center justify-center px-6 py-3 rounded-md bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-colors"
-            >
-              クラブHPを見る
-            </button>
-            <Link
-              href="/admin/competitions"
-              className="inline-flex items-center justify-center px-6 py-3 rounded-md border border-input bg-background hover:bg-muted font-semibold text-sm"
-            >
-              ログインして管理する
-            </Link>
-          </div>
+              <div className="mt-8 sm:mt-10 flex justify-center">
+                <div className="grid grid-cols-2 gap-4 sm:gap-8 items-end">
+                  <div className="relative w-[44vw] max-w-[260px] sm:w-[240px] sm:max-w-none aspect-[9/16]">
+                    <Image
+                      src="/FHUBスマホ①.png"
+                      alt="FHUB 1"
+                      fill
+                      className="object-contain"
+                      sizes="(min-width: 640px) 240px, 44vw"
+                      priority
+                    />
+                  </div>
+                  <div className="relative w-[44vw] max-w-[260px] sm:w-[240px] sm:max-w-none aspect-[9/16]">
+                    <Image
+                      src="/FHUBスマホ②.png"
+                      alt="FHUB 2"
+                      fill
+                      className="object-contain"
+                      sizes="(min-width: 640px) 240px, 44vw"
+                    />
+                  </div>
+                </div>
+              </div>
 
-          <p className="text-xs text-muted-foreground">
-            ※ ログインしている場合は自分のクラブページへ、未設定の場合はチーム管理画面へ移動します。
-          </p>
-        </div>
+              <div className="mt-8 sm:mt-10 text-center space-y-4">
+                <p className="text-lg sm:text-2xl font-bold">
+                  Footballに特化し
+                  <br />
+                  HPを作成出来るWEBアプリ
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Link
+                    href="/admin/competitions"
+                    className="inline-flex items-center justify-center px-6 py-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 font-semibold text-sm transition-colors"
+                  >
+                    ログインして管理する
+                  </Link>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  ※ ログインしている場合は自分のクラブページへ、未設定の場合はチーム管理画面へ移動します。
+                </p>
+              </div>
+
+              <div className="mt-12 sm:mt-16">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 items-center">
+                  <div className="relative w-full aspect-[4/5] bg-transparent">
+                    <Image
+                      src="/FHUB.png"
+                      alt="FHUB feature 1"
+                      fill
+                      className="object-contain"
+                      sizes="(min-width: 640px) 33vw, 100vw"
+                    />
+                  </div>
+                  <div className="relative w-full aspect-[4/5] bg-transparent">
+                    <Image
+                      src="/FHUB (1).png"
+                      alt="FHUB feature 2"
+                      fill
+                      className="object-contain"
+                      sizes="(min-width: 640px) 33vw, 100vw"
+                    />
+                  </div>
+                  <div className="relative w-full aspect-[4/5] bg-transparent">
+                    <Image
+                      src="/FHUB (2).png"
+                      alt="FHUB feature 3"
+                      fill
+                      className="object-contain"
+                      sizes="(min-width: 640px) 33vw, 100vw"
+                    />
+                  </div>
+                </div>
+
+                <p className="mt-3 text-center text-[10px] text-muted-foreground">
+                  ※画像の選手はAIで生成しております。
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="p-4 md:p-6 text-center text-muted-foreground text-sm">
