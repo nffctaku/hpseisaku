@@ -4,10 +4,29 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import * as React from "react";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "@/components/ui/carousel";
 
 export default function LandingPage() {
   const router = useRouter();
   const { user } = useAuth();
+
+  const [featureCarouselApi, setFeatureCarouselApi] = React.useState<CarouselApi>();
+
+  React.useEffect(() => {
+    if (!featureCarouselApi) return;
+    const id = window.setInterval(() => {
+      featureCarouselApi.scrollNext();
+    }, 3000);
+    return () => {
+      window.clearInterval(id);
+    };
+  }, [featureCarouselApi]);
 
   const handleViewClub = () => {
     const clubId = user?.clubId;
@@ -94,8 +113,52 @@ export default function LandingPage() {
               </div>
 
               <div className="mt-12 sm:mt-16">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 items-center">
-                  <div className="relative w-full aspect-[4/5] bg-transparent">
+                <div className="sm:hidden">
+                  <Carousel
+                    setApi={setFeatureCarouselApi}
+                    opts={{ loop: true }}
+                    className="w-full max-w-[260px] mx-auto"
+                  >
+                    <CarouselContent>
+                      <CarouselItem>
+                        <div className="relative w-full aspect-[4/5] bg-transparent">
+                          <Image
+                            src="/FHUB.png"
+                            alt="FHUB feature 1"
+                            fill
+                            className="object-contain"
+                            sizes="100vw"
+                          />
+                        </div>
+                      </CarouselItem>
+                      <CarouselItem>
+                        <div className="relative w-full aspect-[4/5] bg-transparent">
+                          <Image
+                            src="/FHUB (1).png"
+                            alt="FHUB feature 2"
+                            fill
+                            className="object-contain"
+                            sizes="100vw"
+                          />
+                        </div>
+                      </CarouselItem>
+                      <CarouselItem>
+                        <div className="relative w-full aspect-[4/5] bg-transparent">
+                          <Image
+                            src="/FHUB (2).png"
+                            alt="FHUB feature 3"
+                            fill
+                            className="object-contain"
+                            sizes="100vw"
+                          />
+                        </div>
+                      </CarouselItem>
+                    </CarouselContent>
+                  </Carousel>
+                </div>
+
+                <div className="hidden sm:grid grid-cols-3 gap-6 sm:gap-8 items-center">
+                  <div className="relative w-full max-w-[280px] mx-auto aspect-[4/5] bg-transparent">
                     <Image
                       src="/FHUB.png"
                       alt="FHUB feature 1"
@@ -104,7 +167,7 @@ export default function LandingPage() {
                       sizes="(min-width: 640px) 33vw, 100vw"
                     />
                   </div>
-                  <div className="relative w-full aspect-[4/5] bg-transparent">
+                  <div className="relative w-full max-w-[280px] mx-auto aspect-[4/5] bg-transparent">
                     <Image
                       src="/FHUB (1).png"
                       alt="FHUB feature 2"
@@ -113,7 +176,7 @@ export default function LandingPage() {
                       sizes="(min-width: 640px) 33vw, 100vw"
                     />
                   </div>
-                  <div className="relative w-full aspect-[4/5] bg-transparent">
+                  <div className="relative w-full max-w-[280px] mx-auto aspect-[4/5] bg-transparent">
                     <Image
                       src="/FHUB (2).png"
                       alt="FHUB feature 3"
