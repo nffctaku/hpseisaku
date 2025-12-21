@@ -24,6 +24,15 @@ import { toast } from "sonner";
 import { ImageUploader } from "@/components/image-uploader";
 import Image from 'next/image';
 
+function toCloudinaryPadded16x9(url: string, width: number) {
+  if (!url) return url;
+  if (!url.includes('/image/upload/')) return url;
+  return url.replace(
+    '/image/upload/',
+    `/image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_auto/`
+  );
+}
+
 const newsSchema = z.object({
   title: z.string().min(1, { message: "タイトルは必須です。" }),
   content: z.string().optional(),
@@ -254,7 +263,13 @@ export default function NewsAdminPage() {
               <TableRow key={article.id}>
                 <TableCell>
                   {article.imageUrl ? (
-                    <Image src={article.imageUrl} alt={article.title} width={64} height={36} className="object-cover rounded-md" />
+                    <Image
+                      src={toCloudinaryPadded16x9(article.imageUrl, 256)}
+                      alt={article.title}
+                      width={64}
+                      height={36}
+                      className="object-contain rounded-md"
+                    />
                   ) : (
                     <div className="w-16 h-9 bg-muted rounded-md" />
                   )}

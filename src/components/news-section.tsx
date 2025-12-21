@@ -3,6 +3,17 @@ import Link from "next/link";
 import { format } from 'date-fns';
 import { NewsArticle } from '@/types/news';
 
+function toCloudinaryPadded16x9(url: string, width: number) {
+  if (!url) return url;
+  // Works for standard Cloudinary delivery URLs.
+  // Example: https://res.cloudinary.com/<cloud>/image/upload/<publicId>
+  if (!url.includes('/image/upload/')) return url;
+  return url.replace(
+    '/image/upload/',
+    `/image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_auto/`
+  );
+}
+
 interface NewsSectionProps {
   news: NewsArticle[];
   clubId?: string;
@@ -39,22 +50,13 @@ export function NewsSection({ news, clubId }: NewsSectionProps) {
               rel={(item as any).noteUrl && (item as any).noteUrl !== '' ? "noopener noreferrer" : undefined}
               className="flex gap-4 md:gap-5 p-3 bg-white shadow-sm hover:shadow-md transition-shadow rounded-none md:rounded-none md:first:rounded-t-lg md:last:rounded-b-lg w-full"
             >
-              <div className="relative w-32 h-24 md:w-40 md:h-28 flex-shrink-0">
-                {item.imageUrl ? (
-                  <Image
-                    src={item.imageUrl}
-                    alt={item.title}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <Image
-                    src="/no-image.png"
-                    alt="No image available"
-                    fill
-                    className="object-cover"
-                  />
-                )}
+              <div className="relative w-32 md:w-40 flex-shrink-0 aspect-video bg-muted">
+                <Image
+                  src={toCloudinaryPadded16x9(item.imageUrl || "/no-image.png", 640)}
+                  alt={item.imageUrl ? item.title : "No image available"}
+                  fill
+                  className="object-contain"
+                />
               </div>
               <div className="flex flex-col justify-center gap-1.5 min-w-0">
                 <p className="text-xs md:text-sm text-muted-foreground">

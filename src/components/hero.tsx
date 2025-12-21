@@ -9,6 +9,15 @@ import {
 
 import { NewsArticle } from '@/types/news';
 
+function toCloudinaryPadded16x9(url: string, width: number) {
+  if (!url) return url;
+  if (!url.includes('/image/upload/')) return url;
+  return url.replace(
+    '/image/upload/',
+    `/image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_auto/`
+  );
+}
+
 interface HeroProps {
   news: NewsArticle[];
   maxSlides?: number;
@@ -36,13 +45,13 @@ export function Hero({ news, maxSlides }: HeroProps) {
       <CarouselContent>
         {items.map((item, index) => (
           <CarouselItem key={item.id}>
-            <div className="relative h-[50vh] md:h-[60vh] w-full">
+            <div className="relative w-full aspect-video bg-muted">
               {item.imageUrl ? (
                 <Image
-                  src={item.imageUrl}
+                  src={toCloudinaryPadded16x9(item.imageUrl, 1600)}
                   alt={item.title}
                   fill
-                  className="object-cover object-center"
+                  className="object-contain"
                   priority={index === 0}
                 />
               ) : (

@@ -59,17 +59,26 @@ async function getNewsData(clubId: string, page: number) {
   return { news, totalNews, clubName, logoUrl };
 }
 
+function toCloudinaryPadded16x9(url: string, width: number) {
+  if (!url) return url;
+  if (!url.includes('/image/upload/')) return url;
+  return url.replace(
+    '/image/upload/',
+    `/image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_auto/`
+  );
+}
+
 function NewsCard({ article, clubId }: { article: NewsArticle, clubId: string }) {
   return (
     <Link href={`/${clubId}/news/${article.id}`} className="block group">
       <div className="bg-card rounded-lg overflow-hidden shadow-md h-full flex flex-col">
         {article.imageUrl && (
-          <div className="relative w-full h-48">
+          <div className="relative w-full aspect-video bg-muted">
             <Image
-              src={article.imageUrl}
+              src={toCloudinaryPadded16x9(article.imageUrl, 1200)}
               alt={article.title}
               fill
-              className="object-cover"
+              className="object-contain"
             />
           </div>
         )}
