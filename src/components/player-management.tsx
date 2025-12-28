@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, where } from "firebase/firestore";
+import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField } from "firebase/firestore";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -25,9 +25,31 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PlayerForm, PlayerFormValues } from "./player-form";
-import { Player } from "@/types/player";
+import { Player, PlayerSeasonData } from "@/types/player";
 import { columns } from "./players-columns";
 import { PlayersDataTable } from "./players-data-table";
+
+function stripUndefinedDeep(value: any): any {
+  if (value === undefined) return undefined;
+
+  if (Array.isArray(value)) {
+    const next = value
+      .map((v) => stripUndefinedDeep(v))
+      .filter((v) => v !== undefined);
+    return next.length > 0 ? next : undefined;
+  }
+
+  if (value && typeof value === "object") {
+    const out: any = {};
+    for (const [k, v] of Object.entries(value)) {
+      const cleaned = stripUndefinedDeep(v);
+      if (cleaned !== undefined) out[k] = cleaned;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+
+  return value;
+}
 
 interface PlayerManagementProps {
   teamId: string;
@@ -36,6 +58,7 @@ interface PlayerManagementProps {
 
 export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementProps) {
   const { user } = useAuth();
+  const clubUid = (user as any)?.ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [players, setPlayers] = useState<Player[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -45,43 +68,148 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const playerFormKey = editingPlayer ? editingPlayer.id : `new-${selectedSeason || ""}`;
 
   const filteredPlayers = useMemo(() => {
-    if (!selectedSeason) return players;
-    return players.filter((p) => (p.seasons || []).includes(selectedSeason));
+    if (!selectedSeason) return players as any[];
+
+    return players
+      .filter((p) => (p.seasons || []).includes(selectedSeason))
+      .map((p) => {
+        const season = (p.seasonData || {})[selectedSeason] as PlayerSeasonData | undefined;
+        const merged: Player = {
+          ...p,
+          number: (season?.number ?? p.number) as any,
+          position: (season?.position ?? p.position) as any,
+          nationality: (season?.nationality ?? p.nationality) as any,
+          age: (season?.age ?? p.age) as any,
+          height: (season?.height ?? p.height) as any,
+          photoUrl: season?.photoUrl ?? p.photoUrl,
+          snsLinks: season?.snsLinks ?? p.snsLinks,
+          params: season?.params ?? p.params,
+          manualCompetitionStats: season?.manualCompetitionStats ?? p.manualCompetitionStats,
+          isPublished: typeof season?.isPublished === "boolean" ? season.isPublished : p.isPublished,
+        };
+        return { ...merged, __raw: p } as any;
+      });
   }, [players, selectedSeason]);
 
+  const seasonDefaults = useMemo(() => {
+    if (!selectedSeason || !editingPlayer) return undefined;
+    const season = (editingPlayer.seasonData || {})[selectedSeason] as PlayerSeasonData | undefined;
+    if (!season) {
+      return editingPlayer;
+    }
+    return {
+      ...editingPlayer,
+      number: season.number ?? editingPlayer.number,
+      position: season.position ?? editingPlayer.position,
+      nationality: season.nationality ?? editingPlayer.nationality,
+      age: season.age ?? editingPlayer.age,
+      height: season.height ?? editingPlayer.height,
+      photoUrl: season.photoUrl ?? editingPlayer.photoUrl,
+      snsLinks: season.snsLinks ?? editingPlayer.snsLinks,
+      params: season.params ?? editingPlayer.params,
+      manualCompetitionStats: season.manualCompetitionStats ?? editingPlayer.manualCompetitionStats,
+      isPublished: typeof season.isPublished === "boolean" ? season.isPublished : editingPlayer.isPublished,
+    } as any;
+  }, [editingPlayer, selectedSeason]);
+
   useEffect(() => {
-    if (!user || !teamId) return;
-    const playersColRef = collection(db, `clubs/${user.uid}/teams/${teamId}/players`);
+    if (!clubUid || !teamId) return;
+    const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
     const q = query(playersColRef);
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const playersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
-      setPlayers(playersData);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const playersData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Player));
+        setPlayers(playersData);
+      },
+      (error) => {
+        console.error("[PlayerManagement] players onSnapshot error", {
+          code: (error as any)?.code,
+          message: (error as any)?.message,
+          path: `clubs/${clubUid}/teams/${teamId}/players`,
+          uid: clubUid,
+          teamId,
+        });
+        toast.error("選手データの取得に失敗しました（permission-denied）。権限設定をご確認ください。", {
+          id: "players-permission-denied",
+        });
+      }
+    );
 
     return () => unsubscribe();
-  }, [user, teamId]);
+  }, [clubUid, teamId]);
 
   const handleFormSubmit = async (values: PlayerFormValues) => {
-    if (!user || !teamId) return;
+    if (!clubUid || !teamId) return;
+    if (!selectedSeason) {
+      toast.error("シーズンが選択されていません。");
+      return;
+    }
     try {
-      const playersColRef = collection(db, `clubs/${user.uid}/teams/${teamId}/players`);
+      const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
 
-      const resolvedValues: PlayerFormValues = editingPlayer
-        ? ({
-            ...values,
-            seasons: (editingPlayer as any)?.seasons || values.seasons,
-          } as PlayerFormValues)
-        : ({
-            ...values,
-            seasons: selectedSeason ? [selectedSeason] : [],
-          } as PlayerFormValues);
+      const paramsNormalized = values.params
+        ? {
+            overall: values.params.overall,
+            items: Array.isArray(values.params.items)
+              ? values.params.items.map((i: any) => ({
+                  label: typeof i?.label === "string" ? i.label : "",
+                  value: typeof i?.value === "number" ? i.value : undefined,
+                }))
+              : [],
+          }
+        : undefined;
+
+      const manualStatsNormalized = Array.isArray(values.manualCompetitionStats)
+        ? values.manualCompetitionStats
+            .filter((r: any) => typeof r?.competitionId === "string" && r.competitionId.trim().length > 0)
+            .map((r: any) => ({
+              competitionId: r.competitionId,
+              matches: typeof r?.matches === "number" ? r.matches : undefined,
+              minutes: typeof r?.minutes === "number" ? r.minutes : undefined,
+              goals: typeof r?.goals === "number" ? r.goals : undefined,
+              assists: typeof r?.assists === "number" ? r.assists : undefined,
+              yellowCards: typeof r?.yellowCards === "number" ? r.yellowCards : undefined,
+              redCards: typeof r?.redCards === "number" ? r.redCards : undefined,
+              avgRating: typeof r?.avgRating === "number" ? r.avgRating : undefined,
+            }))
+        : undefined;
+
+      const seasonPayload: PlayerSeasonData = {
+        number: values.number,
+        position: values.position as any,
+        nationality: values.nationality,
+        age: values.age,
+        height: values.height,
+        photoUrl: values.photoUrl,
+        snsLinks: values.snsLinks,
+        params: paramsNormalized as any,
+        manualCompetitionStats: manualStatsNormalized as any,
+        isPublished: values.isPublished,
+      };
+
+      const seasonPayloadClean = (stripUndefinedDeep(seasonPayload) || {}) as any;
 
       if (editingPlayer) {
+        const currentSeasons = Array.isArray((editingPlayer as any)?.seasons) ? (((editingPlayer as any).seasons as string[]) || []) : [];
+        const nextSeasons = currentSeasons.includes(selectedSeason) ? currentSeasons : [...currentSeasons, selectedSeason];
         const playerDocRef = doc(playersColRef, editingPlayer.id);
-        await updateDoc(playerDocRef, resolvedValues);
+        const updatePayload = stripUndefinedDeep({
+          name: values.name,
+          seasons: nextSeasons,
+          [`seasonData.${selectedSeason}`]: seasonPayloadClean,
+        });
+        await updateDoc(playerDocRef, (updatePayload || {}) as any);
       } else {
-        await addDoc(playersColRef, resolvedValues);
+        const createPayload = stripUndefinedDeep({
+          ...values,
+          seasons: [selectedSeason],
+          seasonData: {
+            [selectedSeason]: seasonPayloadClean,
+          },
+        });
+        await addDoc(playersColRef, (createPayload || {}) as any);
       }
       setIsDialogOpen(false);
       setEditingPlayer(null);
@@ -92,10 +220,23 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
 
   const handleDeletePlayer = async () => {
-    if (!user || !deletingPlayer || !teamId) return;
+    if (!clubUid || !deletingPlayer || !teamId) return;
+    if (!selectedSeason) {
+      toast.error("シーズンが選択されていません。");
+      return;
+    }
     try {
-      const playerDocRef = doc(db, `clubs/${user.uid}/teams/${teamId}/players`, deletingPlayer.id);
-      await deleteDoc(playerDocRef);
+      const playerDocRef = doc(db, `clubs/${clubUid}/teams/${teamId}/players`, deletingPlayer.id);
+      const seasons = Array.isArray((deletingPlayer as any)?.seasons) ? ((deletingPlayer as any).seasons as string[]) : [];
+      const remaining = seasons.filter((s) => s !== selectedSeason);
+      if (remaining.length === 0) {
+        await deleteDoc(playerDocRef);
+      } else {
+        await updateDoc(playerDocRef, {
+          seasons: arrayRemove(selectedSeason),
+          [`seasonData.${selectedSeason}`]: deleteField(),
+        } as any);
+      }
       setDeletingPlayer(null);
     } catch (error) {
       console.error("Error deleting player: ", error);
@@ -118,9 +259,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
   return (
     <>
-      <div className="mt-12">
+      <div className="mt-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">選手管理</h2>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button
@@ -138,8 +278,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
               <PlayerForm
                 key={playerFormKey}
                 onSubmit={handleFormSubmit}
-                defaultValues={editingPlayer || undefined}
+                defaultValues={seasonDefaults || editingPlayer || undefined}
                 defaultSeason={selectedSeason}
+                ownerUid={user?.uid ?? null}
               />
             </DialogContent>
           </Dialog>

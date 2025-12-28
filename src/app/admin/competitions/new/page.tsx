@@ -235,7 +235,15 @@ export default function NewCompetitionPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>総節数</FormLabel>
-                  <FormControl><Input type="number" placeholder="38" {...field} /></FormControl>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder="38"
+                      {...field}
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

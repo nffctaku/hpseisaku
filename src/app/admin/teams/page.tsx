@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -31,6 +32,8 @@ type TeamFormValues = z.infer<typeof teamSchema>;
 
 export default function TeamsPage() {
   const { user } = useAuth();
+  const router = useRouter();
+  const clubUid = (user as any)?.ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [teams, setTeams] = useState<Team[]>([]);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
@@ -46,20 +49,37 @@ export default function TeamsPage() {
   });
 
   useEffect(() => {
-    if (!user) return;
-    const teamsColRef = collection(db, `clubs/${user.uid}/teams`);
+    if (!clubUid) return;
+    const teamsColRef = collection(db, `clubs/${clubUid}/teams`);
     const q = query(teamsColRef);
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const teamsData = querySnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      } as Team));
-      setTeams(teamsData);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const teamsData = querySnapshot.docs.map(
+          (doc) =>
+            ({
+              id: doc.id,
+              ...doc.data(),
+            } as Team)
+        );
+        setTeams(teamsData);
+      },
+      (error) => {
+        console.error("[AdminTeamsPage] teams onSnapshot error", {
+          code: (error as any)?.code,
+          message: (error as any)?.message,
+          path: `clubs/${clubUid}/teams`,
+          uid: clubUid,
+        });
+        toast.error("チーム一覧の取得に失敗しました（permission-denied）。権限設定をご確認ください。", {
+          id: "teams-permission-denied",
+        });
+      }
+    );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [clubUid]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const primaryTeamId = teams[0]?.id;
@@ -297,7 +317,7 @@ export default function TeamsPage() {
 
                 {editingTeam && (
                   <Link
-                    href={`/admin/teams/${editingTeam.id}`}
+                    href={`/admin/teams/${editingTeam.id}/season`}
                     className="block w-full"
                   >
                     <Button type="button" variant="outline" className="w-full">

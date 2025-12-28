@@ -3,9 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { collection, getDocs, query } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { usePlayerStats, PlayerStats as AggregatedPlayerStats } from "@/hooks/usePlayerStats";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,6 +18,101 @@ interface CompetitionDoc {
   id: string;
   name: string;
   season?: string;
+}
+
+interface PlayerRow {
+  id: string;
+  name: string;
+  number?: number;
+  position?: string;
+  teamId?: string;
+  manualCompetitionStats?: any[];
+}
+
+interface StatsDataResponse {
+  ownerUid: string;
+  profile: any;
+  mainTeamId: string | null;
+  teams: TeamOption[];
+  competitions: CompetitionDoc[];
+  players: PlayerRow[];
+  matches: MatchForRecords[];
+}
+
+type AggregatedPlayerStats = {
+  appearances: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+};
+
+function aggregatePlayerStats(
+  matches: any[],
+  players: PlayerRow[],
+  competitions: CompetitionDoc[],
+  selectedSeason: string,
+  selectedCompetitionId: string
+): Record<string, AggregatedPlayerStats> {
+  const result: Record<string, AggregatedPlayerStats> = {};
+
+  const compsFiltered = competitions.filter((c) => {
+    if (selectedSeason !== "all" && c.season !== selectedSeason) return false;
+    if (selectedCompetitionId !== "all" && c.id !== selectedCompetitionId) return false;
+    return true;
+  });
+  const compIds = new Set(compsFiltered.map((c) => c.id));
+
+  const manualByCompetition = new Map<string, Map<string, any>>();
+  for (const p of players) {
+    const rows = Array.isArray(p.manualCompetitionStats) ? p.manualCompetitionStats : [];
+    for (const r of rows) {
+      const compId = typeof r?.competitionId === "string" ? r.competitionId : "";
+      if (!compId || !compIds.has(compId)) continue;
+      const map = manualByCompetition.get(compId) ?? new Map<string, any>();
+      map.set(p.id, r);
+      manualByCompetition.set(compId, map);
+    }
+  }
+
+  for (const comp of compsFiltered) {
+    const manualForThisCompetition = manualByCompetition.get(comp.id) ?? new Map<string, any>();
+
+    for (const [playerId, m] of manualForThisCompetition.entries()) {
+      if (!result[playerId]) {
+        result[playerId] = { appearances: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
+      }
+      result[playerId].appearances += typeof m?.matches === "number" ? m.matches : 0;
+      result[playerId].minutes += typeof m?.minutes === "number" ? m.minutes : 0;
+      result[playerId].goals += typeof m?.goals === "number" ? m.goals : 0;
+      result[playerId].assists += typeof m?.assists === "number" ? m.assists : 0;
+      result[playerId].yellowCards += typeof m?.yellowCards === "number" ? m.yellowCards : 0;
+      result[playerId].redCards += typeof m?.redCards === "number" ? m.redCards : 0;
+    }
+
+    const matchesForComp = matches.filter((m) => m?.competitionId === comp.id);
+    for (const match of matchesForComp) {
+      const ps = Array.isArray((match as any)?.playerStats) ? (match as any).playerStats : [];
+      for (const stat of ps) {
+        const playerId = stat?.playerId;
+        if (!playerId) continue;
+        if (manualForThisCompetition.has(playerId)) continue;
+        if (!result[playerId]) {
+          result[playerId] = { appearances: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
+        }
+        const minutesPlayed = Number(stat.minutesPlayed) || 0;
+        result[playerId].appearances += minutesPlayed > 0 ? 1 : 0;
+        result[playerId].minutes += minutesPlayed;
+        result[playerId].goals += Number(stat.goals) || 0;
+        result[playerId].assists += Number(stat.assists) || 0;
+        result[playerId].yellowCards += Number(stat.yellowCards) || 0;
+        result[playerId].redCards += Number(stat.redCards) || 0;
+      }
+    }
+  }
+
+  return result;
 }
 
 interface MatchForRecords {
@@ -52,125 +144,55 @@ interface CompetitionRecordRow {
 }
 
 interface PublicCompetitionRecordsProps {
-  ownerUid: string;
+  teams: TeamOption[];
+  competitions: CompetitionDoc[];
+  matches: MatchForRecords[];
   mainTeamId?: string | null;
 }
 
-function PublicCompetitionRecords({ ownerUid, mainTeamId }: PublicCompetitionRecordsProps) {
-  const [teams, setTeams] = useState<TeamOption[]>([]);
-  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
-  const [seasons, setSeasons] = useState<string[]>([]);
+function PublicCompetitionRecords({ teams, competitions, matches, mainTeamId }: PublicCompetitionRecordsProps) {
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(mainTeamId || "");
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
-  const [competitions, setCompetitions] = useState<CompetitionDoc[]>([]);
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>("all");
-  const [matches, setMatches] = useState<MatchForRecords[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    if (!ownerUid) {
-      setLoading(false);
-      return;
+    if (mainTeamId) {
+      setSelectedTeamId(mainTeamId);
+    } else if (!selectedTeamId && teams.length > 0) {
+      setSelectedTeamId(teams[0].id);
     }
+  }, [mainTeamId, selectedTeamId, teams]);
 
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const teamsQueryRef = query(collection(db, `clubs/${ownerUid}/teams`));
-        const teamsSnap = await getDocs(teamsQueryRef);
-        let teamsData: TeamOption[] = teamsSnap.docs.map((doc) => ({
-          id: doc.id,
-          name: ((doc.data() as any).name as string) || doc.id,
-        }));
-        teamsData.sort((a, b) => a.name.localeCompare(b.name));
+  const seasons = useMemo(() => {
+    const set = new Set<string>();
+    competitions.forEach((c) => {
+      if (c.season && typeof c.season === "string" && c.season.trim() !== "") set.add(c.season);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [competitions]);
 
-        if (mainTeamId) {
-          teamsData = teamsData.filter((t) => t.id === mainTeamId);
-        }
-
-        setTeams(teamsData);
-
-        const competitionsQueryRef = query(collection(db, `clubs/${ownerUid}/competitions`));
-        const competitionsSnap = await getDocs(competitionsQueryRef);
-
-        const competitionsData: CompetitionDoc[] = competitionsSnap.docs.map((doc) => {
-          const data = doc.data() as any;
-          return {
-            id: doc.id,
-            name: (data.name as string) || doc.id,
-            season: data.season as string | undefined,
-          };
-        });
-
-        const seasonSet = new Set<string>();
-        competitionsData.forEach((comp) => {
-          if (comp.season && typeof comp.season === "string" && comp.season.trim() !== "") {
-            seasonSet.add(comp.season);
-          }
-        });
-        const seasonList = Array.from(seasonSet).sort((a, b) => a.localeCompare(b));
-        setSeasons(seasonList);
-        setCompetitions(competitionsData);
-
-        const allMatches: MatchForRecords[] = [];
-
-        for (const compDoc of competitionsData) {
-          if (selectedSeason !== "all" && compDoc.season && compDoc.season !== selectedSeason) {
-            continue;
-          }
-
-          if (selectedCompetitionId !== "all" && compDoc.id !== selectedCompetitionId) {
-            continue;
-          }
-
-          const roundsQueryRef = query(collection(db, `clubs/${ownerUid}/competitions/${compDoc.id}/rounds`));
-          const roundsSnap = await getDocs(roundsQueryRef);
-
-          for (const roundDoc of roundsSnap.docs) {
-            const matchesQueryRef = query(
-              collection(db, `clubs/${ownerUid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`)
-            );
-            const matchesSnap = await getDocs(matchesQueryRef);
-
-            for (const matchDoc of matchesSnap.docs) {
-              const matchData = matchDoc.data() as any;
-              allMatches.push({
-                id: matchDoc.id,
-                competitionId: compDoc.id,
-                competitionName: compDoc.name,
-                competitionSeason: compDoc.season,
-                homeTeamId: matchData.homeTeam,
-                awayTeamId: matchData.awayTeam,
-                matchDate: matchData.matchDate,
-                scoreHome: matchData.scoreHome,
-                scoreAway: matchData.scoreAway,
-                teamStats: matchData.teamStats as any[] | undefined,
-              });
-            }
-          }
-        }
-
-        allMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
-        setMatches(allMatches);
-
-        if (mainTeamId) {
-          setSelectedTeamId(mainTeamId);
-        } else if (!selectedTeamId && teamsData.length > 0) {
-          setSelectedTeamId(teamsData[0].id);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [ownerUid, selectedSeason, selectedCompetitionId, selectedTeamId, mainTeamId]);
+  const filteredMatches = useMemo(() => {
+    const allowedCompetitionIds = new Set(
+      competitions
+        .filter((c) => {
+          if (selectedSeason !== "all" && c.season !== selectedSeason) return false;
+          if (selectedCompetitionId !== "all" && c.id !== selectedCompetitionId) return false;
+          return true;
+        })
+        .map((c) => c.id)
+    );
+    return matches
+      .filter((m) => allowedCompetitionIds.has(m.competitionId))
+      .slice()
+      .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
+  }, [competitions, matches, selectedCompetitionId, selectedSeason]);
 
   const recordsByCompetition: CompetitionRecordRow[] = useMemo(() => {
     if (!selectedTeamId) return [];
 
     const byComp = new Map<string, CompetitionRecordRow>();
 
-    for (const match of matches) {
+    for (const match of filteredMatches) {
       const isHome = match.homeTeamId === selectedTeamId;
       const isAway = match.awayTeamId === selectedTeamId;
       if (!isHome && !isAway) continue;
@@ -238,7 +260,7 @@ function PublicCompetitionRecords({ ownerUid, mainTeamId }: PublicCompetitionRec
     }
 
     return Array.from(byComp.values()).sort((a, b) => a.competitionName.localeCompare(b.competitionName));
-  }, [matches, selectedTeamId]);
+  }, [filteredMatches, selectedTeamId]);
 
   return (
     <div className="py-6 space-y-4">
@@ -274,12 +296,7 @@ function PublicCompetitionRecords({ ownerUid, mainTeamId }: PublicCompetitionRec
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-10 text-muted-foreground">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          <span>集計中...</span>
-        </div>
-      ) : !selectedTeamId ? (
+      {!selectedTeamId ? (
         <div className="text-center py-10 text-muted-foreground">
           チームを選択すると大会ごとの成績が表示されます。
         </div>
@@ -393,96 +410,42 @@ function PublicCompetitionRecords({ ownerUid, mainTeamId }: PublicCompetitionRec
 }
 
 interface PublicPlayerStatsViewProps {
-  ownerUid: string;
+  teams: TeamOption[];
+  competitions: CompetitionDoc[];
+  players: PlayerRow[];
+  matches: any[];
   mainTeamId?: string | null;
 }
 
-function PublicPlayerStatsView({ ownerUid, mainTeamId }: PublicPlayerStatsViewProps) {
-  const [seasons, setSeasons] = useState<string[]>([]);
+function PublicPlayerStatsView({ teams, competitions, players, matches, mainTeamId }: PublicPlayerStatsViewProps) {
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
-  const [competitions, setCompetitions] = useState<{ id: string; name: string }[]>([]);
   const [selectedCompetition, setSelectedCompetition] = useState<string>("all");
-  const [players, setPlayers] = useState<
-    {
-      id: string;
-      name: string;
-      number?: string;
-      position?: string;
-      teamId?: string;
-    }[]
-  >([]);
   const [selectedTeam, setSelectedTeam] = useState<string>(mainTeamId || "all");
-  const [sortConfig, setSortConfig] = useState<{
-    key: keyof AggregatedPlayerStats;
-    direction: "asc" | "desc";
-  } | null>(null);
-
-  const { stats, loading: statsLoading } = usePlayerStats(
-    ownerUid,
-    selectedSeason || "all",
-    selectedCompetition
-  );
-
-  useEffect(() => {
-    if (!ownerUid) return;
-    const fetchCompetitions = async () => {
-      const comps: { id: string; name: string }[] = [];
-      const seasonSet = new Set<string>();
-      const querySnapshot = await getDocs(collection(db, `clubs/${ownerUid}/competitions`));
-      querySnapshot.forEach((doc) => {
-        const data = doc.data() as any;
-        comps.push({ id: doc.id, name: data.name });
-        if (data.season) {
-          seasonSet.add(data.season as string);
-        }
-      });
-      setCompetitions(comps);
-      if (seasonSet.size > 0) {
-        const seasonIds = Array.from(seasonSet).sort((a, b) => b.localeCompare(a));
-        setSeasons(seasonIds);
-      }
-    };
-    fetchCompetitions();
-  }, [ownerUid]);
-
-  useEffect(() => {
-    if (!ownerUid) return;
-    const fetchPlayers = async () => {
-      const resultPlayers: {
-        id: string;
-        name: string;
-        number?: string;
-        position?: string;
-        teamId?: string;
-      }[] = [];
-      const teamsSnapshot = await getDocs(collection(db, `clubs/${ownerUid}/teams`));
-      for (const teamDoc of teamsSnapshot.docs) {
-        if (mainTeamId && teamDoc.id !== mainTeamId) continue;
-        const playersSnapshot = await getDocs(
-          collection(db, `clubs/${ownerUid}/teams/${teamDoc.id}/players`)
-        );
-        playersSnapshot.forEach((pDoc) => {
-          const data = pDoc.data() as any;
-          resultPlayers.push({
-            id: pDoc.id,
-            name: data.name,
-            number: data.number,
-            position: data.position,
-            teamId: teamDoc.id,
-          });
-        });
-      }
-      resultPlayers.sort((a, b) => a.name.localeCompare(b.name));
-      setPlayers(resultPlayers);
-    };
-    fetchPlayers();
-  }, [ownerUid, mainTeamId]);
+  const [sortConfig, setSortConfig] = useState<{ key: keyof AggregatedPlayerStats; direction: "asc" | "desc" } | null>(null);
 
   useEffect(() => {
     if (mainTeamId) {
       setSelectedTeam(mainTeamId);
     }
   }, [mainTeamId]);
+
+  const seasons = useMemo(() => {
+    const set = new Set<string>();
+    competitions.forEach((c) => {
+      if (c.season && typeof c.season === "string" && c.season.trim() !== "") set.add(c.season);
+    });
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [competitions]);
+
+  const teamFilteredPlayers = useMemo(() => {
+    const base = mainTeamId ? players.filter((p) => p.teamId === mainTeamId) : players;
+    return selectedTeam === "all" ? base : base.filter((p) => p.teamId === selectedTeam);
+  }, [players, selectedTeam, mainTeamId]);
+
+  const stats = useMemo(
+    () => aggregatePlayerStats(matches, players, competitions, selectedSeason || "all", selectedCompetition),
+    [matches, players, competitions, selectedSeason, selectedCompetition]
+  );
 
   const filteredPlayersByTeam =
     selectedTeam === "all" ? players : players.filter((p) => p.teamId === selectedTeam);
@@ -538,21 +501,21 @@ function PublicPlayerStatsView({ ownerUid, mainTeamId }: PublicPlayerStatsViewPr
   return (
     <div className="space-y-6 py-6">
       <div className="flex flex-wrap gap-2 justify-end">
-        <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-          <SelectTrigger className="w-[180px] bg-white text-gray-900">
-            <SelectValue placeholder="シーズンを選択" />
+        <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+          <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900">
+            <SelectValue placeholder="チームを選択" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">すべてのシーズン</SelectItem>
-            {seasons.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
+            <SelectItem value="all">すべてのチーム</SelectItem>
+            {teams.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                {t.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
-          <SelectTrigger className="w-[180px] bg-white text-gray-900">
+          <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900">
             <SelectValue placeholder="大会を選択" />
           </SelectTrigger>
           <SelectContent>
@@ -566,52 +529,50 @@ function PublicPlayerStatsView({ ownerUid, mainTeamId }: PublicPlayerStatsViewPr
         </Select>
       </div>
 
-      {statsLoading ? (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
+      {sortedPlayers.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground">表示できる選手がいません。</div>
       ) : (
         <div className="overflow-x-auto rounded-lg border bg-white text-gray-900">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="p-3 text-left font-semibold w-1/3">選手</th>
-                <th
-                  className="p-3 text-center font-semibold cursor-pointer"
-                  onClick={() => requestSort("appearances")}
-                >
-                  出場 {renderSortArrow("appearances")}
-                </th>
-                <th
-                  className="p-3 text-center font-semibold cursor-pointer hidden sm:table-cell"
-                  onClick={() => requestSort("minutes")}
-                >
-                  分 {renderSortArrow("minutes")}
-                </th>
-                <th
-                  className="p-3 text-center font-semibold cursor-pointer"
-                  onClick={() => requestSort("goals")}
-                >
-                  G {renderSortArrow("goals")}
-                </th>
-                <th
-                  className="p-3 text-center font-semibold cursor-pointer"
-                  onClick={() => requestSort("assists")}
-                >
-                  A {renderSortArrow("assists")}
-                </th>
-                <th
-                  className="p-3 text-center font-semibold cursor-pointer hidden sm:table-cell"
-                  onClick={() => requestSort("yellowCards")}
-                >
-                  Y {renderSortArrow("yellowCards")}
-                </th>
-                <th
-                  className="p-3 text-center font-semibold cursor-pointer hidden sm:table-cell"
-                  onClick={() => requestSort("redCards")}
-                >
-                  R {renderSortArrow("redCards")}
-                </th>
+                <th className="p-2 sm:p-3 text-left font-semibold w-[45%]">選手</th>
+              <th
+                className="p-2 sm:p-3 text-center font-semibold cursor-pointer"
+                onClick={() => requestSort("appearances")}
+              >
+                出場 {renderSortArrow("appearances")}
+              </th>
+              <th
+                className="p-2 sm:p-3 text-center font-semibold cursor-pointer hidden sm:table-cell"
+                onClick={() => requestSort("minutes")}
+              >
+                分 {renderSortArrow("minutes")}
+              </th>
+              <th
+                className="p-2 sm:p-3 text-center font-semibold cursor-pointer"
+                onClick={() => requestSort("goals")}
+              >
+                G {renderSortArrow("goals")}
+              </th>
+              <th
+                className="p-2 sm:p-3 text-center font-semibold cursor-pointer"
+                onClick={() => requestSort("assists")}
+              >
+                A {renderSortArrow("assists")}
+              </th>
+              <th
+                className="p-2 sm:p-3 text-center font-semibold cursor-pointer hidden sm:table-cell"
+                onClick={() => requestSort("yellowCards")}
+              >
+                Y {renderSortArrow("yellowCards")}
+              </th>
+              <th
+                className="p-2 sm:p-3 text-center font-semibold cursor-pointer hidden sm:table-cell"
+                onClick={() => requestSort("redCards")}
+              >
+                R {renderSortArrow("redCards")}
+              </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -627,7 +588,7 @@ function PublicPlayerStatsView({ ownerUid, mainTeamId }: PublicPlayerStatsViewPr
                   };
                 return (
                   <tr key={player.id}>
-                    <td className="p-3 flex items-center gap-2 min-w-0">
+                    <td className="p-2 sm:p-3 flex items-center gap-2 min-w-0">
                       <span className="text-muted-foreground w-6 text-center shrink-0">{player.number}</span>
                       {player.position ? (
                         <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
@@ -636,12 +597,12 @@ function PublicPlayerStatsView({ ownerUid, mainTeamId }: PublicPlayerStatsViewPr
                       ) : null}
                       <span className="truncate whitespace-nowrap">{player.name}</span>
                     </td>
-                    <td className="p-3 text-center">{playerStats.appearances}</td>
-                    <td className="p-3 text-center hidden sm:table-cell">{playerStats.minutes}</td>
-                    <td className="p-3 text-center">{playerStats.goals}</td>
-                    <td className="p-3 text-center">{playerStats.assists}</td>
-                    <td className="p-3 text-center hidden sm:table-cell">{playerStats.yellowCards}</td>
-                    <td className="p-3 text-center hidden sm:table-cell">{playerStats.redCards}</td>
+                    <td className="p-2 sm:p-3 text-center">{playerStats.appearances}</td>
+                    <td className="p-2 sm:p-3 text-center hidden sm:table-cell">{playerStats.minutes}</td>
+                    <td className="p-2 sm:p-3 text-center">{playerStats.goals}</td>
+                    <td className="p-2 sm:p-3 text-center">{playerStats.assists}</td>
+                    <td className="p-2 sm:p-3 text-center hidden sm:table-cell">{playerStats.yellowCards}</td>
+                    <td className="p-2 sm:p-3 text-center hidden sm:table-cell">{playerStats.redCards}</td>
                   </tr>
                 );
               })}
@@ -662,6 +623,7 @@ export default function ClubStatsPage() {
   const [clubName, setClubName] = useState<string>("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
+  const [statsData, setStatsData] = useState<StatsDataResponse | null>(null);
 
   useEffect(() => {
     const fetchOwner = async () => {
@@ -669,23 +631,17 @@ export default function ClubStatsPage() {
       setLoadingOwner(true);
       setError(null);
       try {
-        const res = await fetch(`/api/club/${clubId}`);
+        const res = await fetch(`/api/club/${clubId}/stats-data`);
         if (!res.ok) {
           throw new Error("クラブ情報の取得に失敗しました");
         }
-        const data = await res.json();
-        const fromCompetitions = Array.isArray(data.competitions)
-          ? data.competitions[0]?.ownerUid
-          : null;
-        if (fromCompetitions) {
-          setOwnerUid(fromCompetitions);
-          const profile = (data as any).profile || {};
-          setClubName(profile.clubName || "");
-          setLogoUrl(profile.logoUrl ?? null);
-          setMainTeamId(typeof profile.mainTeamId === "string" ? profile.mainTeamId : null);
-        } else {
-          setError("クラブのオーナー情報が見つかりませんでした。");
-        }
+        const data = (await res.json()) as StatsDataResponse;
+        setOwnerUid(data.ownerUid);
+        setStatsData(data);
+        const profile = (data as any).profile || {};
+        setClubName(profile.clubName || "");
+        setLogoUrl(profile.logoUrl ?? null);
+        setMainTeamId(typeof (profile as any).mainTeamId === "string" ? (profile as any).mainTeamId : data.mainTeamId);
       } catch (e) {
         console.error(e);
         setError("クラブ情報の取得中にエラーが発生しました。");
@@ -715,7 +671,7 @@ export default function ClubStatsPage() {
           </div>
         ) : error ? (
           <div className="text-sm text-red-600 py-4">{error}</div>
-        ) : !ownerUid ? (
+        ) : !ownerUid || !statsData ? (
           <div className="text-sm text-muted-foreground py-4">
             クラブのオーナー情報が取得できませんでした。
           </div>
@@ -726,10 +682,21 @@ export default function ClubStatsPage() {
               <TabsTrigger value="players">選手成績</TabsTrigger>
             </TabsList>
             <TabsContent value="competitions" className="mt-4">
-              <PublicCompetitionRecords ownerUid={ownerUid} mainTeamId={mainTeamId} />
+              <PublicCompetitionRecords
+                teams={statsData.teams}
+                competitions={statsData.competitions}
+                matches={statsData.matches}
+                mainTeamId={mainTeamId}
+              />
             </TabsContent>
             <TabsContent value="players" className="mt-4">
-              <PublicPlayerStatsView ownerUid={ownerUid} mainTeamId={mainTeamId} />
+              <PublicPlayerStatsView
+                teams={statsData.teams}
+                competitions={statsData.competitions}
+                players={statsData.players}
+                matches={statsData.matches}
+                mainTeamId={mainTeamId}
+              />
             </TabsContent>
           </Tabs>
         )}

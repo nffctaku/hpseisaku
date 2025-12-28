@@ -6,10 +6,14 @@ import { ArrowUpDown, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
-export const columns = (openEditDialog: (player: Player) => void, setDeletingPlayer: (player: Player) => void): ColumnDef<Player>[] => [
+type PlayerRow = Player & { __raw?: Player };
+
+export const columns = (openEditDialog: (player: Player) => void, setDeletingPlayer: (player: Player) => void): ColumnDef<PlayerRow>[] => [
   {
     accessorKey: "number",
-    header: "背番号",
+    header: "No.",
+    size: 60,
+    minSize: 50,
     cell: ({ row }) => {
       const value = row.getValue<number | undefined>("number");
       return value != null ? value : "-";
@@ -23,42 +27,33 @@ export const columns = (openEditDialog: (player: Player) => void, setDeletingPla
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          名前
+          Name
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
     },
+    size: 220,
+    minSize: 160,
     cell: ({ row }) => {
       const player = row.original;
       return (
-        <span>{player.name}</span>
+        <span className="block whitespace-nowrap truncate max-w-[15ch]">{player.name}</span>
       );
     }
   },
   {
     accessorKey: "position",
-    header: "ポジション",
-  },
-  {
-    accessorKey: "nationality",
-    header: "国籍",
-  },
-  {
-    accessorKey: "height",
-    header: "身長(cm)",
-    cell: ({ row }) => {
-      const value = row.getValue<number | undefined>("height");
-      return value != null ? value : "-";
-    },
-  },
-  {
-    accessorKey: "age",
-    header: "年齢",
+    header: "POS",
+    size: 70,
+    minSize: 60,
   },
   {
     id: "actions",
+    size: 50,
+    minSize: 50,
     cell: ({ row }) => {
       const player = row.original
+      const raw = (player as any)?.__raw as Player | undefined;
  
       return (
         <DropdownMenu>
@@ -69,8 +64,8 @@ export const columns = (openEditDialog: (player: Player) => void, setDeletingPla
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-white text-gray-900">
-            <DropdownMenuItem onClick={() => openEditDialog(player)}>編集</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive" onClick={() => setDeletingPlayer(player)}>削除</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openEditDialog(raw || player)}>編集</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive" onClick={() => setDeletingPlayer(raw || player)}>削除</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )

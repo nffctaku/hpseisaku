@@ -16,6 +16,40 @@ export interface PlayerSnsLinks {
   instagram?: string;
 }
 
+export interface PlayerParameterItem {
+  label: string;
+  value?: number;
+}
+
+export interface PlayerParameters {
+  overall?: number;
+  items: PlayerParameterItem[];
+}
+
+export interface ManualCompetitionStat {
+  competitionId: string;
+  matches?: number;
+  minutes?: number;
+  goals?: number;
+  assists?: number;
+  yellowCards?: number;
+  redCards?: number;
+  avgRating?: number;
+}
+
+export interface PlayerSeasonData {
+  number?: number;
+  position?: "GK" | "DF" | "MF" | "FW";
+  nationality?: string;
+  age?: number;
+  height?: number;
+  photoUrl?: string;
+  snsLinks?: PlayerSnsLinks;
+  params?: PlayerParameters;
+  manualCompetitionStats?: ManualCompetitionStat[];
+  isPublished?: boolean;
+}
+
 export interface Player {
   id: string;
   name: string;
@@ -29,6 +63,8 @@ export interface Player {
   preferredFoot: 'left' | 'right' | 'both';
   photoUrl?: string;
   snsLinks?: PlayerSnsLinks;
+  params?: PlayerParameters;
+  manualCompetitionStats?: ManualCompetitionStat[];
   teamId: string;
   teamName: string;
   contractStartDate: string; // or Date
@@ -36,6 +72,10 @@ export interface Player {
   transfers?: Transfer[];
   // 所属シーズン（複数シーズンにまたがる場合もある）
   seasons?: string[];
+
+  // シーズン別の上書きデータ（選択シーズンの編集/表示に使用）
+  seasonData?: Record<string, PlayerSeasonData>;
+
   // HP に表示するかどうか（未設定は表示扱い）
   isPublished?: boolean;
 }

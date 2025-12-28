@@ -13,6 +13,7 @@ export interface UserProfile extends User {
   logoUrl?: string;
   layoutType?: string;
   plan?: string;
+  ownerUid?: string;
 }
 
 interface AuthContextType {
@@ -46,6 +47,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser({ ...authUser, ...profileData } as UserProfile);
       setClubProfileExists(true);
       console.log('[AuthContext] profile found by ownerUid, user set', { uid: authUser.uid, profileData });
+      return;
+    }
+
+    // 1.5 Admin user: find club_profiles where this uid is listed as an admin
+    const adminQ = query(collection(db, 'club_profiles'), where('admins', 'array-contains', authUser.uid));
+    const adminSnap = await getDocs(adminQ);
+    if (!adminSnap.empty) {
+      const adminDoc = adminSnap.docs[0];
+      const profileData = adminDoc.data() as any;
+      const ownerUid = (profileData?.ownerUid as string) || adminDoc.id;
+      setUser({ ...authUser, ...profileData, ownerUid } as UserProfile);
+      setClubProfileExists(true);
+      console.log('[AuthContext] profile found by admins, user set', { uid: authUser.uid, ownerUid, profileData });
       return;
     }
 

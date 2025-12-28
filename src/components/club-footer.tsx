@@ -29,84 +29,44 @@ interface ClubFooterProps {
 }
 
 export function ClubFooter({ clubId, sponsors = [], snsLinks = {}, legalPages = [] }: ClubFooterProps) {
-  const hasSns = Boolean(snsLinks.x || snsLinks.youtube || snsLinks.tiktok || snsLinks.instagram);
-  const hasLegal = Boolean(clubId && legalPages.length > 0);
-
-  if (sponsors.length === 0 && !hasSns && !hasLegal) return null;
-
   return (
-    <footer className="mt-12 border-t border-border bg-white">
-      <div className="container mx-auto px-4 py-8 space-y-8">
-        {sponsors.length > 0 && (
-          <div className="flex flex-col items-center gap-4">
-            <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">PARTNERS</span>
-            <div className="flex flex-wrap justify-center gap-4 md:gap-6">
-              {sponsors.map((sponsor, idx) => (
-                <Link
-                  key={idx}
-                  href={sponsor.linkUrl || "#"}
-                  target={sponsor.linkUrl ? "_blank" : undefined}
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center rounded-md bg-background p-1 shadow-sm border hover:shadow-md transition-shadow w-[160px] h-[72px]"
-                >
-                  {sponsor.imageUrl ? (
-                    <div className="relative w-full h-full">
-                      <Image
-                        src={sponsor.imageUrl}
-                        alt={`スポンサー${idx + 1}`}
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground">NO LOGO</span>
-                  )}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {hasSns && (
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex items-center gap-4">
-              {snsLinks.youtube && (
-                <Link href={snsLinks.youtube} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-background flex items-center justify-center text-foreground hover:bg-primary hover:text-primary-foreground transition-colors">
-                  <FaYoutube className="w-5 h-5" />
-                </Link>
-              )}
-              {snsLinks.x && (
-                <Link href={snsLinks.x} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-background flex items-center justify-center text-foreground hover:bg-primary hover:text-primary-foreground transition-colors">
-                  <FaXTwitter className="w-4 h-4" />
-                </Link>
-              )}
-              {snsLinks.tiktok && (
-                <Link href={snsLinks.tiktok} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-background flex items-center justify-center text-foreground hover:bg-primary hover:text-primary-foreground transition-colors">
-                  <FaTiktok className="w-4 h-4" />
-                </Link>
-              )}
-              {snsLinks.instagram && (
-                <Link href={snsLinks.instagram} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-background flex items-center justify-center text-foreground hover:bg-primary hover:text-primary-foreground transition-colors">
-                  <FaInstagram className="w-4 h-4" />
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
-
-        {hasLegal && clubId && (
-          <div className="border-t border-border/60 pt-4 flex flex-wrap justify-center gap-4 text-[11px] text-muted-foreground">
-            {legalPages.map((page, idx) => (
+    <footer className="mt-auto">
+      <div className="bg-gray-900 text-gray-300 w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]">
+        <div className="container mx-auto px-4 py-4 text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1">
               <Link
-                key={idx}
-                href={`/${clubId}/p/${page.slug}`}
-                className="hover:text-primary transition-colors"
+                href="https://www.footballtop.net/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors whitespace-nowrap"
               >
-                {page.title || page.slug}
+                利用規約
               </Link>
-            ))}
+              <Link
+                href="https://www.locofootball.com/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors whitespace-nowrap"
+              >
+                プライバシーポリシー
+              </Link>
+              <Link href="/tokusho" className="hover:text-white transition-colors whitespace-nowrap">
+                特定商取引法に基づく表記
+              </Link>
+            </div>
+            <div className="flex items-center justify-center sm:justify-end gap-2">
+              <span className="text-[10px] text-gray-400">Powered by</span>
+              <Image
+                src="/footballtop-logo-13 (1).png"
+                alt="footballtop"
+                width={120}
+                height={24}
+                className="h-5 w-auto"
+              />
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </footer>
   );

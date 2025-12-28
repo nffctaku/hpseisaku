@@ -35,6 +35,7 @@ interface StaffManagementProps {
 
 export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps) {
   const { user } = useAuth();
+  const clubUid = (user as any)?.ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [staff, setStaff] = useState<Staff[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -49,22 +50,49 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
   }, [staff, selectedSeason]);
 
   useEffect(() => {
-    if (!user || !teamId) return;
-    const staffColRef = collection(db, `clubs/${user.uid}/teams/${teamId}/staff`);
+    if (!clubUid || !teamId) return;
+    const staffColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/staff`);
     const q = query(staffColRef);
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const list = querySnapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as Staff));
-      setStaff(list);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const list = querySnapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as Staff));
+        setStaff(list);
+      },
+      (error) => {
+        const code = (error as any)?.code;
+        const message = (error as any)?.message;
+        console.error(
+          "[StaffManagement] staff onSnapshot error",
+          error,
+          {
+            code,
+            message,
+            errorString: String(error),
+            path: `clubs/${clubUid}/teams/${teamId}/staff`,
+            uid: clubUid,
+            teamId,
+          }
+        );
+        toast.error(
+          code === "permission-denied"
+            ? "スタッフデータの取得に失敗しました（permission-denied）。権限設定をご確認ください。"
+            : "スタッフデータの取得に失敗しました。",
+          {
+            id: "staff-onSnapshot-error",
+          }
+        );
+      }
+    );
 
     return () => unsubscribe();
-  }, [user, teamId]);
+  }, [clubUid, teamId]);
 
   const handleFormSubmit = async (values: StaffFormValues) => {
-    if (!user || !teamId) return;
+    if (!clubUid || !teamId) return;
     try {
-      const staffColRef = collection(db, `clubs/${user.uid}/teams/${teamId}/staff`);
+      const staffColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/staff`);
 
       const resolvedValues: StaffFormValues = editingStaff
         ? ({
@@ -98,9 +126,9 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
   };
 
   const handleDeleteStaff = async () => {
-    if (!user || !deletingStaff || !teamId) return;
+    if (!clubUid || !deletingStaff || !teamId) return;
     try {
-      const staffDocRef = doc(db, `clubs/${user.uid}/teams/${teamId}/staff`, deletingStaff.id);
+      const staffDocRef = doc(db, `clubs/${clubUid}/teams/${teamId}/staff`, deletingStaff.id);
       await deleteDoc(staffDocRef);
       toast.success("スタッフを削除しました。");
       setDeletingStaff(null);
