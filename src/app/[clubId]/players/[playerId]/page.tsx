@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
-import { GiWhistle, GiSoccerBall, GiNotebook } from "react-icons/gi";
 import { ClubFooter } from "@/components/club-footer";
+import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
+import { PublicPlayerOverallBySeasonChart } from "@/components/public-player-overall-by-season-chart";
+import { PublicPlayerSeasonSummaries } from "@/components/public-player-season-summaries";
 
 interface PlayerPageProps {
   params: { clubId: string; playerId: string };
@@ -13,29 +15,6 @@ interface PlayerPageProps {
 interface LegalPageItem {
   title: string;
   slug: string;
-}
-
-function SmallHexIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-      <polygon
-        points="12,2.5 20,7.1 20,16.9 12,21.5 4,16.9 4,7.1"
-        stroke="currentColor"
-        strokeWidth="2"
-        fill="none"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function SingleFootIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 64 64" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <path d="M32 6c-6 0-11 6-11 14 0 10 5 18 11 18s11-8 11-18C43 12 38 6 32 6z" />
-      <path d="M32 39c-5 0-9 5-9 11v6c0 2 2 4 4 4h10c2 0 4-2 4-4v-6c0-6-4-11-9-11z" />
-    </svg>
-  );
 }
 
 function toSlashSeason(season: string): string {
@@ -77,6 +56,59 @@ function toDashSeason(season: string): string {
 function seasonEquals(a: string, b: string): boolean {
   if (!a || !b) return false;
   return a === b || toSlashSeason(a) === toSlashSeason(b) || toDashSeason(a) === toDashSeason(b);
+}
+
+function getSeasonDataEntry(seasonData: any, seasonId: string): any {
+  if (!seasonData || typeof seasonData !== "object" || !seasonId) return undefined;
+  const slash = toSlashSeason(seasonId);
+  const dash = toDashSeason(seasonId);
+  return seasonData?.[seasonId] ?? seasonData?.[slash] ?? seasonData?.[dash] ?? undefined;
+}
+
+function scorePlayerDocForPublic(data: any): number {
+  if (!data || typeof data !== "object") return -1;
+  const seasonData = data?.seasonData && typeof data.seasonData === "object" ? (data.seasonData as any) : {};
+
+  const hasSeasonParams = Object.values(seasonData).some((sd: any) => {
+    const items = Array.isArray(sd?.params?.items) ? (sd.params.items as any[]) : [];
+    return (
+      (typeof sd?.params?.overall === "number" && Number.isFinite(sd.params.overall)) ||
+      items.some((i) => typeof (i as any)?.label === "string" && String((i as any).label).trim().length > 0) ||
+      items.some((i) => typeof (i as any)?.value === "number" && Number.isFinite((i as any).value))
+    );
+  });
+
+  const rootItems = Array.isArray(data?.params?.items) ? (data.params.items as any[]) : [];
+  const hasRootParams =
+    (typeof data?.params?.overall === "number" && Number.isFinite(data.params.overall)) ||
+    rootItems.some((i) => typeof (i as any)?.label === "string" && String((i as any).label).trim().length > 0) ||
+    rootItems.some((i) => typeof (i as any)?.value === "number" && Number.isFinite((i as any).value));
+
+  const seasons = Array.isArray(data?.seasons) ? (data.seasons as string[]) : [];
+  const latestSeason = seasons
+    .map((s) => (typeof s === "string" ? toSlashSeason(s.trim()) : ""))
+    .filter((s) => s.length > 0)
+    .sort((a, b) => b.localeCompare(a))[0];
+  const latestSeasonScore = latestSeason ? parseInt(latestSeason.slice(0, 4), 10) || 0 : 0;
+
+  return (hasSeasonParams ? 1_000_000 : 0) + (hasRootParams ? 100_000 : 0) + latestSeasonScore;
+}
+
+async function findBestPlayerDoc(ownerUid: string, playerId: string): Promise<any | null> {
+  const teamsSnap = await db.collection(`clubs/${ownerUid}/teams`).get();
+  let best: { score: number; data: any } | null = null;
+
+  for (const teamDoc of teamsSnap.docs) {
+    const playerSnap = await teamDoc.ref.collection("players").doc(playerId).get();
+    if (!playerSnap.exists) continue;
+    const data = playerSnap.data() as any;
+    const score = scorePlayerDocForPublic(data);
+    if (!best || score > best.score) {
+      best = { score, data };
+    }
+  }
+
+  return best?.data ?? null;
 }
 
 async function getRegisteredSeasonIds(ownerUid: string, playerId: string, playerSeasons: string[] | undefined): Promise<string[]> {
@@ -191,102 +223,28 @@ function clamp99(n: unknown): number {
   return Math.max(0, Math.min(99, n));
 }
 
+function toFiniteNumber(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (s.length === 0) return null;
+    const n = Number(s);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
 function computeOverall(items: PlayerParameterItem[] | undefined): number {
   const vals = (items || [])
     .map((i) => i?.value)
+    .map((v) => toFiniteNumber(v))
     .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
     .map((v) => clamp99(v));
   if (vals.length === 0) return 0;
   return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
 }
 
-function HexChart({
-  labels,
-  values,
-  overall,
-}: {
-  labels: string[];
-  values: number[];
-  overall: number;
-}) {
-  const size = 240;
-  const pad = 44;
-  const c = size / 2;
-  const r = 86;
-  const max = 99;
-  const angles = Array.from({ length: 6 }, (_, i) => (-Math.PI / 2) + (i * (Math.PI * 2)) / 6);
-
-  const outerPoints = angles.map((a) => `${c + r * Math.cos(a)},${c + r * Math.sin(a)}`).join(" ");
-
-  const valuePoints = angles
-    .map((a, i) => {
-      const rr = r * (clamp99(values[i] ?? 0) / max);
-      return `${c + rr * Math.cos(a)},${c + rr * Math.sin(a)}`;
-    })
-    .join(" ");
-
-  const labelPoints = angles.map((a) => {
-    const rr = r + 36;
-    return {
-      x: c + rr * Math.cos(a),
-      y: c + rr * Math.sin(a),
-      anchor: Math.abs(Math.cos(a)) < 0.2 ? "middle" : Math.cos(a) > 0 ? "start" : "end",
-    } as const;
-  });
-
-  return (
-    <svg width="100%" viewBox={`${-pad} ${-pad} ${size + pad * 2} ${size + pad * 2}`} className="max-w-[360px]">
-      <polygon points={outerPoints} fill="none" stroke="#E5E7EB" strokeWidth="2" />
-      {[0.2, 0.4, 0.6, 0.8].map((k) => (
-        <polygon
-          key={k}
-          points={angles
-            .map((a) => {
-              const rr = r * k;
-              return `${c + rr * Math.cos(a)},${c + rr * Math.sin(a)}`;
-            })
-            .join(" ")}
-          fill="none"
-          stroke="#F3F4F6"
-          strokeWidth="2"
-        />
-      ))}
-      {angles.map((a, idx) => (
-        <line
-          key={idx}
-          x1={c}
-          y1={c}
-          x2={c + r * Math.cos(a)}
-          y2={c + r * Math.sin(a)}
-          stroke="#F3F4F6"
-          strokeWidth="2"
-        />
-      ))}
-      <polygon points={valuePoints} fill="rgba(37,99,235,0.25)" stroke="#2563EB" strokeWidth="2" />
-      <text x={c} y={c - 6} textAnchor="middle" fontSize="12" fill="#6B7280">
-        総合
-      </text>
-      <text x={c} y={c + 24} textAnchor="middle" fontSize="32" fontWeight="700" fill="#111827">
-        {clamp99(overall)}
-      </text>
-      {labelPoints.map((p, i) => (
-        <text
-          key={i}
-          x={p.x}
-          y={p.y}
-          textAnchor={p.anchor}
-          dominantBaseline="middle"
-          fontSize="11"
-          fill="#111827"
-        >
-          {(labels[i] || "").slice(0, 8) || `項目${i + 1}`}
-        </text>
-      ))}
-    </svg>
-  );
-}
-
-async function getPlayerStats(ownerUid: string, playerId: string): Promise<PlayerStats> {
+async function getPlayerStats(ownerUid: string, playerId: string, targetSeason?: string | null): Promise<PlayerStats> {
   const aggregatedStats: PlayerStats = {
     appearances: 0,
     minutes: 0,
@@ -305,13 +263,53 @@ async function getPlayerStats(ownerUid: string, playerId: string): Promise<Playe
     string,
     { matches?: number; minutes?: number; goals?: number; assists?: number; yellowCards?: number; redCards?: number; avgRating?: number }
   >();
-  for (const teamDoc of (await db.collection(`clubs/${ownerUid}/teams`).get()).docs) {
-    const pSnap = await teamDoc.ref.collection("players").doc(playerId).get();
-    if (!pSnap.exists) continue;
-    const data = pSnap.data() as any;
-    const rows = Array.isArray(data?.manualCompetitionStats) ? data.manualCompetitionStats : [];
-    for (const r of rows) {
+  const playerData = await findBestPlayerDoc(ownerUid, playerId);
+  if (playerData) {
+    const seasonData = playerData?.seasonData && typeof playerData.seasonData === "object" ? (playerData.seasonData as any) : {};
+
+    // If we have a target season, prefer manual stats from that season only.
+    const selectedSeasonKey = typeof targetSeason === "string" && targetSeason.trim().length > 0 ? targetSeason.trim() : null;
+    if (selectedSeasonKey) {
+      const sd = getSeasonDataEntry(seasonData, selectedSeasonKey);
+      const rows = Array.isArray((sd as any)?.manualCompetitionStats) ? ((sd as any).manualCompetitionStats as any[]) : [];
+      for (const r of rows) {
+        if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
+          manualStatsMap.set(r.competitionId, {
+            matches: typeof r.matches === "number" ? r.matches : undefined,
+            minutes: typeof r.minutes === "number" ? r.minutes : undefined,
+            goals: typeof r.goals === "number" ? r.goals : undefined,
+            assists: typeof r.assists === "number" ? r.assists : undefined,
+            yellowCards: typeof r.yellowCards === "number" ? r.yellowCards : undefined,
+            redCards: typeof r.redCards === "number" ? r.redCards : undefined,
+            avgRating: typeof r.avgRating === "number" ? r.avgRating : undefined,
+          });
+        }
+      }
+    } else {
+      // No season specified: include all seasons (legacy behavior)
+      for (const sd of Object.values(seasonData)) {
+        const rows = Array.isArray((sd as any)?.manualCompetitionStats) ? ((sd as any).manualCompetitionStats as any[]) : [];
+        for (const r of rows) {
+          if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
+            manualStatsMap.set(r.competitionId, {
+              matches: typeof r.matches === "number" ? r.matches : undefined,
+              minutes: typeof r.minutes === "number" ? r.minutes : undefined,
+              goals: typeof r.goals === "number" ? r.goals : undefined,
+              assists: typeof r.assists === "number" ? r.assists : undefined,
+              yellowCards: typeof r.yellowCards === "number" ? r.yellowCards : undefined,
+              redCards: typeof r.redCards === "number" ? r.redCards : undefined,
+              avgRating: typeof r.avgRating === "number" ? r.avgRating : undefined,
+            });
+          }
+        }
+      }
+    }
+
+    // Legacy schema fallback: manualCompetitionStats at root (only fill if not already present)
+    const legacyRows = Array.isArray(playerData?.manualCompetitionStats) ? (playerData.manualCompetitionStats as any[]) : [];
+    for (const r of legacyRows) {
       if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
+        if (manualStatsMap.has(r.competitionId)) continue;
         manualStatsMap.set(r.competitionId, {
           matches: typeof r.matches === "number" ? r.matches : undefined,
           minutes: typeof r.minutes === "number" ? r.minutes : undefined,
@@ -323,10 +321,16 @@ async function getPlayerStats(ownerUid: string, playerId: string): Promise<Playe
         });
       }
     }
-    break;
   }
 
+  const normalizedTargetSeason = typeof targetSeason === "string" && targetSeason.trim().length > 0 ? targetSeason.trim() : null;
+
   for (const competitionDoc of competitionsSnap.docs) {
+    const competitionData = competitionDoc.data() as any;
+    const competitionSeason = typeof competitionData?.season === "string" ? competitionData.season : null;
+    if (normalizedTargetSeason && competitionSeason && !seasonEquals(competitionSeason, normalizedTargetSeason)) {
+      continue;
+    }
     const manual = manualStatsMap.get(competitionDoc.id);
     const roundsRef = competitionDoc.ref.collection('rounds');
     const roundsSnap = await roundsRef.get();
@@ -638,19 +642,14 @@ async function getPlayer(
     return null;
   }
 
-  // 管理画面と同様に、全チームの players サブコレクションから選手を探す
-  const teamsSnap = await db.collection(`clubs/${ownerUid}/teams`).get();
-  for (const teamDoc of teamsSnap.docs) {
-    const playerDocRef = teamDoc.ref.collection("players").doc(playerId);
-    const playerSnap = await playerDocRef.get();
-    if (playerSnap.exists) {
-      return {
-        clubName,
-        player: playerSnap.data() as PlayerData,
-        ownerUid,
-        legalPages,
-      };
-    }
+  const player = await findBestPlayerDoc(ownerUid, playerId);
+  if (player) {
+    return {
+      clubName,
+      player: player as PlayerData,
+      ownerUid,
+      legalPages,
+    };
   }
 
   return null;
@@ -666,8 +665,15 @@ export default async function PlayerPage({
   if (!result) return notFound();
 
   const { clubName, player, ownerUid, legalPages } = result;
-  const stats = await getPlayerStats(ownerUid, playerId);
   const registeredSeasonIds = await getRegisteredSeasonIds(ownerUid, playerId, (player as any)?.seasons);
+
+  const statsSeason = (() => {
+    const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
+    candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
+    return candidates.length > 0 ? candidates[0] : null;
+  })();
+  const stats = await getPlayerStats(ownerUid, playerId, statsSeason);
+  const careerStats = await getPlayerStats(ownerUid, playerId, null);
   const legacyManualCompetitionStats = Array.isArray((player as any)?.manualCompetitionStats)
     ? ((player as any).manualCompetitionStats as any[])
     : [];
@@ -694,7 +700,7 @@ export default async function PlayerPage({
   const overallBySeason = new Map<string, number | null>();
   for (const seasonId of registeredSeasonIds) {
     const slash = toSlashSeason(seasonId);
-    const sd = (seasonData as any)?.[seasonId] || (seasonData as any)?.[slash] || undefined;
+    const sd = getSeasonDataEntry(seasonData as any, seasonId);
     const items = Array.isArray((sd as any)?.params?.items) ? ((sd as any).params.items as any[]) : undefined;
     const manualOverall = (sd as any)?.params?.overall;
     const overallVal =
@@ -704,31 +710,71 @@ export default async function PlayerPage({
     overallBySeason.set(slash, overallVal > 0 ? overallVal : null);
   }
 
+  const overallSeries = (() => {
+    const seasons = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
+    seasons.sort((a, b) => toSlashSeason(a).localeCompare(toSlashSeason(b)));
+    return seasons.map((seasonId) => {
+      const slash = toSlashSeason(seasonId);
+      return {
+        season: slash,
+        overall: overallBySeason.get(slash) ?? null,
+      };
+    });
+  })();
+
   const seasonSummaries =
     registeredSeasonIds.length > 0
       ? await getPlayerSeasonSummaries(ownerUid, playerId, registeredSeasonIds, manualCompetitionStatsBySeason, legacyManualByCompetitionId, overallBySeason)
       : [];
 
-  const paramItems = Array.isArray(player?.params?.items) ? player.params!.items : [];
+  const latestSeasonKeyForParams = (() => {
+    const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
+    candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
+    for (const seasonId of candidates) {
+      const sd = getSeasonDataEntry(seasonData as any, seasonId);
+      const items = Array.isArray((sd as any)?.params?.items) ? ((sd as any).params.items as any[]) : [];
+      const hasAny =
+        (toFiniteNumber((sd as any)?.params?.overall) != null) ||
+        items.some((i) => typeof (i as any)?.label === "string" && String((i as any).label).trim().length > 0) ||
+        items.some((i) => toFiniteNumber((i as any)?.value) != null);
+      if (hasAny) return seasonId;
+    }
+    return candidates.length > 0 ? candidates[0] : null;
+  })();
+
+  const seasonParams = (() => {
+    if (!latestSeasonKeyForParams) return undefined;
+    const sd = getSeasonDataEntry(seasonData as any, latestSeasonKeyForParams);
+    return (sd as any)?.params;
+  })();
+
+  const paramItems = Array.isArray((seasonParams as any)?.items)
+    ? ((seasonParams as any).items as any[])
+    : Array.isArray(player?.params?.items)
+      ? player.params!.items
+      : [];
   const filledItems = Array.from({ length: 6 }, (_, i) => {
     const item = paramItems?.[i] as any;
     return {
       label: typeof item?.label === "string" ? item.label.slice(0, 8) : "",
-      value: typeof item?.value === "number" && Number.isFinite(item.value) ? clamp99(item.value) : 0,
+      value: toFiniteNumber(item?.value) != null ? clamp99(toFiniteNumber(item?.value)) : 0,
     };
   });
-  const paramLabels = filledItems.map((i) => i.label);
+  const defaultParamLabels = ["PAC", "SHO", "PAS", "DRI", "DEF", "PHY"];
+  const paramLabels = filledItems.map((i, idx) => (i.label && i.label.trim().length > 0 ? i.label : defaultParamLabels[idx]));
   const paramValues = filledItems.map((i) => i.value);
   const overall =
-    typeof player?.params?.overall === "number" && Number.isFinite(player.params.overall)
-      ? clamp99(player.params.overall)
-      : computeOverall(paramItems);
+    toFiniteNumber((seasonParams as any)?.overall) != null
+      ? clamp99(toFiniteNumber((seasonParams as any).overall))
+      : toFiniteNumber(player?.params?.overall) != null
+        ? clamp99(toFiniteNumber(player?.params?.overall))
+        : computeOverall(paramItems);
   const hasParams =
     (Array.isArray(paramItems)
       ? paramItems.some((i) => (typeof (i as any)?.label === "string" && ((i as any).label as string).trim().length > 0)) ||
-        paramItems.some((i) => typeof (i as any)?.value === "number" && Number.isFinite((i as any).value))
+        paramItems.some((i) => toFiniteNumber((i as any)?.value) != null)
       : false) ||
-    (typeof player?.params?.overall === "number" && Number.isFinite(player.params.overall));
+    ((toFiniteNumber((seasonParams as any)?.overall) != null) || (toFiniteNumber(player?.params?.overall) != null));
 
   const snsLinks = player.snsLinks || {};
   const snsEntries = [
@@ -749,238 +795,158 @@ export default async function PlayerPage({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-1">
-          <div className="relative aspect-[4/5] rounded-lg border bg-card overflow-hidden">
-            {player.photoUrl ? (
-              <Image
-                src={player.photoUrl}
-                alt={player.name}
-                fill
-                sizes="(max-width: 768px) 100vw, 33vw"
-                className="object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+              <div className="md:col-span-1">
+                <div className="relative aspect-[4/5] rounded-lg border bg-card overflow-hidden">
+                  {player.photoUrl ? (
+                    <Image
+                      src={player.photoUrl}
+                      alt={player.name}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+                      <p className="text-7xl font-black text-primary tracking-tighter">{player.number}</p>
+                      <h1 className="mt-4 text-3xl font-bold uppercase text-center break-words">{player.name}</h1>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
                 <p className="text-7xl font-black text-primary tracking-tighter">{player.number}</p>
-                <h1 className="mt-4 text-3xl font-bold uppercase text-center break-words">{player.name}</h1>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="md:col-span-2">
-          <p className="text-7xl font-black text-primary tracking-tighter">{player.number}</p>
-          <h1 className="text-5xl font-bold uppercase mt-2">{player.name}</h1>
-          {player.nationality && <p className="text-xl text-muted-foreground mt-2">{player.nationality}</p>}
-          <p className="text-2xl text-muted-foreground mt-1">{player.position}</p>
+                <h1 className="text-5xl font-bold uppercase mt-2">{player.name}</h1>
+                {player.nationality && <p className="text-xl text-muted-foreground mt-2">{player.nationality}</p>}
+                <p className="text-2xl text-muted-foreground mt-1">{player.position}</p>
 
-          {snsEntries.length > 0 && (
-            <div className="mt-6 flex flex-wrap gap-2">
-              {snsEntries.map((e) => {
-                const Icon =
-                  e.key === "x"
-                    ? FaXTwitter
-                    : e.key === "youtube"
-                      ? FaYoutube
-                      : e.key === "tiktok"
-                        ? FaTiktok
-                        : FaInstagram;
+                {snsEntries.length > 0 && (
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    {snsEntries.map((e) => {
+                      const Icon =
+                        e.key === "x"
+                          ? FaXTwitter
+                          : e.key === "youtube"
+                            ? FaYoutube
+                            : e.key === "tiktok"
+                              ? FaTiktok
+                              : FaInstagram;
 
-                return (
-                  <a
-                    key={e.key}
-                    href={e.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={e.label}
-                    title={e.label}
-                    className="w-9 h-9 rounded-full bg-background flex items-center justify-center text-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
-                  >
-                    <Icon className={e.key === "youtube" ? "w-5 h-5" : "w-4 h-4"} />
-                  </a>
-                );
-              })}
-            </div>
-          )}
-          
-          <div className="mt-8 grid grid-cols-2 gap-4 text-center">
-            <div className="border rounded-lg p-4">
-              <p className="text-sm text-muted-foreground">身長</p>
-              <p className="text-2xl font-bold">{player.height ? `${player.height} cm` : 'N/A'}</p>
-            </div>
-            <div className="border rounded-lg p-4">
-              <p className="text-sm text-muted-foreground">年齢</p>
-              <p className="text-2xl font-bold">{player.age ? `${player.age} 歳` : 'N/A'}</p>
-            </div>
-          </div>
-
-          {player.profile && (
-            <div className="mt-8">
-              <h2 className="text-xl font-bold">プロフィール</h2>
-              <p className="mt-2 text-muted-foreground whitespace-pre-wrap">{player.profile}</p>
-            </div>
-          )}
-
-          {/* Stats Section */}
-          <div className="mt-8">
-            <h2 className="text-xl font-bold mb-4">シーズンスタッツ</h2>
-            <div className="overflow-x-auto">
-              <div className="grid grid-cols-6 gap-2 min-w-[420px] text-center">
-                <div className="border rounded-md p-2">
-                  <p className="text-[10px] text-muted-foreground">試合数</p>
-                  <p className="text-xl font-bold tabular-nums">{stats.appearances}</p>
-                </div>
-                <div className="border rounded-md p-2">
-                  <p className="text-[10px] text-muted-foreground">出場時間</p>
-                  <p className="text-xl font-bold tabular-nums">{stats.minutes}</p>
-                </div>
-                <div className="border rounded-md p-2">
-                  <p className="text-[10px] text-muted-foreground">ゴール</p>
-                  <p className="text-xl font-bold tabular-nums">{stats.goals}</p>
-                </div>
-                <div className="border rounded-md p-2">
-                  <p className="text-[10px] text-muted-foreground">アシスト</p>
-                  <p className="text-xl font-bold tabular-nums">{stats.assists}</p>
-                </div>
-                <div className="border rounded-md p-2">
-                  <p className="text-[10px] text-muted-foreground">警告</p>
-                  <p className="text-xl font-bold tabular-nums">{stats.yellowCards}</p>
-                </div>
-                <div className="border rounded-md p-2">
-                  <p className="text-[10px] text-muted-foreground">退場</p>
-                  <p className="text-xl font-bold tabular-nums">{stats.redCards}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {hasParams && (
-            <div className="mt-8">
-              <h2 className="text-xl font-bold mb-4">パラメーター</h2>
-              <div className="flex flex-col items-center gap-4 rounded-lg border p-4">
-                <HexChart labels={paramLabels} values={paramValues} overall={overall} />
-              </div>
-              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {filledItems.map((item, idx) => (
-                  <div key={idx} className="border rounded-lg p-3 text-center">
-                    <p className="text-sm text-muted-foreground break-words">{item.label || `項目${idx + 1}`}</p>
-                    <p className="text-2xl font-bold">{item.value ?? 0}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {seasonSummaries.length > 0 && (
-            <div className="mt-8">
-              <div className="flex items-end justify-between gap-3">
-                <h2 className="text-xl font-bold">シーズン別成績</h2>
-              </div>
-              <div className="mt-4 overflow-x-auto rounded-lg border">
-                <div className="w-full min-w-[360px]">
-                  <div className="grid grid-cols-6 items-center bg-muted/30">
-                    <div className="p-1.5 text-left text-[10px] text-muted-foreground font-medium whitespace-nowrap">シーズン</div>
-                    <div className="p-1.5 text-center text-[10px] text-muted-foreground font-medium whitespace-nowrap" title="試合数" aria-label="試合数">
-                      <GiWhistle className="w-4 h-4 inline-block" />
-                    </div>
-                    <div className="p-1.5 text-center text-[10px] text-muted-foreground font-medium whitespace-nowrap" title="ゴール数" aria-label="ゴール数">
-                      <GiSoccerBall className="w-4 h-4 inline-block" />
-                    </div>
-                    <div className="p-1.5 text-center text-[10px] text-muted-foreground font-medium whitespace-nowrap" title="アシスト数" aria-label="アシスト数">
-                      <SingleFootIcon className="w-5 h-5 inline-block" />
-                    </div>
-                    <div className="p-1.5 text-center text-[10px] text-muted-foreground font-medium whitespace-nowrap" title="評価点" aria-label="評価点">
-                      <GiNotebook className="w-4 h-4 inline-block" />
-                    </div>
-                    <div className="p-1.5 text-center text-[10px] text-muted-foreground font-medium whitespace-nowrap" title="総合値" aria-label="総合値">
-                      <SmallHexIcon className="w-4 h-4 inline-block" />
-                    </div>
-                  </div>
-
-                  <div className="divide-y">
-                    {seasonSummaries.map((row) => {
-                      const comps = Array.isArray(row.competitions) ? row.competitions : [];
-                      const hasBreakdown = row.hasStats && comps.length > 0;
                       return (
-                        <details key={row.season} className="group bg-background">
-                          <summary className="list-none cursor-pointer select-none">
-                            <div className="grid grid-cols-6 items-center">
-                              <div className="p-1.5">
-                                <div className="flex items-center gap-1">
-                                  <span
-                                    className={
-                                      hasBreakdown
-                                        ? "text-[10px] text-muted-foreground group-open:rotate-180 transition-transform"
-                                        : "text-[10px] text-muted-foreground opacity-40"
-                                    }
-                                  >
-                                    ▾
-                                  </span>
-                                  <span className="text-[11px] font-medium">{row.season}</span>
-                                </div>
-                              </div>
-                              <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.matches : "-"}</div>
-                              <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.goals : "-"}</div>
-                              <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.assists : "-"}</div>
-                              <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
-                                {row.hasStats ? (row.avgRating == null ? "-" : row.avgRating.toFixed(1)) : "-"}
-                              </div>
-                              <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? (row.overall == null ? "-" : row.overall) : "-"}</div>
-                            </div>
-                          </summary>
-
-                          {hasBreakdown ? (
-                            <div className="px-1.5 pb-2">
-                              <div className="rounded-md border bg-muted/10">
-                                <table className="w-full">
-                                  <thead className="bg-muted/20">
-                                    <tr>
-                                      <th className="p-1.5 text-left text-[10px] text-muted-foreground font-medium">大会</th>
-                                      <th className="p-1.5 text-center text-[10px] text-muted-foreground font-medium" title="試合数" aria-label="試合数">
-                                        <GiWhistle className="w-4 h-4 inline-block" />
-                                      </th>
-                                      <th className="p-1.5 text-center text-[10px] text-muted-foreground font-medium" title="ゴール数" aria-label="ゴール数">
-                                        <GiSoccerBall className="w-4 h-4 inline-block" />
-                                      </th>
-                                      <th className="p-1.5 text-center text-[10px] text-muted-foreground font-medium" title="アシスト数" aria-label="アシスト数">
-                                        <SingleFootIcon className="w-5 h-5 inline-block" />
-                                      </th>
-                                      <th className="p-1.5 text-center text-[10px] text-muted-foreground font-medium" title="評価点" aria-label="評価点">
-                                        <GiNotebook className="w-4 h-4 inline-block" />
-                                      </th>
-                                      <th className="p-1.5 text-center text-[10px] text-muted-foreground font-medium" title="総合値" aria-label="総合値">
-                                        <SmallHexIcon className="w-4 h-4 inline-block" />
-                                      </th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y">
-                                    {comps.map((c) => (
-                                      <tr key={c.competitionId} className="bg-background">
-                                        <td className="p-1.5 text-[11px] font-medium">{c.competitionName}</td>
-                                        <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? c.matches : "-"}</td>
-                                        <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? c.goals : "-"}</td>
-                                        <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? c.assists : "-"}</td>
-                                        <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
-                                          {c.hasStats ? (c.avgRating == null ? "-" : c.avgRating.toFixed(1)) : "-"}
-                                        </td>
-                                        <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? (c.overall == null ? "-" : c.overall) : "-"}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          ) : null}
-                        </details>
+                        <a
+                          key={e.key}
+                          href={e.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={e.label}
+                          title={e.label}
+                          className="w-9 h-9 rounded-full bg-background flex items-center justify-center text-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                        >
+                          <Icon className={e.key === "youtube" ? "w-5 h-5" : "w-4 h-4"} />
+                        </a>
                       );
                     })}
                   </div>
+                )}
+
+                <div className="mt-8 grid grid-cols-2 gap-4 text-center">
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground">身長</p>
+                    <p className="text-2xl font-bold">{player.height ? `${player.height} cm` : "N/A"}</p>
+                  </div>
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground">年齢</p>
+                    <p className="text-2xl font-bold">{player.age ? `${player.age} 歳` : "N/A"}</p>
+                  </div>
                 </div>
+
+                {player.profile && (
+                  <div className="mt-8">
+                    <h2 className="text-xl font-bold">プロフィール</h2>
+                    <p className="mt-2 text-muted-foreground whitespace-pre-wrap">{player.profile}</p>
+                  </div>
+                )}
+
+                {/* Stats Section */}
+                <div className="mt-8">
+                  <h2 className="text-xl font-bold mb-4">シーズンスタッツ</h2>
+                  {statsSeason && <p className="text-xs text-muted-foreground mb-2">{toSlashSeason(statsSeason)} シーズン</p>}
+                  <div className="overflow-x-auto">
+                    <div className="grid grid-cols-6 gap-2 min-w-[420px] text-center">
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">試合数</p>
+                        <p className="text-xl font-bold tabular-nums">{stats.appearances}</p>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">出場時間</p>
+                        <p className="text-xl font-bold tabular-nums">{stats.minutes}</p>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">ゴール</p>
+                        <p className="text-xl font-bold tabular-nums">{stats.goals}</p>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">アシスト</p>
+                        <p className="text-xl font-bold tabular-nums">{stats.assists}</p>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">警告</p>
+                        <p className="text-xl font-bold tabular-nums">{stats.yellowCards}</p>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">退場</p>
+                        <p className="text-xl font-bold tabular-nums">{stats.redCards}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <h2 className="text-xl font-bold mb-4">通算スタッツ</h2>
+                  <div className="overflow-x-auto">
+                    <div className="grid grid-cols-6 gap-2 min-w-[420px] text-center">
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">試合数</p>
+                        <p className="text-xl font-bold tabular-nums">{careerStats.appearances}</p>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">出場時間</p>
+                        <p className="text-xl font-bold tabular-nums">{careerStats.minutes}</p>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">ゴール</p>
+                        <p className="text-xl font-bold tabular-nums">{careerStats.goals}</p>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">アシスト</p>
+                        <p className="text-xl font-bold tabular-nums">{careerStats.assists}</p>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">警告</p>
+                        <p className="text-xl font-bold tabular-nums">{careerStats.yellowCards}</p>
+                      </div>
+                      <div className="border rounded-md p-2">
+                        <p className="text-[10px] text-muted-foreground">退場</p>
+                        <p className="text-xl font-bold tabular-nums">{careerStats.redCards}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8">
+                  <h2 className="text-xl font-bold mb-4">パラメーター</h2>
+                  <div className="flex flex-col items-center gap-4 rounded-lg border p-4">
+                    <PublicPlayerHexChart labels={paramLabels} values={paramValues} overall={overall} />
+                    <div className="w-full max-w-[520px]">
+                      <PublicPlayerOverallBySeasonChart data={overallSeries} />
+                    </div>
+                  </div>
+                  {!hasParams && <p className="mt-3 text-xs text-muted-foreground">パラメーター未登録</p>}
+                </div>
+
+                <PublicPlayerSeasonSummaries rows={seasonSummaries as any} />
               </div>
             </div>
-          )}
-        </div>
-      </div>
-
         </div>
       </div>
 

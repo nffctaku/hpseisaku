@@ -296,30 +296,25 @@ export function RecordManagement() {
               <TableRow>
                 <TableHead>大会</TableHead>
                 <TableHead>シーズン</TableHead>
+                <TableHead className="text-right">順位</TableHead>
                 <TableHead className="text-right">試合</TableHead>
                 <TableHead className="text-right">勝</TableHead>
                 <TableHead className="text-right">分</TableHead>
                 <TableHead className="text-right">敗</TableHead>
                 <TableHead className="text-right">得点</TableHead>
                 <TableHead className="text-right">失点</TableHead>
-                <TableHead className="text-right">得失点</TableHead>
-                <TableHead className="text-right">シュート</TableHead>
-                <TableHead className="text-right">枠内S</TableHead>
-                <TableHead className="text-right">支配率(平均)</TableHead>
+                <TableHead className="text-right">±</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recordsByCompetition.map(row => {
+              {recordsByCompetition.map((row, idx) => {
                 const goalDiff = row.goalsFor - row.goalsAgainst;
-                const possessionDisplay =
-                  typeof row.possessionAvg === 'number'
-                    ? `${row.possessionAvg.toFixed(1)}%`
-                    : '-';
 
                 return (
                   <TableRow key={row.competitionId}>
                     <TableCell>{row.competitionName}</TableCell>
                     <TableCell>{row.competitionSeason || '-'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{idx + 1}</TableCell>
                     <TableCell className="text-right">{row.matches}</TableCell>
                     <TableCell className="text-right">{row.wins}</TableCell>
                     <TableCell className="text-right">{row.draws}</TableCell>
@@ -327,9 +322,6 @@ export function RecordManagement() {
                     <TableCell className="text-right">{row.goalsFor}</TableCell>
                     <TableCell className="text-right">{row.goalsAgainst}</TableCell>
                     <TableCell className="text-right">{goalDiff}</TableCell>
-                    <TableCell className="text-right">{row.shots ?? '-'}</TableCell>
-                    <TableCell className="text-right">{row.shotsOnTarget ?? '-'}</TableCell>
-                    <TableCell className="text-right">{possessionDisplay}</TableCell>
                   </TableRow>
                 );
               })}
@@ -343,12 +335,6 @@ export function RecordManagement() {
                     acc.losses += row.losses;
                     acc.goalsFor += row.goalsFor;
                     acc.goalsAgainst += row.goalsAgainst;
-                    if (typeof row.shots === 'number') acc.shots += row.shots;
-                    if (typeof row.shotsOnTarget === 'number') acc.shotsOnTarget += row.shotsOnTarget;
-                    if (typeof row.possessionAvg === 'number') {
-                      acc.possessionSum += row.possessionAvg;
-                      acc.possessionCount += 1;
-                    }
                     return acc;
                   },
                   {
@@ -358,27 +344,16 @@ export function RecordManagement() {
                     losses: 0,
                     goalsFor: 0,
                     goalsAgainst: 0,
-                    shots: 0,
-                    shotsOnTarget: 0,
-                    possessionSum: 0,
-                    possessionCount: 0,
                   }
                 );
 
                 const totalGoalDiff = totals.goalsFor - totals.goalsAgainst;
-                const totalPossessionAvg =
-                  totals.possessionCount > 0
-                    ? totals.possessionSum / totals.possessionCount
-                    : undefined;
-                const totalPossessionDisplay =
-                  typeof totalPossessionAvg === 'number'
-                    ? `${totalPossessionAvg.toFixed(1)}%`
-                    : '-';
 
                 return (
                   <TableRow className="font-semibold bg-gray-50">
                     <TableCell>合計</TableCell>
                     <TableCell>-</TableCell>
+                    <TableCell className="text-right">-</TableCell>
                     <TableCell className="text-right">{totals.matches}</TableCell>
                     <TableCell className="text-right">{totals.wins}</TableCell>
                     <TableCell className="text-right">{totals.draws}</TableCell>
@@ -386,9 +361,6 @@ export function RecordManagement() {
                     <TableCell className="text-right">{totals.goalsFor}</TableCell>
                     <TableCell className="text-right">{totals.goalsAgainst}</TableCell>
                     <TableCell className="text-right">{totalGoalDiff}</TableCell>
-                    <TableCell className="text-right">{totals.shots || '-'}</TableCell>
-                    <TableCell className="text-right">{totals.shotsOnTarget || '-'}</TableCell>
-                    <TableCell className="text-right">{totalPossessionDisplay}</TableCell>
                   </TableRow>
                 );
               })()}

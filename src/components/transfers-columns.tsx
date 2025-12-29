@@ -32,6 +32,14 @@ export const transferColumns = (
 
   return [
     {
+      accessorKey: "kind",
+      header: "種類",
+      cell: ({ row }) => {
+        const v = (row.original as any).kind as string | undefined;
+        return v && v.length > 0 ? v : "完全";
+      },
+    },
+    {
       accessorKey: "playerName",
       header: "選手名",
       cell: ({ row }) => <span>{row.original.playerName}</span>,

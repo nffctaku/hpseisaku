@@ -29,6 +29,7 @@ interface EnrichedMatch {
   id: string;
   competitionId: string;
   competitionName: string;
+  competitionSeason?: string;
   roundId: string;
   roundName: string;
   matchDate: string;
@@ -48,6 +49,7 @@ export default function MatchesPage() {
   const [allMatches, setAllMatches] = useState<EnrichedMatch[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [competitions, setCompetitions] = useState<CompetitionOption[]>([]);
+  const [selectedSeason, setSelectedSeason] = useState<string>('all');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -100,6 +102,7 @@ export default function MatchesPage() {
                 id: matchDoc.id,
                 competitionId: compDoc.id,
                 competitionName: competitionData.name,
+                competitionSeason: competitionData.season,
                 roundId: roundDoc.id,
                 roundName: roundData.name,
                 matchDate: matchData.matchDate,
@@ -163,9 +166,28 @@ export default function MatchesPage() {
   };
 
   const filteredMatches = allMatches.filter(match => 
+    (selectedSeason === 'all' || match.competitionSeason === selectedSeason) &&
     (selectedTeamId === 'all' || match.homeTeamId === selectedTeamId || match.awayTeamId === selectedTeamId) &&
     (selectedCompetitionId === 'all' || match.competitionId === selectedCompetitionId)
   );
+
+  const seasons = ['all', ...Array.from(new Set(competitions.map((c) => c.season).filter((s): s is string => typeof s === 'string' && s.length > 0)))].sort((a, b) => {
+    if (a === 'all') return 1;
+    if (b === 'all') return -1;
+    return String(b).localeCompare(String(a));
+  });
+
+  const visibleCompetitions = selectedSeason === 'all'
+    ? competitions
+    : competitions.filter((c) => c.season === selectedSeason);
+
+  useEffect(() => {
+    if (selectedCompetitionId === 'all') return;
+    const isVisible = visibleCompetitions.some((c) => c.id === selectedCompetitionId);
+    if (!isVisible) {
+      setSelectedCompetitionId('all');
+    }
+  }, [selectedSeason, selectedCompetitionId, visibleCompetitions]);
 
   const groupedMatches = filteredMatches.reduce((acc, match) => {
     const dateGroup = getFormattedDateGroup(match.matchDate);
@@ -187,13 +209,26 @@ export default function MatchesPage() {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">試合日程・結果</h1>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 flex-1">
+            <Select value={selectedSeason} onValueChange={setSelectedSeason}>
+              <SelectTrigger className="w-full sm:w-[220px] bg-white text-gray-900">
+                <SelectValue placeholder="すべてのシーズン" />
+              </SelectTrigger>
+              <SelectContent>
+                {seasons.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s === 'all' ? 'すべてのシーズン' : s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Select value={selectedCompetitionId} onValueChange={setSelectedCompetitionId}>
               <SelectTrigger className="w-full sm:w-[220px] bg-white text-gray-900">
                 <SelectValue placeholder="すべての大会" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">すべての大会</SelectItem>
-                {competitions.map(comp => (
+                {visibleCompetitions.map(comp => (
                   <SelectItem key={comp.id} value={comp.id}>
                     {comp.season ? `${comp.name} (${comp.season})` : comp.name}
                   </SelectItem>

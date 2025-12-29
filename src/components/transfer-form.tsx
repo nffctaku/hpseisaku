@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react";
 
 import type { Player } from "@/types/player";
-import type { TransferDirection } from "@/types/transfer";
+import type { TransferDirection, TransferKind } from "@/types/transfer";
 
 const UNSELECTED_PLAYER_VALUE = "__unselected__";
 
@@ -33,6 +33,7 @@ const parseMoneyValue = (value: unknown): unknown => {
 
 const formSchema = z.object({
   direction: z.enum(["in", "out"]),
+  kind: z.enum(["完全", "レンタル", "昇格", "満了", "解除"]),
   season: z.string().min(1),
   playerId: z.string().optional().or(z.literal("")),
   playerName: z.string().min(1, { message: "選手名は必須です。" }),
@@ -64,6 +65,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
     resolver: zodResolver(formSchema) as any,
     defaultValues: {
       direction,
+      kind: "完全" as TransferKind,
       season,
       playerId: "",
       playerName: "",
@@ -92,6 +94,31 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 pb-10">
+        <FormField
+          control={form.control}
+          name="kind"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>種類</FormLabel>
+              <Select value={(field.value || "完全") as any} onValueChange={field.onChange as any}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="種類" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="完全">完全</SelectItem>
+                  <SelectItem value="レンタル">レンタル</SelectItem>
+                  <SelectItem value="昇格">昇格</SelectItem>
+                  <SelectItem value="満了">満了</SelectItem>
+                  <SelectItem value="解除">解除</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <FormField
           control={form.control}
           name="playerId"

@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase/admin";
 import { notFound } from 'next/navigation';
 import { LeagueTable } from '@/components/league-table';
 import { ClubHeader } from '@/components/club-header';
+import { SeasonSelect } from "./season-select";
 
 interface TablePageProps {
   params: { clubId: string };
@@ -55,16 +56,7 @@ async function getCompetitionsForClub(clubId: string) {
     };
   });
 
-  // Collect available seasons (unique, sorted descending if possible)
-  const seasons = Array.from(
-    new Set(
-      competitions
-        .map((c: any) => c.season)
-        .filter((s: any) => typeof s === 'string' && s.length > 0)
-    )
-  ).sort((a, b) => String(b).localeCompare(String(a)));
-
-  return { clubName, competitions, seasons, logoUrl };
+  return { clubName, competitions, logoUrl };
 }
 
 export default async function TablePage({ params: { clubId }, searchParams }: TablePageProps) {
@@ -74,7 +66,22 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
     notFound();
   }
 
-  const { competitions, clubName, seasons, logoUrl } = data as any;
+  const { competitions, clubName, logoUrl } = data as any;
+
+  const showOnTableCompetitions = (competitions as any[]).filter((c) => (c as any).showOnTable);
+  const activeCompetitions = showOnTableCompetitions.length > 0
+    ? showOnTableCompetitions
+    : ((competitions as any[]).filter((c) => (c as any).showOnHome) || []);
+
+  const competitionsToRender = activeCompetitions.length > 0 ? activeCompetitions : (competitions as any[]);
+
+  const seasons = Array.from(
+    new Set(
+      competitionsToRender
+        .map((c: any) => c.season)
+        .filter((s: any) => typeof s === 'string' && s.length > 0)
+    )
+  ).sort((a, b) => String(b).localeCompare(String(a)));
 
   const requestedSeason = typeof searchParams.season === 'string' ? searchParams.season : undefined;
   const activeSeason = requestedSeason && seasons.includes(requestedSeason)
@@ -82,35 +89,37 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
     : (seasons[0] || '');
 
   const filteredCompetitions = activeSeason
-    ? competitions.filter((c: any) => c.season === activeSeason)
-    : competitions;
+    ? competitionsToRender.filter((c: any) => c.season === activeSeason)
+    : competitionsToRender;
 
   return (
     <>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
       <div className="container mx-auto py-10 px-4 md:px-0">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">{clubName} 順位表</h1>
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold">{clubName} 順位表</h1>
+            <p className="text-sm text-muted-foreground">大会管理で「HPのTABLEに表示」をONにした大会が表示されます。</p>
+          </div>
+          {seasons.length > 0 && (
+            <SeasonSelect seasons={seasons} activeSeason={activeSeason} />
+          )}
         </div>
-        {seasons.length > 0 && (
-          <form className="flex items-center gap-2 text-sm" action="" method="get">
-            <label className="text-muted-foreground" htmlFor="season-select">シーズン</label>
-            <select
-              id="season-select"
-              name="season"
-              defaultValue={activeSeason}
-              className="border rounded-md px-2 py-1 bg-background text-foreground text-sm"
-            >
-              {seasons.map((season: string) => (
-                <option key={season} value={season}>{season}</option>
-              ))}
-            </select>
-          </form>
-        )}
+
+        <div className="space-y-10">
+          {filteredCompetitions.map((comp: any) => (
+            <div key={comp.id} className="space-y-3">
+              <div className="flex items-end justify-between gap-4">
+                <div className="font-semibold">
+                  {comp.name}
+                  {comp.season ? <span className="text-sm text-muted-foreground ml-2">({comp.season})</span> : null}
+                </div>
+              </div>
+              <LeagueTable competitions={[comp]} />
+            </div>
+          ))}
+        </div>
       </div>
-      <LeagueTable competitions={filteredCompetitions} />
-    </div>
     </>
   );
 }

@@ -2,14 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { notFound, useRouter } from 'next/navigation';
+import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import { Hero } from "@/components/hero";
-import { MatchSection } from "@/components/match-section";
 import { LeagueTable } from "@/components/league-table";
 import { ClubTv } from "@/components/club-tv";
 import { NewsSection } from "@/components/news-section";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
+
+const MatchSection = dynamic(
+  () => import("@/components/match-section").then((m) => m.MatchSection),
+  { ssr: false }
+);
 
 export default function ClubPageContent({ clubId }: { clubId: string }) {
     const [clubInfo, setClubInfo] = useState<any>({

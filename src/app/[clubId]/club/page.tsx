@@ -6,6 +6,7 @@ import { ClubFooter } from "@/components/club-footer";
 import Image from "next/image";
 import Link from "next/link";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
+import { Button } from "@/components/ui/button";
 
 interface ClubInfoPageProps {
   params: { clubId: string };
@@ -126,6 +127,12 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
             )}
           </div>
         )}
+
+        <div className="mt-4">
+          <Button asChild variant="outline" className="bg-white/60 hover:bg-white/80">
+            <Link href={`/${clubId}/transfers`}>移籍履歴</Link>
+          </Button>
+        </div>
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-lg border bg-white/60 p-4">

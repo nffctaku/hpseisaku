@@ -150,15 +150,25 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
     const payload: any = {
       season: values.season,
       direction: values.direction,
-      playerId: values.playerId && values.playerId.trim().length > 0 ? values.playerId : undefined,
+      kind: (values as any).kind || "完全",
       playerName: values.playerName,
-      age: values.age,
-      position: values.position,
       counterparty: values.counterparty,
-      fee: values.fee,
-      feeCurrency: values.feeCurrency || "JPY",
       updatedAt: serverTimestamp(),
     };
+
+    if (values.playerId && values.playerId.trim().length > 0) {
+      payload.playerId = values.playerId;
+    }
+    if (values.age != null) {
+      payload.age = values.age;
+    }
+    if (values.position && values.position.trim().length > 0) {
+      payload.position = values.position;
+    }
+    if (values.fee != null) {
+      payload.fee = values.fee;
+      payload.feeCurrency = values.feeCurrency || "JPY";
+    }
 
     try {
       const colRef = collection(db, `clubs/${clubUid}/teams/${teamId}/transfers`);

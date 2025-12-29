@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
@@ -8,6 +8,7 @@ import { collection, query, onSnapshot, doc, deleteDoc, updateDoc } from "fireba
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +36,7 @@ interface Competition {
   season: string;
   teams?: string[];
   showOnHome?: boolean;
+  showOnTable?: boolean;
 }
 
 const MAX_COMPETITIONS_FREE = 1;
@@ -44,8 +46,26 @@ export default function CompetitionsPage() {
   const isPro = user?.plan === "pro";
   const router = useRouter();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [selectedSeason, setSelectedSeason] = useState<string>("all");
   const [deletingCompetition, setDeletingCompetition] = useState<Competition | null>(null);
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+
+  const seasonOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of competitions) {
+      if (typeof c?.season === "string" && c.season.trim().length > 0) {
+        set.add(c.season);
+      }
+    }
+    const list = Array.from(set);
+    list.sort((a, b) => b.localeCompare(a));
+    return list;
+  }, [competitions]);
+
+  const filteredCompetitions = useMemo(() => {
+    if (selectedSeason === "all") return competitions;
+    return competitions.filter((c) => c?.season === selectedSeason);
+  }, [competitions, selectedSeason]);
 
   useEffect(() => {
     if (!user) return;
@@ -82,6 +102,16 @@ export default function CompetitionsPage() {
     }
   };
 
+  const handleToggleShowOnTable = async (target: Competition, nextValue: boolean) => {
+    if (!user) return;
+    try {
+      const ref = doc(db, `clubs/${user.uid}/competitions`, target.id);
+      await updateDoc(ref, { showOnTable: nextValue });
+    } catch (error) {
+      console.error("Error updating showOnTable: ", error);
+    }
+  };
+
   const handleCreateCompetition = () => {
     if (!isPro && competitions.length >= MAX_COMPETITIONS_FREE) {
       setLimitDialogOpen(true);
@@ -104,25 +134,43 @@ export default function CompetitionsPage() {
 
   return (
     <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-white">大会管理</h1>
-        <Button
-          variant="outline"
-          className="bg-white text-gray-900 hover:bg-gray-100"
-          onClick={handleCreateCompetition}
-        >
-          新規大会を追加
-        </Button>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
+        <h1 className="text-3xl font-bold text-white leading-none">大会管理</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={selectedSeason} onValueChange={setSelectedSeason}>
+            <SelectTrigger className="w-[180px] bg-white text-gray-900">
+              <SelectValue placeholder="シーズン" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">すべてのシーズン</SelectItem>
+              {seasonOptions.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant="outline"
+            className="bg-white text-gray-900 hover:bg-gray-100"
+            onClick={handleCreateCompetition}
+          >
+            新規大会を追加
+          </Button>
+        </div>
       </div>
       <div className="bg-white text-gray-900 border rounded-lg">
-        {competitions.length === 0 ? (
+        {filteredCompetitions.length === 0 ? (
           <div className="p-8 text-center">
-            <p className="mb-4">まだ大会が登録されていません。</p>
+            <p className="mb-4">
+              {competitions.length === 0 ? "まだ大会が登録されていません。" : "選択したシーズンの大会がありません。"}
+            </p>
             <Button onClick={handleCreateCompetition}>最初の大会を作成する</Button>
           </div>
         ) : (
           <div className="divide-y">
-            {competitions.map(comp => (
+            {filteredCompetitions.map(comp => (
               <div key={comp.id} className="p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col">
@@ -139,6 +187,16 @@ export default function CompetitionsPage() {
                         onChange={() => handleSetShowOnHome(comp)}
                       />
                       <span>HPに表示</span>
+                    </label>
+
+                    <label className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="h-3 w-3"
+                        checked={!!comp.showOnTable}
+                        onChange={(e) => handleToggleShowOnTable(comp, e.target.checked)}
+                      />
+                      <span>HPのTABLEに表示</span>
                     </label>
                   </div>
                 </div>

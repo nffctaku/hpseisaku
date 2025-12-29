@@ -23,6 +23,7 @@ interface TeamOption {
 
 export function PlayerStatsView() {
   const { user } = useAuth();
+  const ownerUid = (user as any)?.ownerUid || user?.uid || null;
   const [seasons, setSeasons] = useState<string[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>('all');
   const [competitions, setCompetitions] = useState<{ id: string, name: string }[]>([]);
@@ -33,17 +34,17 @@ export function PlayerStatsView() {
   const [sortConfig, setSortConfig] = useState<{ key: keyof AggregatedPlayerStats, direction: 'asc' | 'desc' } | null>(null);
 
   const { stats, loading: statsLoading } = usePlayerStats(
-    user ? user.uid : null,
+    ownerUid,
     selectedSeason || 'all',
     selectedCompetition
   );
 
   useEffect(() => {
-    if (!user) return;
+    if (!ownerUid) return;
     const fetchCompetitions = async () => {
       const comps: { id: string, name: string }[] = [];
       const seasonSet = new Set<string>();
-      const querySnapshot = await getDocs(collection(db, `clubs/${user.uid}/competitions`));
+      const querySnapshot = await getDocs(collection(db, `clubs/${ownerUid}/competitions`));
       querySnapshot.forEach((doc) => {
         const data = doc.data() as any;
         comps.push({ id: doc.id, name: data.name });
@@ -58,20 +59,20 @@ export function PlayerStatsView() {
       }
     };
     fetchCompetitions();
-  }, [user]);
+  }, [ownerUid]);
 
   // シーズン別ロスターが未設定でも動くように、クラブ配下の全チームの選手から一覧を作成
   useEffect(() => {
-    if (!user) return;
+    if (!ownerUid) return;
     const fetchPlayers = async () => {
       const resultPlayers: PlayerRow[] = [];
       const resultTeams: TeamOption[] = [];
-      const teamsSnapshot = await getDocs(collection(db, `clubs/${user.uid}/teams`));
+      const teamsSnapshot = await getDocs(collection(db, `clubs/${ownerUid}/teams`));
       for (const teamDoc of teamsSnapshot.docs) {
         const teamData = teamDoc.data() as any;
         resultTeams.push({ id: teamDoc.id, name: teamData.name ?? 'チーム' });
         const playersSnapshot = await getDocs(
-          collection(db, `clubs/${user.uid}/teams/${teamDoc.id}/players`)
+          collection(db, `clubs/${ownerUid}/teams/${teamDoc.id}/players`)
         );
         playersSnapshot.forEach((pDoc) => {
           const data = pDoc.data() as any;
@@ -90,7 +91,7 @@ export function PlayerStatsView() {
       setTeams(resultTeams);
     };
     fetchPlayers();
-  }, [user]);
+  }, [ownerUid]);
 
   const filteredPlayersByTeam = selectedTeam === 'all'
     ? players

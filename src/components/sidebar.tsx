@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
 import { cn } from '@/lib/utils';
-import { Trophy, Shield, Home, Newspaper, Tv, BarChart, Users, Calendar, Settings, CreditCard } from 'lucide-react';
+import { Trophy, Shield, Home, Newspaper, Tv, BarChart, Users, Calendar, Settings, CreditCard, LineChart } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -35,6 +35,7 @@ export function Sidebar() {
     { href: `/admin/news`, label: 'ニュース管理', icon: Newspaper },
     { href: `/admin/tv`, label: 'TV管理', icon: Tv },
     { href: `/admin/records`, label: 'チーム記録', icon: BarChart },
+    { href: `/admin/analysis`, label: '分析管理', icon: LineChart },
     { href: `/admin/matches`, label: '試合管理', icon: Calendar },
     { href: `/admin/friendly-matches`, label: '単発試合', icon: Calendar },
     { href: `/admin/players`, label: '選手管理', icon: Users },
