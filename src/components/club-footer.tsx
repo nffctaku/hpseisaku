@@ -31,7 +31,7 @@ interface ClubFooterProps {
 export function ClubFooter({ clubId, sponsors = [], snsLinks = {}, legalPages = [] }: ClubFooterProps) {
   return (
     <footer className="mt-auto">
-      <div className="bg-gray-900 text-gray-300 w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]">
+      <div className="bg-gray-900 text-gray-300 w-full">
         <div className="container mx-auto px-4 py-4 text-xs">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1">

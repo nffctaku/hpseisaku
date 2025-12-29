@@ -8,6 +8,7 @@ import { doc, collection, getDocs, setDoc, writeBatch, updateDoc, query, where, 
 import { toast } from 'sonner';
 import { PlayerManagement } from '@/components/player-management';
 import { StaffManagement } from '@/components/staff-management';
+import { TransferManagement } from '@/components/transfer-management';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -28,7 +29,7 @@ export default function TeamPlayersPage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const seasonFromQuery = (searchParams.get('season') || '').trim();
   const [selectedSeason, setSelectedSeason] = useState<string>(seasonFromQuery);
-  const [activeTab, setActiveTab] = useState<'players' | 'staff'>('players');
+  const [activeTab, setActiveTab] = useState<'players' | 'staff' | 'transfers'>('players');
 
   useEffect(() => {
     if (!seasonFromQuery) {
@@ -53,6 +54,13 @@ export default function TeamPlayersPage() {
       }
     });
   }, [clubUid, seasonFromQuery, router, teamId]);
+
+  const seasonIds = seasons.map((s) => s.id);
+
+  const handleChangeSeason = (seasonId: string) => {
+    setSelectedSeason(seasonId);
+    router.replace(`/admin/teams/${teamId}?season=${encodeURIComponent(seasonId)}`);
+  };
 
   const handleTogglePublic = async (seasonId: string, isPublic: boolean) => {
     if (!clubUid) return;
@@ -196,12 +204,21 @@ export default function TeamPlayersPage() {
           <TabsList className="bg-white/10">
             <TabsTrigger value="players">選手管理</TabsTrigger>
             <TabsTrigger value="staff">スタッフ管理</TabsTrigger>
+            <TabsTrigger value="transfers">移籍管理</TabsTrigger>
           </TabsList>
           <TabsContent value="players">
             <PlayerManagement teamId={teamId} selectedSeason={selectedSeason} />
           </TabsContent>
           <TabsContent value="staff">
             <StaffManagement teamId={teamId} selectedSeason={selectedSeason} />
+          </TabsContent>
+          <TabsContent value="transfers">
+            <TransferManagement
+              teamId={teamId}
+              seasons={seasonIds}
+              selectedSeason={selectedSeason}
+              onChangeSeason={handleChangeSeason}
+            />
           </TabsContent>
         </Tabs>
       ) : (

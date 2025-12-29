@@ -64,6 +64,9 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
             <Link href={`/${clubId}/tv`} className="hover:text-primary transition-colors">
               TV
             </Link>
+            <Link href={`/${clubId}/club`} className="hover:text-primary transition-colors">
+              Club
+            </Link>
             <Link href={`/${clubId}/results`} className="hover:text-primary transition-colors">
               Matches
             </Link>
@@ -97,6 +100,13 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
               onClick={() => setMenuOpen(false)}
             >
               TV
+            </Link>
+            <Link
+              href={`/${clubId}/club`}
+              className="py-4 rounded hover:bg-white/10 transition-colors"
+              onClick={() => setMenuOpen(false)}
+            >
+              Club
             </Link>
             <Link
               href={`/${clubId}/results`}

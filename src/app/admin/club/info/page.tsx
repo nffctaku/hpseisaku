@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { ClubEmblemUploader } from '@/components/club-emblem-uploader';
 import Image from 'next/image';
@@ -31,6 +32,11 @@ interface LegalPageItem {
   content: string;
 }
 
+interface ClubTitleItem {
+  competitionName: string;
+  season: string;
+}
+
 const slugify = (value: string): string => {
   return value
     .trim()
@@ -45,6 +51,13 @@ export default function ClubInfoPage() {
   const [clubName, setClubName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [homeBgColor, setHomeBgColor] = useState<string>('');
+  const [foundedYear, setFoundedYear] = useState<string>('');
+  const [hometown, setHometown] = useState<string>('');
+  const [stadiumName, setStadiumName] = useState<string>('');
+  const [stadiumCapacity, setStadiumCapacity] = useState<string>('');
+  const [stadiumPhotoUrl, setStadiumPhotoUrl] = useState<string>('');
+  const [clubTitles, setClubTitles] = useState<ClubTitleItem[]>([]);
+  const [clubSeasons, setClubSeasons] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
@@ -108,6 +121,32 @@ export default function ClubInfoPage() {
           if (typeof data.homeBgColor === 'string') {
             setHomeBgColor(data.homeBgColor);
           }
+
+          if (typeof data.foundedYear === 'string') {
+            setFoundedYear(data.foundedYear);
+          }
+          if (typeof data.hometown === 'string') {
+            setHometown(data.hometown);
+          }
+          if (typeof data.stadiumName === 'string') {
+            setStadiumName(data.stadiumName);
+          }
+          if (typeof data.stadiumCapacity === 'string') {
+            setStadiumCapacity(data.stadiumCapacity);
+          }
+
+          if (typeof data.stadiumPhotoUrl === 'string') {
+            setStadiumPhotoUrl(data.stadiumPhotoUrl);
+          }
+
+          if (Array.isArray(data.clubTitles)) {
+            setClubTitles(
+              data.clubTitles.map((t: any) => ({
+                competitionName: typeof t?.competitionName === 'string' ? t.competitionName : '',
+                season: typeof t?.season === 'string' ? t.season : '',
+              }))
+            );
+          }
         }
       } catch (error) {
         console.error('Error loading main team for club info:', error);
@@ -116,6 +155,21 @@ export default function ClubInfoPage() {
     };
 
     loadMainTeam();
+  }, [user]);
+
+  useEffect(() => {
+    const fetchSeasons = async () => {
+      if (!user) return;
+      try {
+        const seasonsColRef = collection(db, `clubs/${user.uid}/seasons`);
+        const snap = await getDocs(seasonsColRef);
+        const ids = snap.docs.map((d) => d.id).sort((a, b) => b.localeCompare(a));
+        setClubSeasons(ids);
+      } catch (error) {
+        console.error('Error fetching seasons for club info:', error);
+      }
+    };
+    fetchSeasons();
   }, [user]);
 
   useEffect(() => {
@@ -170,7 +224,22 @@ export default function ClubInfoPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ clubName: effectiveClubName, logoUrl: effectiveLogoUrl, layoutType, mainTeamId: selectedTeamId, sponsors, snsLinks, legalPages, homeBgColor }),
+        body: JSON.stringify({
+          clubName: effectiveClubName,
+          logoUrl: effectiveLogoUrl,
+          layoutType,
+          mainTeamId: selectedTeamId,
+          sponsors,
+          snsLinks,
+          legalPages,
+          homeBgColor,
+          foundedYear,
+          hometown,
+          stadiumName,
+          stadiumCapacity,
+          stadiumPhotoUrl,
+          clubTitles,
+        }),
       });
 
       if (!updateResponse.ok) {
@@ -214,10 +283,19 @@ export default function ClubInfoPage() {
       <h1 className="text-3xl font-bold mb-6">クラブ情報編集</h1>
       <Card>
         <CardHeader>
-          <CardTitle>クラブ設定</CardTitle>
-          <CardDescription>クラブ名とロゴを編集します。</CardDescription>
+          <CardTitle>クラブ情報編集</CardTitle>
+          <CardDescription>クラブ設定・スポンサー・テキストページ・SNSリンクを編集します。</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
+          <Tabs defaultValue="settings" className="w-full">
+            <TabsList className="mb-4 w-full justify-start">
+              <TabsTrigger value="settings">クラブ設定</TabsTrigger>
+              <TabsTrigger value="sponsors">スポンサー</TabsTrigger>
+              <TabsTrigger value="texts">テキスト</TabsTrigger>
+              <TabsTrigger value="sns">SNSリンク</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="settings" className="space-y-4">
           <div className="space-y-2">
             <Label>自チームを選択</Label>
             {mainTeamLocked ? (
@@ -225,40 +303,6 @@ export default function ClubInfoPage() {
                 <div className="w-full rounded-md border bg-white text-gray-900 px-3 py-2 text-sm">
                   {teams.find(t => t.id === selectedTeamId)?.name || '未設定'}
                 </div>
-          <div className="space-y-2 pt-4 border-t">
-            <Label htmlFor="homeBgColor">HPトップ背景色</Label>
-            <p className="text-xs text-muted-foreground mb-1">下の色から選択してください。</p>
-            <div className="flex flex-wrap gap-3 items-center">
-              {[
-                '#ffffff', // 白（デフォルト）
-                '#0b1f3b', // 紺
-                '#60a5fa', // 水色
-                '#facc15', // 黄色
-                '#ef4444', // 赤
-                '#7f1d1d', // 暗めの赤
-                '#16a34a', // 緑
-              ].map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => setHomeBgColor(color)}
-                  className={`w-8 h-8 rounded-full border transition-transform ${
-                    homeBgColor === color ? 'ring-2 ring-primary scale-110' : 'hover:scale-105'
-                  }`}
-                  style={{ backgroundColor: color }}
-                  aria-label={color}
-                />
-              ))}
-              <div className="flex items-center gap-2 text-xs text-muted-foreground ml-2">
-                <span>現在の色:</span>
-                <div
-                  className="w-10 h-6 rounded border"
-                  style={{ backgroundColor: homeBgColor || '#ffffff' }}
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">クラブのHPトップ全体の背景色を変更できます。未選択の場合は標準の背景色になります。</p>
-          </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   自チームは一度設定すると変更できません。チーム情報の編集はチーム管理画面から行ってください。
                 </p>
@@ -293,6 +337,38 @@ export default function ClubInfoPage() {
               </>
             )}
           </div>
+
+          <div className="space-y-2 pt-4 border-t">
+            <Label htmlFor="homeBgColor">HPトップ背景色</Label>
+            <p className="text-xs text-muted-foreground mb-1">下の色から選択してください。</p>
+            <div className="flex flex-wrap gap-3 items-center">
+              {[
+                '#ffffff',
+                '#0b1f3b',
+                '#60a5fa',
+                '#facc15',
+                '#ef4444',
+                '#7f1d1d',
+                '#16a34a',
+              ].map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setHomeBgColor(color)}
+                  className={`w-8 h-8 rounded-full border transition-transform ${
+                    homeBgColor === color ? 'ring-2 ring-primary scale-110' : 'hover:scale-105'
+                  }`}
+                  style={{ backgroundColor: color }}
+                  aria-label={color}
+                />
+              ))}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground ml-2">
+                <span>現在の色:</span>
+                <div className="w-10 h-6 rounded border" style={{ backgroundColor: homeBgColor || '#ffffff' }} />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">クラブのHPトップ全体の背景色を変更できます。未選択の場合は標準の背景色になります。</p>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="layoutType">表示レイアウト</Label>
             <div className="w-full rounded-md border bg-white text-gray-900 px-3 py-2 text-sm">
@@ -322,7 +398,125 @@ export default function ClubInfoPage() {
             </div>
             <p className="text-xs text-muted-foreground">ロゴ画像はチーム／大会管理で設定されたエンブレムを使用し、この画面からは変更できません。</p>
           </div>
+
           <div className="space-y-2 pt-4 border-t">
+            <Label>クラブ情報</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">創立</Label>
+                <Input
+                  placeholder="例: 1999年"
+                  className="bg-white text-gray-900"
+                  value={foundedYear}
+                  onChange={(e) => setFoundedYear(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">ホームタウン</Label>
+                <Input
+                  placeholder="例: 東京都"
+                  className="bg-white text-gray-900"
+                  value={hometown}
+                  onChange={(e) => setHometown(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">スタジアム名</Label>
+                <Input
+                  placeholder="例: ○○スタジアム"
+                  className="bg-white text-gray-900"
+                  value={stadiumName}
+                  onChange={(e) => setStadiumName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">収容人数</Label>
+                <Input
+                  placeholder="例: 10,000"
+                  className="bg-white text-gray-900"
+                  inputMode="numeric"
+                  value={stadiumCapacity}
+                  onChange={(e) => setStadiumCapacity(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-3">
+              <Label className="text-xs">スタジアム写真</Label>
+              <div className="w-full max-w-md">
+                <ClubEmblemUploader value={stadiumPhotoUrl} onChange={(url) => setStadiumPhotoUrl(url || '')} />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-4 border-t">
+            <Label>獲得タイトル</Label>
+            <p className="text-xs text-muted-foreground">大会名と獲得シーズンを登録できます。</p>
+            <div className="space-y-3">
+              {clubTitles.map((item, index) => (
+                <div key={index} className="grid grid-cols-1 md:grid-cols-[2fr,1fr,auto] gap-2 items-end rounded-md border p-3 bg-white/60">
+                  <div className="space-y-1">
+                    <Label className="text-xs">大会名</Label>
+                    <Input
+                      placeholder="例: ○○リーグ"
+                      className="bg-white text-gray-900"
+                      value={item.competitionName}
+                      onChange={(e) => {
+                        const next = [...clubTitles];
+                        next[index] = { ...next[index], competitionName: e.target.value };
+                        setClubTitles(next);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">獲得シーズン</Label>
+                    <Select
+                      value={item.season}
+                      onValueChange={(value) => {
+                        const next = [...clubTitles];
+                        next[index] = { ...next[index], season: value };
+                        setClubTitles(next);
+                      }}
+                    >
+                      <SelectTrigger className="w-full bg-white text-gray-900">
+                        <SelectValue placeholder="シーズン" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clubSeasons.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="text-red-500 border-red-300 hover:bg-red-50"
+                      onClick={() => setClubTitles(clubTitles.filter((_, i) => i !== index))}
+                    >
+                      削除
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full bg-white text-gray-900 disabled:opacity-60"
+                onClick={() => setClubTitles([...clubTitles, { competitionName: '', season: '' }])}
+              >
+                タイトルを追加
+              </Button>
+            </div>
+          </div>
+
+            </TabsContent>
+
+            <TabsContent value="sponsors" className="space-y-4">
+          <div className="space-y-2">
             <Label>スポンサー</Label>
             <p className="text-xs text-muted-foreground">HP下部に表示するスポンサーのロゴとリンク先URLを設定します。</p>
             <div className="space-y-3">
@@ -376,7 +570,11 @@ export default function ClubInfoPage() {
               </Button>
             </div>
           </div>
-          <div className="space-y-2 pt-4 border-t">
+
+            </TabsContent>
+
+            <TabsContent value="texts" className="space-y-4">
+          <div className="space-y-2">
             <Label>テキストページ（プライバシーポリシー等）</Label>
             <p className="text-xs text-muted-foreground">最大3ページまで作成できます。タイトルと本文テキストを設定すると、自動的にページが生成されます。</p>
             <div className="space-y-4">
@@ -441,7 +639,11 @@ export default function ClubInfoPage() {
               </Button>
             </div>
           </div>
-          <div className="space-y-2 pt-4 border-t">
+
+            </TabsContent>
+
+            <TabsContent value="sns" className="space-y-4">
+          <div className="space-y-2">
             <Label>SNSリンク</Label>
             <p className="text-xs text-muted-foreground">HPフッターに表示する各SNSのURLを設定します。（空欄のSNSは表示されません）</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -483,6 +685,9 @@ export default function ClubInfoPage() {
               </div>
             </div>
           </div>
+
+            </TabsContent>
+          </Tabs>
         </CardContent>
         <CardFooter>
           <Button onClick={handleUpdate} disabled={loading}>

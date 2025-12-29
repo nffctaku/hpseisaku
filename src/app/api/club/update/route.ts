@@ -26,7 +26,22 @@ export async function POST(request: Request) {
       return new NextResponse(JSON.stringify({ message: '認証されていません。' }), { status: 401 });
     }
 
-    const { clubName, logoUrl, layoutType, mainTeamId, sponsors, snsLinks, legalPages, homeBgColor } = await request.json();
+    const {
+      clubName,
+      logoUrl,
+      layoutType,
+      mainTeamId,
+      sponsors,
+      snsLinks,
+      legalPages,
+      homeBgColor,
+      foundedYear,
+      hometown,
+      stadiumName,
+      stadiumCapacity,
+      stadiumPhotoUrl,
+      clubTitles,
+    } = await request.json();
 
     const clubProfilesRef = db.collection('club_profiles');
 
@@ -85,6 +100,30 @@ export async function POST(request: Request) {
 
     if (typeof homeBgColor === 'string') {
       updateData.homeBgColor = homeBgColor;
+    }
+
+    if (typeof foundedYear === 'string') {
+      updateData.foundedYear = foundedYear;
+    }
+
+    if (typeof hometown === 'string') {
+      updateData.hometown = hometown;
+    }
+
+    if (typeof stadiumName === 'string') {
+      updateData.stadiumName = stadiumName;
+    }
+
+    if (typeof stadiumCapacity === 'string') {
+      updateData.stadiumCapacity = stadiumCapacity;
+    }
+
+    if (typeof stadiumPhotoUrl === 'string') {
+      updateData.stadiumPhotoUrl = stadiumPhotoUrl;
+    }
+
+    if (Array.isArray(clubTitles)) {
+      updateData.clubTitles = clubTitles;
     }
 
     // ID が uid の doc を更新
