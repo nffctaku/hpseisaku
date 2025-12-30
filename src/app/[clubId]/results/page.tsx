@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase/admin";
 import { notFound } from 'next/navigation';
 import { MatchList } from '@/components/match-list';
 import { ClubHeader } from '@/components/club-header';
+import { ClubFooter } from '@/components/club-footer';
 
 // This interface should be defined or imported if it's not already global.
 // For now, we'll define a basic structure.
@@ -34,6 +35,10 @@ async function getMatchesForClub(clubId: string) {
     const ownerUid = profileData.ownerUid as string | undefined;
     const clubName = profileData.clubName || 'Unknown Club';
     const logoUrl = profileData.logoUrl || null;
+    const snsLinks = (profileData as any).snsLinks ?? {};
+    const sponsors = (Array.isArray((profileData as any).sponsors) ? ((profileData as any).sponsors as any[]) : []) as any;
+    const legalPages = (Array.isArray((profileData as any).legalPages) ? ((profileData as any).legalPages as any[]) : []) as any;
+    const homeBgColor = (profileData as any).homeBgColor as string | undefined;
     const mainTeamId = profileData.mainTeamId as string | undefined;
     if (!ownerUid) {
         return null;
@@ -116,7 +121,7 @@ async function getMatchesForClub(clubId: string) {
     // 4. Sort all matches by date
     enrichedMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
 
-    return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId };
+    return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId, snsLinks, sponsors, legalPages, homeBgColor };
 }
 
 export default async function ResultsPage({
@@ -136,17 +141,20 @@ export default async function ResultsPage({
         notFound();
     }
 
-    const { matches, clubName, ownerUid, logoUrl, mainTeamId } = data as any;
+    const { matches, clubName, ownerUid, logoUrl, mainTeamId, snsLinks, sponsors, legalPages, homeBgColor } = data as any;
 
     return (
-        <>
-          <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
-          <MatchList 
-            allMatches={matches} 
-            clubId={mainTeamId || ownerUid} // 自チーム判定にはメインチームIDを優先
-            clubSlug={clubId} // public clubId slug for URLs
-            clubName={clubName} 
-          />
-        </>
+        <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
+          <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+          <div className="flex-1">
+            <MatchList 
+              allMatches={matches} 
+              clubId={mainTeamId || ownerUid} // 自チーム判定にはメインチームIDを優先
+              clubSlug={clubId} // public clubId slug for URLs
+              clubName={clubName} 
+            />
+          </div>
+          <ClubFooter clubId={clubId} clubName={clubName} sponsors={sponsors} snsLinks={snsLinks} legalPages={legalPages} />
+        </main>
     );
 }

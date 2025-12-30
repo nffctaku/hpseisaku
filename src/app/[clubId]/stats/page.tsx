@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, ArrowUpDown } from "lucide-react";
@@ -27,6 +26,7 @@ interface PlayerRow {
   position?: string;
   teamId?: string;
   manualCompetitionStats?: any[];
+  seasonData?: Record<string, any>;
 }
 
 interface StatsDataResponse {
@@ -57,6 +57,8 @@ function aggregatePlayerStats(
 ): Record<string, AggregatedPlayerStats> {
   const result: Record<string, AggregatedPlayerStats> = {};
 
+  const allowedPlayerIds = new Set(players.map((p) => p.id));
+
   const compsFiltered = competitions.filter((c) => {
     if (selectedSeason !== "all" && c.season !== selectedSeason) return false;
     if (selectedCompetitionId !== "all" && c.id !== selectedCompetitionId) return false;
@@ -70,6 +72,14 @@ function aggregatePlayerStats(
     for (const r of rows) {
       const compId = typeof r?.competitionId === "string" ? r.competitionId : "";
       if (!compId || !compIds.has(compId)) continue;
+      const hasAnyValue =
+        typeof r?.matches === "number" ||
+        typeof r?.minutes === "number" ||
+        typeof r?.goals === "number" ||
+        typeof r?.assists === "number" ||
+        typeof r?.yellowCards === "number" ||
+        typeof r?.redCards === "number";
+      if (!hasAnyValue) continue;
       const map = manualByCompetition.get(compId) ?? new Map<string, any>();
       map.set(p.id, r);
       manualByCompetition.set(compId, map);
@@ -97,6 +107,7 @@ function aggregatePlayerStats(
       for (const stat of ps) {
         const playerId = stat?.playerId;
         if (!playerId) continue;
+        if (!allowedPlayerIds.has(playerId)) continue;
         if (manualForThisCompetition.has(playerId)) continue;
         if (!result[playerId]) {
           result[playerId] = { appearances: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
@@ -128,327 +139,76 @@ interface MatchForRecords {
   teamStats?: any[];
 }
 
-interface CompetitionRecordRow {
-  competitionId: string;
-  competitionName: string;
-  competitionSeason?: string;
-  matches: number;
-  wins: number;
-  draws: number;
-  losses: number;
-  goalsFor: number;
-  goalsAgainst: number;
-  shots?: number;
-  shotsOnTarget?: number;
-  possessionAvg?: number;
-}
-
-interface PublicCompetitionRecordsProps {
-  teams: TeamOption[];
-  competitions: CompetitionDoc[];
-  matches: MatchForRecords[];
-  mainTeamId?: string | null;
-}
-
-function PublicCompetitionRecords({ teams, competitions, matches, mainTeamId }: PublicCompetitionRecordsProps) {
-  const [selectedTeamId, setSelectedTeamId] = useState<string>(mainTeamId || "");
-  const [selectedSeason, setSelectedSeason] = useState<string>("all");
-  const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>("all");
-
-  useEffect(() => {
-    if (mainTeamId) {
-      setSelectedTeamId(mainTeamId);
-    } else if (!selectedTeamId && teams.length > 0) {
-      setSelectedTeamId(teams[0].id);
-    }
-  }, [mainTeamId, selectedTeamId, teams]);
-
-  const seasons = useMemo(() => {
-    const set = new Set<string>();
-    competitions.forEach((c) => {
-      if (c.season && typeof c.season === "string" && c.season.trim() !== "") set.add(c.season);
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [competitions]);
-
-  const filteredMatches = useMemo(() => {
-    const allowedCompetitionIds = new Set(
-      competitions
-        .filter((c) => {
-          if (selectedSeason !== "all" && c.season !== selectedSeason) return false;
-          if (selectedCompetitionId !== "all" && c.id !== selectedCompetitionId) return false;
-          return true;
-        })
-        .map((c) => c.id)
-    );
-    return matches
-      .filter((m) => allowedCompetitionIds.has(m.competitionId))
-      .slice()
-      .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
-  }, [competitions, matches, selectedCompetitionId, selectedSeason]);
-
-  const recordsByCompetition: CompetitionRecordRow[] = useMemo(() => {
-    if (!selectedTeamId) return [];
-
-    const byComp = new Map<string, CompetitionRecordRow>();
-
-    for (const match of filteredMatches) {
-      const isHome = match.homeTeamId === selectedTeamId;
-      const isAway = match.awayTeamId === selectedTeamId;
-      if (!isHome && !isAway) continue;
-
-      const hasScores = typeof match.scoreHome === "number" && typeof match.scoreAway === "number";
-      if (!hasScores) continue;
-
-      const key = match.competitionId;
-      if (!byComp.has(key)) {
-        byComp.set(key, {
-          competitionId: match.competitionId,
-          competitionName: match.competitionName,
-          competitionSeason: match.competitionSeason,
-          matches: 0,
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          goalsFor: 0,
-          goalsAgainst: 0,
-          shots: 0,
-          shotsOnTarget: 0,
-          possessionAvg: undefined,
-        });
-      }
-
-      const row = byComp.get(key)!;
-      row.matches += 1;
-
-      const gf = isHome ? match.scoreHome! : match.scoreAway!;
-      const ga = isHome ? match.scoreAway! : match.scoreHome!;
-      row.goalsFor += gf;
-      row.goalsAgainst += ga;
-
-      if (gf > ga) row.wins += 1;
-      else if (gf === ga) row.draws += 1;
-      else row.losses += 1;
-
-      if (match.teamStats && Array.isArray(match.teamStats)) {
-        const sideKey = isHome ? "homeValue" : "awayValue";
-
-        for (const stat of match.teamStats) {
-          const rawVal = (stat as any)[sideKey];
-          const numVal = typeof rawVal === "number" ? rawVal : parseFloat(String(rawVal));
-          if (isNaN(numVal)) {
-            continue;
-          }
-
-          if (stat.id === "shots") {
-            row.shots = (row.shots || 0) + numVal;
-          } else if (stat.id === "shotsOnTarget") {
-            row.shotsOnTarget = (row.shotsOnTarget || 0) + numVal;
-          } else if (stat.id === "possession") {
-            row.possessionAvg = (row.possessionAvg || 0) + numVal;
-          }
-        }
-      }
-    }
-
-    for (const row of byComp.values()) {
-      if (row.matches > 0 && typeof row.possessionAvg === "number") {
-        row.possessionAvg = row.possessionAvg / row.matches;
-      } else {
-        row.possessionAvg = undefined;
-      }
-    }
-
-    return Array.from(byComp.values()).sort((a, b) => a.competitionName.localeCompare(b.competitionName));
-  }, [filteredMatches, selectedTeamId]);
-
-  return (
-    <div className="py-6 space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
-        <div className="flex flex-wrap items-center gap-2 justify-end">
-          <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-            <SelectTrigger className="w-[180px] bg-white text-gray-900">
-              <SelectValue placeholder="シーズンを選択" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべてのシーズン</SelectItem>
-              {seasons.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedCompetitionId} onValueChange={setSelectedCompetitionId}>
-            <SelectTrigger className="w-[180px] bg-white text-gray-900">
-              <SelectValue placeholder="大会を選択" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべての大会</SelectItem>
-              {competitions.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {!selectedTeamId ? (
-        <div className="text-center py-10 text-muted-foreground">
-          チームを選択すると大会ごとの成績が表示されます。
-        </div>
-      ) : recordsByCompetition.length === 0 ? (
-        <div className="text-center py-10 text-muted-foreground">
-          選択した条件の試合記録がありません。
-        </div>
-      ) : (
-        <div className="bg-white text-gray-900 border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>大会</TableHead>
-                <TableHead>シーズン</TableHead>
-                <TableHead className="text-right">試合</TableHead>
-                <TableHead className="text-right">勝</TableHead>
-                <TableHead className="text-right">分</TableHead>
-                <TableHead className="text-right">敗</TableHead>
-                <TableHead className="text-right">得点</TableHead>
-                <TableHead className="text-right">失点</TableHead>
-                <TableHead className="text-right">得失点</TableHead>
-                <TableHead className="text-right">シュート</TableHead>
-                <TableHead className="text-right">枠内S</TableHead>
-                <TableHead className="text-right">支配率(平均)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recordsByCompetition.map((row) => {
-                const goalDiff = row.goalsFor - row.goalsAgainst;
-                const possessionDisplay =
-                  typeof row.possessionAvg === "number" ? `${row.possessionAvg.toFixed(1)}%` : "-";
-
-                return (
-                  <TableRow key={row.competitionId}>
-                    <TableCell>{row.competitionName}</TableCell>
-                    <TableCell>{row.competitionSeason || "-"}</TableCell>
-                    <TableCell className="text-right">{row.matches}</TableCell>
-                    <TableCell className="text-right">{row.wins}</TableCell>
-                    <TableCell className="text-right">{row.draws}</TableCell>
-                    <TableCell className="text-right">{row.losses}</TableCell>
-                    <TableCell className="text-right">{row.goalsFor}</TableCell>
-                    <TableCell className="text-right">{row.goalsAgainst}</TableCell>
-                    <TableCell className="text-right">{goalDiff}</TableCell>
-                    <TableCell className="text-right">{row.shots ?? "-"}</TableCell>
-                    <TableCell className="text-right">{row.shotsOnTarget ?? "-"}</TableCell>
-                    <TableCell className="text-right">{possessionDisplay}</TableCell>
-                  </TableRow>
-                );
-              })}
-
-              {(() => {
-                const totals = recordsByCompetition.reduce(
-                  (acc, row) => {
-                    acc.matches += row.matches;
-                    acc.wins += row.wins;
-                    acc.draws += row.draws;
-                    acc.losses += row.losses;
-                    acc.goalsFor += row.goalsFor;
-                    acc.goalsAgainst += row.goalsAgainst;
-                    if (typeof row.shots === "number") acc.shots += row.shots;
-                    if (typeof row.shotsOnTarget === "number") acc.shotsOnTarget += row.shotsOnTarget;
-                    if (typeof row.possessionAvg === "number") {
-                      acc.possessionSum += row.possessionAvg;
-                      acc.possessionCount += 1;
-                    }
-                    return acc;
-                  },
-                  {
-                    matches: 0,
-                    wins: 0,
-                    draws: 0,
-                    losses: 0,
-                    goalsFor: 0,
-                    goalsAgainst: 0,
-                    shots: 0,
-                    shotsOnTarget: 0,
-                    possessionSum: 0,
-                    possessionCount: 0,
-                  }
-                );
-
-                const totalGoalDiff = totals.goalsFor - totals.goalsAgainst;
-                const totalPossessionAvg =
-                  totals.possessionCount > 0 ? totals.possessionSum / totals.possessionCount : undefined;
-                const totalPossessionDisplay =
-                  typeof totalPossessionAvg === "number" ? `${totalPossessionAvg.toFixed(1)}%` : "-";
-
-                return (
-                  <TableRow className="font-semibold bg-gray-50">
-                    <TableCell>合計</TableCell>
-                    <TableCell>-</TableCell>
-                    <TableCell className="text-right">{totals.matches}</TableCell>
-                    <TableCell className="text-right">{totals.wins}</TableCell>
-                    <TableCell className="text-right">{totals.draws}</TableCell>
-                    <TableCell className="text-right">{totals.losses}</TableCell>
-                    <TableCell className="text-right">{totals.goalsFor}</TableCell>
-                    <TableCell className="text-right">{totals.goalsAgainst}</TableCell>
-                    <TableCell className="text-right">{totalGoalDiff}</TableCell>
-                    <TableCell className="text-right">{totals.shots || "-"}</TableCell>
-                    <TableCell className="text-right">{totals.shotsOnTarget || "-"}</TableCell>
-                    <TableCell className="text-right">{totalPossessionDisplay}</TableCell>
-                  </TableRow>
-                );
-              })()}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface PublicPlayerStatsViewProps {
   teams: TeamOption[];
   competitions: CompetitionDoc[];
   players: PlayerRow[];
   matches: any[];
   mainTeamId?: string | null;
+  selectedSeason: string;
+  setSelectedSeason: (value: string) => void;
+  selectedCompetitionId: string;
+  setSelectedCompetitionId: (value: string) => void;
 }
 
-function PublicPlayerStatsView({ teams, competitions, players, matches, mainTeamId }: PublicPlayerStatsViewProps) {
-  const [selectedSeason, setSelectedSeason] = useState<string>("all");
-  const [selectedCompetition, setSelectedCompetition] = useState<string>("all");
-  const [selectedTeam, setSelectedTeam] = useState<string>(mainTeamId || "all");
+function PublicPlayerStatsView({
+  teams,
+  competitions,
+  players,
+  matches,
+  mainTeamId,
+  selectedSeason,
+  setSelectedSeason,
+  selectedCompetitionId,
+  setSelectedCompetitionId,
+}: PublicPlayerStatsViewProps) {
   const [sortConfig, setSortConfig] = useState<{ key: keyof AggregatedPlayerStats; direction: "asc" | "desc" } | null>(null);
-
-  useEffect(() => {
-    if (mainTeamId) {
-      setSelectedTeam(mainTeamId);
-    }
-  }, [mainTeamId]);
 
   const seasons = useMemo(() => {
     const set = new Set<string>();
-    competitions.forEach((c) => {
+    competitions.forEach((c: CompetitionDoc) => {
       if (c.season && typeof c.season === "string" && c.season.trim() !== "") set.add(c.season);
     });
     return Array.from(set).sort((a, b) => b.localeCompare(a));
   }, [competitions]);
 
   const teamFilteredPlayers = useMemo(() => {
-    const base = mainTeamId ? players.filter((p) => p.teamId === mainTeamId) : players;
-    return selectedTeam === "all" ? base : base.filter((p) => p.teamId === selectedTeam);
-  }, [players, selectedTeam, mainTeamId]);
+    return mainTeamId ? players.filter((p: PlayerRow) => p.teamId === mainTeamId) : players;
+  }, [players, mainTeamId]);
+
+  const playersWithResolvedManualStats = useMemo(() => {
+    const normalizeRows = (rows: any[] | undefined): any[] => (Array.isArray(rows) ? rows : []);
+
+    return teamFilteredPlayers.map((p) => {
+      const seasonData = p.seasonData && typeof p.seasonData === "object" ? p.seasonData : {};
+
+      if (selectedSeason !== "all") {
+        const sd = (seasonData as any)?.[selectedSeason];
+        const seasonManual = normalizeRows((sd as any)?.manualCompetitionStats);
+        const legacyManual = normalizeRows(p.manualCompetitionStats);
+        return {
+          ...p,
+          manualCompetitionStats: seasonManual.length > 0 ? seasonManual : legacyManual,
+        };
+      }
+
+      const allSeasonManual = Object.values(seasonData)
+        .flatMap((v: any) => normalizeRows(v?.manualCompetitionStats));
+      const legacyManual = normalizeRows(p.manualCompetitionStats);
+
+      return {
+        ...p,
+        manualCompetitionStats: [...allSeasonManual, ...legacyManual],
+      };
+    });
+  }, [teamFilteredPlayers, selectedSeason]);
 
   const stats = useMemo(
-    () => aggregatePlayerStats(matches, players, competitions, selectedSeason || "all", selectedCompetition),
-    [matches, players, competitions, selectedSeason, selectedCompetition]
+    () => aggregatePlayerStats(matches, playersWithResolvedManualStats, competitions, selectedSeason || "all", selectedCompetitionId),
+    [matches, playersWithResolvedManualStats, competitions, selectedSeason, selectedCompetitionId]
   );
 
-  const filteredPlayersByTeam =
-    selectedTeam === "all" ? players : players.filter((p) => p.teamId === selectedTeam);
+  const filteredPlayersByTeam = playersWithResolvedManualStats;
 
   const sortedPlayers = [...filteredPlayersByTeam].sort((a, b) => {
     if (sortConfig) {
@@ -500,35 +260,6 @@ function PublicPlayerStatsView({ teams, competitions, players, matches, mainTeam
 
   return (
     <div className="space-y-6 py-6">
-      <div className="flex flex-wrap gap-2 justify-end">
-        <Select value={selectedTeam} onValueChange={setSelectedTeam}>
-          <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900">
-            <SelectValue placeholder="チームを選択" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">すべてのチーム</SelectItem>
-            {teams.map((t) => (
-              <SelectItem key={t.id} value={t.id}>
-                {t.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
-          <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900">
-            <SelectValue placeholder="大会を選択" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">すべての大会</SelectItem>
-            {competitions.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
       {sortedPlayers.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">表示できる選手がいません。</div>
       ) : (
@@ -622,8 +353,19 @@ export default function ClubStatsPage() {
   const [error, setError] = useState<string | null>(null);
   const [clubName, setClubName] = useState<string>("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [snsLinks, setSnsLinks] = useState<{ x?: string; youtube?: string; tiktok?: string; instagram?: string }>({});
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
   const [statsData, setStatsData] = useState<StatsDataResponse | null>(null);
+  const [selectedSeason, setSelectedSeason] = useState<string>("all");
+  const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>("all");
+
+  const seasons = useMemo(() => {
+    const set = new Set<string>();
+    (statsData?.competitions || []).forEach((c) => {
+      if (c.season && typeof c.season === "string" && c.season.trim() !== "") set.add(c.season);
+    });
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [statsData]);
 
   useEffect(() => {
     const fetchOwner = async () => {
@@ -641,6 +383,7 @@ export default function ClubStatsPage() {
         const profile = (data as any).profile || {};
         setClubName(profile.clubName || "");
         setLogoUrl(profile.logoUrl ?? null);
+        setSnsLinks((profile as any).snsLinks && typeof (profile as any).snsLinks === 'object' ? (profile as any).snsLinks : {});
         setMainTeamId(typeof (profile as any).mainTeamId === "string" ? (profile as any).mainTeamId : data.mainTeamId);
       } catch (e) {
         console.error(e);
@@ -656,12 +399,12 @@ export default function ClubStatsPage() {
   return (
     <main className="min-h-screen">
       {clubId && (
-        <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
+        <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
       )}
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-2xl md:text-3xl font-bold mb-4">STATS</h1>
         <p className="text-sm text-muted-foreground mb-6">
-          クラブの大会成績・選手成績をまとめて閲覧できるページです。
+          
         </p>
 
         {loadingOwner ? (
@@ -676,29 +419,48 @@ export default function ClubStatsPage() {
             クラブのオーナー情報が取得できませんでした。
           </div>
         ) : (
-          <Tabs defaultValue="competitions" className="mt-4">
-            <TabsList className="grid w-full grid-cols-2 max-w-md">
-              <TabsTrigger value="competitions">大会成績</TabsTrigger>
-              <TabsTrigger value="players">選手成績</TabsTrigger>
-            </TabsList>
-            <TabsContent value="competitions" className="mt-4">
-              <PublicCompetitionRecords
-                teams={statsData.teams}
-                competitions={statsData.competitions}
-                matches={statsData.matches}
-                mainTeamId={mainTeamId}
-              />
-            </TabsContent>
-            <TabsContent value="players" className="mt-4">
-              <PublicPlayerStatsView
-                teams={statsData.teams}
-                competitions={statsData.competitions}
-                players={statsData.players}
-                matches={statsData.matches}
-                mainTeamId={mainTeamId}
-              />
-            </TabsContent>
-          </Tabs>
+          <>
+            <div className="mt-4 flex flex-wrap items-center gap-2 justify-end">
+              <Select value={selectedSeason} onValueChange={setSelectedSeason}>
+                <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900 border">
+                  <SelectValue placeholder="シーズンを選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">すべてのシーズン</SelectItem>
+                  {seasons.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedCompetitionId} onValueChange={setSelectedCompetitionId}>
+                <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900 border">
+                  <SelectValue placeholder="大会を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">すべての大会</SelectItem>
+                  {statsData.competitions.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <PublicPlayerStatsView
+              teams={statsData.teams}
+              competitions={statsData.competitions}
+              players={statsData.players}
+              matches={statsData.matches}
+              mainTeamId={mainTeamId}
+              selectedSeason={selectedSeason}
+              setSelectedSeason={setSelectedSeason}
+              selectedCompetitionId={selectedCompetitionId}
+              setSelectedCompetitionId={setSelectedCompetitionId}
+            />
+          </>
         )}
       </div>
     </main>

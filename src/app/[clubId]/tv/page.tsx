@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Timestamp } from 'firebase-admin/firestore';
 import PaginationControls from '@/components/pagination-controls';
 import { ClubHeader } from '@/components/club-header';
+import { ClubFooter } from '@/components/club-footer';
 
 const VIDEOS_PER_PAGE = 9;
 
@@ -69,20 +70,24 @@ export default async function TvPage({ params: { clubId }, searchParams }: TvPag
   const { videos, totalVideos } = await getPaginatedVideos(clubInfo.ownerUid, page);
   const totalPages = Math.ceil(totalVideos / VIDEOS_PER_PAGE);
 
+  const clubName = (clubInfo.clubName as string | undefined) ?? "";
+  const logoUrl = (clubInfo.logoUrl as string | undefined) ?? undefined;
+  const snsLinks = ((clubInfo as any).snsLinks as any) ?? {};
+  const sponsors = (Array.isArray((clubInfo as any).sponsors) ? ((clubInfo as any).sponsors as any[]) : []) as any;
+  const legalPages = (Array.isArray((clubInfo as any).legalPages) ? ((clubInfo as any).legalPages as any[]) : []) as any;
+  const homeBgColor = (clubInfo as any).homeBgColor as string | undefined;
+
   return (
-    <div className="min-h-screen bg-background">
-      <ClubHeader
-        clubId={clubId}
-        clubName={clubInfo.clubName as string | undefined}
-        logoUrl={clubInfo.logoUrl as string | undefined}
-      />
-      <main className="container mx-auto py-6 sm:py-8 px-4">
+    <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+      <div className="flex-1">
+        <div className="container mx-auto py-6 sm:py-8 px-4">
         <h1 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8 text-center sm:text-left">TV</h1>
         {videos.length > 0 ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {videos.map(video => (
-                <div key={video.id} className="bg-card rounded-lg overflow-hidden">
+                <div key={video.id} className="bg-white text-gray-900 rounded-lg overflow-hidden border">
                   <div className="aspect-video">
                     <iframe
                       width="100%"
@@ -117,7 +122,10 @@ export default async function TvPage({ params: { clubId }, searchParams }: TvPag
             <p className="text-muted-foreground">投稿された動画はありません。</p>
           </div>
         )}
-      </main>
-    </div>
+        </div>
+      </div>
+
+      <ClubFooter clubId={clubId} clubName={clubName} sponsors={sponsors} snsLinks={snsLinks} legalPages={legalPages} />
+    </main>
   );
 }

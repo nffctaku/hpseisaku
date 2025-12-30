@@ -23,47 +23,55 @@ interface LegalPageItem {
 
 interface ClubFooterProps {
   clubId?: string;
+  clubName?: string;
   sponsors?: SponsorItem[];
   snsLinks?: SnsLinks;
   legalPages?: LegalPageItem[];
 }
 
-export function ClubFooter({ clubId, sponsors = [], snsLinks = {}, legalPages = [] }: ClubFooterProps) {
+export function ClubFooter({ clubId, clubName, sponsors = [], snsLinks = {}, legalPages = [] }: ClubFooterProps) {
   return (
-    <footer className="mt-auto">
+    <footer className="mt-auto" data-debug="club-footer-v2">
       <div className="bg-gray-900 text-gray-300 w-full">
-        <div className="container mx-auto px-4 py-4 text-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1">
-              <Link
-                href="https://www.footballtop.net/terms"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-white transition-colors whitespace-nowrap"
-              >
-                利用規約
-              </Link>
-              <Link
-                href="https://www.locofootball.com/privacy"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-white transition-colors whitespace-nowrap"
-              >
-                プライバシーポリシー
-              </Link>
-              <Link href="/tokusho" className="hover:text-white transition-colors whitespace-nowrap">
-                特定商取引法に基づく表記
-              </Link>
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex flex-col gap-4">
+            <div className="text-center">
+              <div className="text-sm font-semibold text-white">{clubName || clubId || ""}</div>
+
+              {clubId && legalPages.length > 0 && (
+                <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
+                  {legalPages
+                    .filter((p) => typeof p?.slug === "string" && p.slug.trim().length > 0)
+                    .filter((p, index, arr) => arr.findIndex((x) => x.slug === p.slug) === index)
+                    .map((p, index) => (
+                      <Link
+                        key={`${p.slug}-${index}`}
+                        href={`/${clubId}/legal/${p.slug}`}
+                        className="hover:text-white transition-colors whitespace-nowrap"
+                      >
+                        {p.title}
+                      </Link>
+                    ))}
+                </div>
+              )}
             </div>
-            <div className="flex items-center justify-center sm:justify-end gap-2">
-              <span className="text-[10px] text-gray-400">Powered by</span>
-              <Image
-                src="/footballtop-logo-13 (1).png"
-                alt="footballtop"
-                width={120}
-                height={24}
-                className="h-5 w-auto"
-              />
+
+            <div className="border-t border-gray-700 pt-4">
+              <div className="flex flex-col items-center gap-3">
+                <Image
+                  src="/footballtop-logo-13 (1).png"
+                  alt="footballtop"
+                  width={160}
+                  height={32}
+                  className="h-6 w-auto"
+                />
+
+                <div className="text-center text-xs text-gray-300 leading-relaxed">
+                  Footballに特化し
+                  <br />
+                  HPを作成出来るWEBアプリ
+                </div>
+              </div>
             </div>
           </div>
         </div>

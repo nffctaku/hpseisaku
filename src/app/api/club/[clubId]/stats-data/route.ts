@@ -20,7 +20,7 @@ async function resolveOwnerUid(clubId: string): Promise<{ ownerUid: string; prof
 
 export async function GET(request: NextRequest, context: { params: { clubId: string } }) {
   try {
-    const { clubId } = context.params;
+    const { clubId } = await context.params;
     const { ownerUid, profile } = await resolveOwnerUid(clubId);
 
     const mainTeamId = typeof (profile as any)?.mainTeamId === "string" ? (profile as any).mainTeamId : null;
@@ -63,6 +63,7 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
           position: data?.position,
           teamId: team.id,
           manualCompetitionStats: Array.isArray(data?.manualCompetitionStats) ? data.manualCompetitionStats : [],
+          seasonData: data?.seasonData && typeof data.seasonData === "object" ? data.seasonData : {},
         };
       });
       rows.sort((a, b) => (a.number ?? 0) - (b.number ?? 0) || String(a.name || "").localeCompare(String(b.name || "")));

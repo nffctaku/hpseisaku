@@ -24,7 +24,7 @@ export function SeasonSelect({
           params.set("season", next);
           router.push(`?${params.toString()}`);
         }}
-        className="border rounded-md px-2 py-1 bg-background text-foreground text-sm"
+        className="border rounded-md px-2 py-1 bg-white text-gray-900 text-sm"
       >
         {seasons.map((season) => (
           <option key={season} value={season}>

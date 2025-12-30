@@ -950,7 +950,7 @@ export default async function PlayerPage({
         </div>
       </div>
 
-      <ClubFooter clubId={clubId} legalPages={legalPages} />
+      <ClubFooter clubId={clubId} clubName={clubName} legalPages={legalPages} />
     </div>
   );
 }

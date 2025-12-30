@@ -170,7 +170,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
                                 }
 
                                 return (
-                                    <div key={match.id} className="block p-4 bg-card rounded-lg border">
+                                    <div key={match.id} className="block p-4 bg-white text-gray-900 rounded-lg border">
                                         <div className="grid grid-cols-12 items-center gap-2">
                                             <div className="col-span-5 flex items-center justify-end gap-2">
                                                 <span className="font-medium text-right flex-1 truncate">{match.homeTeamName}</span>

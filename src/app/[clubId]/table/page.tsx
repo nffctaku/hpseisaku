@@ -68,12 +68,19 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
 
   const { competitions, clubName, logoUrl } = data as any;
 
-  const showOnTableCompetitions = (competitions as any[]).filter((c) => (c as any).showOnTable);
+  const eligibleCompetitions = (competitions as any[]).filter((c) => {
+    const format = (c as any).format;
+    return format === 'league' || format === 'league_cup';
+  });
+
+  const showOnTableCompetitions = eligibleCompetitions.filter((c) => (c as any).showOnTable);
+  const showOnHomeCompetitions = eligibleCompetitions.filter((c) => (c as any).showOnHome);
+
   const activeCompetitions = showOnTableCompetitions.length > 0
     ? showOnTableCompetitions
-    : ((competitions as any[]).filter((c) => (c as any).showOnHome) || []);
+    : showOnHomeCompetitions;
 
-  const competitionsToRender = activeCompetitions.length > 0 ? activeCompetitions : (competitions as any[]);
+  const competitionsToRender = activeCompetitions.length > 0 ? activeCompetitions : eligibleCompetitions;
 
   const seasons = Array.from(
     new Set(

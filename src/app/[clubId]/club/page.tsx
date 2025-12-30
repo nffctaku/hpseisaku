@@ -50,6 +50,22 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
     .filter((t) => t.competitionName.length > 0 || t.season.length > 0)
     .sort((a, b) => (b.season || '').localeCompare(a.season || ''));
 
+  const groupedTitles = Array.from(
+    titles.reduce((acc, t) => {
+      const key = t.competitionName || '-';
+      const next = acc.get(key) || { competitionName: key, seasons: [] as string[] };
+      if (t.season && t.season.length > 0 && !next.seasons.includes(t.season)) {
+        next.seasons.push(t.season);
+      }
+      acc.set(key, next);
+      return acc;
+    }, new Map<string, { competitionName: string; seasons: string[] }>())
+      .values()
+  ).map((g) => ({
+    ...g,
+    seasons: g.seasons.sort((a, b) => String(b).localeCompare(String(a))),
+  }));
+
   const foundedYear = (clubInfo as any).foundedYear as string | undefined;
   const hometown = (clubInfo as any).hometown as string | undefined;
   const stadiumName = (clubInfo as any).stadiumName as string | undefined;
@@ -155,7 +171,7 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
 
         <div className="mt-8">
           <h2 className="text-xl font-semibold">獲得タイトル</h2>
-          {titles.length === 0 ? (
+          {groupedTitles.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">登録されたタイトルはありません。</p>
           ) : (
             <div className="mt-3 overflow-hidden rounded-lg border bg-white/60">
@@ -164,10 +180,10 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
                 <div>シーズン</div>
               </div>
               <div className="divide-y">
-                {titles.map((t, idx) => (
-                  <div key={`${t.competitionName}-${t.season}-${idx}`} className="grid grid-cols-[1fr,7rem] gap-2 px-4 py-3 text-sm">
+                {groupedTitles.map((t) => (
+                  <div key={t.competitionName} className="grid grid-cols-[1fr,7rem] gap-2 px-4 py-3 text-sm">
                     <div className="font-medium">{t.competitionName || '-'}</div>
-                    <div>{t.season || '-'}</div>
+                    <div>{t.seasons.length > 0 ? t.seasons.join(',') : '-'}</div>
                   </div>
                 ))}
               </div>
@@ -177,7 +193,7 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
         </div>
       </div>
 
-      <ClubFooter clubId={clubId} sponsors={sponsors} snsLinks={snsLinks} legalPages={legalPages} />
+      <ClubFooter clubId={clubId} clubName={clubName || ''} sponsors={sponsors} snsLinks={snsLinks} legalPages={legalPages} />
     </main>
   );
 }

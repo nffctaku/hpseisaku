@@ -197,27 +197,6 @@ export default function LandingPage() {
       </main>
 
       <footer className="p-4 md:p-6 text-center text-muted-foreground text-sm">
-        <div className="flex justify-center items-center space-x-4 sm:space-x-6 mb-4 text-xs sm:text-sm">
-          <Link
-            href="https://www.footballtop.net/terms"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-primary transition-colors whitespace-nowrap"
-          >
-            利用規約
-          </Link>
-          <Link
-            href="https://www.locofootball.com/privacy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-primary transition-colors whitespace-nowrap"
-          >
-            プライバシーポリシー
-          </Link>
-          <Link href="/tokusho" className="hover:text-primary transition-colors whitespace-nowrap">
-            特定商取引法に基づく表記
-          </Link>
-        </div>
         <p>&copy; {new Date().getFullYear()} Your Club Site. All rights reserved.</p>
       </footer>
     </div>

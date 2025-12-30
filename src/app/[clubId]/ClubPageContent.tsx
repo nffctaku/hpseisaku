@@ -110,6 +110,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
             </div>
             <ClubFooter 
               clubId={clubId}
+              clubName={clubInfo.profile?.clubName || ""}
               sponsors={clubInfo.profile?.sponsors || []} 
               snsLinks={clubInfo.profile?.snsLinks || {}} 
               legalPages={clubInfo.profile?.legalPages || []}

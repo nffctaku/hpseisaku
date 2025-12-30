@@ -9,6 +9,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import PaginationControls from '@/components/pagination-controls';
 import { ClubHeader } from '@/components/club-header';
+import { ClubFooter } from '@/components/club-footer';
 
 const NEWS_PER_PAGE = 9;
 
@@ -55,8 +56,12 @@ async function getNewsData(clubId: string, page: number) {
 
   const clubName = (profileData.clubName as string) || undefined;
   const logoUrl = (profileData.logoUrl as string) || undefined;
+  const snsLinks = ((profileData as any).snsLinks as any) ?? {};
+  const sponsors = (Array.isArray((profileData as any).sponsors) ? ((profileData as any).sponsors as any[]) : []) as any;
+  const legalPages = (Array.isArray((profileData as any).legalPages) ? ((profileData as any).legalPages as any[]) : []) as any;
+  const homeBgColor = (profileData as any).homeBgColor as string | undefined;
 
-  return { news, totalNews, clubName, logoUrl };
+  return { news, totalNews, clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor };
 }
 
 function toCloudinaryPadded16x9(url: string, width: number) {
@@ -71,7 +76,7 @@ function toCloudinaryPadded16x9(url: string, width: number) {
 function NewsCard({ article, clubId }: { article: NewsArticle, clubId: string }) {
   return (
     <Link href={`/${clubId}/news/${article.id}`} className="block group">
-      <div className="bg-card rounded-lg overflow-hidden shadow-md h-full flex flex-col">
+      <div className="bg-white text-gray-900 rounded-lg overflow-hidden shadow-md h-full flex flex-col border">
         {article.imageUrl && (
           <div className="relative w-full aspect-video bg-muted">
             <Image
@@ -114,18 +119,19 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
     notFound();
   }
 
-  const { news, totalNews, clubName, logoUrl } = newsData;
+  const { news, totalNews, clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor } = newsData as any;
   const totalPages = Math.ceil(totalNews / NEWS_PER_PAGE);
 
   return (
-    <div className="min-h-screen bg-background">
-      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
-      <main className="container mx-auto px-4 py-6 sm:py-8">
+    <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+      <div className="flex-1">
+        <div className="container mx-auto px-4 py-6 sm:py-8">
         <div className="flex items-center border-b pb-2 mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold">ALL NEWS</h1>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {news.map(article => (
+          {news.map((article: NewsArticle) => (
             <NewsCard key={article.id} article={article} clubId={clubId} />
           ))}
         </div>
@@ -136,7 +142,10 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
             basePath={`/${clubId}/news`}
           />
         </div>
-      </main>
-    </div>
+        </div>
+      </div>
+
+      <ClubFooter clubId={clubId} clubName={clubName} sponsors={sponsors} snsLinks={snsLinks} legalPages={legalPages} />
+    </main>
   );
 }

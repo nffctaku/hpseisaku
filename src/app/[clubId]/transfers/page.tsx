@@ -237,7 +237,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
         </div>
       </div>
 
-      <ClubFooter clubId={clubId} sponsors={sponsors} snsLinks={snsLinks} legalPages={legalPages} />
+      <ClubFooter clubId={clubId} clubName={clubName} sponsors={sponsors} snsLinks={snsLinks} legalPages={legalPages} />
     </main>
   );
 }

@@ -81,9 +81,9 @@ async function getClubSummary(clubId: string) {
   };
 }
 
-export async function GET(request: NextRequest, context: { params: { clubId: string } }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ clubId: string }> }) {
   try {
-    const { clubId } = context.params;
+    const { clubId } = await context.params;
     const clubSummary = await getClubSummary(clubId);
     return NextResponse.json(clubSummary);
   } catch (error) {
