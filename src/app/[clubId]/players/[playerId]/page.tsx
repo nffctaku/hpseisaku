@@ -223,13 +223,48 @@ function clamp99(n: unknown): number {
   return Math.max(0, Math.min(99, n));
 }
 
-function toFiniteNumber(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string") {
-    const s = v.trim();
-    if (s.length === 0) return null;
-    const n = Number(s);
-    if (Number.isFinite(n)) return n;
+const toFiniteNumber = (v: any): number | null => {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+const currencySymbol = (c: string | undefined): string => {
+  if (c === "GBP") return "￡";
+  if (c === "EUR") return "€";
+  return "￥";
+};
+
+const formatAmount = (v: number): string => {
+  return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 }).format(v);
+};
+
+const formatFeeCompact = (v: number): string => {
+  if (!Number.isFinite(v)) return "-";
+  if (v < 10000) return formatAmount(v);
+  const scaled = v / 10000;
+  const display = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1);
+  return `${display}M`;
+};
+
+interface PlayerContract {
+  salary: number;
+  years: number;
+  currency: string;
+}
+
+function getPlayerContract(playerData: any): PlayerContract | null {
+  const seasonData = playerData?.seasonData && typeof playerData.seasonData === "object" ? (playerData.seasonData as any) : {};
+  const latestSeason = Object.keys(seasonData).sort((a, b) => b.localeCompare(a))[0];
+  const contract = seasonData[latestSeason]?.contract;
+  if (contract) {
+    const salary = toFiniteNumber(contract.salary);
+    const years = toFiniteNumber(contract.years);
+    if (salary == null && years == null) return null;
+    return {
+      salary: salary ?? 0,
+      years: years ?? 0,
+      currency: typeof contract.currency === "string" ? contract.currency : "JPY",
+    };
   }
   return null;
 }
@@ -742,6 +777,17 @@ export default async function PlayerPage({
     return candidates.length > 0 ? candidates[0] : null;
   })();
 
+  const latestSeasonKeyForContract = (() => {
+    const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
+    candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
+    for (const seasonId of candidates) {
+      const sd = getSeasonDataEntry(seasonData as any, seasonId);
+      const hasAny = (toFiniteNumber((sd as any)?.annualSalary) != null) || (toFiniteNumber((sd as any)?.contractYears) != null);
+      if (hasAny) return seasonId;
+    }
+    return candidates.length > 0 ? candidates[0] : null;
+  })();
+
   const seasonParams = (() => {
     if (!latestSeasonKeyForParams) return undefined;
     const sd = getSeasonDataEntry(seasonData as any, latestSeasonKeyForParams);
@@ -783,6 +829,26 @@ export default async function PlayerPage({
     { key: "tiktok", label: "TikTok", url: snsLinks.tiktok },
     { key: "instagram", label: "Instagram", url: snsLinks.instagram },
   ].filter((e) => typeof e.url === "string" && e.url.trim().length > 0);
+
+  const contractSeasonData = latestSeasonKeyForContract ? getSeasonDataEntry(seasonData as any, latestSeasonKeyForContract) : undefined;
+  const annualSalary =
+    toFiniteNumber((contractSeasonData as any)?.annualSalary) != null
+      ? (toFiniteNumber((contractSeasonData as any)?.annualSalary) as number)
+      : toFiniteNumber((player as any)?.annualSalary) != null
+        ? (toFiniteNumber((player as any)?.annualSalary) as number)
+        : null;
+  const annualSalaryCurrency =
+    typeof (contractSeasonData as any)?.annualSalaryCurrency === "string"
+      ? ((contractSeasonData as any).annualSalaryCurrency as string)
+      : typeof (player as any)?.annualSalaryCurrency === "string"
+        ? ((player as any).annualSalaryCurrency as string)
+        : undefined;
+  const contractYears =
+    toFiniteNumber((contractSeasonData as any)?.contractYears) != null
+      ? (toFiniteNumber((contractSeasonData as any)?.contractYears) as number)
+      : toFiniteNumber((player as any)?.contractYears) != null
+        ? (toFiniteNumber((player as any)?.contractYears) as number)
+        : null;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -859,6 +925,26 @@ export default async function PlayerPage({
                     <p className="text-2xl font-bold">{player.age ? `${player.age} 歳` : "N/A"}</p>
                   </div>
                 </div>
+
+                {annualSalary != null || contractYears != null ? (
+                  <div className="mt-4 grid grid-cols-2 gap-4 text-center">
+                    {annualSalary != null ? (
+                      <div className="border rounded-lg p-4">
+                        <p className="text-sm text-muted-foreground">年俸</p>
+                        <p className="text-2xl font-bold">
+                          {currencySymbol(annualSalaryCurrency)}
+                          {formatFeeCompact(annualSalary)}
+                        </p>
+                      </div>
+                    ) : null}
+                    {contractYears != null ? (
+                      <div className="border rounded-lg p-4">
+                        <p className="text-sm text-muted-foreground">契約年数</p>
+                        <p className="text-2xl font-bold">{contractYears} 年</p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {player.profile && (
                   <div className="mt-8">

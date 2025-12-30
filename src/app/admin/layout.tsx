@@ -64,6 +64,17 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
         </main>
         <footer className="border-t border-gray-800 px-4 sm:px-6 md:px-8 py-4 text-xs text-gray-400">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1">
+              <Link href="/terms" className="hover:text-white transition-colors whitespace-nowrap">
+                利用規約
+              </Link>
+              <Link href="/privacy" className="hover:text-white transition-colors whitespace-nowrap">
+                プライバシーポリシー
+              </Link>
+              <Link href="/tokusho" className="hover:text-white transition-colors whitespace-nowrap">
+                特定商取引法に基づく表記
+              </Link>
+            </div>
             <div className="flex items-center justify-center sm:justify-end gap-2">
               <span className="text-[10px] text-gray-500">Powered by</span>
               <Image

@@ -87,6 +87,9 @@ const formSchema = z.object({
   photoUrl: z.string().url({ message: "無効なURLです。" }).optional().or(z.literal('')), 
   height: z.coerce.number().optional(),
   age: z.coerce.number().int().optional(),
+  annualSalary: statNumberSchema,
+  annualSalaryCurrency: z.enum(["JPY", "GBP", "EUR"]).optional(),
+  contractYears: statNumberSchema,
   profile: z.string().max(200, { message: "プロフィールは200文字以内です。" }).optional(),
   nationality: z.string().optional(),
   snsLinks: z
@@ -139,6 +142,9 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
       photoUrl: "",
       height: undefined,
       age: undefined,
+      annualSalary: undefined,
+      annualSalaryCurrency: "JPY" as any,
+      contractYears: undefined,
       profile: "",
       nationality: "",
       snsLinks: {
@@ -490,6 +496,67 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                         type="number"
                         placeholder="25"
                         {...field}
+                        value={(field.value ?? "") as any}
+                        onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="annualSalary"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>年俸</FormLabel>
+                    <FormControl>
+                      <div className="flex gap-2">
+                        <FormField
+                          control={form.control}
+                          name="annualSalaryCurrency"
+                          render={({ field: currencyField }) => (
+                            <Select value={(currencyField.value || "JPY") as any} onValueChange={currencyField.onChange as any}>
+                              <FormControl>
+                                <SelectTrigger className="w-24">
+                                  <SelectValue placeholder="通貨" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="JPY">￥</SelectItem>
+                                <SelectItem value="GBP">￡</SelectItem>
+                                <SelectItem value="EUR">€</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          placeholder="例: 10000"
+                          value={(field.value ?? "") as any}
+                          onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="contractYears"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>契約年数</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="例: 3"
                         value={(field.value ?? "") as any}
                         onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
                       />

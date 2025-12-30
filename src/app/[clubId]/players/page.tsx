@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase/admin";
 import { notFound } from "next/navigation";
 import { PlayerList } from "./player-list";
 import { ClubHeader } from "@/components/club-header";
+import { ClubFooter } from "@/components/club-footer";
 
 interface Player {
   id: string;
@@ -20,6 +21,9 @@ async function getPlayersData(
   clubName: string;
   logoUrl: string | null;
   homeBgColor?: string | null;
+  sponsors?: any[];
+  snsLinks?: any;
+  legalPages?: any[];
   players: Player[];
   allSeasons: string[];
   activeSeason: string;
@@ -29,6 +33,9 @@ async function getPlayersData(
   let logoUrl: string | null = null;
   let ownerUid: string | null = null;
   let homeBgColor: string | null = null;
+  let sponsors: any[] = [];
+  let snsLinks: any = {};
+  let legalPages: any[] = [];
 
   try {
     const profilesQuery = db
@@ -43,6 +50,9 @@ async function getPlayersData(
       clubName = data.clubName || clubName;
       logoUrl = data.logoUrl || null;
       homeBgColor = typeof data.homeBgColor === 'string' ? data.homeBgColor : null;
+      sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
+      snsLinks = (data as any).snsLinks || {};
+      legalPages = Array.isArray(data.legalPages) ? data.legalPages : [];
     } else {
       const directSnap = await db.collection("club_profiles").doc(clubId).get();
       if (directSnap.exists) {
@@ -51,6 +61,9 @@ async function getPlayersData(
         clubName = data.clubName || clubName;
         logoUrl = data.logoUrl || null;
         homeBgColor = typeof data.homeBgColor === 'string' ? data.homeBgColor : null;
+        sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
+        snsLinks = (data as any).snsLinks || {};
+        legalPages = Array.isArray(data.legalPages) ? data.legalPages : [];
       }
     }
   } catch (e) {
@@ -108,7 +121,7 @@ async function getPlayersData(
   // 背番号でソート（重複しても一旦そのまま）
   filteredPlayers.sort((a, b) => (a.number || 0) - (b.number || 0));
 
-  return { clubName, logoUrl, homeBgColor, players: filteredPlayers, allSeasons, activeSeason };
+  return { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, players: filteredPlayers, allSeasons, activeSeason };
 }
 
 export default async function PlayersPage({
@@ -135,7 +148,7 @@ export default async function PlayersPage({
     notFound();
   }
 
-  const { clubName, logoUrl, homeBgColor, players, allSeasons, activeSeason } = data;
+  const { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, players, allSeasons, activeSeason } = data;
 
   return (
     <main
@@ -150,6 +163,13 @@ export default async function PlayersPage({
         allSeasons={allSeasons}
         activeSeason={activeSeason}
         accentColor={homeBgColor}
+      />
+      <ClubFooter
+        clubId={clubId}
+        clubName={clubName}
+        sponsors={sponsors}
+        snsLinks={snsLinks}
+        legalPages={legalPages}
       />
     </main>
   );

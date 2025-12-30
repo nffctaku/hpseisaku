@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase/admin";
 import { notFound } from 'next/navigation';
 import { LeagueTable } from '@/components/league-table';
 import { ClubHeader } from '@/components/club-header';
+import { ClubFooter } from '@/components/club-footer';
 import { SeasonSelect } from "./season-select";
 
 interface TablePageProps {
@@ -39,6 +40,10 @@ async function getCompetitionsForClub(clubId: string) {
   const ownerUid = (profileData as any).ownerUid || profileDoc.id;
   const clubName = (profileData as any).clubName || 'Unknown Club';
   const logoUrl = (profileData as any).logoUrl || null;
+  const homeBgColor = (profileData as any).homeBgColor || null;
+  const sponsors = (profileData as any).sponsors || [];
+  const snsLinks = (profileData as any).snsLinks || {};
+  const legalPages = (profileData as any).legalPages || [];
 
   if (!ownerUid) {
     return null;
@@ -56,7 +61,7 @@ async function getCompetitionsForClub(clubId: string) {
     };
   });
 
-  return { clubName, competitions, logoUrl };
+  return { clubName, competitions, logoUrl, homeBgColor, sponsors, snsLinks, legalPages };
 }
 
 export default async function TablePage({ params: { clubId }, searchParams }: TablePageProps) {
@@ -66,7 +71,7 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
     notFound();
   }
 
-  const { competitions, clubName, logoUrl } = data as any;
+  const { competitions, clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages } = data as any;
 
   const eligibleCompetitions = (competitions as any[]).filter((c) => {
     const format = (c as any).format;
@@ -100,13 +105,15 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
     : competitionsToRender;
 
   return (
-    <>
+    <main
+      className="min-h-screen"
+      style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}
+    >
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
       <div className="container mx-auto py-10 px-4 md:px-0">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold">{clubName} 順位表</h1>
-            <p className="text-sm text-muted-foreground">大会管理で「HPのTABLEに表示」をONにした大会が表示されます。</p>
+            <h1 className="text-3xl font-bold">順位表</h1>
           </div>
           {seasons.length > 0 && (
             <SeasonSelect seasons={seasons} activeSeason={activeSeason} />
@@ -122,11 +129,18 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
                   {comp.season ? <span className="text-sm text-muted-foreground ml-2">({comp.season})</span> : null}
                 </div>
               </div>
-              <LeagueTable competitions={[comp]} />
+              <LeagueTable competitions={[comp]} variant="table" />
             </div>
           ))}
         </div>
       </div>
-    </>
+      <ClubFooter
+        clubId={clubId}
+        clubName={clubName}
+        sponsors={sponsors}
+        snsLinks={snsLinks}
+        legalPages={legalPages}
+      />
+    </main>
   );
 }

@@ -16,6 +16,9 @@ export interface TransferLog {
   counterparty: string;
   fee?: number;
   feeCurrency?: TransferFeeCurrency;
+  annualSalary?: number;
+  annualSalaryCurrency?: TransferFeeCurrency;
+  contractYears?: number;
   createdAt?: any;
   updatedAt?: any;
 }

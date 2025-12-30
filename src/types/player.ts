@@ -43,6 +43,9 @@ export interface PlayerSeasonData {
   nationality?: string;
   age?: number;
   height?: number;
+  annualSalary?: number;
+  annualSalaryCurrency?: "JPY" | "GBP" | "EUR";
+  contractYears?: number;
   photoUrl?: string;
   snsLinks?: PlayerSnsLinks;
   params?: PlayerParameters;
@@ -61,6 +64,9 @@ export interface Player {
   height: number; // in cm
   weight: number; // in kg
   preferredFoot: 'left' | 'right' | 'both';
+  annualSalary?: number;
+  annualSalaryCurrency?: "JPY" | "GBP" | "EUR";
+  contractYears?: number;
   photoUrl?: string;
   snsLinks?: PlayerSnsLinks;
   params?: PlayerParameters;

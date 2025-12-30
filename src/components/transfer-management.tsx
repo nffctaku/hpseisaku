@@ -170,6 +170,16 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
       payload.feeCurrency = values.feeCurrency || "JPY";
     }
 
+    if (values.direction === "in") {
+      if (values.annualSalary != null) {
+        payload.annualSalary = values.annualSalary;
+        payload.annualSalaryCurrency = values.annualSalaryCurrency || "JPY";
+      }
+      if (values.contractYears != null) {
+        payload.contractYears = values.contractYears;
+      }
+    }
+
     try {
       const colRef = collection(db, `clubs/${clubUid}/teams/${teamId}/transfers`);
       if (editing) {

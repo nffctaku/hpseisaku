@@ -37,12 +37,18 @@ interface Standing {
 
 interface LeagueTableProps {
   competitions: Competition[];
+  variant?: 'home' | 'table';
 }
 
-export function LeagueTable({ competitions }: LeagueTableProps) {
+export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps) {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompetition, setSelectedCompetition] = useState<{ name: string; logoUrl?: string } | null>(null);
+
+  const formatGoalDifference = (value: number) => {
+    if (value > 0) return `+${value}`;
+    return `${value}`;
+  };
 
   useEffect(() => {
     if (!competitions || competitions.length === 0) {
@@ -81,6 +87,44 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
             setStandings([]);
             setLoading(false);
             return;
+        }
+
+        // Prefer manually saved standings if present
+        const standingsSnap = await getDocs(collection(competitionDocRef, 'standings'));
+        if (!standingsSnap.empty) {
+          const fetchedStandings = standingsSnap.docs
+            .map((d) => {
+              const data = d.data() as any;
+              const teamInfo = teamsMap.get(d.id);
+              const wins = typeof data.wins === 'number' ? data.wins : 0;
+              const draws = typeof data.draws === 'number' ? data.draws : 0;
+              const goalsFor = typeof data.goalsFor === 'number' ? data.goalsFor : 0;
+              const goalsAgainst = typeof data.goalsAgainst === 'number' ? data.goalsAgainst : 0;
+
+              const points = typeof data.points === 'number' ? data.points : (wins * 3 + draws);
+              const goalDifference =
+                typeof data.goalDifference === 'number' ? data.goalDifference : (goalsFor - goalsAgainst);
+
+              return {
+                id: d.id,
+                rank: typeof data.rank === 'number' ? data.rank : 0,
+                teamName: teamInfo?.name || data.teamName || 'Unknown Team',
+                logoUrl: teamInfo?.logoUrl,
+                played: typeof data.played === 'number' ? data.played : 0,
+                wins,
+                draws,
+                losses: typeof data.losses === 'number' ? data.losses : 0,
+                goalsFor,
+                goalsAgainst,
+                goalDifference,
+                points,
+              } as Standing;
+            })
+            .sort((a, b) => a.rank - b.rank);
+
+          setStandings(fetchedStandings);
+          setLoading(false);
+          return;
         }
 
         // 3. Initialize standings for all participating teams
@@ -181,19 +225,19 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
   }
 
   return (
-    <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm">
+    <div className="bg-white p-2 sm:p-3 rounded-lg shadow-sm">
       {selectedCompetition && (
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-2">
           {selectedCompetition.logoUrl && (
             <Image
               src={selectedCompetition.logoUrl}
               alt={selectedCompetition.name}
-              width={28}
-              height={28}
+              width={22}
+              height={22}
               className="rounded-full object-contain"
             />
           )}
-          <h3 className="text-sm sm:text-base font-semibold truncate">
+          <h3 className="text-xs sm:text-sm font-semibold truncate">
             {selectedCompetition.name}
           </h3>
         </div>
@@ -203,46 +247,76 @@ export function LeagueTable({ competitions }: LeagueTableProps) {
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
       ) : standings.length > 0 ? (
-        <div className="overflow-x-auto">
-          <Table className="min-w-[480px]">
+        <div className={variant === 'table' ? 'overflow-x-auto' : 'overflow-x-hidden sm:overflow-x-auto'}>
+          <Table
+            className={
+              variant === 'table'
+                ? 'min-w-[640px] text-xs'
+                : 'w-full table-fixed sm:table-auto sm:min-w-[440px] text-xs'
+            }
+          >
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[28px] p-1 sm:w-[40px] sm:p-2">#</TableHead>
-                <TableHead className="p-1 sm:p-2">Club</TableHead>
-                <TableHead className="text-right p-1 sm:p-2">試</TableHead>
-                <TableHead className="text-right p-1 sm:p-2">勝</TableHead>
-                <TableHead className="text-right p-1 sm:p-2">分</TableHead>
-                <TableHead className="text-right p-1 sm:p-2">負</TableHead>
-                <TableHead className="text-right p-1 sm:p-2">得失</TableHead>
-                <TableHead className="text-right p-1 sm:p-2">点</TableHead>
+                <TableHead className="w-[24px] px-1 py-0.5 sm:w-[32px] sm:px-2 sm:py-1">#</TableHead>
+                <TableHead className="px-1 py-0.5 sm:px-2 sm:py-1">Club</TableHead>
+                <TableHead className="w-[36px] text-right tabular-nums px-1 py-0.5 sm:w-auto sm:px-2 sm:py-1">試</TableHead>
+                {variant === 'table' ? (
+                  <>
+                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">勝</TableHead>
+                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">分</TableHead>
+                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">負</TableHead>
+                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">得</TableHead>
+                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">失</TableHead>
+                  </>
+                ) : (
+                  <>
+                    <TableHead className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">勝</TableHead>
+                    <TableHead className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">分</TableHead>
+                    <TableHead className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">負</TableHead>
+                  </>
+                )}
+                <TableHead className="w-[44px] text-right tabular-nums px-1 py-0.5 sm:w-auto sm:px-2 sm:py-1">±</TableHead>
+                <TableHead className="w-[36px] text-right tabular-nums px-1 py-0.5 sm:w-auto sm:px-2 sm:py-1">点</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {standings.map((team) => (
                 <TableRow key={team.id}>
-                  <TableCell className="font-medium p-1 sm:p-2">{team.rank}</TableCell>
-                  <TableCell className="p-1 sm:p-2">
-                    <div className="flex items-center gap-2">
+                  <TableCell className="font-medium px-1 py-0.5 sm:px-2 sm:py-1">{team.rank}</TableCell>
+                  <TableCell className="px-1 py-0.5 sm:px-2 sm:py-1">
+                    <div className="flex items-center gap-1.5">
                       {team.logoUrl ? (
                         <Image
                           src={team.logoUrl}
                           alt={team.teamName}
-                          width={24}
-                          height={24}
+                          width={18}
+                          height={18}
                           className="rounded-full object-contain"
                         />
                       ) : (
-                        <div className="w-6 h-6 bg-muted rounded-full" />
+                        <div className="w-[18px] h-[18px] bg-muted rounded-full" />
                       )}
-                      <span className="truncate max-w-[140px] sm:max-w-none">{team.teamName}</span>
+                      <span className="truncate max-w-[130px] sm:max-w-none">{team.teamName}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right p-1 sm:p-2">{team.played}</TableCell>
-                  <TableCell className="text-right p-1 sm:p-2">{team.wins}</TableCell>
-                  <TableCell className="text-right p-1 sm:p-2">{team.draws}</TableCell>
-                  <TableCell className="text-right p-1 sm:p-2">{team.losses}</TableCell>
-                  <TableCell className="text-right p-1 sm:p-2">{team.goalDifference}</TableCell>
-                  <TableCell className="text-right p-1 sm:p-2 font-bold">{team.points}</TableCell>
+                  <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.played}</TableCell>
+                  {variant === 'table' ? (
+                    <>
+                      <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.wins}</TableCell>
+                      <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.draws}</TableCell>
+                      <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.losses}</TableCell>
+                      <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsFor}</TableCell>
+                      <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsAgainst}</TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">{team.wins}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">{team.draws}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">{team.losses}</TableCell>
+                    </>
+                  )}
+                  <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{formatGoalDifference(team.goalDifference)}</TableCell>
+                  <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1 font-bold">{team.points}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

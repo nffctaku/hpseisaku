@@ -197,6 +197,17 @@ export default function LandingPage() {
       </main>
 
       <footer className="p-4 md:p-6 text-center text-muted-foreground text-sm">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs mb-2">
+          <Link href="/terms" className="hover:text-foreground transition-colors whitespace-nowrap">
+            利用規約
+          </Link>
+          <Link href="/privacy" className="hover:text-foreground transition-colors whitespace-nowrap">
+            プライバシーポリシー
+          </Link>
+          <Link href="/tokusho" className="hover:text-foreground transition-colors whitespace-nowrap">
+            特定商取引法に基づく表記
+          </Link>
+        </div>
         <p>&copy; {new Date().getFullYear()} Your Club Site. All rights reserved.</p>
       </footer>
     </div>

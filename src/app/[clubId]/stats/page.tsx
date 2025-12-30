@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, ArrowUpDown } from "lucide-react";
 import { ClubHeader } from "@/components/club-header";
+import { ClubFooter } from "@/components/club-footer";
 
 interface TeamOption {
   id: string;
@@ -354,6 +355,9 @@ export default function ClubStatsPage() {
   const [clubName, setClubName] = useState<string>("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [snsLinks, setSnsLinks] = useState<{ x?: string; youtube?: string; tiktok?: string; instagram?: string }>({});
+  const [sponsors, setSponsors] = useState<any[]>([]);
+  const [legalPages, setLegalPages] = useState<any[]>([]);
+  const [homeBgColor, setHomeBgColor] = useState<string | null>(null);
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
   const [statsData, setStatsData] = useState<StatsDataResponse | null>(null);
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
@@ -384,6 +388,9 @@ export default function ClubStatsPage() {
         setClubName(profile.clubName || "");
         setLogoUrl(profile.logoUrl ?? null);
         setSnsLinks((profile as any).snsLinks && typeof (profile as any).snsLinks === 'object' ? (profile as any).snsLinks : {});
+        setSponsors(Array.isArray((profile as any).sponsors) ? (profile as any).sponsors : []);
+        setLegalPages(Array.isArray((profile as any).legalPages) ? (profile as any).legalPages : []);
+        setHomeBgColor(typeof (profile as any).homeBgColor === 'string' ? (profile as any).homeBgColor : null);
         setMainTeamId(typeof (profile as any).mainTeamId === "string" ? (profile as any).mainTeamId : data.mainTeamId);
       } catch (e) {
         console.error(e);
@@ -397,7 +404,7 @@ export default function ClubStatsPage() {
   }, [clubId]);
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
       {clubId && (
         <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
       )}
@@ -463,6 +470,13 @@ export default function ClubStatsPage() {
           </>
         )}
       </div>
+      <ClubFooter
+        clubId={clubId}
+        clubName={clubName}
+        sponsors={sponsors}
+        snsLinks={snsLinks}
+        legalPages={legalPages}
+      />
     </main>
   );
 }

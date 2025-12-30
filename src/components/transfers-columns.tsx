@@ -75,6 +75,23 @@ export const transferColumns = (
       },
     },
     {
+      accessorKey: "annualSalary",
+      header: "年俸",
+      cell: ({ row }) => {
+        const v = (row.original as any).annualSalary as number | undefined;
+        if (v == null) return "-";
+        return `${currencySymbol((row.original as any).annualSalaryCurrency)}${formatAmount(v)}`;
+      },
+    },
+    {
+      accessorKey: "contractYears",
+      header: "年数",
+      cell: ({ row }) => {
+        const v = (row.original as any).contractYears as number | undefined;
+        return v != null ? v : "-";
+      },
+    },
+    {
       id: "actions",
       cell: ({ row }) => {
         const item = row.original;

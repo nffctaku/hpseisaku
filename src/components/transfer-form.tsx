@@ -42,6 +42,9 @@ const formSchema = z.object({
   counterparty: z.string().min(1, { message: "移籍先/元は必須です。" }),
   fee: z.preprocess(parseMoneyValue, z.number().nonnegative().optional()),
   feeCurrency: z.enum(["JPY", "GBP", "EUR"]).optional(),
+  annualSalary: z.preprocess(parseMoneyValue, z.number().nonnegative().optional()),
+  annualSalaryCurrency: z.enum(["JPY", "GBP", "EUR"]).optional(),
+  contractYears: z.coerce.number().int().nonnegative().optional(),
 });
 
 export type TransferFormValues = z.infer<typeof formSchema>;
@@ -74,6 +77,9 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
       counterparty: "",
       fee: undefined,
       feeCurrency: "JPY",
+      annualSalary: undefined,
+      annualSalaryCurrency: "JPY",
+      contractYears: undefined,
       ...defaultValues,
     },
   });
@@ -81,6 +87,12 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
   useEffect(() => {
     form.setValue("season", season);
     form.setValue("direction", direction);
+
+    if (direction === "out") {
+      form.setValue("annualSalary", undefined);
+      form.setValue("annualSalaryCurrency", "JPY" as any);
+      form.setValue("contractYears", undefined);
+    }
   }, [season, direction, form]);
 
   const label = direction === "in" ? "移籍元" : "移籍先";
@@ -259,6 +271,70 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
             </FormItem>
           )}
         />
+
+        {direction === "in" ? (
+          <>
+            <FormField
+              control={form.control}
+              name="annualSalary"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>年俸</FormLabel>
+                  <FormControl>
+                    <div className="flex gap-2">
+                      <FormField
+                        control={form.control}
+                        name="annualSalaryCurrency"
+                        render={({ field: currencyField }) => (
+                          <Select value={(currencyField.value || "JPY") as any} onValueChange={currencyField.onChange as any}>
+                            <FormControl>
+                              <SelectTrigger className="w-24">
+                                <SelectValue placeholder="通貨" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="JPY">￥</SelectItem>
+                              <SelectItem value="GBP">￡</SelectItem>
+                              <SelectItem value="EUR">€</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="例: 10,000"
+                        value={(field.value as any) ?? ""}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="contractYears"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>契約年数</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="例: 3"
+                      value={field.value ?? ""}
+                      onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        ) : null}
 
         <Button type="submit" disabled={loading} className="w-full">
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

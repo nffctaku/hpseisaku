@@ -206,7 +206,7 @@ export default function MatchesPage() {
   return (
     <div className="w-full mx-auto py-8 sm:py-10 px-4 md:px-0">
       <div className="mb-6 sm:mb-8 space-y-4 sm:space-y-0 sm:flex sm:items-end sm:justify-between">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">試合日程・結果</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">試合管理</h1>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 flex-1">
             <Select value={selectedSeason} onValueChange={setSelectedSeason}>
@@ -264,7 +264,7 @@ export default function MatchesPage() {
 
           <Link
             href="/admin/competitions"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md whitespace-nowrap text-center text-sm"
+            className="bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded-md whitespace-nowrap text-center text-sm"
           >
             大会管理へ
           </Link>

@@ -43,6 +43,31 @@ const abbrevKind = (kind: string | undefined): string => {
   return "完";
 };
 
+const sumFeesByCurrency = (rows: TransferLog[]): Record<string, number> => {
+  const result: Record<string, number> = {};
+  for (const t of rows) {
+    const fee = (t as any).fee as number | undefined;
+    if (fee == null || !Number.isFinite(fee)) continue;
+    const currency = ((t as any).feeCurrency as string | undefined) || "JPY";
+    result[currency] = (result[currency] || 0) + fee;
+  }
+  return result;
+};
+
+const formatCurrencyAmount = (currency: string, amount: number): string => {
+  const sign = amount < 0 ? "-" : "";
+  const abs = Math.abs(amount);
+  return `${sign}${currencySymbol(currency)}${formatFeeCompact(abs)}`;
+};
+
+const formatFeesSummary = (fees: Record<string, number>): string => {
+  const entries = Object.entries(fees)
+    .filter(([, v]) => Number.isFinite(v) && v !== 0)
+    .sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) return "-";
+  return entries.map(([c, v]) => formatCurrencyAmount(c, v)).join(" / ");
+};
+
 async function resolveClubProfile(clubId: string): Promise<any | null> {
   try {
     const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
@@ -139,6 +164,15 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
     .slice()
     .sort((a, b) => (a.playerName || "").localeCompare(b.playerName || ""));
 
+  const inTotals = sumFeesByCurrency(inTransfers);
+  const outTotals = sumFeesByCurrency(outTransfers);
+  const balanceTotals = Object.fromEntries(
+    Array.from(new Set([...Object.keys(inTotals), ...Object.keys(outTotals)])).map((c) => [
+      c,
+      (inTotals[c] || 0) - (outTotals[c] || 0),
+    ])
+  );
+
   const TransferTable = ({ rows, directionLabel }: { rows: TransferLog[]; directionLabel: string }) => {
     const counterpartyHeader = directionLabel === "IN" ? "移籍元" : "移籍先";
 
@@ -227,6 +261,21 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
                   </select>
                 </form>
               )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="rounded-lg border bg-white/60 px-4 py-3">
+              <div className="text-xs text-muted-foreground">IN 合計</div>
+              <div className="text-sm font-semibold">{formatFeesSummary(inTotals)}</div>
+            </div>
+            <div className="rounded-lg border bg-white/60 px-4 py-3">
+              <div className="text-xs text-muted-foreground">OUT 合計</div>
+              <div className="text-sm font-semibold">{formatFeesSummary(outTotals)}</div>
+            </div>
+            <div className="rounded-lg border bg-white/60 px-4 py-3">
+              <div className="text-xs text-muted-foreground">収支</div>
+              <div className="text-sm font-semibold">{formatFeesSummary(balanceTotals)}</div>
             </div>
           </div>
 
