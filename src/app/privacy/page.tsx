@@ -2,20 +2,42 @@ import Link from 'next/link';
 
 const PrivacyPolicyPage = () => {
   return (
-    <div className="min-h-screen bg-[#121826] text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-[#e6f7ff] via-[#eaf6ff] to-white text-slate-900 flex flex-col">
       <main className="container mx-auto px-4 py-8 md:py-16">
         <h1 className="text-3xl md:text-4xl font-bold mb-8 text-center">プライバシーポリシー</h1>
-        <div className="prose prose-invert max-w-4xl mx-auto bg-[#1a2233] p-6 md:p-8 rounded-lg">
-          <h2 className="text-xl font-bold">第1条（個人情報）</h2>
-          <p>「個人情報」とは、個人情報保護法にいう「個人情報」を指すものとし、生存する個人に関する情報であって、当該情報に含まれる氏名、生年月日、住所、電話番号、連絡先その他の記述等により特定の個人を識別できる情報及び容貌、指紋、声紋にかかるデータ、及び健康保険証の保険者番号などの当該情報単体から特定の個人を識別できる情報（個人識別情報）を指します。</p>
-          
-          <h2 className="text-xl font-bold mt-6">第2条（個人情報の収集方法）</h2>
-          <p>当社は、ユーザーが利用登録をする際に氏名、生年月日、住所、電話番号、メールアドレス、銀行口座番号、クレジットカード番号、運転免許証番号などの個人情報をお尋ねすることがあります。また、ユーザーと提携先などとの間でなされたユーザーの個人情報を含む取引記録や決済に関する情報を、当社の提携先（情報提供元、広告主、広告配信先などを含みます。以下、｢提携先｣といいます。）などから収集することがあります。</p>
+        <div className="prose max-w-4xl mx-auto bg-white/80 border border-sky-200 p-6 md:p-8 rounded-lg shadow-sm">
+          <h2 className="text-xl font-bold">1. 取得する情報</h2>
+          <p>当サービスは、以下の情報を取得します。</p>
+          <ul>
+            <li>アカウント登録時のメールアドレス、ユーザー名</li>
+            <li>有料プラン利用時の決済情報（決済代行会社を通じて取得）</li>
+            <li>サービス利用履歴、アクセスログ</li>
+          </ul>
 
-          <p className="mt-6">（ここにポリシーの詳細が続きます）</p>
+          <h2 className="text-xl font-bold mt-6">2. 利用目的</h2>
+          <p>取得した情報は、以下の目的でのみ利用します。</p>
+          <ul>
+            <li>ログインおよび本人確認のため</li>
+            <li>サービスの提供、維持、改善のため</li>
+            <li>有料プランの決済および管理のため</li>
+            <li>メンテナンスやお知らせの通知のため</li>
+          </ul>
+
+          <h2 className="text-xl font-bold mt-6">3. 第三者提供の禁止</h2>
+          <p>当サービスは、法令に基づく場合を除き、ユーザーの同意なく個人情報を第三者に提供することはありません。</p>
+
+          <h2 className="text-xl font-bold mt-6">4. 決済代行サービスの利用</h2>
+          <p>
+            有料プランの決済には外部の決済代行サービス（Stripe等）を利用します。クレジットカード情報は当サービスのサーバーには保存されず、決済代行会社のポリシーに従って管理されます。
+          </p>
+
+          <h2 className="text-xl font-bold mt-6">5. 情報の開示・訂正</h2>
+          <p>
+            ユーザーは、自身の個人情報の照会・訂正・削除を希望する場合、所定の手続きによりこれを行うことができます。
+          </p>
         </div>
         <div className="text-center mt-12">
-          <Link href="/" className="text-red-500 hover:text-red-400 transition-colors">
+          <Link href="/" className="text-sky-700 hover:text-sky-800 transition-colors underline">
             トップページに戻る
           </Link>
         </div>

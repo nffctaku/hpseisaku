@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ReactNode } from 'react';
+import { useEffect, useState, ReactNode } from 'react';
 import { Sidebar } from '@/components/sidebar';
 import { Header } from '@/components/header';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,13 +8,65 @@ import { ClubProvider, useClub } from '@/contexts/ClubContext';
 import { AuthButton } from '@/components/auth-button';
 import Link from 'next/link';
 import Image from 'next/image';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
 
 function AdminLayoutContent({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { user } = useAuth();
   const { clubInfo } = useClub();
-  
+  const [tosChecked, setTosChecked] = useState(false);
+  const [tosLoading, setTosLoading] = useState(false);
+  const [tosOpen, setTosOpen] = useState(false);
+
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  useEffect(() => {
+    const checkConsent = async () => {
+      if (!user?.uid) return;
+      setTosLoading(true);
+      try {
+        const tosVersion = '2025-12-30';
+        const ref = doc(db, 'user_consents', user.uid);
+        const snap = await getDoc(ref);
+        const data = snap.exists() ? (snap.data() as any) : null;
+        const accepted = Boolean(data?.tosAcceptedAt) && String(data?.tosVersion || '') === tosVersion;
+        setTosOpen(!accepted);
+      } catch (e) {
+        console.error('[AdminLayout] failed to check tos consent', e);
+        setTosOpen(true);
+      } finally {
+        setTosLoading(false);
+      }
+    };
+    void checkConsent();
+  }, [user?.uid]);
+
+  const handleAcceptTos = async () => {
+    if (!user?.uid) return;
+    if (!tosChecked) return;
+    setTosLoading(true);
+    try {
+      const tosVersion = '2025-12-30';
+      const ref = doc(db, 'user_consents', user.uid);
+      await setDoc(
+        ref,
+        {
+          tosVersion,
+          tosAcceptedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      setTosOpen(false);
+    } catch (e) {
+      console.error('[AdminLayout] failed to accept tos', e);
+    } finally {
+      setTosLoading(false);
+    }
+  };
 
   // 未ログイン時は、管理画面の代わりにログイン画面を表示
   if (!user) {
@@ -35,6 +87,44 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen w-screen bg-gray-900 text-white">
+      <Dialog open={tosOpen} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-lg" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>利用規約への同意</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm text-gray-200">
+            <p>
+              サービスの利用を開始するには、利用規約に同意してください。
+            </p>
+            <div className="flex items-start gap-3">
+              <Checkbox
+                checked={tosChecked}
+                onCheckedChange={(v) => setTosChecked(Boolean(v))}
+                className="border-white/40 bg-white/10 data-[state=checked]:bg-white data-[state=checked]:text-gray-900"
+              />
+              <p className="leading-relaxed">
+                <span> </span>
+                <Link href="/terms" className="underline" target="_blank" rel="noreferrer">
+                  利用規約
+                </Link>
+                <span>と</span>
+                <Link href="/privacy" className="underline" target="_blank" rel="noreferrer">
+                  プライバシーポリシー
+                </Link>
+                <span>に同意します。</span>
+              </p>
+            </div>
+            <Button
+              type="button"
+              className="w-full"
+              disabled={!tosChecked || tosLoading}
+              onClick={handleAcceptTos}
+            >
+              同意して開始
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* Sidebar for mobile (overlay) */}
       <div
         className={`fixed inset-0 z-30 bg-black/60 transition-opacity duration-300 md:hidden ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
