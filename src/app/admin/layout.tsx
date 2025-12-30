@@ -92,7 +92,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
           <DialogHeader>
             <DialogTitle>利用規約への同意</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 text-sm text-gray-200">
+          <div className="space-y-4 text-sm text-slate-700">
             <p>
               サービスの利用を開始するには、利用規約に同意してください。
             </p>
@@ -100,19 +100,26 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
               <Checkbox
                 checked={tosChecked}
                 onCheckedChange={(v) => setTosChecked(Boolean(v))}
-                className="border-white/40 bg-white/10 data-[state=checked]:bg-white data-[state=checked]:text-gray-900"
+                className="border-slate-400 bg-white data-[state=checked]:bg-sky-600 data-[state=checked]:text-white"
               />
               <p className="leading-relaxed">
-                <span> </span>
-                <Link href="/terms" className="underline" target="_blank" rel="noreferrer">
+                <Link href="/terms" className="underline text-sky-700 hover:text-sky-800" target="_blank" rel="noreferrer">
                   利用規約
                 </Link>
                 <span>と</span>
-                <Link href="/privacy" className="underline" target="_blank" rel="noreferrer">
+                <Link href="/privacy" className="underline text-sky-700 hover:text-sky-800" target="_blank" rel="noreferrer">
                   プライバシーポリシー
                 </Link>
                 <span>に同意します。</span>
               </p>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+              <Link href="/terms" className="underline text-sky-700 hover:text-sky-800" target="_blank" rel="noreferrer">
+                利用規約の詳細
+              </Link>
+              <Link href="/cancel-policy" className="underline text-sky-700 hover:text-sky-800" target="_blank" rel="noreferrer">
+                キャンセルポリシーの詳細
+              </Link>
             </div>
             <Button
               type="button"

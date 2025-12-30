@@ -11,13 +11,13 @@ service cloud.firestore {
 
     // PUBLIC COLLECTIONS
     match /club_profiles/{ownerUid} {
+      // 公開プロフィールは誰でも読める
       allow read: if true;
-      // Only the owner or an existing admin can modify the profile (e.g., to add other admins)
+      // 変更できるのはオーナーか既存の管理者
       allow write: if request.auth != null && isClubAdmin(ownerUid);
     }
 
-    // This seems to be a global news collection, separate from club news.
-    // Keep its rules simple for now.
+    // グローバルなニュース
     match /news/{newsId} {
       allow read: if true;
       allow write: if request.auth != null;
@@ -25,11 +25,11 @@ service cloud.firestore {
 
     // CLUB-SPECIFIC DATA
     match /clubs/{ownerUid} {
-      // The main club document can be read by anyone, but only written by an admin
+      // クラブ本体ドキュメント
       allow read: if true;
       allow write: if request.auth != null && isClubAdmin(ownerUid);
 
-      // Subcollections within a club
+      // 大会
       match /competitions/{compId} {
         allow get, list: if true;
         allow write: if request.auth != null && isClubAdmin(ownerUid);
@@ -50,39 +50,31 @@ service cloud.firestore {
         }
       }
 
+      // チーム
       match /teams/{teamId} {
         allow get, list: if true;
         allow write: if request.auth != null && isClubAdmin(ownerUid);
 
-        // Per-team players (used by admin screens and public player list)
+        // 各チーム配下の選手
         match /players/{playerId} {
           allow get, list: if true;
           allow write: if request.auth != null && isClubAdmin(ownerUid);
         }
 
-        // Per-team staff (used by admin staff management)
+        // 各チーム配下のスタッフ
         match /staff/{staffId} {
           allow get, list: if true;
           allow write: if request.auth != null && isClubAdmin(ownerUid);
         }
 
-        // Per-team transfers (used by admin transfer management)
+        // 各チーム配下の移籍ログ
         match /transfers/{transferId} {
           allow get, list: if true;
           allow write: if request.auth != null && isClubAdmin(ownerUid);
         }
       }
 
-      match /news/{newsId} {
-        allow read: if true;
-        allow write: if request.auth != null && isClubAdmin(ownerUid);
-      }
-
-      match /videos/{videoId} {
-        allow get, list: if true;
-        allow write: if request.auth != null && isClubAdmin(ownerUid);
-      }
-
+      // 単発試合（親善/練習）
       match /friendly_matches/{matchId} {
         allow get, list: if true;
         allow write: if request.auth != null && isClubAdmin(ownerUid);
@@ -93,12 +85,19 @@ service cloud.firestore {
         }
       }
 
-      // Players subcollection needs to be explicitly defined for rules to apply
-      match /players/{playerId} {
-         allow get, list: if true;
-         allow write: if request.auth != null && isClubAdmin(ownerUid);
+      // クラブニュース
+      match /news/{newsId} {
+        allow read: if true;
+        allow write: if request.auth != null && isClubAdmin(ownerUid);
       }
 
+      // 動画
+      match /videos/{videoId} {
+        allow get, list: if true;
+        allow write: if request.auth != null && isClubAdmin(ownerUid);
+      }
+
+      // シーズン（旧ロスター用。今後使うならここを拡張）
       match /seasons/{seasonId} {
         allow get, list: if true;
         allow write: if request.auth != null && isClubAdmin(ownerUid);
@@ -110,10 +109,12 @@ service cloud.firestore {
     }
 
     // USER-SPECIFIC DATA
-          match /teams/{teamId} {
-        allow get, list: if request.auth.uid == ownerUid;
-      }
     match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 利用規約同意状態（本人のみ）
+    match /user_consents/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
