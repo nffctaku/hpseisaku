@@ -81,6 +81,7 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
           ...(matchData as any),
           id: matchDoc.id,
           competitionName: compDoc.data().name,
+          competitionLogoUrl: compDoc.data().logoUrl,
           roundName: roundDoc.data().name,
           homeTeamName: homeTeam?.name || '不明',
           awayTeamName: awayTeam?.name || '不明',
@@ -135,7 +136,7 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
   const latestResult = pastMatches.length > 0 ? pastMatches[0] : null;
   const nextMatch = futureMatches.length > 0 ? futureMatches[0] : null;
 
-  const recentMatches = pastMatches.slice(0, 3);
+  const recentMatches = pastMatches.slice(0, 5);
   const upcomingMatches = futureMatches.slice(0, 7);
 
   return { latestResult, nextMatch, clubName, recentMatches, upcomingMatches };

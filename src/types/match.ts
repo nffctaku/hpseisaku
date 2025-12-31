@@ -73,6 +73,7 @@ export interface MatchDetails {
   homeTeamName: string;
   awayTeamName: string;
   competitionName?: string;
+  competitionLogoUrl?: string;
   roundName?: string;
   homeTeamLogo?: string;
   awayTeamLogo?: string;

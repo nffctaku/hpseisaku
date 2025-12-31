@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, writeBatch, doc, getDocs, query } from "firebase/firestore";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
@@ -30,7 +30,20 @@ const formSchema = z.object({
   name: z.string().min(1, "大会名は必須です。"),
   season: z.string().min(1, "シーズンを選択してください。"),
   format: z.enum(["league", "cup", "league_cup"]),
-  leagueRounds: z.coerce.number().int().positive("1以上の数値を入力してください。").optional(),
+  leagueRounds: z.preprocess(
+    (v) => {
+      if (v === '' || v == null) return undefined;
+      if (typeof v === 'number') return v;
+      if (typeof v === 'string') {
+        const s = v.trim();
+        if (!s) return undefined;
+        const n = Number(s);
+        return Number.isFinite(n) ? n : undefined;
+      }
+      return undefined;
+    },
+    z.number().int().positive("1以上の数値を入力してください。").optional()
+  ),
   cupRounds: z.array(z.object({ name: z.string().min(1, "回戦名は必須です。") })).optional(),
   teams: z.array(z.string()).min(1, "最低1チームは選択してください。"),
   logoUrl: z.string().url().optional().or(z.literal('')),
@@ -58,6 +71,12 @@ interface Team {
   id: string;
   name: string;
   logoUrl?: string;
+  categoryId?: string | null;
+}
+
+interface TeamCategory {
+  id: string;
+  name: string;
 }
 
 export default function NewCompetitionPage() {
@@ -65,13 +84,31 @@ export default function NewCompetitionPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [categories, setCategories] = useState<TeamCategory[]>([]);
+  const [teamCategoryFilter, setTeamCategoryFilter] = useState<string>("all");
+
+  const clubUid = (user as any)?.ownerUid || user?.uid;
+
+  const getTeamInitial = (name: string) => {
+    const s = (name || '').trim();
+    if (!s) return '?';
+    return s.slice(0, 1).toUpperCase();
+  };
+
+  const getTeamCategoryFilterLabel = () => {
+    if (teamCategoryFilter === 'all') return 'すべて';
+    if (teamCategoryFilter === 'uncategorized') return '未分類';
+    const found = categories.find((c) => c.id === teamCategoryFilter);
+    return found?.name || '（不明）';
+  };
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as any,
     defaultValues: {
       name: "",
       season: `${new Date().getFullYear()}/${String(new Date().getFullYear() + 1).slice(-2)}`,
       format: "league",
+      leagueRounds: undefined,
       cupRounds: [],
       teams: [],
       logoUrl: "",
@@ -85,8 +122,9 @@ export default function NewCompetitionPage() {
 
   useEffect(() => {
     if (!user) return;
+    if (!clubUid) return;
     const fetchTeams = async () => {
-      const teamsColRef = collection(db, `clubs/${user.uid}/teams`);
+      const teamsColRef = collection(db, `clubs/${clubUid}/teams`);
       const q = query(teamsColRef);
       const querySnapshot = await getDocs(q);
       const teamsData = querySnapshot.docs.map(doc => ({ 
@@ -95,19 +133,31 @@ export default function NewCompetitionPage() {
       } as Team));
       setAllTeams(teamsData);
     };
+    const fetchCategories = async () => {
+      const categoriesColRef = collection(db, `clubs/${clubUid}/team_categories`);
+      const q = query(categoriesColRef);
+      const querySnapshot = await getDocs(q);
+      const categoriesData = querySnapshot.docs
+        .map((d) => ({ id: d.id, ...(d.data() as any) } as TeamCategory))
+        .filter((c) => typeof c.name === 'string')
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setCategories(categoriesData);
+    };
     fetchTeams();
-  }, [user]);
+    fetchCategories();
+  }, [user, clubUid]);
 
   const selectedFormat = form.watch("format");
 
-  const onSubmit = async (data: FormValues) => {
+  const onSubmit: SubmitHandler<FormValues> = async (data) => {
     if (!user) {
       toast.error("ログインしていません。");
       return;
     }
+    if (!clubUid) return;
     setLoading(true);
     try {
-      const compRef = await addDoc(collection(db, `clubs/${user.uid}/competitions`), {
+      const compRef = await addDoc(collection(db, `clubs/${clubUid}/competitions`), {
         name: data.name,
         season: data.season,
         format: data.format,
@@ -116,7 +166,7 @@ export default function NewCompetitionPage() {
       });
 
       const batch = writeBatch(db);
-      const roundsColRef = collection(db, `clubs/${user.uid}/competitions`, compRef.id, 'rounds');
+      const roundsColRef = collection(db, `clubs/${clubUid}/competitions`, compRef.id, 'rounds');
 
       if (data.format === 'league' || data.format === 'league_cup') {
         for (let i = 1; i <= data.leagueRounds!; i++) {
@@ -288,8 +338,31 @@ export default function NewCompetitionPage() {
                     大会に参加するチームを選択してください。
                   </FormDescription>
                 </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+                  <div className="text-xs sm:text-sm text-muted-foreground">表示カテゴリ</div>
+                  <Select value={teamCategoryFilter} onValueChange={setTeamCategoryFilter}>
+                    <SelectTrigger className="w-full sm:w-[260px] bg-white text-gray-900 border border-border">
+                      <span className="text-sm text-gray-900">表示カテゴリ: {getTeamCategoryFilterLabel()}</span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">すべて</SelectItem>
+                      <SelectItem value="uncategorized">未分類</SelectItem>
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {allTeams.map((team) => (
+                  {allTeams
+                    .filter((t) => {
+                      if (teamCategoryFilter === 'all') return true;
+                      if (teamCategoryFilter === 'uncategorized') return !t.categoryId;
+                      return t.categoryId === teamCategoryFilter;
+                    })
+                    .map((team) => (
                     <FormField
                       key={team.id}
                       control={form.control}
@@ -298,7 +371,7 @@ export default function NewCompetitionPage() {
                         return (
                           <FormItem
                             key={team.id}
-                            className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 transition-colors hover:bg-muted/50 data-[state=checked]:bg-primary/10"
+                            className="flex flex-row items-start gap-3 space-y-0 rounded-md border p-3 transition-colors hover:bg-muted/50 data-[state=checked]:bg-primary/10"
                           >
                             <FormControl>
                               <Checkbox
@@ -314,14 +387,16 @@ export default function NewCompetitionPage() {
                                 }}
                               />
                             </FormControl>
-                            <FormLabel className="font-normal flex-grow cursor-pointer">
-                              <div className="flex items-center gap-2">
+                            <FormLabel className="font-normal flex-1 min-w-0 cursor-pointer">
+                              <div className="flex items-start gap-2 min-w-0">
                                 {team.logoUrl ? (
                                   <Image src={team.logoUrl} alt={team.name} width={24} height={24} className="rounded-full object-contain" />
                                 ) : (
-                                  <div className="w-6 h-6 bg-muted rounded-full" />
+                                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-slate-100 to-slate-300 text-slate-800 flex items-center justify-center font-bold text-xs">
+                                    {getTeamInitial(team.name)}
+                                  </div>
                                 )}
-                                <span>{team.name}</span>
+                                <span className="min-w-0 text-sm leading-tight break-words line-clamp-2">{team.name}</span>
                               </div>
                             </FormLabel>
                           </FormItem>

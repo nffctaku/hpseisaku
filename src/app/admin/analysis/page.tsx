@@ -60,6 +60,8 @@ export default function AnalysisPage() {
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>("all");
 
+  const [displayMode, setDisplayMode] = useState<AggMode>("sum");
+
   const [mainTeamId, setMainTeamId] = useState<string>("");
   const [matches, setMatches] = useState<MatchForAnalysis[]>([]);
 
@@ -252,6 +254,16 @@ export default function AnalysisPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
         <div className="font-semibold">分析管理</div>
         <div className="flex flex-wrap items-center gap-2 justify-end">
+          <Select value={displayMode} onValueChange={(v) => setDisplayMode(v as AggMode)}>
+            <SelectTrigger className="w-[180px] bg-white text-gray-900">
+              <SelectValue placeholder="表示を選択" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sum">合計</SelectItem>
+              <SelectItem value="avg">1試合平均</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Select value={selectedSeason} onValueChange={setSelectedSeason}>
             <SelectTrigger className="w-[180px] bg-white text-gray-900">
               <SelectValue placeholder="シーズンを選択" />
@@ -305,9 +317,15 @@ export default function AnalysisPage() {
               {analysisRows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell>{r.name}</TableCell>
-                  <TableCell className="text-right">{r.mode === "avg" ? "平均" : "合計"}</TableCell>
                   <TableCell className="text-right">
-                    {r.mode === "avg" ? `${r.value.toFixed(1)}%` : Math.round(r.value)}
+                    {r.mode === "avg" ? "平均" : displayMode === "avg" ? "1試合平均" : "合計"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {r.mode === "avg"
+                      ? `${r.value.toFixed(1)}%`
+                      : displayMode === "avg"
+                        ? (r.matches > 0 ? (r.value / r.matches).toFixed(1) : "0.0")
+                        : Math.round(r.value)}
                   </TableCell>
                 </TableRow>
               ))}

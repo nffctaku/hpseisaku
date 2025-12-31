@@ -79,6 +79,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
 
     const heroNews = (clubInfo as any).heroNews || clubInfo.news || [];
     const listNews = clubInfo.news || [];
+    const videos = clubInfo.videos || [];
 
     return (
         <main
@@ -100,8 +101,10 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                             latestResult={clubInfo.latestResult} 
                             nextMatch={clubInfo.nextMatch} 
                             clubName={clubInfo.profile?.clubName || ''} 
+                            recentMatches={(clubInfo as any).recentMatches || []}
+                            mainTeamId={(clubInfo as any).profile?.mainTeamId || null}
                         />
-                        <ClubTv videos={clubInfo.videos || []} clubId={clubId} />
+                        {videos.length > 0 && <ClubTv videos={videos} clubId={clubId} />}
                     </div>
                     <div className="lg:col-span-1">
                         <LeagueTable competitions={clubInfo.competitions || []} />

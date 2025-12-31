@@ -6,7 +6,12 @@ service cloud.firestore {
     // Helper function to check if a user is an admin of a club
     function isClubAdmin(ownerUid) {
       let clubProfile = get(/databases/$(database)/documents/club_profiles/$(ownerUid));
-      return request.auth.uid == ownerUid || (request.auth.uid in clubProfile.data.admins);
+      return request.auth.uid == ownerUid || (
+        clubProfile != null &&
+        clubProfile.exists() &&
+        clubProfile.data.admins != null &&
+        (request.auth.uid in clubProfile.data.admins)
+      );
     }
 
     // PUBLIC COLLECTIONS
@@ -72,6 +77,11 @@ service cloud.firestore {
           allow get, list: if true;
           allow write: if request.auth != null && isClubAdmin(ownerUid);
         }
+      }
+
+      match /team_categories/{categoryId} {
+        allow get, list: if true;
+        allow write: if request.auth != null && isClubAdmin(ownerUid);
       }
 
       // 単発試合（親善/練習）

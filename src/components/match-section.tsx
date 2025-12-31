@@ -1,8 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MatchDetails } from "@/types/match";
 import { format } from 'date-fns';
-import { Timestamp } from 'firebase/firestore';
 import Image from 'next/image';
 
 function TeamDisplay({ logo, name }: { logo?: string, name: string }) {
@@ -18,28 +15,98 @@ function TeamDisplay({ logo, name }: { logo?: string, name: string }) {
   );
 }
 
-function LatestResult({ match, clubName }: { match: MatchDetails | null, clubName: string | null }) {
-  if (!match) return <div className="text-center p-8">No recent matches.</div>;
+function getRoundLabel(roundName?: string) {
+  const s = (roundName || '').trim();
+  if (!s) return '';
+  const m = s.match(/(\d+)/);
+  if (m?.[1]) return `MW ${m[1]}`;
+  return s;
+}
 
-  const isWin = clubName && typeof match.scoreHome === 'number' && typeof match.scoreAway === 'number' && 
-                ((match.homeTeamName === clubName && match.scoreHome > match.scoreAway) || 
-                 (match.awayTeamName === clubName && match.scoreAway > match.scoreHome));
-  const isLoss = clubName && typeof match.scoreHome === 'number' && typeof match.scoreAway === 'number' && 
-                 ((match.homeTeamName === clubName && match.scoreHome < match.scoreAway) || 
-                  (match.awayTeamName === clubName && match.scoreAway < match.scoreHome));
+function RecentMatchesStrip({
+  matches,
+  mainTeamId,
+}: {
+  matches: MatchDetails[];
+  mainTeamId?: string | null;
+}) {
+  const items = (matches || [])
+    .filter((m) => typeof m.scoreHome === 'number' && typeof m.scoreAway === 'number')
+    .slice()
+    .reverse();
+  if (items.length === 0) return null;
+
+  const resolveIsHome = (m: MatchDetails) => {
+    if (mainTeamId) return m.homeTeam === mainTeamId;
+    return false;
+  };
+
+  const resolveOutcome = (m: MatchDetails) => {
+    const isHome = resolveIsHome(m);
+    const my = isHome ? (m.scoreHome ?? 0) : (m.scoreAway ?? 0);
+    const opp = isHome ? (m.scoreAway ?? 0) : (m.scoreHome ?? 0);
+    if (my > opp) return 'win' as const;
+    if (my < opp) return 'loss' as const;
+    return 'draw' as const;
+  };
+
+  const resolveOpponent = (m: MatchDetails) => {
+    const isHome = resolveIsHome(m);
+    return {
+      competitionLogoUrl: m.competitionLogoUrl,
+      logo: isHome ? m.awayTeamLogo : m.homeTeamLogo,
+      name: isHome ? m.awayTeamName : m.homeTeamName,
+      ha: isHome ? '(H)' : '(A)',
+      scoreText: `${m.scoreHome ?? '-'} - ${m.scoreAway ?? '-'}`,
+      outcome: resolveOutcome(m),
+      roundLabel: getRoundLabel(m.roundName),
+    };
+  };
+
+  const outcomeClass = (o: 'win' | 'loss' | 'draw') => {
+    if (o === 'win') return 'bg-emerald-600';
+    if (o === 'loss') return 'bg-red-600';
+    return 'bg-gray-500';
+  };
 
   return (
-    <div className="rounded-lg p-4 md:p-6 flex flex-col items-center">
-      <div className="w-full flex justify-around items-center">
-        <TeamDisplay logo={match.homeTeamLogo} name={match.homeTeamName} />
-        <div className="text-center px-1">
-          <p className="text-4xl md:text-5xl font-bold tracking-tighter">{match.scoreHome ?? '-'} - {match.scoreAway ?? '-'}</p>
-          {isWin && <p className="text-green-400 font-semibold text-xs md:text-sm mt-1">WIN</p>}
-          {isLoss && <p className="text-red-400 font-semibold text-xs md:text-sm mt-1">LOSS</p>}
-          {!isWin && !isLoss && <p className="text-gray-400 font-semibold text-xs md:text-sm mt-1">DRAW</p>}
-          <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 truncate">{match.competitionName} / {match.roundName}</p>
-        </div>
-        <TeamDisplay logo={match.awayTeamLogo} name={match.awayTeamName} />
+    <div className="mb-4">
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {items.map((m) => {
+          const opp = resolveOpponent(m);
+          return (
+            <div key={m.id} className="flex-shrink-0 w-[110px]">
+              <div className="mb-2 flex items-center justify-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                {opp.competitionLogoUrl ? (
+                  <Image
+                    src={opp.competitionLogoUrl}
+                    alt=""
+                    width={12}
+                    height={12}
+                    className="h-3 w-3 object-contain"
+                  />
+                ) : null}
+                <span>{opp.roundLabel}</span>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                {opp.logo ? (
+                  <Image src={opp.logo} alt={opp.name} width={44} height={44} className="w-11 h-11 rounded-full object-contain" />
+                ) : (
+                  <div className="w-11 h-11 rounded-full bg-gray-700 flex items-center justify-center text-white font-bold text-lg">
+                    {opp.name.charAt(0)}
+                  </div>
+                )}
+                <div className="text-[11px] font-semibold leading-tight text-center">
+                  <div className="truncate max-w-[110px]">{opp.name}</div>
+                  <div className="text-[10px] text-muted-foreground">{opp.ha}</div>
+                </div>
+                <div className={"w-full rounded-full px-2 py-1 text-center text-xs font-bold text-white " + outcomeClass(opp.outcome)}>
+                  {opp.scoreText}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -51,13 +118,28 @@ function NextMatch({ match }: { match: MatchDetails | null }) {
   const matchDate = new Date(match.matchDate);
 
   return (
-    <div className="bg-white rounded-lg p-4 md:p-6 flex flex-col items-center shadow-sm">
+    <div className="bg-white rounded-lg p-4 md:p-6 flex flex-col items-center shadow-lg hover:shadow-xl transition-shadow">
       <div className="w-full flex justify-around items-center">
         <TeamDisplay logo={match.homeTeamLogo} name={match.homeTeamName} />
         <div className="text-center px-1">
           <p className="text-xs sm:text-sm md:text-base text-muted-foreground">{match.matchTime ? `${format(matchDate, 'M/d')} ${match.matchTime}` : format(matchDate, 'M/d')}</p>
           <p className="text-base sm:text-lg md:text-xl font-bold">KICK OFF</p>
-          <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 truncate">{match.competitionName} / {match.roundName}</p>
+          <div className="mt-2 space-y-0.5">
+            {match.competitionLogoUrl ? (
+              <div className="flex items-center justify-center">
+                <Image
+                  src={match.competitionLogoUrl}
+                  alt=""
+                  width={14}
+                  height={14}
+                  className="h-3.5 w-3.5 object-contain"
+                />
+              </div>
+            ) : (
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{match.competitionName || ''}</p>
+            )}
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{match.roundName || ''}</p>
+          </div>
         </div>
         <TeamDisplay logo={match.awayTeamLogo} name={match.awayTeamName} />
       </div>
@@ -66,29 +148,19 @@ function NextMatch({ match }: { match: MatchDetails | null }) {
 }
 
 interface MatchSectionProps {
-  latestResult: MatchDetails | null;
   nextMatch: MatchDetails | null;
-  clubName: string | null;
+  recentMatches?: MatchDetails[];
+  mainTeamId?: string | null;
 }
 
-export function MatchSection({ latestResult, nextMatch, clubName }: MatchSectionProps) {
+export function MatchSection({ nextMatch, recentMatches = [], mainTeamId }: MatchSectionProps) {
   return (
     <section className="py-8 md:py-12">
       <div className="container mx-auto">
         <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 w-full max-w-2xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center">MATCHES</h2>
-          <Tabs defaultValue="latest-result" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-muted">
-              <TabsTrigger value="latest-result">Latest Result</TabsTrigger>
-              <TabsTrigger value="next-match">Next Match</TabsTrigger>
-            </TabsList>
-            <TabsContent value="latest-result">
-              <LatestResult match={latestResult} clubName={clubName} />
-            </TabsContent>
-            <TabsContent value="next-match">
-              <NextMatch match={nextMatch} />
-            </TabsContent>
-          </Tabs>
+          <RecentMatchesStrip matches={recentMatches} mainTeamId={mainTeamId} />
+          <NextMatch match={nextMatch} />
         </div>
       </div>
     </section>
