@@ -1,14 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSearchParams } from "next/navigation";
 
 export default function PlanPage() {
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, refreshUserProfile } = useAuth();
   const isPro = user?.plan === "pro";
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const result = searchParams.get("result");
+    if (result === "success") {
+      void refreshUserProfile?.();
+    }
+  }, [refreshUserProfile, searchParams]);
 
   const handleUpgrade = async () => {
     setLoading(true);

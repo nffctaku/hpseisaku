@@ -35,6 +35,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Webhookの再送/重複配信対策（idempotency）
+    const eventRef = db.collection('stripe_webhook_events').doc(event.id);
+    const already = await eventRef.get();
+    if (already.exists) {
+      return new NextResponse('OK', { status: 200 });
+    }
+
+    await eventRef.set(
+      {
+        type: event.type,
+        created: event.created,
+        receivedAtMs: Date.now(),
+      },
+      { merge: true }
+    );
+
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
       const ownerUid = session.client_reference_id;
@@ -49,6 +65,19 @@ export async function POST(req: NextRequest) {
         }
 
         await profileRef.set(updateData, { merge: true });
+
+        // create-checkout-session側の再利用キャッシュを完了扱いに
+        await db
+          .collection('stripe_checkout_sessions')
+          .doc(ownerUid)
+          .set(
+            {
+              status: 'completed',
+              completedAtMs: Date.now(),
+              sessionId: session.id,
+            },
+            { merge: true }
+          );
       } else {
         console.warn('checkout.session.completed without client_reference_id');
       }

@@ -164,6 +164,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         editingPlayerId: editingPlayer?.id ?? null,
         position: values.position,
         number: values.number,
+        photoUrl: values.photoUrl,
       });
       const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
 
@@ -233,9 +234,17 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           seasons: nextSeasons,
           [`seasonData.${selectedSeason}`]: seasonPayloadClean,
         });
+        console.log("[PlayerManagement] write players", {
+          path: `clubs/${clubUid}/teams/${teamId}/players/${editingPlayer.id}`,
+          photoUrl: values.photoUrl,
+        });
         await updateDoc(playerDocRef, (updatePayload || {}) as any);
 
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeason}/roster`, editingPlayer.id);
+        console.log("[PlayerManagement] write roster", {
+          path: `clubs/${clubUid}/seasons/${selectedSeason}/roster/${editingPlayer.id}`,
+          photoUrl: values.photoUrl,
+        });
         await setDoc(
           rosterDocRef,
           {
@@ -262,6 +271,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const created = await addDoc(playersColRef, (createPayload || {}) as any);
 
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeason}/roster`, created.id);
+        console.log("[PlayerManagement] write roster (create)", {
+          path: `clubs/${clubUid}/seasons/${selectedSeason}/roster/${created.id}`,
+          photoUrl: values.photoUrl,
+        });
         await setDoc(
           rosterDocRef,
           {
