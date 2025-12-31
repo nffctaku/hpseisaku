@@ -80,6 +80,8 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
         allMatches.push({
           ...(matchData as any),
           id: matchDoc.id,
+          competitionId: compDoc.id,
+          roundId: roundDoc.id,
           competitionName: compDoc.data().name,
           competitionLogoUrl: compDoc.data().logoUrl,
           roundName: roundDoc.data().name,

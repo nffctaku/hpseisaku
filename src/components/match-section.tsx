@@ -1,5 +1,6 @@
 import { MatchDetails } from "@/types/match";
 import { format } from 'date-fns';
+import Link from 'next/link';
 import Image from 'next/image';
 
 function TeamDisplay({ logo, name }: { logo?: string, name: string }) {
@@ -26,9 +27,11 @@ function getRoundLabel(roundName?: string) {
 function RecentMatchesStrip({
   matches,
   mainTeamId,
+  clubSlug,
 }: {
   matches: MatchDetails[];
   mainTeamId?: string | null;
+  clubSlug: string;
 }) {
   const items = (matches || [])
     .filter((m) => typeof m.scoreHome === 'number' && typeof m.scoreAway === 'number')
@@ -74,37 +77,40 @@ function RecentMatchesStrip({
       <div className="flex gap-3 overflow-x-auto pb-2">
         {items.map((m) => {
           const opp = resolveOpponent(m);
+          const href = `/${clubSlug}/matches/${m.competitionId}/${m.roundId}/${m.id}`;
           return (
-            <div key={m.id} className="flex-shrink-0 w-[110px]">
-              <div className="mb-2 flex items-center justify-center gap-1 text-[11px] font-semibold text-muted-foreground">
-                {opp.competitionLogoUrl ? (
-                  <Image
-                    src={opp.competitionLogoUrl}
-                    alt=""
-                    width={12}
-                    height={12}
-                    className="h-3 w-3 object-contain"
-                  />
-                ) : null}
-                <span>{opp.roundLabel}</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                {opp.logo ? (
-                  <Image src={opp.logo} alt={opp.name} width={44} height={44} className="w-11 h-11 rounded-full object-contain" />
-                ) : (
-                  <div className="w-11 h-11 rounded-full bg-gray-700 flex items-center justify-center text-white font-bold text-lg">
-                    {opp.name.charAt(0)}
+            <Link key={m.id} href={href} className="flex-shrink-0 w-[110px]">
+              <div className="rounded-md p-1 hover:bg-muted/50 transition-colors">
+                <div className="mb-2 flex items-center justify-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                  {opp.competitionLogoUrl ? (
+                    <Image
+                      src={opp.competitionLogoUrl}
+                      alt=""
+                      width={12}
+                      height={12}
+                      className="h-3 w-3 object-contain"
+                    />
+                  ) : null}
+                  <span>{opp.roundLabel}</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  {opp.logo ? (
+                    <Image src={opp.logo} alt={opp.name} width={44} height={44} className="w-11 h-11 rounded-full object-contain" />
+                  ) : (
+                    <div className="w-11 h-11 rounded-full bg-gray-700 flex items-center justify-center text-white font-bold text-lg">
+                      {opp.name.charAt(0)}
+                    </div>
+                  )}
+                  <div className="text-[11px] font-semibold leading-tight text-center">
+                    <div className="truncate max-w-[110px]">{opp.name}</div>
+                    <div className="text-[10px] text-muted-foreground">{opp.ha}</div>
                   </div>
-                )}
-                <div className="text-[11px] font-semibold leading-tight text-center">
-                  <div className="truncate max-w-[110px]">{opp.name}</div>
-                  <div className="text-[10px] text-muted-foreground">{opp.ha}</div>
-                </div>
-                <div className={"w-full rounded-full px-2 py-1 text-center text-xs font-bold text-white " + outcomeClass(opp.outcome)}>
-                  {opp.scoreText}
+                  <div className={"w-full rounded-full px-2 py-1 text-center text-xs font-bold text-white " + outcomeClass(opp.outcome)}>
+                    {opp.scoreText}
+                  </div>
                 </div>
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>
@@ -151,15 +157,16 @@ interface MatchSectionProps {
   nextMatch: MatchDetails | null;
   recentMatches?: MatchDetails[];
   mainTeamId?: string | null;
+  clubSlug: string;
 }
 
-export function MatchSection({ nextMatch, recentMatches = [], mainTeamId }: MatchSectionProps) {
+export function MatchSection({ nextMatch, recentMatches = [], mainTeamId, clubSlug }: MatchSectionProps) {
   return (
     <section className="py-8 md:py-12">
       <div className="container mx-auto">
         <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 w-full max-w-2xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center">MATCHES</h2>
-          <RecentMatchesStrip matches={recentMatches} mainTeamId={mainTeamId} />
+          <RecentMatchesStrip matches={recentMatches} mainTeamId={mainTeamId} clubSlug={clubSlug} />
           <NextMatch match={nextMatch} />
         </div>
       </div>

@@ -98,11 +98,10 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                     <div className="md:col-span-2 space-y-4 md:space-y-6">
                         <NewsSection news={listNews} clubId={clubId} />
                         <MatchSection 
-                            latestResult={clubInfo.latestResult} 
                             nextMatch={clubInfo.nextMatch} 
-                            clubName={clubInfo.profile?.clubName || ''} 
                             recentMatches={(clubInfo as any).recentMatches || []}
                             mainTeamId={(clubInfo as any).profile?.mainTeamId || null}
+                            clubSlug={clubId}
                         />
                         {videos.length > 0 && <ClubTv videos={videos} clubId={clubId} />}
                     </div>
