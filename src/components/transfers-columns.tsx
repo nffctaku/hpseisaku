@@ -12,16 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import type { TransferLog } from "@/types/transfer";
-
-const currencySymbol = (c: string | undefined): string => {
-  if (c === "GBP") return "￡";
-  if (c === "EUR") return "€";
-  return "￥";
-};
-
-const formatAmount = (v: number): string => {
-  return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 }).format(v);
-};
+import { formatMoneyWithSymbol } from "@/lib/money";
 
 export const transferColumns = (
   direction: "in" | "out",
@@ -71,7 +62,7 @@ export const transferColumns = (
       cell: ({ row }) => {
         const v = row.original.fee;
         if (v == null) return "-";
-        return `${currencySymbol((row.original as any).feeCurrency)}${formatAmount(v)}`;
+        return formatMoneyWithSymbol(v, (row.original as any).feeCurrency);
       },
     },
     {
@@ -80,7 +71,7 @@ export const transferColumns = (
       cell: ({ row }) => {
         const v = (row.original as any).annualSalary as number | undefined;
         if (v == null) return "-";
-        return `${currencySymbol((row.original as any).annualSalaryCurrency)}${formatAmount(v)}`;
+        return formatMoneyWithSymbol(v, (row.original as any).annualSalaryCurrency);
       },
     },
     {

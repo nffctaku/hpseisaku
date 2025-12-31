@@ -3,13 +3,21 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatMoneyWithSymbol } from "@/lib/money";
 import { ClubFooter } from "@/components/club-footer";
+import { ClubHeader } from "@/components/club-header";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { PublicPlayerOverallBySeasonChart } from "@/components/public-player-overall-by-season-chart";
 import { PublicPlayerSeasonSummaries } from "@/components/public-player-season-summaries";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 interface PlayerPageProps {
-  params: { clubId: string; playerId: string };
+  params: Promise<{ clubId: string; playerId: string }>;
 }
 
 interface LegalPageItem {
@@ -28,6 +36,8 @@ function toSlashSeason(season: string): string {
     }
     return season;
   }
+  const mShort = season.match(/^(\d{4})-(\d{2})$/);
+  if (mShort) return `${mShort[1]}/${mShort[2]}`;
   const m2 = season.match(/^(\d{4})-(\d{2})$/);
   if (m2) return `${m2[1]}/${m2[2]}`;
   const m4 = season.match(/^(\d{4})-(\d{4})$/);
@@ -46,6 +56,8 @@ function toDashSeason(season: string): string {
     }
     return season;
   }
+  const mShort = season.match(/^(\d{4})\/(\d{2})$/);
+  if (mShort) return `${mShort[1]}-${mShort[2]}`;
   const m2 = season.match(/^(\d{4})\/(\d{2})$/);
   if (m2) return `${m2[1]}-${m2[2]}`;
   const m4 = season.match(/^(\d{4})\/(\d{4})$/);
@@ -78,11 +90,26 @@ function scorePlayerDocForPublic(data: any): number {
     );
   });
 
+  const hasSeasonProfile = Object.values(seasonData).some((sd: any) => {
+    return (
+      (typeof sd?.height === "number" && Number.isFinite(sd.height)) ||
+      (typeof sd?.weight === "number" && Number.isFinite(sd.weight)) ||
+      (typeof sd?.age === "number" && Number.isFinite(sd.age)) ||
+      (typeof sd?.preferredFoot === "string" && String(sd.preferredFoot).trim().length > 0)
+    );
+  });
+
   const rootItems = Array.isArray(data?.params?.items) ? (data.params.items as any[]) : [];
   const hasRootParams =
     (typeof data?.params?.overall === "number" && Number.isFinite(data.params.overall)) ||
     rootItems.some((i) => typeof (i as any)?.label === "string" && String((i as any).label).trim().length > 0) ||
     rootItems.some((i) => typeof (i as any)?.value === "number" && Number.isFinite((i as any).value));
+
+  const hasRootProfile =
+    (typeof data?.height === "number" && Number.isFinite(data.height)) ||
+    (typeof data?.weight === "number" && Number.isFinite(data.weight)) ||
+    (typeof data?.age === "number" && Number.isFinite(data.age)) ||
+    (typeof data?.preferredFoot === "string" && String(data.preferredFoot).trim().length > 0);
 
   const seasons = Array.isArray(data?.seasons) ? (data.seasons as string[]) : [];
   const latestSeason = seasons
@@ -91,18 +118,100 @@ function scorePlayerDocForPublic(data: any): number {
     .sort((a, b) => b.localeCompare(a))[0];
   const latestSeasonScore = latestSeason ? parseInt(latestSeason.slice(0, 4), 10) || 0 : 0;
 
-  return (hasSeasonParams ? 1_000_000 : 0) + (hasRootParams ? 100_000 : 0) + latestSeasonScore;
+  return (
+    (hasSeasonParams ? 1_000_000 : 0) +
+    (hasSeasonProfile ? 500_000 : 0) +
+    (hasRootParams ? 100_000 : 0) +
+    (hasRootProfile ? 50_000 : 0) +
+    latestSeasonScore
+  );
 }
 
-async function findBestPlayerDoc(ownerUid: string, playerId: string): Promise<any | null> {
+async function getRosterSeasonIdsOnly(ownerUid: string, playerId: string): Promise<string[]> {
+  const seasonsSnap = await db.collection(`clubs/${ownerUid}/seasons`).get();
+  const rosterSeasonIds: string[] = [];
+  for (const seasonDoc of seasonsSnap.docs) {
+    const rosterDocSnap = await seasonDoc.ref.collection("roster").doc(playerId).get();
+    if (rosterDocSnap.exists) {
+      rosterSeasonIds.push(seasonDoc.id);
+    }
+  }
+  const normalized = rosterSeasonIds
+    .map((s) => (typeof s === "string" ? s.trim() : ""))
+    .filter((s) => s.length > 0)
+    .map((s) => toSlashSeason(s));
+  normalized.sort((a, b) => b.localeCompare(a));
+  return Array.from(new Set(normalized));
+}
+
+async function getPreferredTeamIdsFromRoster(ownerUid: string, playerId: string): Promise<string[]> {
+  const seasonsSnap = await db.collection(`clubs/${ownerUid}/seasons`).get();
+  const teamIds: string[] = [];
+  for (const seasonDoc of seasonsSnap.docs) {
+    const rosterDocSnap = await seasonDoc.ref.collection("roster").doc(playerId).get();
+    if (!rosterDocSnap.exists) continue;
+    const data = rosterDocSnap.data() as any;
+    const teamId = typeof data?.teamId === "string" ? data.teamId.trim() : "";
+    if (teamId) teamIds.push(teamId);
+  }
+  return Array.from(new Set(teamIds));
+}
+
+async function getLatestRosterPlayer(ownerUid: string, playerId: string): Promise<{ seasonId: string; data: any } | null> {
+  const seasonsSnap = await db.collection(`clubs/${ownerUid}/seasons`).get();
+  const hits: { seasonId: string; data: any }[] = [];
+  for (const seasonDoc of seasonsSnap.docs) {
+    const rosterDocSnap = await seasonDoc.ref.collection("roster").doc(playerId).get();
+    if (!rosterDocSnap.exists) continue;
+    hits.push({ seasonId: seasonDoc.id, data: rosterDocSnap.data() as any });
+  }
+  if (hits.length === 0) return null;
+  hits.sort((a, b) => toSlashSeason(b.seasonId).localeCompare(toSlashSeason(a.seasonId)));
+  return hits[0] ?? null;
+}
+
+function mergeWithoutUndefined(base: any, patch: any): any {
+  const out: any = { ...(base || {}) };
+  if (!patch || typeof patch !== "object") return out;
+  for (const [k, v] of Object.entries(patch)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+function scorePlayerDocSeasonMatch(data: any, preferredSeasons: string[]): number {
+  if (!Array.isArray(preferredSeasons) || preferredSeasons.length === 0) return 0;
+  const seasons = Array.isArray(data?.seasons) ? (data.seasons as any[]) : [];
+  const seasonDataKeys = data?.seasonData && typeof data.seasonData === "object" ? Object.keys(data.seasonData as any) : [];
+  const candidates = Array.from(new Set([...seasons, ...seasonDataKeys]))
+    .map((s) => (typeof s === "string" ? toSlashSeason(s.trim()) : ""))
+    .filter((s) => s.length > 0);
+
+  let hits = 0;
+  for (const ps of preferredSeasons) {
+    const psNorm = toSlashSeason(String(ps));
+    if (candidates.some((c) => c === psNorm)) hits += 1;
+  }
+  // 一致数を強く優遇（別チーム同一IDでも正しいシーズンのドキュメントを拾う）
+  return hits * 10_000_000;
+}
+
+async function findBestPlayerDoc(ownerUid: string, playerId: string, preferredSeasons?: string[], preferredTeamIds?: string[]): Promise<any | null> {
   const teamsSnap = await db.collection(`clubs/${ownerUid}/teams`).get();
   let best: { score: number; data: any } | null = null;
+
+  const preferred = Array.isArray(preferredSeasons) ? preferredSeasons : [];
+  const preferredTeams = Array.isArray(preferredTeamIds) ? preferredTeamIds : [];
 
   for (const teamDoc of teamsSnap.docs) {
     const playerSnap = await teamDoc.ref.collection("players").doc(playerId).get();
     if (!playerSnap.exists) continue;
     const data = playerSnap.data() as any;
-    const score = scorePlayerDocForPublic(data);
+
+    const seasonMatchScore = scorePlayerDocSeasonMatch(data, preferred);
+    const teamMatchScore = preferredTeams.length > 0 && preferredTeams.includes(teamDoc.id) ? 100_000_000 : 0;
+    const score = scorePlayerDocForPublic(data) + seasonMatchScore + teamMatchScore;
+
     if (!best || score > best.score) {
       best = { score, data };
     }
@@ -228,23 +337,6 @@ const toFiniteNumber = (v: any): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-const currencySymbol = (c: string | undefined): string => {
-  if (c === "GBP") return "￡";
-  if (c === "EUR") return "€";
-  return "￥";
-};
-
-const formatAmount = (v: number): string => {
-  return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 }).format(v);
-};
-
-const formatFeeCompact = (v: number): string => {
-  if (!Number.isFinite(v)) return "-";
-  if (v < 10000) return formatAmount(v);
-  const scaled = v / 10000;
-  const display = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1);
-  return `${display}M`;
-};
 
 interface PlayerContract {
   salary: number;
@@ -298,7 +390,9 @@ async function getPlayerStats(ownerUid: string, playerId: string, targetSeason?:
     string,
     { matches?: number; minutes?: number; goals?: number; assists?: number; yellowCards?: number; redCards?: number; avgRating?: number }
   >();
-  const playerData = await findBestPlayerDoc(ownerUid, playerId);
+  const preferredSeasons = await getRosterSeasonIdsOnly(ownerUid, playerId);
+  const preferredTeams = await getPreferredTeamIdsFromRoster(ownerUid, playerId);
+  const playerData = await findBestPlayerDoc(ownerUid, playerId, preferredSeasons, preferredTeams);
   if (playerData) {
     const seasonData = playerData?.seasonData && typeof playerData.seasonData === "object" ? (playerData.seasonData as any) : {};
 
@@ -677,11 +771,31 @@ async function getPlayer(
     return null;
   }
 
-  const player = await findBestPlayerDoc(ownerUid, playerId);
-  if (player) {
+  const rosterLatest = await getLatestRosterPlayer(ownerUid, playerId);
+  const rosterData = rosterLatest?.data ?? null;
+  const rosterTeamId = typeof (rosterData as any)?.teamId === "string" ? String((rosterData as any).teamId).trim() : "";
+
+  // まず roster 由来の teamId が取れるなら、そのチームの players を直参照する
+  let player: any | null = null;
+  if (rosterTeamId) {
+    const snap = await db.doc(`clubs/${ownerUid}/teams/${rosterTeamId}/players/${playerId}`).get();
+    if (snap.exists) player = snap.data() as any;
+  }
+
+  // 直参照で取れない場合は、従来のスコアリングでfallback
+  if (!player) {
+    const preferredSeasons = await getRosterSeasonIdsOnly(ownerUid, playerId);
+    const preferredTeams = await getPreferredTeamIdsFromRoster(ownerUid, playerId);
+    player = await findBestPlayerDoc(ownerUid, playerId, preferredSeasons, preferredTeams);
+  }
+
+  // roster側にプレイヤー情報が入っている場合は不足分を補完（体重/利き足など）
+  const mergedPlayer = rosterData && player ? (mergeWithoutUndefined(rosterData, player) as any) : player ?? rosterData;
+
+  if (mergedPlayer) {
     return {
       clubName,
-      player: player as PlayerData,
+      player: mergedPlayer as PlayerData,
       ownerUid,
       legalPages,
     };
@@ -693,9 +807,9 @@ async function getPlayer(
 export default async function PlayerPage({
   params,
 }: {
-  params: { clubId: string; playerId: string };
+  params: Promise<{ clubId: string; playerId: string }>;
 }) {
-  const { clubId, playerId } = params;
+  const { clubId, playerId } = await params;
   const result = await getPlayer(clubId, playerId);
   if (!result) return notFound();
 
@@ -788,6 +902,41 @@ export default async function PlayerPage({
     return candidates.length > 0 ? candidates[0] : null;
   })();
 
+  const latestSeasonKeyForProfile = (() => {
+    const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
+    candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
+    for (const seasonId of candidates) {
+      const sd = getSeasonDataEntry(seasonData as any, seasonId);
+      const hasAny =
+        (toFiniteNumber((sd as any)?.height) != null) ||
+        (toFiniteNumber((sd as any)?.age) != null) ||
+        (toFiniteNumber((sd as any)?.weight) != null) ||
+        (typeof (sd as any)?.preferredFoot === "string" && String((sd as any).preferredFoot).trim().length > 0);
+      if (hasAny) return seasonId;
+    }
+    return candidates.length > 0 ? candidates[0] : null;
+  })();
+
+  const latestSeasonKeyForWeight = (() => {
+    const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
+    candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
+    for (const seasonId of candidates) {
+      const sd = getSeasonDataEntry(seasonData as any, seasonId);
+      if (toFiniteNumber((sd as any)?.weight) != null) return seasonId;
+    }
+    return null;
+  })();
+
+  const latestSeasonKeyForPreferredFoot = (() => {
+    const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
+    candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
+    for (const seasonId of candidates) {
+      const sd = getSeasonDataEntry(seasonData as any, seasonId);
+      if (typeof (sd as any)?.preferredFoot === "string" && String((sd as any).preferredFoot).trim().length > 0) return seasonId;
+    }
+    return null;
+  })();
+
   const seasonParams = (() => {
     if (!latestSeasonKeyForParams) return undefined;
     const sd = getSeasonDataEntry(seasonData as any, latestSeasonKeyForParams);
@@ -831,6 +980,35 @@ export default async function PlayerPage({
   ].filter((e) => typeof e.url === "string" && e.url.trim().length > 0);
 
   const contractSeasonData = latestSeasonKeyForContract ? getSeasonDataEntry(seasonData as any, latestSeasonKeyForContract) : undefined;
+  const profileSeasonData = latestSeasonKeyForProfile ? getSeasonDataEntry(seasonData as any, latestSeasonKeyForProfile) : undefined;
+  const weightSeasonData = latestSeasonKeyForWeight ? getSeasonDataEntry(seasonData as any, latestSeasonKeyForWeight) : undefined;
+  const preferredFootSeasonData =
+    latestSeasonKeyForPreferredFoot ? getSeasonDataEntry(seasonData as any, latestSeasonKeyForPreferredFoot) : undefined;
+
+  const heightValue =
+    toFiniteNumber((profileSeasonData as any)?.height) != null
+      ? (toFiniteNumber((profileSeasonData as any)?.height) as number)
+      : toFiniteNumber((player as any)?.height) != null
+        ? (toFiniteNumber((player as any)?.height) as number)
+        : null;
+  const ageValue =
+    toFiniteNumber((profileSeasonData as any)?.age) != null
+      ? (toFiniteNumber((profileSeasonData as any)?.age) as number)
+      : toFiniteNumber((player as any)?.age) != null
+        ? (toFiniteNumber((player as any)?.age) as number)
+        : null;
+  const weightValue =
+    toFiniteNumber((weightSeasonData as any)?.weight) != null
+      ? (toFiniteNumber((weightSeasonData as any)?.weight) as number)
+      : toFiniteNumber((player as any)?.weight) != null
+        ? (toFiniteNumber((player as any)?.weight) as number)
+        : null;
+  const preferredFootValue =
+    typeof (preferredFootSeasonData as any)?.preferredFoot === "string"
+      ? ((preferredFootSeasonData as any).preferredFoot as string)
+      : typeof (player as any)?.preferredFoot === "string"
+        ? ((player as any).preferredFoot as string)
+        : null;
   const annualSalary =
     toFiniteNumber((contractSeasonData as any)?.annualSalary) != null
       ? (toFiniteNumber((contractSeasonData as any)?.annualSalary) as number)
@@ -843,12 +1021,25 @@ export default async function PlayerPage({
       : typeof (player as any)?.annualSalaryCurrency === "string"
         ? ((player as any).annualSalaryCurrency as string)
         : undefined;
-  const contractYears =
-    toFiniteNumber((contractSeasonData as any)?.contractYears) != null
-      ? (toFiniteNumber((contractSeasonData as any)?.contractYears) as number)
-      : toFiniteNumber((player as any)?.contractYears) != null
-        ? (toFiniteNumber((player as any)?.contractYears) as number)
+  const contractEndDateRaw =
+    typeof (contractSeasonData as any)?.contractEndDate === "string"
+      ? ((contractSeasonData as any).contractEndDate as string)
+      : typeof (player as any)?.contractEndDate === "string"
+        ? ((player as any).contractEndDate as string)
         : null;
+
+  const contractEndText = (() => {
+    if (!contractEndDateRaw) return null;
+    const m = String(contractEndDateRaw).match(/^(\d{4})-(\d{2})$/);
+    if (!m) return null;
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(month)) return null;
+    return `${year}年${month}月`;
+  })();
+
+  const preferredFootText =
+    preferredFootValue === "left" ? "左" : preferredFootValue === "right" ? "右" : preferredFootValue === "both" ? "両" : null;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -918,29 +1109,36 @@ export default async function PlayerPage({
                 <div className="mt-8 grid grid-cols-2 gap-4 text-center">
                   <div className="border rounded-lg p-4">
                     <p className="text-sm text-muted-foreground">身長</p>
-                    <p className="text-2xl font-bold">{player.height ? `${player.height} cm` : "N/A"}</p>
+                    <p className="text-2xl font-bold">{heightValue != null ? `${heightValue} cm` : "N/A"}</p>
                   </div>
                   <div className="border rounded-lg p-4">
                     <p className="text-sm text-muted-foreground">年齢</p>
-                    <p className="text-2xl font-bold">{player.age ? `${player.age} 歳` : "N/A"}</p>
+                    <p className="text-2xl font-bold">{ageValue != null ? `${ageValue} 歳` : "N/A"}</p>
+                  </div>
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground">体重</p>
+                    <p className="text-2xl font-bold">{weightValue != null ? `${weightValue} kg` : "N/A"}</p>
+                  </div>
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground">利き足</p>
+                    <p className="text-2xl font-bold">{preferredFootText ?? "N/A"}</p>
                   </div>
                 </div>
 
-                {annualSalary != null || contractYears != null ? (
+                {annualSalary != null || contractEndText != null ? (
                   <div className="mt-4 grid grid-cols-2 gap-4 text-center">
                     {annualSalary != null ? (
                       <div className="border rounded-lg p-4">
                         <p className="text-sm text-muted-foreground">年俸</p>
                         <p className="text-2xl font-bold">
-                          {currencySymbol(annualSalaryCurrency)}
-                          {formatFeeCompact(annualSalary)}
+                          {formatMoneyWithSymbol(annualSalary, annualSalaryCurrency)}
                         </p>
                       </div>
                     ) : null}
-                    {contractYears != null ? (
+                    {contractEndText != null ? (
                       <div className="border rounded-lg p-4">
-                        <p className="text-sm text-muted-foreground">契約年数</p>
-                        <p className="text-2xl font-bold">{contractYears} 年</p>
+                        <p className="text-sm text-muted-foreground">契約満了日</p>
+                        <p className="text-2xl font-bold">{contractEndText}</p>
                       </div>
                     ) : null}
                   </div>

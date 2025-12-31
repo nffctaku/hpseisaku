@@ -98,34 +98,21 @@ export function PublicPlayerSeasonSummaries({ rows }: { rows: PublicSeasonSummar
               const comps = Array.isArray(row.competitions) ? row.competitions : [];
               const hasBreakdown = row.hasStats && comps.length > 0;
               return (
-                <details key={row.season} className="group bg-background">
-                  <summary className="list-none cursor-pointer select-none">
-                    <span className="grid grid-cols-6 items-center">
-                      <span className="p-1.5">
-                        <span className="flex items-center gap-1">
-                          <span
-                            className={
-                              hasBreakdown
-                                ? "text-[10px] text-muted-foreground group-open:rotate-180 transition-transform"
-                                : "text-[10px] text-muted-foreground opacity-40"
-                            }
-                          >
-                            ▾
-                          </span>
-                          <span className="text-[11px] font-medium">{row.season}</span>
-                        </span>
-                      </span>
-                      <span className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.matches : "-"}</span>
-                      <span className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.goals : "-"}</span>
-                      <span className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.assists : "-"}</span>
-                      <span className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
-                        {row.hasStats ? (row.avgRating == null ? "-" : row.avgRating.toFixed(1)) : "-"}
-                      </span>
-                      <span className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
-                        {row.hasStats ? (row.overall == null ? "-" : row.overall) : "-"}
-                      </span>
-                    </span>
-                  </summary>
+                <div key={row.season} className="bg-background">
+                  <div className="grid grid-cols-6 items-center">
+                    <div className="p-1.5">
+                      <span className="text-[11px] font-medium">{row.season}</span>
+                    </div>
+                    <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.matches : "-"}</div>
+                    <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.goals : "-"}</div>
+                    <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.assists : "-"}</div>
+                    <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
+                      {row.hasStats ? (row.avgRating == null ? "-" : row.avgRating.toFixed(1)) : "-"}
+                    </div>
+                    <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
+                      {row.hasStats ? (row.overall == null ? "-" : row.overall) : "-"}
+                    </div>
+                  </div>
 
                   {hasBreakdown ? (
                     <div className="px-1.5 pb-2">
@@ -191,7 +178,7 @@ export function PublicPlayerSeasonSummaries({ rows }: { rows: PublicSeasonSummar
                       </div>
                     </div>
                   ) : null}
-                </details>
+                </div>
               );
             })}
           </div>

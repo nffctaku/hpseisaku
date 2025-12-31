@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
 import { auth, db } from '@/lib/firebase';
@@ -35,8 +35,31 @@ interface LegalPageItem {
 
 interface ClubTitleItem {
   competitionName: string;
-  season: string;
+  seasons: string[];
+  pendingSeason?: string;
 }
+
+const toSlashSeason = (season: string): string => {
+  if (!season) return season;
+  const s = String(season).trim();
+  const mDash = s.match(/^(\d{4})-(\d{2})$/);
+  if (mDash) return `${mDash[1]}/${mDash[2]}`;
+  const mSlash = s.match(/^(\d{4})\/(\d{2})$/);
+  if (mSlash) return `${mSlash[1]}/${mSlash[2]}`;
+  return s;
+};
+
+const generateSeasonOptions = (): string[] => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const currentStart = month >= 7 ? year : year - 1;
+  const out: string[] = [];
+  for (let y = currentStart; y >= 1960; y -= 1) {
+    out.push(`${y}/${String((y + 1) % 100).padStart(2, '0')}`);
+  }
+  return out;
+};
 
 const slugify = (value: string): string => {
   return value
@@ -58,7 +81,7 @@ export default function ClubInfoPage() {
   const [stadiumCapacity, setStadiumCapacity] = useState<string>('');
   const [stadiumPhotoUrl, setStadiumPhotoUrl] = useState<string>('');
   const [clubTitles, setClubTitles] = useState<ClubTitleItem[]>([]);
-  const [clubSeasons, setClubSeasons] = useState<string[]>([]);
+  const seasonOptions = useMemo(() => generateSeasonOptions(), []);
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
@@ -144,7 +167,14 @@ export default function ClubInfoPage() {
             setClubTitles(
               data.clubTitles.map((t: any) => ({
                 competitionName: typeof t?.competitionName === 'string' ? t.competitionName : '',
-                season: typeof t?.season === 'string' ? t.season : '',
+                seasons: Array.isArray(t?.seasons)
+                  ? (t.seasons as any[])
+                      .map((s) => (typeof s === 'string' ? toSlashSeason(s) : ''))
+                      .filter((s) => s.length > 0)
+                  : typeof t?.season === 'string'
+                    ? [toSlashSeason(t.season)]
+                    : [],
+                pendingSeason: '',
               }))
             );
           }
@@ -156,21 +186,6 @@ export default function ClubInfoPage() {
     };
 
     loadMainTeam();
-  }, [user]);
-
-  useEffect(() => {
-    const fetchSeasons = async () => {
-      if (!user) return;
-      try {
-        const seasonsColRef = collection(db, `clubs/${user.uid}/seasons`);
-        const snap = await getDocs(seasonsColRef);
-        const ids = snap.docs.map((d) => d.id).sort((a, b) => b.localeCompare(a));
-        setClubSeasons(ids);
-      } catch (error) {
-        console.error('Error fetching seasons for club info:', error);
-      }
-    };
-    fetchSeasons();
   }, [user]);
 
   useEffect(() => {
@@ -239,7 +254,12 @@ export default function ClubInfoPage() {
           stadiumName,
           stadiumCapacity,
           stadiumPhotoUrl,
-          clubTitles,
+          clubTitles: clubTitles.map((t) => ({
+            competitionName: t.competitionName,
+            seasons: Array.isArray(t.seasons)
+              ? Array.from(new Set(t.seasons.map((s) => toSlashSeason(s)).filter((s) => s.length > 0))).sort((a, b) => b.localeCompare(a))
+              : [],
+          })),
         }),
       });
 
@@ -407,7 +427,7 @@ export default function ClubInfoPage() {
             <p className="text-xs text-muted-foreground">大会名と獲得シーズンを登録できます。</p>
             <div className="space-y-3">
               {clubTitles.map((item, index) => (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-[2fr,1fr,auto] gap-2 items-end rounded-md border p-3 bg-white/60">
+                <div key={index} className="grid grid-cols-1 gap-2 rounded-md border p-3 bg-white/60">
                   <div className="space-y-1">
                     <Label className="text-xs">大会名</Label>
                     <Input
@@ -421,28 +441,84 @@ export default function ClubInfoPage() {
                       }}
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">獲得シーズン</Label>
-                    <Select
-                      value={item.season}
-                      onValueChange={(value) => {
-                        const next = [...clubTitles];
-                        next[index] = { ...next[index], season: value };
-                        setClubTitles(next);
-                      }}
-                    >
-                      <SelectTrigger className="w-full bg-white text-gray-900">
-                        <SelectValue placeholder="シーズン" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clubSeasons.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-2 items-end">
+                    <div className="space-y-1">
+                      <Label className="text-xs">獲得シーズン（追加）</Label>
+                      <Select
+                        value={item.pendingSeason || ''}
+                        onValueChange={(value) => {
+                          const next = [...clubTitles];
+                          next[index] = { ...next[index], pendingSeason: value };
+                          setClubTitles(next);
+                        }}
+                      >
+                        <SelectTrigger className="w-full bg-white text-gray-900">
+                          <SelectValue placeholder="シーズン" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {seasonOptions.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {s}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="bg-white text-gray-900 disabled:opacity-60"
+                        disabled={!item.pendingSeason}
+                        onClick={() => {
+                          const pending = (item.pendingSeason || '').trim();
+                          if (!pending) return;
+                          const next = [...clubTitles];
+                          const seasons = Array.isArray(next[index].seasons) ? next[index].seasons : [];
+                          const normalized = toSlashSeason(pending);
+                          next[index] = {
+                            ...next[index],
+                            seasons: seasons.includes(normalized) ? seasons : [...seasons, normalized].sort((a, b) => b.localeCompare(a)),
+                            pendingSeason: '',
+                          };
+                          setClubTitles(next);
+                        }}
+                      >
+                        追加
+                      </Button>
+                    </div>
                   </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">登録済みシーズン</Label>
+                    {Array.isArray(item.seasons) && item.seasons.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {item.seasons
+                          .slice()
+                          .sort((a, b) => String(b).localeCompare(String(a)))
+                          .map((s) => (
+                            <div key={s} className="inline-flex items-center gap-2 rounded-md border bg-white px-2 py-1 text-xs text-gray-900">
+                              <span>{s}</span>
+                              <button
+                                type="button"
+                                className="text-red-500"
+                                onClick={() => {
+                                  const next = [...clubTitles];
+                                  next[index] = { ...next[index], seasons: (next[index].seasons || []).filter((x) => x !== s) };
+                                  setClubTitles(next);
+                                }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">未登録</div>
+                    )}
+                  </div>
+
                   <div className="flex justify-end">
                     <Button
                       type="button"
@@ -459,7 +535,7 @@ export default function ClubInfoPage() {
                 type="button"
                 variant="outline"
                 className="w-full bg-white text-gray-900 disabled:opacity-60"
-                onClick={() => setClubTitles([...clubTitles, { competitionName: '', season: '' }])}
+                onClick={() => setClubTitles([...clubTitles, { competitionName: '', seasons: [], pendingSeason: '' }])}
               >
                 タイトルを追加
               </Button>

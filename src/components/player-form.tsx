@@ -62,6 +62,20 @@ const statNumberSchema = z
   }, z.union([z.coerce.number().min(0), z.nan()]).optional())
   .transform((v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined));
 
+const contractEndYearSchema = z
+  .preprocess((v) => {
+    if (v === "" || v == null) return undefined;
+    return v;
+  }, z.union([z.coerce.number().int().min(1900), z.nan()]).optional())
+  .transform((v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined));
+
+const contractEndMonthSchema = z
+  .preprocess((v) => {
+    if (v === "" || v == null) return undefined;
+    return v;
+  }, z.union([z.coerce.number().int().min(1).max(12), z.nan()]).optional())
+  .transform((v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined));
+
 const ratingSchema = z
   .preprocess((v) => {
     if (v === "" || v == null) return undefined;
@@ -82,14 +96,27 @@ const manualCompetitionStatSchema = z.object({
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "選手名は2文字以上で入力してください。" }),
-  number: z.coerce.number().int().min(1, { message: "背番号は1以上です。" }).max(99, { message: "背番号は99以下です。" }),
+  number: z.preprocess(
+    (v) => {
+      if (v === "" || v == null) return undefined;
+      return v;
+    },
+    z.coerce
+      .number({ invalid_type_error: "背番号を入力してください。" })
+      .int()
+      .min(1, { message: "背番号は1以上です。" })
+      .max(99, { message: "背番号は99以下です。" })
+  ),
   position: z.enum(POSITIONS),
   photoUrl: z.string().url({ message: "無効なURLです。" }).optional().or(z.literal('')), 
   height: z.coerce.number().optional(),
+  weight: z.coerce.number().optional(),
+  preferredFoot: z.enum(["left", "right", "both"]).optional(),
   age: z.coerce.number().int().optional(),
   annualSalary: statNumberSchema,
   annualSalaryCurrency: z.enum(["JPY", "GBP", "EUR"]).optional(),
-  contractYears: statNumberSchema,
+  contractEndYear: contractEndYearSchema,
+  contractEndMonth: contractEndMonthSchema,
   profile: z.string().max(200, { message: "プロフィールは200文字以内です。" }).optional(),
   nationality: z.string().optional(),
   snsLinks: z
@@ -137,14 +164,17 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
   const baseDefaults: PlayerFormValues = useMemo(
     () => ({
       name: "",
-      number: 0,
+      number: undefined as any,
       position: "MF",
       photoUrl: "",
       height: undefined,
+      weight: undefined,
+      preferredFoot: undefined,
       age: undefined,
       annualSalary: undefined,
       annualSalaryCurrency: "JPY" as any,
-      contractYears: undefined,
+      contractEndYear: undefined,
+      contractEndMonth: undefined,
       profile: "",
       nationality: "",
       snsLinks: {
@@ -169,6 +199,14 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
     () => ({
       ...baseDefaults,
       ...(defaultValues as any),
+      contractEndYear:
+        typeof (defaultValues as any)?.contractEndDate === "string" && /^\d{4}-\d{2}$/.test((defaultValues as any).contractEndDate)
+          ? Number(String((defaultValues as any).contractEndDate).slice(0, 4))
+          : (defaultValues as any)?.contractEndYear,
+      contractEndMonth:
+        typeof (defaultValues as any)?.contractEndDate === "string" && /^\d{4}-\d{2}$/.test((defaultValues as any).contractEndDate)
+          ? Number(String((defaultValues as any).contractEndDate).slice(5, 7))
+          : (defaultValues as any)?.contractEndMonth,
       snsLinks: {
         ...(baseDefaults.snsLinks as any),
         ...(((defaultValues as any)?.snsLinks || {}) as any),
@@ -396,76 +434,81 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>選手名</FormLabel>
-                  <FormControl>
-                    <Input placeholder="選手名" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="nationality"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>国籍</FormLabel>
-                  <FormControl>
-                    <Input placeholder="例: 日本" {...field} value={(field.value ?? "") as any} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="number"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>背番号</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="10"
-                      {...field}
-                      value={(field.value ?? "") as any}
-                      onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="position"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>ポジション</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>選手名</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="ポジションを選択" />
-                      </SelectTrigger>
+                      <Input placeholder="選手名" {...field} />
                     </FormControl>
-                    <SelectContent>
-                      {POSITIONS.map((pos) => (
-                        <SelectItem key={pos} value={pos}>
-                          {pos}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-2 gap-4">
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>背番号</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="背番号"
+                        value={(field.value ?? "") as any}
+                        onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="position"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>ポジション</FormLabel>
+                    <FormControl>
+                      <Select value={field.value as any} onValueChange={field.onChange as any}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {POSITIONS.map((p) => (
+                            <SelectItem key={p} value={p}>
+                              {p}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="nationality"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>国籍</FormLabel>
+                    <FormControl>
+                      <Input placeholder="例: 日本" {...field} value={(field.value as any) ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <FormField
                 control={form.control}
                 name="height"
@@ -485,6 +528,50 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="weight"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>体重 (kg)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="75"
+                        {...field}
+                        value={(field.value ?? "") as any}
+                        onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="preferredFoot"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>利き足</FormLabel>
+                    <FormControl>
+                      <Select value={(field.value as any) ?? ""} onValueChange={(v) => field.onChange(v === "" ? undefined : v)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="left">左</SelectItem>
+                          <SelectItem value="right">右</SelectItem>
+                          <SelectItem value="both">両</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <FormField
                 control={form.control}
                 name="age"
@@ -548,22 +635,58 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
               />
               <FormField
                 control={form.control}
-                name="contractYears"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>契約年数</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        placeholder="例: 3"
-                        value={(field.value ?? "") as any}
-                        onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                name="contractEndYear"
+                render={({ field }) => {
+                  const currentYear = new Date().getFullYear();
+                  const years = Array.from({ length: 15 }, (_, i) => currentYear + i);
+                  return (
+                    <FormItem>
+                      <FormLabel>契約満了日</FormLabel>
+                      <FormControl>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Select
+                            value={field.value != null ? String(field.value) : ""}
+                            onValueChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="年" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {years.map((y) => (
+                                <SelectItem key={y} value={String(y)}>
+                                  {y}年
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+
+                          <FormField
+                            control={form.control}
+                            name="contractEndMonth"
+                            render={({ field: monthField }) => (
+                              <Select
+                                value={monthField.value != null ? String(monthField.value) : ""}
+                                onValueChange={(v) => monthField.onChange(v === "" ? undefined : Number(v))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="月" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                                    <SelectItem key={m} value={String(m)}>
+                                      {m}月
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
             </div>
             <FormField

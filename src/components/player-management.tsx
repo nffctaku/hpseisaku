@@ -81,9 +81,11 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           nationality: (season?.nationality ?? p.nationality) as any,
           age: (season?.age ?? p.age) as any,
           height: (season?.height ?? p.height) as any,
+          weight: (season as any)?.weight ?? (p as any).weight,
+          preferredFoot: (season as any)?.preferredFoot ?? (p as any).preferredFoot,
           annualSalary: (season as any)?.annualSalary ?? (p as any).annualSalary,
           annualSalaryCurrency: (season as any)?.annualSalaryCurrency ?? (p as any).annualSalaryCurrency,
-          contractYears: (season as any)?.contractYears ?? (p as any).contractYears,
+          contractEndDate: (season as any)?.contractEndDate ?? (p as any).contractEndDate,
           photoUrl: season?.photoUrl ?? p.photoUrl,
           snsLinks: season?.snsLinks ?? p.snsLinks,
           params: season?.params ?? p.params,
@@ -107,9 +109,11 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       nationality: season.nationality ?? editingPlayer.nationality,
       age: season.age ?? editingPlayer.age,
       height: season.height ?? editingPlayer.height,
+      weight: (season as any)?.weight ?? (editingPlayer as any).weight,
+      preferredFoot: (season as any)?.preferredFoot ?? (editingPlayer as any).preferredFoot,
       annualSalary: (season as any)?.annualSalary ?? (editingPlayer as any).annualSalary,
       annualSalaryCurrency: (season as any)?.annualSalaryCurrency ?? (editingPlayer as any).annualSalaryCurrency,
-      contractYears: (season as any)?.contractYears ?? (editingPlayer as any).contractYears,
+      contractEndDate: (season as any)?.contractEndDate ?? (editingPlayer as any).contractEndDate,
       photoUrl: season.photoUrl ?? editingPlayer.photoUrl,
       snsLinks: season.snsLinks ?? editingPlayer.snsLinks,
       params: season.params ?? editingPlayer.params,
@@ -182,15 +186,24 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             }))
         : undefined;
 
+      const endYear = (values as any)?.contractEndYear as number | undefined;
+      const endMonth = (values as any)?.contractEndMonth as number | undefined;
+      const contractEndDate =
+        endYear != null && endMonth != null
+          ? `${String(endYear).padStart(4, "0")}-${String(endMonth).padStart(2, "0")}`
+          : undefined;
+
       const seasonPayload: PlayerSeasonData = {
         number: values.number,
         position: values.position as any,
         nationality: values.nationality,
         age: values.age,
         height: values.height,
+        weight: (values as any).weight,
+        preferredFoot: (values as any).preferredFoot,
         annualSalary: (values as any).annualSalary,
         annualSalaryCurrency: (values as any).annualSalaryCurrency,
-        contractYears: (values as any).contractYears,
+        contractEndDate,
         photoUrl: values.photoUrl,
         snsLinks: values.snsLinks,
         params: paramsNormalized as any,

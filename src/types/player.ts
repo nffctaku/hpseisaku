@@ -43,9 +43,13 @@ export interface PlayerSeasonData {
   nationality?: string;
   age?: number;
   height?: number;
+  weight?: number;
+  preferredFoot?: 'left' | 'right' | 'both';
   annualSalary?: number;
   annualSalaryCurrency?: "JPY" | "GBP" | "EUR";
   contractYears?: number;
+  contractMonths?: number;
+  contractEndDate?: string;
   photoUrl?: string;
   snsLinks?: PlayerSnsLinks;
   params?: PlayerParameters;
@@ -62,19 +66,20 @@ export interface Player {
   birthDate: string; // or Date
   age: number;
   height: number; // in cm
-  weight: number; // in kg
-  preferredFoot: 'left' | 'right' | 'both';
+  weight?: number; // in kg
+  preferredFoot?: 'left' | 'right' | 'both';
   annualSalary?: number;
   annualSalaryCurrency?: "JPY" | "GBP" | "EUR";
   contractYears?: number;
+  contractMonths?: number;
   photoUrl?: string;
   snsLinks?: PlayerSnsLinks;
   params?: PlayerParameters;
   manualCompetitionStats?: ManualCompetitionStat[];
   teamId: string;
   teamName: string;
-  contractStartDate: string; // or Date
-  contractEndDate: string; // or Date
+  contractStartDate?: string; // or Date
+  contractEndDate?: string; // or Date
   transfers?: Transfer[];
   // 所属シーズン（複数シーズンにまたがる場合もある）
   seasons?: string[];

@@ -15,6 +15,7 @@ interface ClubInfoPageProps {
 interface ClubTitleItem {
   competitionName?: string;
   season?: string;
+  seasons?: string[];
 }
 
 async function getClubInfo(clubId: string) {
@@ -45,17 +46,20 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
   const titles = (Array.isArray((clubInfo as any).clubTitles) ? ((clubInfo as any).clubTitles as ClubTitleItem[]) : [])
     .map((t) => ({
       competitionName: typeof t?.competitionName === 'string' ? t.competitionName : '',
-      season: typeof t?.season === 'string' ? t.season : '',
+      seasons: Array.isArray((t as any)?.seasons)
+        ? ((t as any).seasons as any[]).map((s) => (typeof s === 'string' ? s : '')).filter((s) => s.length > 0)
+        : typeof t?.season === 'string'
+          ? [t.season]
+          : [],
     }))
-    .filter((t) => t.competitionName.length > 0 || t.season.length > 0)
-    .sort((a, b) => (b.season || '').localeCompare(a.season || ''));
+    .filter((t) => t.competitionName.length > 0 || (Array.isArray(t.seasons) && t.seasons.length > 0));
 
   const groupedTitles = Array.from(
     titles.reduce((acc, t) => {
       const key = t.competitionName || '-';
       const next = acc.get(key) || { competitionName: key, seasons: [] as string[] };
-      if (t.season && t.season.length > 0 && !next.seasons.includes(t.season)) {
-        next.seasons.push(t.season);
+      for (const s of (t.seasons || [])) {
+        if (s && s.length > 0 && !next.seasons.includes(s)) next.seasons.push(s);
       }
       acc.set(key, next);
       return acc;

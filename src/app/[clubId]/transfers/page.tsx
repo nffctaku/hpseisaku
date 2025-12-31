@@ -5,34 +5,17 @@ import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 
 import type { TransferLog } from "@/types/transfer";
+import { formatMoneyWithSymbol } from "@/lib/money";
 
 interface TransfersPageProps {
   params: { clubId: string };
   searchParams?: { [key: string]: string | string[] | undefined };
 }
 
-const currencySymbol = (c: string | undefined): string => {
-  if (c === "GBP") return "￡";
-  if (c === "EUR") return "€";
-  return "￥";
-};
-
-const formatAmount = (v: number): string => {
-  return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 }).format(v);
-};
-
 const truncateText = (text: string, max: number): string => {
   const chars = Array.from(text);
   if (chars.length <= max) return text;
   return `${chars.slice(0, max).join("")}…`;
-};
-
-const formatFeeCompact = (v: number): string => {
-  if (!Number.isFinite(v)) return "-";
-  if (v < 10000) return formatAmount(v);
-  const scaled = v / 10000;
-  const display = Number.isInteger(scaled) ? String(scaled) : scaled.toFixed(1);
-  return `${display}M`;
 };
 
 const abbrevKind = (kind: string | undefined): string => {
@@ -55,9 +38,7 @@ const sumFeesByCurrency = (rows: TransferLog[]): Record<string, number> => {
 };
 
 const formatCurrencyAmount = (currency: string, amount: number): string => {
-  const sign = amount < 0 ? "-" : "";
-  const abs = Math.abs(amount);
-  return `${sign}${currencySymbol(currency)}${formatFeeCompact(abs)}`;
+  return formatMoneyWithSymbol(amount, currency);
 };
 
 const formatFeesSummary = (fees: Record<string, number>): string => {
@@ -216,7 +197,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
                       <td className="px-2 py-1 whitespace-nowrap">{t.position || "-"}</td>
                       <td className="px-2 py-1 whitespace-nowrap">{t.age != null ? t.age : "-"}</td>
                       <td className="px-2 py-1 whitespace-nowrap">
-                        {fee != null ? `${currencySymbol(feeCurrency)}${formatFeeCompact(fee)}` : "-"}
+                        {fee != null ? formatMoneyWithSymbol(fee, feeCurrency) : "-"}
                       </td>
                     </tr>
                   );
