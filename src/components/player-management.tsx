@@ -229,6 +229,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           name: values.name,
           position: values.position as any,
           number: values.number as any,
+          photoUrl: values.photoUrl,
           seasons: nextSeasons,
           [`seasonData.${selectedSeason}`]: seasonPayloadClean,
         });
