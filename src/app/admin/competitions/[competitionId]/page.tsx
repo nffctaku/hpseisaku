@@ -15,7 +15,7 @@ import { Loader2, ChevronLeft, ChevronRight, PlusCircle, Trash2, CalendarIcon } 
 import Link from 'next/link';
 import { toast } from "sonner";
 import { cn } from '@/lib/utils';
-import { format, isToday, isYesterday, isTomorrow, parseISO } from 'date-fns';
+import { format, isToday, isValid, isYesterday, isTomorrow, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { MatchEditor } from '@/components/match-editor';
 import { Match, Team } from '@/types/match';
@@ -107,20 +107,38 @@ export default function CompetitionDetailPage() {
 
   const groupedMatches = useMemo(() => {
     if (!currentRound) return [];
-    const groups = currentRound.matches.reduce((acc, match) => {
-      const date = parseISO(match.matchDate);
-      let groupName = format(date, 'M月d日(E)', { locale: ja });
-      if (isToday(date)) groupName = '今日';
-      if (isYesterday(date)) groupName = '昨日';
-      if (isTomorrow(date)) groupName = '明日';
-      
-      if (!acc[groupName]) {
-        acc[groupName] = [];
-      }
-      acc[groupName].push(match);
-      return acc;
-    }, {} as Record<string, Match[]>);
-    return Object.entries(groups).sort(([a], [b]) => new Date(a.split('(')[0]).getTime() - new Date(b.split('(')[0]).getTime()) as [string, Match[]][];
+    const reduced = currentRound.matches.reduce(
+      (acc, match) => {
+        const raw = typeof match.matchDate === 'string' ? match.matchDate : '';
+        const date = parseISO(raw);
+
+        let groupName = '日付未設定';
+        let sortMs = Number.POSITIVE_INFINITY;
+
+        if (isValid(date)) {
+          groupName = format(date, 'M月d日(E)', { locale: ja });
+          if (isToday(date)) groupName = '今日';
+          if (isYesterday(date)) groupName = '昨日';
+          if (isTomorrow(date)) groupName = '明日';
+          sortMs = date.getTime();
+        }
+
+        if (!acc.groups[groupName]) {
+          acc.groups[groupName] = [];
+          acc.sortMs[groupName] = sortMs;
+        } else {
+          // 同一グループで複数試合が来た場合、最小の日時を採用
+          acc.sortMs[groupName] = Math.min(acc.sortMs[groupName], sortMs);
+        }
+
+        acc.groups[groupName].push(match);
+        return acc;
+      },
+      { groups: {} as Record<string, Match[]>, sortMs: {} as Record<string, number> }
+    );
+
+    return Object.entries(reduced.groups)
+      .sort(([a], [b]) => (reduced.sortMs[a] ?? Number.POSITIVE_INFINITY) - (reduced.sortMs[b] ?? Number.POSITIVE_INFINITY)) as [string, Match[]][];
   }, [currentRound]);
 
   const handleMatchUpdate = async (matchId: string, field: keyof Match, value: any) => {
