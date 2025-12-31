@@ -219,6 +219,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const playerDocRef = doc(playersColRef, editingPlayer.id);
         const updatePayload = stripUndefinedDeep({
           name: values.name,
+          position: values.position as any,
+          number: values.number as any,
           seasons: nextSeasons,
           [`seasonData.${selectedSeason}`]: seasonPayloadClean,
         });
@@ -236,7 +238,14 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       setIsDialogOpen(false);
       setEditingPlayer(null);
     } catch (error) {
-      console.error("Error saving player: ", error);
+      console.error("Error saving player: ", {
+        code: (error as any)?.code,
+        message: (error as any)?.message,
+        error,
+      });
+      toast.error("保存に失敗しました。権限や通信状況をご確認ください。", {
+        id: "player-save-failed",
+      });
     }
   };
 
