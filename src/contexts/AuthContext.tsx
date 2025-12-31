@@ -39,7 +39,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchUserProfile = async (authUser: User) => {
     console.log('[AuthContext] fetchUserProfile start', { uid: authUser.uid });
-    // 1. Prefer club_profiles document where ownerUid == uid (existing schema)
+    // 1. Prefer document whose ID is the uid (newer schema / webhook update target)
+    const profileDocRef = doc(db, 'club_profiles', authUser.uid);
+    const profileDocSnap = await getDoc(profileDocRef);
+
+    if (profileDocSnap.exists()) {
+      const profileData = profileDocSnap.data();
+      setUser({ ...authUser, ...profileData } as UserProfile);
+      setClubProfileExists(true);
+      console.log('[AuthContext] profile found by doc id, user set', { uid: authUser.uid, profileData });
+      return;
+    }
+
+    // 2. Fallback: club_profiles document where ownerUid == uid (older schema)
     const q = query(collection(db, 'club_profiles'), where('ownerUid', '==', authUser.uid));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
@@ -50,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // 1.5 Admin user: find club_profiles where this uid is listed as an admin
+    // 2.5 Admin user: find club_profiles where this uid is listed as an admin
     const adminQ = query(collection(db, 'club_profiles'), where('admins', 'array-contains', authUser.uid));
     const adminSnap = await getDocs(adminQ);
     if (!adminSnap.empty) {
@@ -63,20 +75,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // 2. Fallback: document whose ID is the uid (newer schema)
-    const profileDocRef = doc(db, 'club_profiles', authUser.uid);
-    const profileDocSnap = await getDoc(profileDocRef);
-
-    if (profileDocSnap.exists()) {
-      const profileData = profileDocSnap.data();
-      setUser({ ...authUser, ...profileData } as UserProfile);
-      setClubProfileExists(true);
-      console.log('[AuthContext] profile found by doc id, user set', { uid: authUser.uid, profileData });
-    } else {
-      setUser(authUser as UserProfile);
-      setClubProfileExists(false);
-      console.log('[AuthContext] no profile, using authUser only', { uid: authUser.uid });
-    }
+    setUser(authUser as UserProfile);
+    setClubProfileExists(false);
+    console.log('[AuthContext] no profile, using authUser only', { uid: authUser.uid });
   };
 
   useEffect(() => {
