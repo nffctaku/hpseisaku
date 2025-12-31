@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField } from "firebase/firestore";
+import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc } from "firebase/firestore";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -233,6 +233,23 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           [`seasonData.${selectedSeason}`]: seasonPayloadClean,
         });
         await updateDoc(playerDocRef, (updatePayload || {}) as any);
+
+        const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeason}/roster`, editingPlayer.id);
+        await setDoc(
+          rosterDocRef,
+          {
+            name: values.name,
+            teamId,
+            seasons: nextSeasons,
+            seasonData: {
+              [selectedSeason]: seasonPayloadClean,
+            },
+            number: values.number as any,
+            position: values.position as any,
+            photoUrl: values.photoUrl,
+          } as any,
+          { merge: true }
+        );
       } else {
         const createPayload = stripUndefinedDeep({
           ...values,
@@ -241,7 +258,24 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             [selectedSeason]: seasonPayloadClean,
           },
         });
-        await addDoc(playersColRef, (createPayload || {}) as any);
+        const created = await addDoc(playersColRef, (createPayload || {}) as any);
+
+        const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeason}/roster`, created.id);
+        await setDoc(
+          rosterDocRef,
+          {
+            ...(createPayload || {}),
+            teamId,
+            seasons: [selectedSeason],
+            seasonData: {
+              [selectedSeason]: seasonPayloadClean,
+            },
+            number: values.number as any,
+            position: values.position as any,
+            photoUrl: values.photoUrl,
+          } as any,
+          { merge: true }
+        );
       }
 
       toast.success("保存しました。", {

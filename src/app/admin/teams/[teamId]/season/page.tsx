@@ -18,6 +18,7 @@ export default function TeamSeasonSelectPage() {
   const params = useParams();
   const router = useRouter();
   const teamId = params.teamId as string;
+  const clubUid = (user as any)?.ownerUid || user?.uid;
 
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>("");
@@ -33,9 +34,9 @@ export default function TeamSeasonSelectPage() {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!clubUid) return;
 
-    const seasonsColRef = collection(db, `clubs/${user.uid}/seasons`);
+    const seasonsColRef = collection(db, `clubs/${clubUid}/seasons`);
     getDocs(seasonsColRef).then((snapshot) => {
       const seasonsData = snapshot.docs
         .map((d) => ({ id: d.id, ...(d.data() as any) } as Season))
@@ -45,7 +46,7 @@ export default function TeamSeasonSelectPage() {
         setSelectedSeason(seasonsData[0].id);
       }
     });
-  }, [user]);
+  }, [clubUid]);
 
   const availableSeasonsToAdd = useMemo(() => {
     const existing = new Set(seasons.map((s) => s.id));
@@ -56,8 +57,8 @@ export default function TeamSeasonSelectPage() {
   const canAdd = useMemo(() => newSeason.trim().length > 0, [newSeason]);
 
   const handleAddSeason = async () => {
-    if (!user || !newSeason) return;
-    const seasonDocRef = doc(db, `clubs/${user.uid}/seasons`, newSeason);
+    if (!clubUid || !newSeason) return;
+    const seasonDocRef = doc(db, `clubs/${clubUid}/seasons`, newSeason);
     await setDoc(seasonDocRef, { name: newSeason, isPublic: false });
     setSeasons([{ id: newSeason, isPublic: false }, ...seasons].sort((a, b) => b.id.localeCompare(a.id)));
     setSelectedSeason(newSeason);
