@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Loader2, UserSquare } from 'lucide-react';
 import Image from 'next/image';
+import { toast } from 'sonner';
 
 interface PlayerPhotoUploaderProps {
   value: string;
@@ -17,29 +18,49 @@ export function PlayerPhotoUploader({ value, onChange }: PlayerPhotoUploaderProp
       return;
     }
 
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+    if (!cloudName || !uploadPreset) {
+      toast.error('画像アップロード設定（Cloudinary）が未設定です。');
+      event.target.value = '';
+      return;
+    }
+
     const file = event.target.files[0];
     setUploading(true);
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+    formData.append('upload_preset', uploadPreset);
 
     try {
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: 'POST',
         body: formData,
       });
 
       const data = await response.json();
-      const photoUrl = data.secure_url;
+      if (!response.ok) {
+        console.error('Cloudinary upload failed:', { status: response.status, data });
+        toast.error('画像のアップロードに失敗しました。');
+        return;
+      }
+
+      const photoUrl = data?.secure_url as string | undefined;
 
       if (photoUrl) {
         onChange(photoUrl);
+        toast.success('画像をアップロードしました。');
+      } else {
+        console.error('Cloudinary response missing secure_url:', data);
+        toast.error('画像URLの取得に失敗しました。');
       }
     } catch (error) {
       console.error('Error uploading player photo:', error);
+      toast.error('画像のアップロード中にエラーが発生しました。');
     } finally {
       setUploading(false);
+      event.target.value = '';
     }
   };
 
