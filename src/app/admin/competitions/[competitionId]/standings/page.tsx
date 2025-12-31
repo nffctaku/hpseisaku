@@ -26,6 +26,31 @@ interface Standing {
   points: number;
 }
 
+function computeAndRankStandings(input: Standing[]): Standing[] {
+  const computed = input.map((s) => {
+    const wins = typeof s.wins === 'number' ? s.wins : 0;
+    const draws = typeof s.draws === 'number' ? s.draws : 0;
+    const losses = typeof s.losses === 'number' ? s.losses : 0;
+    const goalsFor = typeof s.goalsFor === 'number' ? s.goalsFor : 0;
+    const goalsAgainst = typeof s.goalsAgainst === 'number' ? s.goalsAgainst : 0;
+    return {
+      ...s,
+      played: wins + draws + losses,
+      points: wins * 3 + draws,
+      goalDifference: goalsFor - goalsAgainst,
+    };
+  });
+
+  computed.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+    if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+    return a.teamName.localeCompare(b.teamName);
+  });
+
+  return computed.map((s, idx) => ({ ...s, rank: idx + 1 }));
+}
+
 export default function StandingsPage() {
   const params = useParams();
   const competitionId = params.competitionId as string;
@@ -106,9 +131,11 @@ export default function StandingsPage() {
 
   const handleInputChange = (teamId: string, field: keyof Standing, value: string) => {
     const numericValue = parseInt(value, 10);
-    setStandings(prev =>
-      prev.map(s => (s.id === teamId ? { ...s, [field]: isNaN(numericValue) ? 0 : numericValue } : s))
-    );
+    const safe = Number.isNaN(numericValue) ? 0 : Math.max(0, numericValue);
+    setStandings((prev) => {
+      const next = prev.map((s) => (s.id === teamId ? { ...s, [field]: safe } : s));
+      return computeAndRankStandings(next);
+    });
   };
 
   const handleRecalculate = async () => {
@@ -275,14 +302,12 @@ export default function StandingsPage() {
           <TableBody>
             {standings.map(s => (
               <TableRow key={s.id}>
-                <TableCell>
-                  <Input value={s.rank} onChange={e => handleInputChange(s.id, 'rank', e.target.value)} className="w-16 bg-white text-gray-900" />
-                </TableCell>
+                <TableCell>{s.rank}</TableCell>
                 <TableCell className="font-medium flex items-center">
                   {s.logoUrl && <img src={s.logoUrl} alt={s.teamName} className="w-6 h-6 mr-2" />}
                   {s.teamName}
                 </TableCell>
-                <TableCell><Input value={s.played} onChange={e => handleInputChange(s.id, 'played', e.target.value)} className="w-16 bg-white text-gray-900" /></TableCell>
+                <TableCell>{s.played}</TableCell>
                 <TableCell><Input value={s.wins} onChange={e => handleInputChange(s.id, 'wins', e.target.value)} className="w-16 bg-white text-gray-900" /></TableCell>
                 <TableCell><Input value={s.draws} onChange={e => handleInputChange(s.id, 'draws', e.target.value)} className="w-16 bg-white text-gray-900" /></TableCell>
                 <TableCell><Input value={s.losses} onChange={e => handleInputChange(s.id, 'losses', e.target.value)} className="w-16 bg-white text-gray-900" /></TableCell>

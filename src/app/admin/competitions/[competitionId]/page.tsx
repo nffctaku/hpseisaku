@@ -128,10 +128,15 @@ export default function CompetitionDetailPage() {
     const roundId = currentRound.id;
     const matchRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches`, matchId);
     try {
-      await updateDoc(matchRef, { [field]: value });
+      const normalizedValue =
+        (field === 'scoreHome' || field === 'scoreAway') && typeof value === 'number'
+          ? Math.max(0, value)
+          : value;
+
+      await updateDoc(matchRef, { [field]: normalizedValue });
       setRounds(prevRounds => prevRounds.map(r => r.id === roundId ? {
         ...r,
-        matches: r.matches.map(m => m.id === matchId ? { ...m, [field]: value } : m)
+        matches: r.matches.map(m => m.id === matchId ? { ...m, [field]: normalizedValue } : m)
       } : r));
       toast.success('更新しました。');
     } catch (error) {
@@ -151,9 +156,17 @@ export default function CompetitionDetailPage() {
 
   const handleAddMatch = async () => {
     if (!currentRound || !user) return;
+    const lastMatchDate =
+      Array.isArray(currentRound.matches) && currentRound.matches.length > 0
+        ? currentRound.matches[currentRound.matches.length - 1]?.matchDate
+        : undefined;
+    const defaultMatchDate =
+      typeof lastMatchDate === 'string' && lastMatchDate.trim().length > 0
+        ? lastMatchDate
+        : format(new Date(), 'yyyy-MM-dd');
     const newMatchData = { 
       homeTeam: '', awayTeam: '', 
-      matchDate: format(new Date(), 'yyyy-MM-dd'), 
+      matchDate: defaultMatchDate, 
       competitionId, 
       scoreHome: null, scoreAway: null 
     };

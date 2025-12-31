@@ -73,6 +73,8 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
 
   const clampDay = (day: number) => Math.min(day, daysInMonth);
 
+  const clampScore = (value: number) => (Number.isFinite(value) ? Math.max(0, value) : 0);
+
   const updateMatchDate = (y: number, m: number, d: number) => {
     const yearStr = y.toString();
     const monthStr = m.toString().padStart(2, '0');
@@ -195,17 +197,33 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
       <div className="col-span-2 lg:col-span-2 flex justify-center items-center gap-2">
         <Input 
           type="number" 
+          min={0}
           className="w-14 text-center font-bold text-lg bg-white text-gray-900" 
           value={match.scoreHome ?? ''}
-          onChange={(e) => onUpdate(match.id, 'scoreHome', e.target.value === '' ? null : parseInt(e.target.value))}
+          onChange={(e) => {
+            if (e.target.value === '') {
+              onUpdate(match.id, 'scoreHome', null);
+              return;
+            }
+            const n = parseInt(e.target.value, 10);
+            onUpdate(match.id, 'scoreHome', clampScore(n));
+          }}
           placeholder="-"
         />
         <span className="text-lg">-</span>
         <Input 
           type="number" 
+          min={0}
           className="w-14 text-center font-bold text-lg bg-white text-gray-900" 
           value={match.scoreAway ?? ''}
-          onChange={(e) => onUpdate(match.id, 'scoreAway', e.target.value === '' ? null : parseInt(e.target.value))}
+          onChange={(e) => {
+            if (e.target.value === '') {
+              onUpdate(match.id, 'scoreAway', null);
+              return;
+            }
+            const n = parseInt(e.target.value, 10);
+            onUpdate(match.id, 'scoreAway', clampScore(n));
+          }}
           placeholder="-"
         />
       </div>
