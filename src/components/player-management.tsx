@@ -157,6 +157,14 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       return;
     }
     try {
+      console.log("[PlayerManagement] save start", {
+        clubUid,
+        teamId,
+        selectedSeason,
+        editingPlayerId: editingPlayer?.id ?? null,
+        position: values.position,
+        number: values.number,
+      });
       const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
 
       const paramsNormalized = values.params
@@ -235,6 +243,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         });
         await addDoc(playersColRef, (createPayload || {}) as any);
       }
+
+      toast.success("保存しました。", {
+        id: "player-save-success",
+      });
       setIsDialogOpen(false);
       setEditingPlayer(null);
     } catch (error) {
@@ -243,7 +255,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         message: (error as any)?.message,
         error,
       });
-      toast.error("保存に失敗しました。権限や通信状況をご確認ください。", {
+      const code = (error as any)?.code;
+      toast.error(`保存に失敗しました。${code ? ` (${code})` : ""}`, {
         id: "player-save-failed",
       });
     }
