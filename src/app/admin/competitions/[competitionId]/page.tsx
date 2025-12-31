@@ -34,6 +34,32 @@ interface Round {
   matches: Match[];
 }
 
+function getRoundSortKey(name: string): number {
+  const s = (name || '').trim();
+  if (!s) return Number.POSITIVE_INFINITY;
+
+  const league = s.match(/^第?\s*(\d+)\s*節$/);
+  if (league) return Number(league[1]);
+
+  const cup = s.match(/^第?\s*(\d+)\s*回戦$/);
+  if (cup) return 100 + Number(cup[1]);
+
+  const special: Record<string, number> = {
+    '予選': 10,
+    '予備予選': 5,
+    'プレーオフ': 700,
+    'ラウンド16': 800,
+    'ベスト16': 800,
+    '準々決勝': 900,
+    '準決勝': 950,
+    '3位決定戦': 975,
+    '決勝': 1000,
+  };
+  if (s in special) return special[s];
+
+  return 100000;
+}
+
 export default function CompetitionDetailPage() {
   const { user } = useAuth();
   const params = useParams();
@@ -87,7 +113,12 @@ export default function CompetitionDetailPage() {
         matchesData.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
         return { id: roundDoc.id, name: roundDoc.data().name, matches: matchesData };
       }));
-      roundsData.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      roundsData.sort((a, b) => {
+        const ka = getRoundSortKey(a.name);
+        const kb = getRoundSortKey(b.name);
+        if (ka !== kb) return ka - kb;
+        return a.name.localeCompare(b.name, undefined, { numeric: true });
+      });
       setRounds(roundsData);
       if (roundsData.length > 0) {
         setCurrentRoundIndex(0);

@@ -85,7 +85,7 @@ export default function NewCompetitionPage() {
   const [loading, setLoading] = useState(false);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [categories, setCategories] = useState<TeamCategory[]>([]);
-  const [teamCategoryFilter, setTeamCategoryFilter] = useState<string>("all");
+  const [teamCategoryFilters, setTeamCategoryFilters] = useState<string[]>([]);
 
   const clubUid = (user as any)?.ownerUid || user?.uid;
 
@@ -96,10 +96,32 @@ export default function NewCompetitionPage() {
   };
 
   const getTeamCategoryFilterLabel = () => {
-    if (teamCategoryFilter === 'all') return 'すべて';
-    if (teamCategoryFilter === 'uncategorized') return '未分類';
-    const found = categories.find((c) => c.id === teamCategoryFilter);
-    return found?.name || '（不明）';
+    const allIds = ["uncategorized", ...categories.map((c) => c.id)];
+    const selected = Array.isArray(teamCategoryFilters) ? teamCategoryFilters : [];
+    const selectedSet = new Set(selected);
+    const isAllSelected = allIds.every((id) => selectedSet.has(id));
+    if (isAllSelected) return "すべて";
+
+    const names: string[] = [];
+    if (selectedSet.has("uncategorized")) names.push("未分類");
+    for (const c of categories) {
+      if (selectedSet.has(c.id)) names.push(c.name);
+    }
+    return names.length > 0 ? names.join(", ") : "（なし）";
+  };
+
+  useEffect(() => {
+    if (categories.length === 0) return;
+    if (teamCategoryFilters.length > 0) return;
+    setTeamCategoryFilters(["uncategorized", ...categories.map((c) => c.id)]);
+  }, [categories, teamCategoryFilters.length]);
+
+  const setAllTeamCategoryFilters = () => {
+    setTeamCategoryFilters(["uncategorized", ...categories.map((c) => c.id)]);
+  };
+
+  const clearTeamCategoryFilters = () => {
+    setTeamCategoryFilters([]);
   };
 
   const form = useForm<FormValues>({
@@ -340,27 +362,112 @@ export default function NewCompetitionPage() {
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
                   <div className="text-xs sm:text-sm text-muted-foreground">表示カテゴリ</div>
-                  <Select value={teamCategoryFilter} onValueChange={setTeamCategoryFilter}>
-                    <SelectTrigger className="w-full sm:w-[260px] bg-white text-gray-900 border border-border">
-                      <span className="text-sm text-gray-900">表示カテゴリ: {getTeamCategoryFilterLabel()}</span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">すべて</SelectItem>
-                      <SelectItem value="uncategorized">未分類</SelectItem>
+                  <div className="w-full sm:w-[420px] space-y-2">
+                    <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
+                      <div className="text-sm text-gray-900">表示カテゴリ: {getTeamCategoryFilterLabel()}</div>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={setAllTeamCategoryFilters}>
+                          全選択
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={clearTeamCategoryFilters}>
+                          全解除
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <label className="flex items-center gap-2 rounded-md border px-2 py-1">
+                        <Checkbox
+                          checked={teamCategoryFilters.includes("uncategorized")}
+                          onCheckedChange={(checked) => {
+                            setTeamCategoryFilters((prev) => {
+                              const set = new Set(prev);
+                              if (checked) set.add("uncategorized");
+                              else set.delete("uncategorized");
+                              return Array.from(set);
+                            });
+                          }}
+                        />
+                        <span className="text-sm">未分類</span>
+                      </label>
                       {categories.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
+                        <label key={c.id} className="flex items-center gap-2 rounded-md border px-2 py-1">
+                          <Checkbox
+                            checked={teamCategoryFilters.includes(c.id)}
+                            onCheckedChange={(checked) => {
+                              setTeamCategoryFilters((prev) => {
+                                const set = new Set(prev);
+                                if (checked) set.add(c.id);
+                                else set.delete(c.id);
+                                return Array.from(set);
+                              });
+                            }}
+                          />
+                          <span className="text-sm">{c.name}</span>
+                        </label>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </div>
+                  </div>
                 </div>
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+                  <div className="text-xs sm:text-sm text-muted-foreground">参加チーム</div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const selected = Array.isArray(teamCategoryFilters) ? teamCategoryFilters : [];
+                        const visibleTeamIds = allTeams
+                          .filter((t) => {
+                            if (selected.length === 0) return false;
+                            const cat = typeof t.categoryId === 'string' && t.categoryId.trim().length > 0 ? t.categoryId : null;
+                            if (!cat) return selected.includes('uncategorized');
+                            return selected.includes(cat);
+                          })
+                          .map((t) => t.id);
+
+                        const current = (form.getValues('teams') as string[]) || [];
+                        const merged = Array.from(new Set([...current, ...visibleTeamIds]));
+                        form.setValue('teams', merged, { shouldDirty: true, shouldValidate: true });
+                      }}
+                    >
+                      表示中を一括チェック
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const selected = Array.isArray(teamCategoryFilters) ? teamCategoryFilters : [];
+                        const visibleTeamIds = allTeams
+                          .filter((t) => {
+                            if (selected.length === 0) return false;
+                            const cat = typeof t.categoryId === 'string' && t.categoryId.trim().length > 0 ? t.categoryId : null;
+                            if (!cat) return selected.includes('uncategorized');
+                            return selected.includes(cat);
+                          })
+                          .map((t) => t.id);
+                        const visibleSet = new Set(visibleTeamIds);
+
+                        const current = (form.getValues('teams') as string[]) || [];
+                        const removed = current.filter((id) => !visibleSet.has(id));
+                        form.setValue('teams', removed, { shouldDirty: true, shouldValidate: true });
+                      }}
+                    >
+                      表示中を一括解除
+                    </Button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {allTeams
                     .filter((t) => {
-                      if (teamCategoryFilter === 'all') return true;
-                      if (teamCategoryFilter === 'uncategorized') return !t.categoryId;
-                      return t.categoryId === teamCategoryFilter;
+                      const selected = Array.isArray(teamCategoryFilters) ? teamCategoryFilters : [];
+                      if (selected.length === 0) return false;
+                      const cat = typeof t.categoryId === 'string' && t.categoryId.trim().length > 0 ? t.categoryId : null;
+                      if (!cat) return selected.includes('uncategorized');
+                      return selected.includes(cat);
                     })
                     .map((team) => (
                     <FormField

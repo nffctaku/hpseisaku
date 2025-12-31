@@ -9,8 +9,27 @@ import { Trash2 } from 'lucide-react';
 import { Player } from '@/types/match';
 import { toast } from 'sonner';
 
-const ratingOptions = Array.from({ length: 71 }, (_, i) => (3 + i * 0.1).toFixed(1));
-const minutesOptions = Array.from({ length: 146 }, (_, i) => i.toString());
+const ratingOptions = (() => {
+  const start = 4.5;
+  const end = 10.0;
+  const steps = Math.round((end - start) / 0.1);
+  const all = Array.from({ length: steps + 1 }, (_, i) => (start + i * 0.1).toFixed(1));
+
+  const pivot = all.indexOf('7.0');
+  if (pivot === -1) return all;
+  const below = all.slice(0, pivot);
+  const above = all.slice(pivot + 1);
+  return [...below, '7.0', ...above];
+})();
+const starterMinutesOptions = (() => {
+  // 45 を中心に表示したい
+  // 上: 1..44, 中央: 45, 下: 46..145, 0 は末尾
+  const above = Array.from({ length: 44 }, (_, i) => String(i + 1));
+  const center = ['45'];
+  const below = Array.from({ length: 100 }, (_, i) => String(46 + i)); // 46..145
+  return [...above, ...center, ...below, '0'];
+})();
+const benchMinutesOptions = Array.from({ length: 146 }, (_, i) => i.toString());
 
 export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPlayers: Player[] }) {
   console.log(`PlayerStatsTable (${teamId}): Received allPlayers`, allPlayers);
@@ -63,8 +82,8 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
       position: player.position || 'N/A',
       teamId,
       role,
-      rating: 0,
-      minutesPlayed: 0,
+      rating: 7.0,
+      minutesPlayed: role === 'starter' ? 45 : 0,
       goals: 0,
       assists: 0,
       yellowCards: 0,
@@ -77,12 +96,19 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     const globalIndex = fields.findIndex(f => f.id === field.id);
     if (globalIndex === -1) return null;
 
+    const role = (field as any).role ?? 'starter';
     const customStatPath = `playerStats.${globalIndex}.customStats`;
     const ratingFieldName = `playerStats.${globalIndex}.rating`;
     const minutesFieldName = `playerStats.${globalIndex}.minutesPlayed`;
     const customStats = watch(customStatPath) || [];
     const rawRating = watch(ratingFieldName);
-    const ratingValue = typeof rawRating === 'number' && Number.isFinite(rawRating) ? rawRating.toFixed(1) : '';
+    const ratingValue =
+      typeof rawRating === 'number' &&
+      Number.isFinite(rawRating) &&
+      rawRating >= 4.5 &&
+      rawRating <= 10.0
+        ? rawRating.toFixed(1)
+        : '';
 
     return (
       <div key={field.id} className="space-y-1">
@@ -123,7 +149,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
-                      {minutesOptions.map((m) => (
+                      {(role === 'starter' ? starterMinutesOptions : benchMinutesOptions).map((m) => (
                         <SelectItem key={m} value={m}>
                           {m}
                         </SelectItem>

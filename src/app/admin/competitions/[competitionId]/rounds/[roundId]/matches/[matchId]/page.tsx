@@ -222,10 +222,13 @@ export default function MatchAdminPage() {
           />
         </TabsContent>
         <TabsContent value="match-events">
-          <MatchEventsPreview
-            match={match}
-            homePlayers={homePlayers}
-            awayPlayers={awayPlayers}
+          <SquadRegistrationForm 
+            match={match} 
+            homePlayers={homePlayers} 
+            awayPlayers={awayPlayers} 
+            roundId={roundId as string} 
+            competitionId={competitionId as string} 
+            view="events"
           />
         </TabsContent>
         <TabsContent value="player-stats">
@@ -235,6 +238,7 @@ export default function MatchAdminPage() {
             awayPlayers={awayPlayers} 
             roundId={roundId as string} 
             competitionId={competitionId as string} 
+            view="player"
           />
         </TabsContent>
       </Tabs>

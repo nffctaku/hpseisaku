@@ -289,8 +289,8 @@ export default function MatchesPage() {
                       className="flex items-center p-3 sm:p-4 bg-card rounded-lg"
                     >
                       <div className="flex flex-col flex-grow gap-1">
-                        <div className="flex items-center justify-between gap-2 w-full">
-                          <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+                        <div className="grid grid-cols-[1fr_72px_1fr] items-center gap-2 w-full">
+                          <div className="flex items-center gap-2 min-w-0 justify-end">
                             <span className="font-medium text-sm truncate text-right">{match.homeTeamName}</span>
                             {match.homeTeamLogo ? (
                               <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={22} height={22} className="rounded-full object-contain" />
@@ -298,16 +298,18 @@ export default function MatchesPage() {
                               <div className="w-[22px] h-[22px] bg-muted rounded-full" />
                             )}
                           </div>
-                          {isFinished ? (
-                            <div className={`inline-block min-w-[60px] px-2 py-1 rounded-md font-bold text-white text-sm text-center ${resultColor}`}>
-                              {match.scoreHome} - {match.scoreAway}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-muted-foreground text-center min-w-[60px]">
-                              {match.matchTime || 'VS'}
-                            </div>
-                          )}
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className="flex items-center justify-center">
+                            {isFinished ? (
+                              <div className={`w-[72px] px-2 py-1 rounded-md font-bold text-white text-sm text-center ${resultColor}`}>
+                                {match.scoreHome} - {match.scoreAway}
+                              </div>
+                            ) : (
+                              <div className="w-[72px] text-xs text-muted-foreground text-center">
+                                {match.matchTime || 'VS'}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 min-w-0">
                             {match.awayTeamLogo ? (
                               <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={22} height={22} className="rounded-full object-contain" />
                             ) : (

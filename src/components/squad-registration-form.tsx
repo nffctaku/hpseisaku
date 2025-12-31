@@ -61,9 +61,10 @@ interface SquadRegistrationFormProps {
   roundId: string;
   competitionId: string;
   matchDocPath?: string;
+  view?: 'player' | 'events' | 'both';
 }
 
-export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId, competitionId, matchDocPath }: SquadRegistrationFormProps) {
+export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId, competitionId, matchDocPath, view = 'both' }: SquadRegistrationFormProps) {
   console.log('SquadForm: Received homePlayers', homePlayers);
   console.log('SquadForm: Received awayPlayers', awayPlayers);
   const { user } = useAuth();
@@ -284,30 +285,36 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     <FormProvider {...methods}>
       <Card>
         <CardHeader>
-          <CardTitle>出場選手登録 & スタッツ</CardTitle>
+          <CardTitle>
+            {view === 'events' ? '試合イベント' : view === 'player' ? '出場選手登録 & スタッツ' : '出場選手登録 & スタッツ'}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={methods.handleSubmit(onSubmit)}>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="home">{match.homeTeamName}</TabsTrigger>
-                <TabsTrigger value="away">{match.awayTeamName}</TabsTrigger>
-              </TabsList>
-              <TabsContent value="home">
-                <PlayerStatsTable teamId={match.homeTeam} allPlayers={homePlayers} />
-              </TabsContent>
-              <TabsContent value="away">
-                <PlayerStatsTable teamId={match.awayTeam} allPlayers={awayPlayers} />
-              </TabsContent>
-            </Tabs>
+            {(view === 'player' || view === 'both') ? (
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="home">{match.homeTeamName}</TabsTrigger>
+                  <TabsTrigger value="away">{match.awayTeamName}</TabsTrigger>
+                </TabsList>
+                <TabsContent value="home">
+                  <PlayerStatsTable teamId={match.homeTeam} allPlayers={homePlayers} />
+                </TabsContent>
+                <TabsContent value="away">
+                  <PlayerStatsTable teamId={match.awayTeam} allPlayers={awayPlayers} />
+                </TabsContent>
+              </Tabs>
+            ) : null}
 
-            <div className="mt-10">
-              <MatchEventsTable
-                match={match}
-                homePlayers={homePlayers}
-                awayPlayers={awayPlayers}
-              />
-            </div>
+            {(view === 'events' || view === 'both') ? (
+              <div className={view === 'both' ? "mt-10" : "mt-0"}>
+                <MatchEventsTable
+                  match={match}
+                  homePlayers={homePlayers}
+                  awayPlayers={awayPlayers}
+                />
+              </div>
+            ) : null}
             <div className="mt-8 flex justify-end">
               <Button type="submit" disabled={saving}>
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
