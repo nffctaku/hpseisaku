@@ -1,19 +1,6 @@
 import React from "react";
 import { GiWhistle, GiSoccerBall, GiNotebook } from "react-icons/gi";
-
-function SmallHexIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-      <polygon
-        points="12,2.5 20,7.1 20,16.9 12,21.5 4,16.9 4,7.1"
-        stroke="currentColor"
-        strokeWidth="2"
-        fill="none"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+import Image from "next/image";
 
 function SingleFootIcon({ className }: { className?: string }) {
   return (
@@ -35,6 +22,7 @@ export interface PublicSeasonSummaryRow {
   competitions?: {
     competitionId: string;
     competitionName: string;
+    competitionLogoUrl?: string;
     matches: number;
     goals: number;
     assists: number;
@@ -52,9 +40,9 @@ export function PublicPlayerSeasonSummaries({ rows }: { rows: PublicSeasonSummar
       <div className="flex items-end justify-between gap-3">
         <h2 className="text-xl font-bold">シーズン別成績</h2>
       </div>
-      <div className="mt-4 overflow-x-auto rounded-lg border">
-        <div className="w-full min-w-[360px]">
-          <div className="grid grid-cols-6 items-center bg-muted/30">
+      <div className="mt-4 rounded-lg border">
+        <div className="w-full">
+          <div className="grid grid-cols-5 items-center bg-muted/30">
             <div className="p-1.5 text-left text-[10px] text-muted-foreground font-medium whitespace-nowrap">シーズン</div>
             <div
               className="p-1.5 text-center text-[10px] text-muted-foreground font-medium whitespace-nowrap"
@@ -84,13 +72,6 @@ export function PublicPlayerSeasonSummaries({ rows }: { rows: PublicSeasonSummar
             >
               <GiNotebook className="w-4 h-4 inline-block" />
             </div>
-            <div
-              className="p-1.5 text-center text-[10px] text-muted-foreground font-medium whitespace-nowrap"
-              title="総合値"
-              aria-label="総合値"
-            >
-              <SmallHexIcon className="w-4 h-4 inline-block" />
-            </div>
           </div>
 
           <div className="divide-y">
@@ -99,85 +80,111 @@ export function PublicPlayerSeasonSummaries({ rows }: { rows: PublicSeasonSummar
               const hasBreakdown = row.hasStats && comps.length > 0;
               return (
                 <div key={row.season} className="bg-background">
-                  <div className="grid grid-cols-6 items-center">
-                    <div className="p-1.5">
-                      <span className="text-[11px] font-medium">{row.season}</span>
-                    </div>
-                    <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.matches : "-"}</div>
-                    <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.goals : "-"}</div>
-                    <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.assists : "-"}</div>
-                    <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
-                      {row.hasStats ? (row.avgRating == null ? "-" : row.avgRating.toFixed(1)) : "-"}
-                    </div>
-                    <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
-                      {row.hasStats ? (row.overall == null ? "-" : row.overall) : "-"}
-                    </div>
-                  </div>
-
                   {hasBreakdown ? (
-                    <div className="px-1.5 pb-2">
-                      <div className="rounded-md border bg-muted/10">
-                        <table className="w-full">
-                          <thead className="bg-muted/20">
-                            <tr>
-                              <th className="p-1.5 text-left text-[10px] text-muted-foreground font-medium">大会</th>
-                              <th
-                                className="p-1.5 text-center text-[10px] text-muted-foreground font-medium"
-                                title="試合数"
-                                aria-label="試合数"
-                              >
-                                <GiWhistle className="w-4 h-4 inline-block" />
-                              </th>
-                              <th
-                                className="p-1.5 text-center text-[10px] text-muted-foreground font-medium"
-                                title="ゴール数"
-                                aria-label="ゴール数"
-                              >
-                                <GiSoccerBall className="w-4 h-4 inline-block" />
-                              </th>
-                              <th
-                                className="p-1.5 text-center text-[10px] text-muted-foreground font-medium"
-                                title="アシスト数"
-                                aria-label="アシスト数"
-                              >
-                                <SingleFootIcon className="w-5 h-5 inline-block" />
-                              </th>
-                              <th
-                                className="p-1.5 text-center text-[10px] text-muted-foreground font-medium"
-                                title="評価点"
-                                aria-label="評価点"
-                              >
-                                <GiNotebook className="w-4 h-4 inline-block" />
-                              </th>
-                              <th
-                                className="p-1.5 text-center text-[10px] text-muted-foreground font-medium"
-                                title="総合値"
-                                aria-label="総合値"
-                              >
-                                <SmallHexIcon className="w-4 h-4 inline-block" />
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y">
-                            {comps.map((c) => (
-                              <tr key={c.competitionId} className="bg-background">
-                                <td className="p-1.5 text-[11px] font-medium">{c.competitionName}</td>
-                                <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? c.matches : "-"}</td>
-                                <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? c.goals : "-"}</td>
-                                <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? c.assists : "-"}</td>
-                                <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
-                                  {c.hasStats ? (c.avgRating == null ? "-" : c.avgRating.toFixed(1)) : "-"}
-                                </td>
-                                <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
-                                  {c.hasStats ? (c.overall == null ? "-" : c.overall) : "-"}
-                                </td>
+                    <details className="group">
+                      <summary
+                        className="cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+                        style={{ listStyle: "none" }}
+                      >
+                        <div className="grid grid-cols-5 items-center">
+                          <div className="p-1.5 flex items-center gap-1">
+                            <span className="inline-flex h-3.5 w-3.5 items-center justify-center text-muted-foreground transition-transform group-open:rotate-180">
+                              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </span>
+                            <span className="text-[11px] font-medium">{row.season}</span>
+                          </div>
+                          <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.matches : "-"}</div>
+                          <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.goals : "-"}</div>
+                          <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.assists : "-"}</div>
+                          <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
+                            {row.hasStats ? (row.avgRating == null ? "-" : row.avgRating.toFixed(1)) : "-"}
+                          </div>
+                        </div>
+                      </summary>
+
+                      <div className="px-1.5 pb-2">
+                        <div className="rounded-md border bg-muted/10">
+                          <table className="w-full">
+                            <thead className="bg-muted/20">
+                              <tr>
+                                <th className="p-1.5 text-left text-[10px] text-muted-foreground font-medium">大会</th>
+                                <th
+                                  className="p-1.5 text-center text-[10px] text-muted-foreground font-medium"
+                                  title="試合数"
+                                  aria-label="試合数"
+                                >
+                                  <GiWhistle className="w-4 h-4 inline-block" />
+                                </th>
+                                <th
+                                  className="p-1.5 text-center text-[10px] text-muted-foreground font-medium"
+                                  title="ゴール数"
+                                  aria-label="ゴール数"
+                                >
+                                  <GiSoccerBall className="w-4 h-4 inline-block" />
+                                </th>
+                                <th
+                                  className="p-1.5 text-center text-[10px] text-muted-foreground font-medium"
+                                  title="アシスト数"
+                                  aria-label="アシスト数"
+                                >
+                                  <SingleFootIcon className="w-5 h-5 inline-block" />
+                                </th>
+                                <th
+                                  className="p-1.5 text-center text-[10px] text-muted-foreground font-medium"
+                                  title="評価点"
+                                  aria-label="評価点"
+                                >
+                                  <GiNotebook className="w-4 h-4 inline-block" />
+                                </th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y">
+                              {comps.map((c) => (
+                                <tr key={c.competitionId} className="bg-background">
+                                  <td className="p-1.5 text-[11px] font-medium">
+                                    <div className="flex items-center gap-2">
+                                      {typeof c.competitionLogoUrl === "string" && c.competitionLogoUrl.trim().length > 0 ? (
+                                        <span className="relative h-4 w-4 shrink-0">
+                                          <Image
+                                            src={c.competitionLogoUrl}
+                                            alt={c.competitionName}
+                                            fill
+                                            sizes="16px"
+                                            className="object-contain"
+                                          />
+                                        </span>
+                                      ) : null}
+                                      <span className="truncate">{c.competitionName}</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? c.matches : "-"}</td>
+                                  <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? c.goals : "-"}</td>
+                                  <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? c.assists : "-"}</td>
+                                  <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
+                                    {c.hasStats ? (c.avgRating == null ? "-" : c.avgRating.toFixed(1)) : "-"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </details>
+                  ) : (
+                    <div className="grid grid-cols-5 items-center">
+                      <div className="p-1.5">
+                        <span className="text-[11px] font-medium">{row.season}</span>
+                      </div>
+                      <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.matches : "-"}</div>
+                      <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.goals : "-"}</div>
+                      <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.assists : "-"}</div>
+                      <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
+                        {row.hasStats ? (row.avgRating == null ? "-" : row.avgRating.toFixed(1)) : "-"}
                       </div>
                     </div>
-                  ) : null}
+                  )}
                 </div>
               );
             })}

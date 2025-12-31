@@ -549,6 +549,7 @@ async function getPlayerSeasonSummaries(
 ): Promise<SeasonSummaryRow[]> {
   type CompetitionAgg = {
     name: string;
+    logoUrl?: string;
     matches: number;
     goals: number;
     assists: number;
@@ -589,10 +590,15 @@ async function getPlayerSeasonSummaries(
     return created;
   };
 
-  const getCompetitionAgg = (seasonAgg: SeasonAgg, compId: string, compName: string): CompetitionAgg => {
+  const getCompetitionAgg = (seasonAgg: SeasonAgg, compId: string, compName: string, compLogoUrl?: string): CompetitionAgg => {
     const existing = seasonAgg.competitions.get(compId);
-    if (existing) return existing;
-    const created: CompetitionAgg = { name: compName, matches: 0, goals: 0, assists: 0, ratingSum: 0, ratingCount: 0 };
+    if (existing) {
+      if (!existing.logoUrl && typeof compLogoUrl === "string" && compLogoUrl.trim().length > 0) {
+        existing.logoUrl = compLogoUrl;
+      }
+      return existing;
+    }
+    const created: CompetitionAgg = { name: compName, logoUrl: compLogoUrl, matches: 0, goals: 0, assists: 0, ratingSum: 0, ratingCount: 0 };
     seasonAgg.competitions.set(compId, created);
     return created;
   };
@@ -610,6 +616,7 @@ async function getPlayerSeasonSummaries(
 
     const competitionId = competitionDoc.id;
     const competitionName = (compData?.name as string) || competitionDoc.id;
+    const competitionLogoUrl = typeof compData?.logoUrl === "string" && compData.logoUrl.trim().length > 0 ? compData.logoUrl : undefined;
 
     const manual = manualCompetitionStatsBySeason.get(compSeason)?.get(competitionId) || legacyManualByCompetitionId.get(competitionId);
     if (manual) {
@@ -628,7 +635,7 @@ async function getPlayerSeasonSummaries(
         seasonAgg.ratingCount += 1;
       }
 
-      const compAgg = getCompetitionAgg(seasonAgg, competitionId, competitionName);
+      const compAgg = getCompetitionAgg(seasonAgg, competitionId, competitionName, competitionLogoUrl);
       compAgg.matches = m;
       compAgg.goals = g;
       compAgg.assists = a;
@@ -666,7 +673,7 @@ async function getPlayerSeasonSummaries(
           seasonAgg.ratingCount += 1;
         }
 
-        const compAgg = getCompetitionAgg(seasonAgg, competitionId, competitionName);
+        const compAgg = getCompetitionAgg(seasonAgg, competitionId, competitionName, competitionLogoUrl);
         compAgg.matches += minutesPlayed > 0 ? 1 : 0;
         compAgg.goals += goals;
         compAgg.assists += assists;
@@ -687,6 +694,7 @@ async function getPlayerSeasonSummaries(
         return {
           competitionId,
           competitionName: c.name,
+          competitionLogoUrl: c.logoUrl,
           matches: c.matches,
           goals: c.goals,
           assists: c.assists,

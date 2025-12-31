@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
+import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, deleteField } from "firebase/firestore";
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from "next/navigation";
@@ -247,10 +247,18 @@ export default function TeamsPage() {
         logoUrl = data.secure_url;
       }
 
-      const processedValues = { ...values, logoUrl };
+      const categoryId = typeof values.categoryId === 'string' && values.categoryId.trim() ? values.categoryId : undefined;
+      const processedValues: any = {
+        name: values.name,
+        logoUrl,
+        ...(categoryId ? { categoryId } : {}),
+      };
 
       if (editingTeam) {
         const teamDocRef = doc(db, `clubs/${clubUid}/teams`, editingTeam.id);
+        if (!categoryId) {
+          processedValues.categoryId = deleteField();
+        }
         await updateDoc(teamDocRef, processedValues);
         toast.success("チームを更新しました。");
       } else {
