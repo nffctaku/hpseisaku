@@ -11,9 +11,8 @@ import { ClubHeader } from "@/components/club-header";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { PublicPlayerOverallBySeasonChart } from "@/components/public-player-overall-by-season-chart";
 import { PublicPlayerSeasonSummaries } from "@/components/public-player-season-summaries";
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import { unstable_cache } from "next/cache";
-import { PlayerStatsClient } from "./player-stats-client";
 
 export const revalidate = 300;
 
@@ -1287,7 +1286,9 @@ export default async function PlayerPage({
                   {!hasParams && <p className="mt-3 text-xs text-muted-foreground">パラメーター未登録</p>}
                 </div>
 
-                <PlayerStatsClient clubId={clubId} playerId={playerId} />
+                <Suspense fallback={<div className="mt-8 text-sm text-muted-foreground">スタッツ集計中...</div>}>
+                  <PlayerStatsSection ownerUid={ownerUid} playerId={playerId} registeredSeasonIds={registeredSeasonIds} player={player} />
+                </Suspense>
               </div>
             </div>
         </div>

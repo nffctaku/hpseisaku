@@ -48,6 +48,13 @@ interface LeagueTableProps {
   variant?: 'home' | 'table';
 }
 
+function isLeagueRoundName(name: unknown): boolean {
+  if (typeof name !== "string") return false;
+  const s = name.trim();
+  if (!s) return false;
+  return /^第\s*\d+\s*節$/.test(s);
+}
+
 export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps) {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,9 +181,14 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
 
         // 4. Fetch all matches and calculate results (rounds->matches in parallel)
         const roundsSnap = await getDocs(collection(competitionDocRef, 'rounds'));
+        const format = (competitionData as any)?.format;
+        const roundDocs =
+          format === 'league_cup'
+            ? roundsSnap.docs.filter((d) => isLeagueRoundName((d.data() as any)?.name))
+            : roundsSnap.docs;
 
         const matchesByRound = await Promise.all(
-          roundsSnap.docs.map(async (roundDoc) => {
+          roundDocs.map(async (roundDoc) => {
             const matchesSnap = await getDocs(collection(roundDoc.ref, 'matches'));
             return matchesSnap.docs.map((matchDoc) => matchDoc.data() as any);
           })

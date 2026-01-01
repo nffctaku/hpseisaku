@@ -26,6 +26,13 @@ interface Standing {
   points: number;
 }
 
+function isLeagueRoundName(name: unknown): boolean {
+  if (typeof name !== 'string') return false;
+  const s = name.trim();
+  if (!s) return false;
+  return /^第\s*\d+\s*節$/.test(s);
+}
+
 function computeAndRankStandings(input: Standing[]): Standing[] {
   const computed = input.map((s) => {
     const wins = typeof s.wins === 'number' ? s.wins : 0;
@@ -189,7 +196,12 @@ export default function StandingsPage() {
         toast.info('試合ラウンドがありません。順位はリセットされます。');
       }
 
-      for (const roundDoc of roundsSnap.docs) {
+      const roundDocs =
+        competitionData?.format === 'league_cup'
+          ? roundsSnap.docs.filter((d) => isLeagueRoundName((d.data() as any)?.name))
+          : roundsSnap.docs;
+
+      for (const roundDoc of roundDocs) {
         const matchesSnap = await getDocs(collection(roundDoc.ref, 'matches'));
         console.log(`Round ${roundDoc.id} has ${matchesSnap.size} matches.`);
         for (const matchDoc of matchesSnap.docs) {
