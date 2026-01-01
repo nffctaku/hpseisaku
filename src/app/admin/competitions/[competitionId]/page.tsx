@@ -168,6 +168,25 @@ export default function CompetitionDetailPage() {
     return true;
   }, [competition?.format, currentRound?.name]);
 
+  const excludedTeamIdsByMatchId = useMemo(() => {
+    if (!currentRound?.matches) return new Map<string, Set<string>>();
+
+    const allSelected = new Set<string>();
+    for (const m of currentRound.matches) {
+      if (typeof m.homeTeam === 'string' && m.homeTeam) allSelected.add(m.homeTeam);
+      if (typeof m.awayTeam === 'string' && m.awayTeam) allSelected.add(m.awayTeam);
+    }
+
+    const map = new Map<string, Set<string>>();
+    for (const m of currentRound.matches) {
+      const excluded = new Set<string>(allSelected);
+      if (typeof m.homeTeam === 'string' && m.homeTeam) excluded.delete(m.homeTeam);
+      if (typeof m.awayTeam === 'string' && m.awayTeam) excluded.delete(m.awayTeam);
+      map.set(m.id, excluded);
+    }
+    return map;
+  }, [currentRound?.matches]);
+
   const syncPublicMatchIndex = async (roundId: string, matchId: string, patch?: Partial<Match>) => {
     if (!user) return;
 
@@ -354,6 +373,7 @@ export default function CompetitionDetailPage() {
                     match={match} 
                     teams={competitionTeams} 
                     allTeamsMap={allTeams}
+                    excludedTeamIds={excludedTeamIdsByMatchId.get(match.id) ?? new Set()}
                     roundId={currentRound.id} 
                     season={competition.season} 
                     onUpdate={handleMatchUpdate} 

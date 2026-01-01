@@ -26,7 +26,7 @@ const getSeasonDateRange = (season: string): { fromDate: Date, toDate: Date } | 
   return { fromDate, toDate };
 };
 
-export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpdate, onDelete }: { match: Match, teams: Team[], allTeamsMap: Map<string, Team>, roundId: string, season: string, onUpdate: Function, onDelete: Function }) {
+export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundId, season, onUpdate, onDelete }: { match: Match, teams: Team[], allTeamsMap: Map<string, Team>, excludedTeamIds: Set<string>, roundId: string, season: string, onUpdate: Function, onDelete: Function }) {
   const initialDate = match.matchDate ? parseISO(match.matchDate) : new Date();
   const [selectedYear, setSelectedYear] = useState<number>(initialDate.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(initialDate.getMonth() + 1); // 1-12
@@ -91,6 +91,26 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
   const clampDay = (day: number) => Math.min(day, daysInMonth);
 
   const clampScore = (value: number) => (Number.isFinite(value) ? Math.max(0, value) : 0);
+
+  const homeTeamOptions = useMemo(() => {
+    const currentHome = typeof match.homeTeam === 'string' ? match.homeTeam : '';
+    const currentAway = typeof match.awayTeam === 'string' ? match.awayTeam : '';
+    return teams.filter((t) => {
+      if (t.id === currentHome) return true;
+      if (t.id === currentAway) return false;
+      return !excludedTeamIds.has(t.id);
+    });
+  }, [teams, excludedTeamIds, match.homeTeam, match.awayTeam]);
+
+  const awayTeamOptions = useMemo(() => {
+    const currentHome = typeof match.homeTeam === 'string' ? match.homeTeam : '';
+    const currentAway = typeof match.awayTeam === 'string' ? match.awayTeam : '';
+    return teams.filter((t) => {
+      if (t.id === currentAway) return true;
+      if (t.id === currentHome) return false;
+      return !excludedTeamIds.has(t.id);
+    });
+  }, [teams, excludedTeamIds, match.homeTeam, match.awayTeam]);
 
   const updateMatchDate = (y: number, m: number, d: number) => {
     const yearStr = y.toString();
@@ -200,7 +220,7 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
             </SelectValue>
           </SelectTrigger>
           <SelectContent className="bg-white text-gray-900">
-            {teams.map(t => (
+            {homeTeamOptions.map(t => (
               <SelectItem
                 key={t.id}
                 value={t.id}
@@ -275,7 +295,7 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
             </SelectValue>
           </SelectTrigger>
           <SelectContent className="bg-white text-gray-900">
-            {teams.map(t => (
+            {awayTeamOptions.map(t => (
               <SelectItem
                 key={t.id}
                 value={t.id}
