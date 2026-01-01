@@ -201,9 +201,14 @@ export default function CompetitionDetailPage() {
       scoreAway: typeof merged.scoreAway === 'number' ? merged.scoreAway : (merged.scoreAway ?? null),
     };
 
+    const rowForFirestore: any = { ...(row as any) };
+    for (const k of Object.keys(rowForFirestore)) {
+      if (rowForFirestore[k] === undefined) delete rowForFirestore[k];
+    }
+
     const indexDocId = `${competitionId}__${roundId}__${matchId}`;
     const indexRef = doc(db, `clubs/${user.uid}/public_match_index`, indexDocId);
-    await setDoc(indexRef, row, { merge: true });
+    await setDoc(indexRef, rowForFirestore, { merge: true });
   };
 
   const groupedMatches = useMemo(() => {

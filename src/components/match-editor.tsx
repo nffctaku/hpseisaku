@@ -47,12 +47,24 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
       return;
     }
     try {
+      const ok = window.confirm('この試合を削除します。よろしいですか？');
+      if (!ok) return;
+
       await deleteDoc(doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches`, match.id));
 
       const indexDocId = `${competitionId}__${roundId}__${match.id}`;
-      await deleteDoc(doc(db, `clubs/${user.uid}/public_match_index`, indexDocId));
 
-      await setDoc(doc(db, `clubs/${user.uid}`), { statsCacheVersion: increment(1) }, { merge: true });
+      try {
+        await deleteDoc(doc(db, `clubs/${user.uid}/public_match_index`, indexDocId));
+      } catch (e) {
+        console.warn('Failed to delete public_match_index (continuing):', e);
+      }
+
+      try {
+        await setDoc(doc(db, `clubs/${user.uid}`), { statsCacheVersion: increment(1) }, { merge: true });
+      } catch (e) {
+        console.warn('Failed to bump statsCacheVersion (continuing):', e);
+      }
 
       onDelete(); // This triggers a refetch of all data
       toast.success('試合を削除しました。');
@@ -67,8 +79,7 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
     const start = seasonRange.fromDate.getFullYear();
     const end = seasonRange.toDate.getFullYear();
     if (start === end) return [start];
-    // Season is July->June. Avoid accidentally selecting the wrong year.
-    return selectedMonth >= 7 ? [start] : [end];
+    return [start, end];
   }, [seasonRange, selectedMonth, selectedYear]);
 
   const daysInMonth = useMemo(() => {
