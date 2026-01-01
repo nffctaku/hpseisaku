@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, doc, getDoc, getDocs, query, where, updateDoc, addDoc, deleteDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where, updateDoc, addDoc, deleteDoc, setDoc } from "firebase/firestore";
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,24 @@ interface Round {
   name: string;
   matches: Match[];
 }
+
+type MatchIndexRow = {
+  matchId: string;
+  competitionId: string;
+  roundId: string;
+  matchDate: string;
+  matchTime?: string;
+  competitionName?: string;
+  roundName?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  homeTeamName?: string;
+  awayTeamName?: string;
+  homeTeamLogo?: string;
+  awayTeamLogo?: string;
+  scoreHome?: number | null;
+  scoreAway?: number | null;
+};
 
 function getRoundSortKey(name: string): number {
   const s = (name || '').trim();
@@ -136,6 +154,44 @@ export default function CompetitionDetailPage() {
 
   const currentRound = useMemo(() => rounds[currentRoundIndex], [rounds, currentRoundIndex]);
 
+  const syncPublicMatchIndex = async (roundId: string, matchId: string, patch?: Partial<Match>) => {
+    if (!user) return;
+
+    const round = rounds.find((r) => r.id === roundId);
+    const match = round?.matches.find((m) => m.id === matchId);
+    const merged = { ...(match as any), ...(patch as any) } as any;
+
+    const compName = competition?.name;
+    const roundName = round?.name;
+
+    const homeTeamId = typeof merged.homeTeam === 'string' ? merged.homeTeam : '';
+    const awayTeamId = typeof merged.awayTeam === 'string' ? merged.awayTeam : '';
+    const homeTeamInfo = homeTeamId ? allTeams.get(homeTeamId) : undefined;
+    const awayTeamInfo = awayTeamId ? allTeams.get(awayTeamId) : undefined;
+
+    const row: MatchIndexRow = {
+      matchId,
+      competitionId,
+      roundId,
+      matchDate: typeof merged.matchDate === 'string' ? merged.matchDate : '',
+      matchTime: typeof merged.matchTime === 'string' ? merged.matchTime : undefined,
+      competitionName: compName,
+      roundName,
+      homeTeam: homeTeamId,
+      awayTeam: awayTeamId,
+      homeTeamName: homeTeamInfo?.name || merged.homeTeamName,
+      awayTeamName: awayTeamInfo?.name || merged.awayTeamName,
+      homeTeamLogo: homeTeamInfo?.logoUrl || merged.homeTeamLogo,
+      awayTeamLogo: awayTeamInfo?.logoUrl || merged.awayTeamLogo,
+      scoreHome: typeof merged.scoreHome === 'number' ? merged.scoreHome : (merged.scoreHome ?? null),
+      scoreAway: typeof merged.scoreAway === 'number' ? merged.scoreAway : (merged.scoreAway ?? null),
+    };
+
+    const indexDocId = `${competitionId}__${roundId}__${matchId}`;
+    const indexRef = doc(db, `clubs/${user.uid}/public_match_index`, indexDocId);
+    await setDoc(indexRef, row, { merge: true });
+  };
+
   const groupedMatches = useMemo(() => {
     if (!currentRound) return [];
     const reduced = currentRound.matches.reduce(
@@ -187,6 +243,8 @@ export default function CompetitionDetailPage() {
         ...r,
         matches: r.matches.map(m => m.id === matchId ? { ...m, [field]: normalizedValue } : m)
       } : r));
+
+      await syncPublicMatchIndex(roundId, matchId, { [field]: normalizedValue } as any);
       toast.success('更新しました。');
     } catch (error) {
       console.error(`Error updating match ${field}:`, error);
@@ -222,6 +280,8 @@ export default function CompetitionDetailPage() {
     const matchRef = await addDoc(collection(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${currentRound.id}/matches`), newMatchData);
     const newMatch = { id: matchRef.id, ...newMatchData };
     setRounds(prev => prev.map(r => r.id === currentRound.id ? {...r, matches: [...r.matches, newMatch] } : r));
+
+    await syncPublicMatchIndex(currentRound.id, matchRef.id, newMatch as any);
     toast.success('新しい試合を追加しました。');
   };
 

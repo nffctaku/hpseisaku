@@ -48,6 +48,10 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
     }
     try {
       await deleteDoc(doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches`, match.id));
+
+      const indexDocId = `${competitionId}__${roundId}__${match.id}`;
+      await deleteDoc(doc(db, `clubs/${user.uid}/public_match_index`, indexDocId));
+
       onDelete(); // This triggers a refetch of all data
       toast.success('試合を削除しました。');
     } catch (error) {
