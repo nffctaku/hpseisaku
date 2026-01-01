@@ -2,7 +2,6 @@
 
 import { useFormContext, useFieldArray } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
-import { CustomStatManager } from './custom-stat-manager';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
@@ -82,7 +81,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
       position: player.position || 'N/A',
       teamId,
       role,
-      rating: 7.0,
+      rating: role === 'starter' ? 7.0 : undefined,
       minutesPlayed: role === 'starter' ? 45 : 0,
       goals: 0,
       assists: 0,
@@ -240,11 +239,6 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
 
   return (
     <div className="mt-8 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">選手スタッツ</h3>
-        <CustomStatManager />
-      </div>
-
       {/* Starters */}
       <div className="space-y-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

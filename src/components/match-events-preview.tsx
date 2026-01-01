@@ -45,9 +45,17 @@ export function MatchEventsPreview({ match, homePlayers, awayPlayers }: MatchEve
 
   const renderLabel = (ev: any) => {
     const mainPlayer = ev.playerId ? playerMap[ev.playerId]?.name : undefined;
-    const assistPlayer = ev.assistPlayerId ? playerMap[ev.assistPlayerId]?.name : undefined;
+    const assistPlayer =
+      ev.assistPlayerId === 'pk'
+        ? 'PK'
+        : ev.assistPlayerId
+          ? playerMap[ev.assistPlayerId]?.name
+          : undefined;
 
     if (ev.type === 'goal') {
+      if (ev.assistPlayerId === 'pk') {
+        return mainPlayer ? `${mainPlayer} ゴール(PK)` : 'ゴール(PK)';
+      }
       return mainPlayer
         ? `${mainPlayer}${assistPlayer ? `（A: ${assistPlayer}` + ') ' : ''}`
         : 'ゴール';

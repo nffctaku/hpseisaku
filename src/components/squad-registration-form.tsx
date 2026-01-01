@@ -284,11 +284,13 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   return (
     <FormProvider {...methods}>
       <Card>
-        <CardHeader>
-          <CardTitle>
-            {view === 'events' ? '試合イベント' : view === 'player' ? '出場選手登録 & スタッツ' : '出場選手登録 & スタッツ'}
-          </CardTitle>
-        </CardHeader>
+        {view === 'events' ? null : (
+          <CardHeader>
+            <CardTitle>
+              {view === 'player' ? '出場選手登録 & スタッツ' : '出場選手登録 & スタッツ'}
+            </CardTitle>
+          </CardHeader>
+        )}
         <CardContent>
           <form onSubmit={methods.handleSubmit(onSubmit)}>
             {(view === 'player' || view === 'both') ? (

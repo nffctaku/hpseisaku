@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Trash2, Plus } from "lucide-react";
 import { Player, MatchDetails } from "@/types/match";
+import { MatchEventsPreview } from "@/components/match-events-preview";
 
 // 時間プルダウン用オプション
 // 表示順: 0..45, 45+1..45+10, 46..89, 90, 90+1..90+10, 91..145
@@ -62,7 +63,7 @@ interface MatchEventsTableProps {
 
 export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEventsTableProps) {
   const { control, watch, setValue, register } = useFormContext();
-  const { fields, append, remove } = useFieldArray({
+  const { fields, prepend, remove } = useFieldArray({
     control,
     name: "events",
   });
@@ -78,7 +79,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
   );
 
   const handleAddEvent = () => {
-    append({
+    prepend({
       id: crypto.randomUUID(),
       minute: 0,
       teamId: match.homeTeam,
@@ -214,6 +215,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   <SelectValue placeholder="アシスト(任意)" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="pk">PK</SelectItem>
                   <SelectItem value="none">なし</SelectItem>
                   {teamPlayers.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
@@ -343,68 +345,11 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
           イベント追加
         </Button>
       </div>
-      {/* 登録済みイベントの簡易プレビュー */}
-      <div className="rounded-md border border-dashed border-gray-600 bg-slate-900/60 px-3 py-2 text-xs text-gray-100">
-        {events.length === 0 ? (
-          <p className="text-[11px] text-gray-400">まだイベントは登録されていません。</p>
-        ) : (
-          <div className="space-y-1">
-            {[...events]
-              .slice()
-              .sort((a: any, b: any) => (a.minute ?? 0) - (b.minute ?? 0))
-              .map((ev: any) => {
-                const teamName =
-                  ev.teamId === match.homeTeam ? match.homeTeamName : match.awayTeamName;
-                const mainPlayer = ev.playerId ? playerMap[ev.playerId]?.name : undefined;
-                const assistPlayer = ev.assistPlayerId
-                  ? playerMap[ev.assistPlayerId]?.name
-                  : undefined;
-
-                let label = "";
-                if (ev.type === "goal") {
-                  label = mainPlayer
-                    ? `${mainPlayer}${assistPlayer ? `（A: ${assistPlayer}` + "）" : ""}`
-                    : "ゴール";
-                } else if (ev.type === "card") {
-                  const cardLabel = ev.cardColor === "red" ? "レッド" : "イエロー";
-                  label = mainPlayer ? `${mainPlayer} ${cardLabel}` : cardLabel;
-                } else if (ev.type === "substitution") {
-                  const outName = ev.outPlayerId ? playerMap[ev.outPlayerId]?.name : undefined;
-                  const inName = ev.inPlayerId ? playerMap[ev.inPlayerId]?.name : undefined;
-                  label = `${outName ?? "OUT"} → ${inName ?? "IN"}`;
-                } else if (ev.type === "note") {
-                  label = ev.text || "メモ";
-                }
-
-                return (
-                  <div
-                    key={ev.id}
-                    className="flex items-center justify-between gap-2 border-b border-gray-700/60 pb-0.5 last:border-b-0"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex h-5 min-w-[32px] items-center justify-center rounded-full bg-slate-800 text-[11px] font-medium">
-                        {formatMinute(ev.minute)}'
-                      </span>
-                      <span className="text-[11px] text-gray-300">{teamName}</span>
-                    </div>
-                    <div className="flex-1 flex items-center justify-end gap-2 text-right">
-                      <span className="text-[11px] text-gray-400">
-                        {ev.type === "goal"
-                          ? "G"
-                          : ev.type === "card"
-                          ? "C"
-                          : ev.type === "substitution"
-                          ? "交代"
-                          : "メモ"}
-                      </span>
-                      <span className="text-[11px] truncate max-w-[180px]">{label}</span>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        )}
-      </div>
+      <MatchEventsPreview
+        match={{ ...(match as any), events } as any}
+        homePlayers={homePlayers}
+        awayPlayers={awayPlayers}
+      />
 
       <div className="space-y-2">
         {fields.map((field, index) => renderEventRow(field, index))}
