@@ -11,7 +11,7 @@ import { ClubHeader } from "@/components/club-header";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { PublicPlayerOverallBySeasonChart } from "@/components/public-player-overall-by-season-chart";
 import { PublicPlayerSeasonSummaries } from "@/components/public-player-season-summaries";
-import { cache } from "react";
+import { cache, Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -172,6 +172,10 @@ const getRosterHits = cache(async (ownerUid: string, playerId: string): Promise<
     .map((x) => ({ seasonId: x.seasonId, data: x.snap.data() as any }));
 });
 
+const getCompetitionsSnap = cache(async (ownerUid: string) => {
+  return await db.collection(`clubs/${ownerUid}/competitions`).get();
+});
+
 function mergeWithoutUndefined(base: any, patch: any): any {
   const out: any = { ...(base || {}) };
   if (!patch || typeof patch !== "object") return out;
@@ -251,6 +255,70 @@ interface PlayerStats {
   redCards: number;
   ratingSum: number;
   ratingCount: number;
+}
+
+function buildManualStatsMapFromPlayer(playerData: any, targetSeason?: string | null) {
+  const manualStatsMap = new Map<
+    string,
+    { matches?: number; minutes?: number; goals?: number; assists?: number; yellowCards?: number; redCards?: number; avgRating?: number }
+  >();
+  if (!playerData || typeof playerData !== "object") return manualStatsMap;
+
+  const seasonData = playerData?.seasonData && typeof playerData.seasonData === "object" ? (playerData.seasonData as any) : {};
+
+  const selectedSeasonKey = typeof targetSeason === "string" && targetSeason.trim().length > 0 ? targetSeason.trim() : null;
+  if (selectedSeasonKey) {
+    const sd = getSeasonDataEntry(seasonData, selectedSeasonKey);
+    const rows = Array.isArray((sd as any)?.manualCompetitionStats) ? ((sd as any).manualCompetitionStats as any[]) : [];
+    for (const r of rows) {
+      if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
+        manualStatsMap.set(r.competitionId, {
+          matches: typeof r.matches === "number" ? r.matches : undefined,
+          minutes: typeof r.minutes === "number" ? r.minutes : undefined,
+          goals: typeof r.goals === "number" ? r.goals : undefined,
+          assists: typeof r.assists === "number" ? r.assists : undefined,
+          yellowCards: typeof r.yellowCards === "number" ? r.yellowCards : undefined,
+          redCards: typeof r.redCards === "number" ? r.redCards : undefined,
+          avgRating: typeof r.avgRating === "number" ? r.avgRating : undefined,
+        });
+      }
+    }
+  } else {
+    for (const sd of Object.values(seasonData)) {
+      const rows = Array.isArray((sd as any)?.manualCompetitionStats) ? ((sd as any).manualCompetitionStats as any[]) : [];
+      for (const r of rows) {
+        if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
+          manualStatsMap.set(r.competitionId, {
+            matches: typeof r.matches === "number" ? r.matches : undefined,
+            minutes: typeof r.minutes === "number" ? r.minutes : undefined,
+            goals: typeof r.goals === "number" ? r.goals : undefined,
+            assists: typeof r.assists === "number" ? r.assists : undefined,
+            yellowCards: typeof r.yellowCards === "number" ? r.yellowCards : undefined,
+            redCards: typeof r.redCards === "number" ? r.redCards : undefined,
+            avgRating: typeof r.avgRating === "number" ? r.avgRating : undefined,
+          });
+        }
+      }
+    }
+  }
+
+  const legacyRows = Array.isArray(playerData?.manualCompetitionStats) ? (playerData.manualCompetitionStats as any[]) : [];
+  for (const r of legacyRows) {
+    if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
+      if (manualStatsMap.has(r.competitionId)) continue;
+      manualStatsMap.set(r.competitionId, {
+        matches: typeof r.matches === "number" ? r.matches : undefined,
+        minutes: typeof r.minutes === "number" ? r.minutes : undefined,
+        goals: typeof r.goals === "number" ? r.goals : undefined,
+        assists: typeof r.assists === "number" ? r.assists : undefined,
+        yellowCards: typeof r.yellowCards === "number" ? r.yellowCards : undefined,
+        redCards: typeof r.redCards === "number" ? r.redCards : undefined,
+        avgRating: typeof r.avgRating === "number" ? r.avgRating : undefined,
+      });
+    }
+  }
+
+  return manualStatsMap;
 }
 
 interface SeasonSummaryRow {
@@ -373,7 +441,7 @@ function computeOverall(items: PlayerParameterItem[] | undefined): number {
   return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
 }
 
-async function getPlayerStats(ownerUid: string, playerId: string, targetSeason?: string | null): Promise<PlayerStats> {
+async function getPlayerStats(ownerUid: string, playerId: string, playerData: any, targetSeason?: string | null): Promise<PlayerStats> {
   const aggregatedStats: PlayerStats = {
     appearances: 0,
     minutes: 0,
@@ -385,74 +453,9 @@ async function getPlayerStats(ownerUid: string, playerId: string, targetSeason?:
     ratingCount: 0,
   };
 
-  const competitionsRef = db.collection(`clubs/${ownerUid}/competitions`);
-  const competitionsSnap = await competitionsRef.get();
+  const competitionsSnap = await getCompetitionsSnap(ownerUid);
 
-  const manualStatsMap = new Map<
-    string,
-    { matches?: number; minutes?: number; goals?: number; assists?: number; yellowCards?: number; redCards?: number; avgRating?: number }
-  >();
-  const preferredSeasons = await getRosterSeasonIdsOnly(ownerUid, playerId);
-  const preferredTeams = await getPreferredTeamIdsFromRoster(ownerUid, playerId);
-  const playerData = await findBestPlayerDoc(ownerUid, playerId, preferredSeasons, preferredTeams);
-  if (playerData) {
-    const seasonData = playerData?.seasonData && typeof playerData.seasonData === "object" ? (playerData.seasonData as any) : {};
-
-    // If we have a target season, prefer manual stats from that season only.
-    const selectedSeasonKey = typeof targetSeason === "string" && targetSeason.trim().length > 0 ? targetSeason.trim() : null;
-    if (selectedSeasonKey) {
-      const sd = getSeasonDataEntry(seasonData, selectedSeasonKey);
-      const rows = Array.isArray((sd as any)?.manualCompetitionStats) ? ((sd as any).manualCompetitionStats as any[]) : [];
-      for (const r of rows) {
-        if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
-          manualStatsMap.set(r.competitionId, {
-            matches: typeof r.matches === "number" ? r.matches : undefined,
-            minutes: typeof r.minutes === "number" ? r.minutes : undefined,
-            goals: typeof r.goals === "number" ? r.goals : undefined,
-            assists: typeof r.assists === "number" ? r.assists : undefined,
-            yellowCards: typeof r.yellowCards === "number" ? r.yellowCards : undefined,
-            redCards: typeof r.redCards === "number" ? r.redCards : undefined,
-            avgRating: typeof r.avgRating === "number" ? r.avgRating : undefined,
-          });
-        }
-      }
-    } else {
-      // No season specified: include all seasons (legacy behavior)
-      for (const sd of Object.values(seasonData)) {
-        const rows = Array.isArray((sd as any)?.manualCompetitionStats) ? ((sd as any).manualCompetitionStats as any[]) : [];
-        for (const r of rows) {
-          if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
-            manualStatsMap.set(r.competitionId, {
-              matches: typeof r.matches === "number" ? r.matches : undefined,
-              minutes: typeof r.minutes === "number" ? r.minutes : undefined,
-              goals: typeof r.goals === "number" ? r.goals : undefined,
-              assists: typeof r.assists === "number" ? r.assists : undefined,
-              yellowCards: typeof r.yellowCards === "number" ? r.yellowCards : undefined,
-              redCards: typeof r.redCards === "number" ? r.redCards : undefined,
-              avgRating: typeof r.avgRating === "number" ? r.avgRating : undefined,
-            });
-          }
-        }
-      }
-    }
-
-    // Legacy schema fallback: manualCompetitionStats at root (only fill if not already present)
-    const legacyRows = Array.isArray(playerData?.manualCompetitionStats) ? (playerData.manualCompetitionStats as any[]) : [];
-    for (const r of legacyRows) {
-      if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
-        if (manualStatsMap.has(r.competitionId)) continue;
-        manualStatsMap.set(r.competitionId, {
-          matches: typeof r.matches === "number" ? r.matches : undefined,
-          minutes: typeof r.minutes === "number" ? r.minutes : undefined,
-          goals: typeof r.goals === "number" ? r.goals : undefined,
-          assists: typeof r.assists === "number" ? r.assists : undefined,
-          yellowCards: typeof r.yellowCards === "number" ? r.yellowCards : undefined,
-          redCards: typeof r.redCards === "number" ? r.redCards : undefined,
-          avgRating: typeof r.avgRating === "number" ? r.avgRating : undefined,
-        });
-      }
-    }
-  }
+  const manualStatsMap = buildManualStatsMapFromPlayer(playerData, targetSeason);
 
   const normalizedTargetSeason = typeof targetSeason === "string" && targetSeason.trim().length > 0 ? targetSeason.trim() : null;
 
@@ -463,34 +466,32 @@ async function getPlayerStats(ownerUid: string, playerId: string, targetSeason?:
       continue;
     }
     const manual = manualStatsMap.get(competitionDoc.id);
-    const roundsRef = competitionDoc.ref.collection('rounds');
-    const roundsSnap = await roundsRef.get();
+    const roundsSnap = await competitionDoc.ref.collection('rounds').get();
+    const matchesByRound = await Promise.all(
+      roundsSnap.docs.map(async (roundDoc) => {
+        const matchesSnap = await roundDoc.ref.collection('matches').get();
+        return matchesSnap.docs.map((d) => d.data());
+      })
+    );
 
-    for (const roundDoc of roundsSnap.docs) {
-      const matchesRef = roundDoc.ref.collection('matches');
-      const matchesSnap = await matchesRef.get();
+    for (const matchData of matchesByRound.flat()) {
+      if (!matchData?.playerStats || !Array.isArray(matchData.playerStats)) continue;
+      const playerStat = matchData.playerStats.find((stat: any) => stat?.playerId === playerId);
+      if (!playerStat) continue;
 
-      for (const matchDoc of matchesSnap.docs) {
-        const matchData = matchDoc.data();
-        if (matchData.playerStats && Array.isArray(matchData.playerStats)) {
-          const playerStat = matchData.playerStats.find(stat => stat.playerId === playerId);
-          if (playerStat) {
-            const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
+      const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
 
-            if (!manual) {
-              aggregatedStats.minutes += minutesPlayed;
-              aggregatedStats.yellowCards += Number(playerStat.yellowCards) || 0;
-              aggregatedStats.redCards += Number(playerStat.redCards) || 0;
-              aggregatedStats.appearances += minutesPlayed > 0 ? 1 : 0;
-              aggregatedStats.goals += Number(playerStat.goals) || 0;
-              aggregatedStats.assists += Number(playerStat.assists) || 0;
-              const rating = Number(playerStat.rating);
-              if (Number.isFinite(rating) && rating > 0) {
-                aggregatedStats.ratingSum += rating;
-                aggregatedStats.ratingCount += 1;
-              }
-            }
-          }
+      if (!manual) {
+        aggregatedStats.minutes += minutesPlayed;
+        aggregatedStats.yellowCards += Number(playerStat.yellowCards) || 0;
+        aggregatedStats.redCards += Number(playerStat.redCards) || 0;
+        aggregatedStats.appearances += minutesPlayed > 0 ? 1 : 0;
+        aggregatedStats.goals += Number(playerStat.goals) || 0;
+        aggregatedStats.assists += Number(playerStat.assists) || 0;
+        const rating = Number(playerStat.rating);
+        if (Number.isFinite(rating) && rating > 0) {
+          aggregatedStats.ratingSum += rating;
+          aggregatedStats.ratingCount += 1;
         }
       }
     }
@@ -512,6 +513,141 @@ async function getPlayerStats(ownerUid: string, playerId: string, targetSeason?:
   }
 
   return aggregatedStats;
+}
+
+async function PlayerStatsSection({
+  ownerUid,
+  playerId,
+  registeredSeasonIds,
+  player,
+}: {
+  ownerUid: string;
+  playerId: string;
+  registeredSeasonIds: string[];
+  player: PlayerData;
+}) {
+  const statsSeason = (() => {
+    const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
+    candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
+    return candidates.length > 0 ? candidates[0] : null;
+  })();
+
+  const [stats, careerStats] = await Promise.all([
+    getPlayerStats(ownerUid, playerId, player, statsSeason),
+    getPlayerStats(ownerUid, playerId, player, null),
+  ]);
+
+  const legacyManualCompetitionStats = Array.isArray((player as any)?.manualCompetitionStats)
+    ? ((player as any).manualCompetitionStats as any[])
+    : [];
+  const legacyManualByCompetitionId = new Map<string, any>();
+  for (const r of legacyManualCompetitionStats) {
+    if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
+      legacyManualByCompetitionId.set(r.competitionId, r);
+    }
+  }
+
+  const seasonData = (player as any)?.seasonData && typeof (player as any).seasonData === "object" ? ((player as any).seasonData as any) : {};
+  const manualCompetitionStatsBySeason = new Map<string, Map<string, any>>();
+  for (const [seasonKey, sd] of Object.entries(seasonData)) {
+    const rows = Array.isArray((sd as any)?.manualCompetitionStats) ? ((sd as any).manualCompetitionStats as any[]) : [];
+    const byComp = new Map<string, any>();
+    for (const r of rows) {
+      if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
+        byComp.set(r.competitionId, r);
+      }
+    }
+    manualCompetitionStatsBySeason.set(toSlashSeason(seasonKey), byComp);
+  }
+
+  const overallBySeason = new Map<string, number | null>();
+  for (const seasonId of registeredSeasonIds) {
+    const slash = toSlashSeason(seasonId);
+    const sd = getSeasonDataEntry(seasonData as any, seasonId);
+    const items = Array.isArray((sd as any)?.params?.items) ? ((sd as any).params.items as any[]) : undefined;
+    const manualOverall = (sd as any)?.params?.overall;
+    const overallVal =
+      typeof manualOverall === "number" && Number.isFinite(manualOverall)
+        ? clamp99(manualOverall)
+        : computeOverall(items);
+    overallBySeason.set(slash, overallVal > 0 ? overallVal : null);
+  }
+
+  const seasonSummaries =
+    registeredSeasonIds.length > 0
+      ? await getPlayerSeasonSummaries(ownerUid, playerId, registeredSeasonIds, manualCompetitionStatsBySeason, legacyManualByCompetitionId, overallBySeason)
+      : [];
+
+  return (
+    <>
+      <div className="mt-8">
+        <h2 className="text-xl font-bold mb-4">シーズンスタッツ</h2>
+        {statsSeason && <p className="text-xs text-muted-foreground mb-2">{toSlashSeason(statsSeason)} シーズン</p>}
+        <div className="overflow-x-auto">
+          <div className="grid grid-cols-6 gap-2 min-w-[420px] text-center">
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">試合数</p>
+              <p className="text-xl font-bold tabular-nums">{stats.appearances}</p>
+            </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">出場時間</p>
+              <p className="text-xl font-bold tabular-nums">{stats.minutes}</p>
+            </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">ゴール</p>
+              <p className="text-xl font-bold tabular-nums">{stats.goals}</p>
+            </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">アシスト</p>
+              <p className="text-xl font-bold tabular-nums">{stats.assists}</p>
+            </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">警告</p>
+              <p className="text-xl font-bold tabular-nums">{stats.yellowCards}</p>
+            </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">退場</p>
+              <p className="text-xl font-bold tabular-nums">{stats.redCards}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <h2 className="text-xl font-bold mb-4">通算スタッツ</h2>
+        <div className="overflow-x-auto">
+          <div className="grid grid-cols-6 gap-2 min-w-[420px] text-center">
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">試合数</p>
+              <p className="text-xl font-bold tabular-nums">{careerStats.appearances}</p>
+            </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">出場時間</p>
+              <p className="text-xl font-bold tabular-nums">{careerStats.minutes}</p>
+            </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">ゴール</p>
+              <p className="text-xl font-bold tabular-nums">{careerStats.goals}</p>
+            </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">アシスト</p>
+              <p className="text-xl font-bold tabular-nums">{careerStats.assists}</p>
+            </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">警告</p>
+              <p className="text-xl font-bold tabular-nums">{careerStats.yellowCards}</p>
+            </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">退場</p>
+              <p className="text-xl font-bold tabular-nums">{careerStats.redCards}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <PublicPlayerSeasonSummaries rows={seasonSummaries as any} />
+    </>
+  );
 }
 
 async function getPlayerSeasonSummaries(
@@ -826,35 +962,7 @@ export default async function PlayerPage({
   const { clubName, player, ownerUid, legalPages } = result;
   const registeredSeasonIds = await getRegisteredSeasonIds(ownerUid, playerId, (player as any)?.seasons);
 
-  const statsSeason = (() => {
-    const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
-    candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
-    return candidates.length > 0 ? candidates[0] : null;
-  })();
-  const stats = await getPlayerStats(ownerUid, playerId, statsSeason);
-  const careerStats = await getPlayerStats(ownerUid, playerId, null);
-  const legacyManualCompetitionStats = Array.isArray((player as any)?.manualCompetitionStats)
-    ? ((player as any).manualCompetitionStats as any[])
-    : [];
-  const legacyManualByCompetitionId = new Map<string, any>();
-  for (const r of legacyManualCompetitionStats) {
-    if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
-      legacyManualByCompetitionId.set(r.competitionId, r);
-    }
-  }
-
   const seasonData = (player as any)?.seasonData && typeof (player as any).seasonData === "object" ? ((player as any).seasonData as any) : {};
-  const manualCompetitionStatsBySeason = new Map<string, Map<string, any>>();
-  for (const [seasonKey, sd] of Object.entries(seasonData)) {
-    const rows = Array.isArray((sd as any)?.manualCompetitionStats) ? ((sd as any).manualCompetitionStats as any[]) : [];
-    const byComp = new Map<string, any>();
-    for (const r of rows) {
-      if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
-        byComp.set(r.competitionId, r);
-      }
-    }
-    manualCompetitionStatsBySeason.set(toSlashSeason(seasonKey), byComp);
-  }
 
   const overallBySeason = new Map<string, number | null>();
   for (const seasonId of registeredSeasonIds) {
@@ -880,11 +988,6 @@ export default async function PlayerPage({
       };
     });
   })();
-
-  const seasonSummaries =
-    registeredSeasonIds.length > 0
-      ? await getPlayerSeasonSummaries(ownerUid, playerId, registeredSeasonIds, manualCompetitionStatsBySeason, legacyManualByCompetitionId, overallBySeason)
-      : [];
 
   const latestSeasonKeyForParams = (() => {
     const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
@@ -1161,72 +1264,6 @@ export default async function PlayerPage({
                   </div>
                 )}
 
-                {/* Stats Section */}
-                <div className="mt-8">
-                  <h2 className="text-xl font-bold mb-4">シーズンスタッツ</h2>
-                  {statsSeason && <p className="text-xs text-muted-foreground mb-2">{toSlashSeason(statsSeason)} シーズン</p>}
-                  <div className="overflow-x-auto">
-                    <div className="grid grid-cols-6 gap-2 min-w-[420px] text-center">
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">試合数</p>
-                        <p className="text-xl font-bold tabular-nums">{stats.appearances}</p>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">出場時間</p>
-                        <p className="text-xl font-bold tabular-nums">{stats.minutes}</p>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">ゴール</p>
-                        <p className="text-xl font-bold tabular-nums">{stats.goals}</p>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">アシスト</p>
-                        <p className="text-xl font-bold tabular-nums">{stats.assists}</p>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">警告</p>
-                        <p className="text-xl font-bold tabular-nums">{stats.yellowCards}</p>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">退場</p>
-                        <p className="text-xl font-bold tabular-nums">{stats.redCards}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <h2 className="text-xl font-bold mb-4">通算スタッツ</h2>
-                  <div className="overflow-x-auto">
-                    <div className="grid grid-cols-6 gap-2 min-w-[420px] text-center">
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">試合数</p>
-                        <p className="text-xl font-bold tabular-nums">{careerStats.appearances}</p>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">出場時間</p>
-                        <p className="text-xl font-bold tabular-nums">{careerStats.minutes}</p>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">ゴール</p>
-                        <p className="text-xl font-bold tabular-nums">{careerStats.goals}</p>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">アシスト</p>
-                        <p className="text-xl font-bold tabular-nums">{careerStats.assists}</p>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">警告</p>
-                        <p className="text-xl font-bold tabular-nums">{careerStats.yellowCards}</p>
-                      </div>
-                      <div className="border rounded-md p-2">
-                        <p className="text-[10px] text-muted-foreground">退場</p>
-                        <p className="text-xl font-bold tabular-nums">{careerStats.redCards}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="mt-8">
                   <h2 className="text-xl font-bold mb-4">パラメーター</h2>
                   <div className="flex flex-col items-center gap-4 rounded-lg border p-4">
@@ -1238,7 +1275,9 @@ export default async function PlayerPage({
                   {!hasParams && <p className="mt-3 text-xs text-muted-foreground">パラメーター未登録</p>}
                 </div>
 
-                <PublicPlayerSeasonSummaries rows={seasonSummaries as any} />
+                <Suspense fallback={<div className="mt-8 text-sm text-muted-foreground">スタッツ集計中...</div>}>
+                  <PlayerStatsSection ownerUid={ownerUid} playerId={playerId} registeredSeasonIds={registeredSeasonIds} player={player} />
+                </Suspense>
               </div>
             </div>
         </div>
