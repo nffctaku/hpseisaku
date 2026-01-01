@@ -11,11 +11,11 @@ import { ClubHeader } from "@/components/club-header";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { PublicPlayerOverallBySeasonChart } from "@/components/public-player-overall-by-season-chart";
 import { PublicPlayerSeasonSummaries } from "@/components/public-player-season-summaries";
-import { cache, Suspense } from "react";
+import { cache } from "react";
+import { unstable_cache } from "next/cache";
+import { PlayerStatsClient } from "./player-stats-client";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-export const fetchCache = "force-no-store";
+export const revalidate = 300;
 
 interface PlayerPageProps {
   params: Promise<{ clubId: string; playerId: string }>;
@@ -156,24 +156,36 @@ async function getLatestRosterPlayer(ownerUid: string, playerId: string): Promis
   return sorted[0] ?? null;
 }
 
-const getRosterHits = cache(async (ownerUid: string, playerId: string): Promise<{ seasonId: string; data: any }[]> => {
-  const seasonsSnap = await db.collection(`clubs/${ownerUid}/seasons`).get();
-  if (seasonsSnap.empty) return [];
+const getRosterHits = cache((ownerUid: string, playerId: string): Promise<{ seasonId: string; data: any }[]> => {
+  return unstable_cache(
+    async () => {
+      const seasonsSnap = await db.collection(`clubs/${ownerUid}/seasons`).get();
+      if (seasonsSnap.empty) return [];
 
-  const rosterSnaps = await Promise.all(
-    seasonsSnap.docs.map(async (seasonDoc) => {
-      const rosterDocSnap = await seasonDoc.ref.collection("roster").doc(playerId).get();
-      return { seasonId: seasonDoc.id, snap: rosterDocSnap };
-    })
-  );
+      const rosterSnaps = await Promise.all(
+        seasonsSnap.docs.map(async (seasonDoc) => {
+          const rosterDocSnap = await seasonDoc.ref.collection("roster").doc(playerId).get();
+          return { seasonId: seasonDoc.id, snap: rosterDocSnap };
+        })
+      );
 
-  return rosterSnaps
-    .filter((x) => x.snap.exists)
-    .map((x) => ({ seasonId: x.seasonId, data: x.snap.data() as any }));
+      return rosterSnaps
+        .filter((x) => x.snap.exists)
+        .map((x) => ({ seasonId: x.seasonId, data: x.snap.data() as any }));
+    },
+    ["public_player_roster_hits", ownerUid, playerId],
+    { revalidate: 300 }
+  )();
 });
 
-const getCompetitionsSnap = cache(async (ownerUid: string) => {
-  return await db.collection(`clubs/${ownerUid}/competitions`).get();
+const getCompetitionsSnap = cache((ownerUid: string) => {
+  return unstable_cache(
+    async () => {
+      return await db.collection(`clubs/${ownerUid}/competitions`).get();
+    },
+    ["public_player_competitions", ownerUid],
+    { revalidate: 300 }
+  )();
 });
 
 function mergeWithoutUndefined(base: any, patch: any): any {
@@ -1275,9 +1287,7 @@ export default async function PlayerPage({
                   {!hasParams && <p className="mt-3 text-xs text-muted-foreground">パラメーター未登録</p>}
                 </div>
 
-                <Suspense fallback={<div className="mt-8 text-sm text-muted-foreground">スタッツ集計中...</div>}>
-                  <PlayerStatsSection ownerUid={ownerUid} playerId={playerId} registeredSeasonIds={registeredSeasonIds} player={player} />
-                </Suspense>
+                <PlayerStatsClient clubId={clubId} playerId={playerId} />
               </div>
             </div>
         </div>
