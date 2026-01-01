@@ -49,6 +49,17 @@ const formatFeesSummary = (fees: Record<string, number>): string => {
   return entries.map(([c, v]) => formatCurrencyAmount(c, v)).join(" / ");
 };
 
+const getSummaryTone = (fees: Record<string, number>): "neutral" | "positive" | "negative" => {
+  const values = Object.values(fees).filter((v) => Number.isFinite(v) && v !== 0);
+  if (values.length === 0) return "neutral";
+  const allNonNegative = values.every((v) => v >= 0);
+  const allNonPositive = values.every((v) => v <= 0);
+  if (allNonNegative) return "positive";
+  if (allNonPositive) return "negative";
+  // Mixed currencies/signs: prefer negative to avoid misleading green
+  return values.some((v) => v < 0) ? "negative" : "positive";
+};
+
 async function resolveClubProfile(clubId: string): Promise<any | null> {
   try {
     const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
@@ -150,15 +161,16 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
   const balanceTotals = Object.fromEntries(
     Array.from(new Set([...Object.keys(inTotals), ...Object.keys(outTotals)])).map((c) => [
       c,
-      (inTotals[c] || 0) - (outTotals[c] || 0),
+      (outTotals[c] || 0) - (inTotals[c] || 0),
     ])
   );
 
   const TransferTable = ({ rows, directionLabel }: { rows: TransferLog[]; directionLabel: string }) => {
     const counterpartyHeader = directionLabel === "IN" ? "移籍元" : "移籍先";
+    const feeClass = directionLabel === "IN" ? "text-red-600" : "text-emerald-600";
 
     return (
-      <div className="overflow-hidden rounded-lg border bg-white/60">
+      <div className="overflow-hidden rounded-lg border bg-white">
         <div className="px-4 py-3 border-b">
           <h2 className="text-lg font-semibold">{directionLabel}</h2>
         </div>
@@ -167,14 +179,14 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-xs">
-              <thead className="bg-white/50">
+              <thead className="bg-gray-200">
                 <tr className="text-left">
-                  <th className="px-2 py-1 font-medium whitespace-nowrap">種</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap">選手名</th>
-                  <th className="px-2 py-1 font-medium">{counterpartyHeader}</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap">Pos</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap">年齢</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap">金額</th>
+                  <th className="px-2 py-1 font-medium whitespace-nowrap bg-gray-200">種</th>
+                  <th className="px-2 py-1 font-medium whitespace-nowrap bg-gray-200">選手名</th>
+                  <th className="px-2 py-1 font-medium bg-gray-200">{counterpartyHeader}</th>
+                  <th className="px-2 py-1 font-medium whitespace-nowrap bg-gray-200">Pos</th>
+                  <th className="px-2 py-1 font-medium whitespace-nowrap bg-gray-200">年齢</th>
+                  <th className="px-2 py-1 font-medium whitespace-nowrap bg-gray-200">金額</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -196,7 +208,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
                       </td>
                       <td className="px-2 py-1 whitespace-nowrap">{t.position || "-"}</td>
                       <td className="px-2 py-1 whitespace-nowrap">{t.age != null ? t.age : "-"}</td>
-                      <td className="px-2 py-1 whitespace-nowrap">
+                      <td className={`px-2 py-1 whitespace-nowrap font-semibold ${feeClass}`}>
                         {fee != null ? formatMoneyWithSymbol(fee, feeCurrency) : "-"}
                       </td>
                     </tr>
@@ -246,17 +258,27 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <div className="rounded-lg border bg-white/60 px-4 py-3">
+            <div className="rounded-lg border bg-white px-4 py-3">
               <div className="text-xs text-muted-foreground">IN 合計</div>
-              <div className="text-sm font-semibold">{formatFeesSummary(inTotals)}</div>
+              <div className="text-sm font-semibold text-red-600">{formatFeesSummary(inTotals)}</div>
             </div>
-            <div className="rounded-lg border bg-white/60 px-4 py-3">
+            <div className="rounded-lg border bg-white px-4 py-3">
               <div className="text-xs text-muted-foreground">OUT 合計</div>
-              <div className="text-sm font-semibold">{formatFeesSummary(outTotals)}</div>
+              <div className="text-sm font-semibold text-emerald-600">{formatFeesSummary(outTotals)}</div>
             </div>
-            <div className="rounded-lg border bg-white/60 px-4 py-3">
+            <div className="rounded-lg border bg-white px-4 py-3">
               <div className="text-xs text-muted-foreground">収支</div>
-              <div className="text-sm font-semibold">{formatFeesSummary(balanceTotals)}</div>
+              <div
+                className={`text-sm font-semibold ${
+                  getSummaryTone(balanceTotals) === "negative"
+                    ? "text-red-600"
+                    : getSummaryTone(balanceTotals) === "positive"
+                      ? "text-emerald-600"
+                      : ""
+                }`}
+              >
+                {formatFeesSummary(balanceTotals)}
+              </div>
             </div>
           </div>
 
