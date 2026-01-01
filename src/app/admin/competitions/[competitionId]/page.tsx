@@ -366,7 +366,7 @@ export default function CompetitionDetailPage() {
           {groupedMatches.map(([groupName, matchesInGroup]) => (
             <div key={groupName}>
               <h3 className="font-semibold mb-2 text-muted-foreground">{groupName}</h3>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {matchesInGroup.map(match => (
                   <MatchEditor 
                     key={match.id} 

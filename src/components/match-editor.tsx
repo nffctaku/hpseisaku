@@ -132,7 +132,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
   }, [seasonRange, years, selectedYear, selectedMonth, selectedDay]);
 
   return (
-    <div className="grid grid-cols-6 lg:grid-cols-12 items-center gap-2 p-3 bg-card text-gray-900 rounded-md border">
+    <div className="grid grid-cols-6 lg:grid-cols-12 items-center gap-1 p-2 bg-card text-gray-900 rounded-md border">
       {/* Date Picker (Year / Month / Day Selects) */}
       <div className="col-span-6 lg:col-span-3 flex gap-2">
         {/* Year */}
