@@ -38,6 +38,7 @@ interface StatsDataResponse {
   competitions: CompetitionDoc[];
   players: PlayerRow[];
   matches: MatchForRecords[];
+  aggregatedStats?: Record<string, AggregatedPlayerStats>;
 }
 
 type AggregatedPlayerStats = {
@@ -145,6 +146,7 @@ interface PublicPlayerStatsViewProps {
   competitions: CompetitionDoc[];
   players: PlayerRow[];
   matches: any[];
+  aggregatedStats?: Record<string, AggregatedPlayerStats>;
   mainTeamId?: string | null;
   selectedSeason: string;
   setSelectedSeason: (value: string) => void;
@@ -157,6 +159,7 @@ function PublicPlayerStatsView({
   competitions,
   players,
   matches,
+  aggregatedStats,
   mainTeamId,
   selectedSeason,
   setSelectedSeason,
@@ -204,10 +207,10 @@ function PublicPlayerStatsView({
     });
   }, [teamFilteredPlayers, selectedSeason]);
 
-  const stats = useMemo(
-    () => aggregatePlayerStats(matches, playersWithResolvedManualStats, competitions, selectedSeason || "all", selectedCompetitionId),
-    [matches, playersWithResolvedManualStats, competitions, selectedSeason, selectedCompetitionId]
-  );
+  const stats = useMemo(() => {
+    if (aggregatedStats && typeof aggregatedStats === 'object') return aggregatedStats;
+    return aggregatePlayerStats(matches, playersWithResolvedManualStats, competitions, selectedSeason || "all", selectedCompetitionId);
+  }, [aggregatedStats, matches, playersWithResolvedManualStats, competitions, selectedSeason, selectedCompetitionId]);
 
   const filteredPlayersByTeam = playersWithResolvedManualStats;
 
@@ -371,37 +374,51 @@ export default function ClubStatsPage() {
     return Array.from(set).sort((a, b) => b.localeCompare(a));
   }, [statsData]);
 
-  useEffect(() => {
-    const fetchOwner = async () => {
-      if (!clubId) return;
+  const fetchStatsData = async (opts?: { season?: string; competitionId?: string; showLoading?: boolean }) => {
+    if (!clubId) return;
+    if (opts?.showLoading) {
       setLoadingOwner(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/club/${clubId}/stats-data`);
-        if (!res.ok) {
-          throw new Error("クラブ情報の取得に失敗しました");
-        }
-        const data = (await res.json()) as StatsDataResponse;
-        setOwnerUid(data.ownerUid);
-        setStatsData(data);
-        const profile = (data as any).profile || {};
-        setClubName(profile.clubName || "");
-        setLogoUrl(profile.logoUrl ?? null);
-        setSnsLinks((profile as any).snsLinks && typeof (profile as any).snsLinks === 'object' ? (profile as any).snsLinks : {});
-        setSponsors(Array.isArray((profile as any).sponsors) ? (profile as any).sponsors : []);
-        setLegalPages(Array.isArray((profile as any).legalPages) ? (profile as any).legalPages : []);
-        setHomeBgColor(typeof (profile as any).homeBgColor === 'string' ? (profile as any).homeBgColor : null);
-        setMainTeamId(typeof (profile as any).mainTeamId === "string" ? (profile as any).mainTeamId : data.mainTeamId);
-      } catch (e) {
-        console.error(e);
-        setError("クラブ情報の取得中にエラーが発生しました。");
-      } finally {
+    }
+    setError(null);
+    try {
+      const qs = new URLSearchParams();
+      if (opts?.season) qs.set('season', opts.season);
+      if (opts?.competitionId) qs.set('competitionId', opts.competitionId);
+      const suffix = qs.toString() ? `?${qs.toString()}` : '';
+      const res = await fetch(`/api/club/${clubId}/stats-data${suffix}`);
+      if (!res.ok) {
+        throw new Error("クラブ情報の取得に失敗しました");
+      }
+      const data = (await res.json()) as StatsDataResponse;
+      setOwnerUid(data.ownerUid);
+      setStatsData(data);
+      const profile = (data as any).profile || {};
+      setClubName(profile.clubName || "");
+      setLogoUrl(profile.logoUrl ?? null);
+      setSnsLinks((profile as any).snsLinks && typeof (profile as any).snsLinks === 'object' ? (profile as any).snsLinks : {});
+      setSponsors(Array.isArray((profile as any).sponsors) ? (profile as any).sponsors : []);
+      setLegalPages(Array.isArray((profile as any).legalPages) ? (profile as any).legalPages : []);
+      setHomeBgColor(typeof (profile as any).homeBgColor === 'string' ? (profile as any).homeBgColor : null);
+      setMainTeamId(typeof (profile as any).mainTeamId === "string" ? (profile as any).mainTeamId : data.mainTeamId);
+    } catch (e) {
+      console.error(e);
+      setError("クラブ情報の取得中にエラーが発生しました。");
+    } finally {
+      if (opts?.showLoading) {
         setLoadingOwner(false);
       }
-    };
+    }
+  };
 
-    fetchOwner();
+  useEffect(() => {
+    fetchStatsData({ showLoading: true });
   }, [clubId]);
+
+  useEffect(() => {
+    if (!clubId) return;
+    // When filters change, fetch server-filtered + cached aggregate.
+    fetchStatsData({ season: selectedSeason, competitionId: selectedCompetitionId, showLoading: false });
+  }, [clubId, selectedSeason, selectedCompetitionId]);
 
   return (
     <main className="min-h-screen" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
@@ -461,6 +478,7 @@ export default function ClubStatsPage() {
               competitions={statsData.competitions}
               players={statsData.players}
               matches={statsData.matches}
+              aggregatedStats={statsData.aggregatedStats}
               mainTeamId={mainTeamId}
               selectedSeason={selectedSeason}
               setSelectedSeason={setSelectedSeason}

@@ -18,12 +18,136 @@ async function resolveOwnerUid(clubId: string): Promise<{ ownerUid: string; prof
   return { ownerUid, profile: profileData };
 }
 
+function chunkArray<T>(arr: T[], chunkSize: number): T[][] {
+  if (chunkSize <= 0) return [arr];
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += chunkSize) out.push(arr.slice(i, i + chunkSize));
+  return out;
+}
+
+type AggregatedPlayerStats = {
+  appearances: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+};
+
+function normalizeManualStatsRows(rows: any[] | undefined): any[] {
+  return Array.isArray(rows) ? rows : [];
+}
+
+function computeAggregatedStats(params: {
+  matches: any[];
+  players: any[];
+  competitions: { id: string; season?: string }[];
+  selectedSeason: string;
+  selectedCompetitionId: string;
+}): Record<string, AggregatedPlayerStats> {
+  const { matches, players, competitions, selectedSeason, selectedCompetitionId } = params;
+  const result: Record<string, AggregatedPlayerStats> = {};
+
+  const allowedPlayerIds = new Set(players.map((p) => p.id));
+
+  const compsFiltered = competitions.filter((c) => {
+    if (selectedSeason !== 'all' && c.season !== selectedSeason) return false;
+    if (selectedCompetitionId !== 'all' && c.id !== selectedCompetitionId) return false;
+    return true;
+  });
+  const compIds = new Set(compsFiltered.map((c) => c.id));
+
+  // Resolve per-player manualCompetitionStats similar to the client logic.
+  const manualByCompetition = new Map<string, Map<string, any>>();
+  for (const p of players) {
+    const seasonData = p?.seasonData && typeof p.seasonData === 'object' ? p.seasonData : {};
+    let effectiveManualRows: any[] = [];
+
+    if (selectedSeason !== 'all') {
+      const sd = (seasonData as any)?.[selectedSeason];
+      const seasonManual = normalizeManualStatsRows((sd as any)?.manualCompetitionStats);
+      const legacyManual = normalizeManualStatsRows(p?.manualCompetitionStats);
+      effectiveManualRows = seasonManual.length > 0 ? seasonManual : legacyManual;
+    } else {
+      const allSeasonManual = Object.values(seasonData).flatMap((v: any) => normalizeManualStatsRows(v?.manualCompetitionStats));
+      const legacyManual = normalizeManualStatsRows(p?.manualCompetitionStats);
+      effectiveManualRows = [...allSeasonManual, ...legacyManual];
+    }
+
+    for (const r of effectiveManualRows) {
+      const compId = typeof r?.competitionId === 'string' ? r.competitionId : '';
+      if (!compId || !compIds.has(compId)) continue;
+      const hasAnyValue =
+        typeof r?.matches === 'number' ||
+        typeof r?.minutes === 'number' ||
+        typeof r?.goals === 'number' ||
+        typeof r?.assists === 'number' ||
+        typeof r?.yellowCards === 'number' ||
+        typeof r?.redCards === 'number';
+      if (!hasAnyValue) continue;
+      const map = manualByCompetition.get(compId) ?? new Map<string, any>();
+      map.set(p.id, r);
+      manualByCompetition.set(compId, map);
+    }
+  }
+
+  for (const comp of compsFiltered) {
+    const manualForThisCompetition = manualByCompetition.get(comp.id) ?? new Map<string, any>();
+
+    for (const [playerId, m] of manualForThisCompetition.entries()) {
+      if (!result[playerId]) {
+        result[playerId] = { appearances: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
+      }
+      result[playerId].appearances += typeof m?.matches === 'number' ? m.matches : 0;
+      result[playerId].minutes += typeof m?.minutes === 'number' ? m.minutes : 0;
+      result[playerId].goals += typeof m?.goals === 'number' ? m.goals : 0;
+      result[playerId].assists += typeof m?.assists === 'number' ? m.assists : 0;
+      result[playerId].yellowCards += typeof m?.yellowCards === 'number' ? m.yellowCards : 0;
+      result[playerId].redCards += typeof m?.redCards === 'number' ? m.redCards : 0;
+    }
+
+    const matchesForComp = matches.filter((m) => m?.competitionId === comp.id);
+    for (const match of matchesForComp) {
+      const ps = Array.isArray((match as any)?.playerStats) ? (match as any).playerStats : [];
+      for (const stat of ps) {
+        const playerId = stat?.playerId;
+        if (!playerId) continue;
+        if (!allowedPlayerIds.has(playerId)) continue;
+        if (manualForThisCompetition.has(playerId)) continue;
+        if (!result[playerId]) {
+          result[playerId] = { appearances: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
+        }
+        const minutesPlayed = Number(stat.minutesPlayed) || 0;
+        result[playerId].appearances += minutesPlayed > 0 ? 1 : 0;
+        result[playerId].minutes += minutesPlayed;
+        result[playerId].goals += Number(stat.goals) || 0;
+        result[playerId].assists += Number(stat.assists) || 0;
+        result[playerId].yellowCards += Number(stat.yellowCards) || 0;
+        result[playerId].redCards += Number(stat.redCards) || 0;
+      }
+    }
+  }
+
+  return result;
+}
+
 export async function GET(request: NextRequest, context: { params: { clubId: string } }) {
   try {
     const { clubId } = await context.params;
+    const seasonParam = request.nextUrl.searchParams.get('season');
+    const competitionIdParam = request.nextUrl.searchParams.get('competitionId');
     const { ownerUid, profile } = await resolveOwnerUid(clubId);
 
+    const clubSnap = await db.collection('clubs').doc(ownerUid).get();
+    const statsCacheVersionRaw = clubSnap.exists ? (clubSnap.data() as any)?.statsCacheVersion : 0;
+    const statsCacheVersion = typeof statsCacheVersionRaw === 'number' ? statsCacheVersionRaw : 0;
+
     const mainTeamId = typeof (profile as any)?.mainTeamId === "string" ? (profile as any).mainTeamId : null;
+
+    const seasonKey = seasonParam && seasonParam !== '' ? seasonParam : 'all';
+    const competitionKey = competitionIdParam && competitionIdParam !== '' ? competitionIdParam : 'all';
+    const teamKey = mainTeamId || 'all';
+    const cacheKey = `${statsCacheVersion}__${teamKey}__${seasonKey}__${competitionKey}`;
 
     const [teamsSnap, competitionsSnap] = await Promise.all([
       db.collection(`clubs/${ownerUid}/teams`).get(),
@@ -82,12 +206,38 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
       players.push(...item.rows);
     }
 
+    // Fast-path: return cached aggregated stats if present
+    const cacheRef = db.collection(`clubs/${ownerUid}/public_stats_index`).doc(cacheKey);
+    const cacheSnap = await cacheRef.get();
+    if (cacheSnap.exists) {
+      const cached = cacheSnap.data() as any;
+      if (cached && cached.aggregatedStats && typeof cached.aggregatedStats === 'object') {
+        return NextResponse.json({
+          ownerUid,
+          profile,
+          mainTeamId,
+          teams,
+          competitions,
+          players,
+          matches: [],
+          aggregatedStats: cached.aggregatedStats,
+        });
+      }
+    }
+
+
+    const compsForMatches = competitions.filter((c) => {
+      if (competitionIdParam && competitionIdParam !== 'all' && c.id !== competitionIdParam) return false;
+      if (seasonParam && seasonParam !== 'all' && c.season !== seasonParam) return false;
+      return true;
+    });
 
     const matchesNested = await Promise.all(
-      competitions.map(async (comp) => {
+      compsForMatches.map(async (comp) => {
         const roundsSnap = await db.collection(`clubs/${ownerUid}/competitions/${comp.id}/rounds`).get();
         const byRound = await Promise.all(
           roundsSnap.docs.map(async (round) => {
+            const roundData = round.data() as any;
             const mSnap = await round.ref.collection("matches").get();
             return mSnap.docs.map((m) => {
               const data = m.data() as any;
@@ -97,7 +247,7 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
                 competitionName: comp.name,
                 competitionSeason: comp.season,
                 roundId: round.id,
-                roundName: data?.roundName || (round.data() as any)?.name,
+                roundName: data?.roundName || roundData?.name,
                 matchDate: data?.matchDate,
                 homeTeamId: data?.homeTeam,
                 awayTeamId: data?.awayTeam,
@@ -117,6 +267,23 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
 
     const matches: any[] = matchesNested.flat();
 
+    const aggregatedStats = computeAggregatedStats({
+      matches,
+      players,
+      competitions,
+      selectedSeason: seasonKey,
+      selectedCompetitionId: competitionKey,
+    });
+
+    await cacheRef.set({
+      aggregatedStats,
+      updatedAt: new Date().toISOString(),
+      statsCacheVersion,
+      teamKey,
+      seasonKey,
+      competitionKey,
+    }, { merge: true });
+
     return NextResponse.json({
       ownerUid,
       profile,
@@ -125,6 +292,7 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
       competitions,
       players,
       matches,
+      aggregatedStats,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";

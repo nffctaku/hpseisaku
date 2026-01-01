@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { doc, deleteDoc } from "firebase/firestore";
+import { doc, deleteDoc, setDoc, increment } from "firebase/firestore";
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,8 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
 
       const indexDocId = `${competitionId}__${roundId}__${match.id}`;
       await deleteDoc(doc(db, `clubs/${user.uid}/public_match_index`, indexDocId));
+
+      await setDoc(doc(db, `clubs/${user.uid}`), { statsCacheVersion: increment(1) }, { merge: true });
 
       onDelete(); // This triggers a refetch of all data
       toast.success('試合を削除しました。');

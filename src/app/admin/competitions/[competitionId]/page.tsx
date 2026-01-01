@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, doc, getDoc, getDocs, query, where, updateDoc, addDoc, deleteDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where, updateDoc, addDoc, deleteDoc, setDoc, increment } from "firebase/firestore";
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
@@ -245,6 +245,7 @@ export default function CompetitionDetailPage() {
       } : r));
 
       await syncPublicMatchIndex(roundId, matchId, { [field]: normalizedValue } as any);
+      await setDoc(doc(db, `clubs/${user.uid}`), { statsCacheVersion: increment(1) }, { merge: true });
       toast.success('更新しました。');
     } catch (error) {
       console.error(`Error updating match ${field}:`, error);
@@ -282,6 +283,7 @@ export default function CompetitionDetailPage() {
     setRounds(prev => prev.map(r => r.id === currentRound.id ? {...r, matches: [...r.matches, newMatch] } : r));
 
     await syncPublicMatchIndex(currentRound.id, matchRef.id, newMatch as any);
+    await setDoc(doc(db, `clubs/${user.uid}`), { statsCacheVersion: increment(1) }, { merge: true });
     toast.success('新しい試合を追加しました。');
   };
 
