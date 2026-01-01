@@ -87,15 +87,14 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
   return (
     <div className="container mx-auto py-8 px-4 md:px-0">
         <div className="text-center mb-4">
-            <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
-              <span className="block">{clubName}</span>
+            <h1 className="text-lg sm:text-xl font-bold leading-tight">
               <span className="block">試合日程・結果</span>
             </h1>
         </div>
         <div className="mb-8 flex flex-col items-center gap-4">
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[180px] bg-white text-gray-900 border shadow-sm">
                 <SelectValue placeholder="シーズンを選択" />
               </SelectTrigger>
               <SelectContent>
@@ -111,17 +110,18 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
                 <button
                   key={comp}
                   onClick={() => setSelectedCompetition(comp)}
-                  className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
                     selectedCompetition === comp
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20'
-                  }`}>
+                      ? 'bg-emerald-500 text-white border-emerald-600'
+                      : 'bg-white text-gray-900 border-gray-300 hover:border-gray-500'
+                  }`}
+                >
                   {comp === 'all' ? '全大会' : comp}
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex items-center justify-center space-x-2 text-sm">
+          <div className="flex items-center justify-center space-x-2 text-xs">
               <Label htmlFor="filter-switch">自チームのみ</Label>
               <Switch 
                   id="filter-switch" 
@@ -139,7 +139,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
             <div className="space-y-4">
                 {Object.entries(groupedMatches).map(([dateGroup, matchesInGroup]) => (
                     <div key={dateGroup}>
-                        <h2 className="font-semibold text-xs sm:text-sm mb-1 text-muted-foreground">{dateGroup}</h2>
+                        <h2 className="font-semibold text-[11px] sm:text-xs mb-1 text-muted-foreground">{dateGroup}</h2>
                         <div className="space-y-2">
                             {matchesInGroup.map(match => {
                                 const isFinished =
@@ -159,25 +159,25 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
 
                                   if (selfScore > oppScore) {
                                     scoreBgClass =
-                                      "bg-emerald-500 text-white rounded-md px-2 py-0.5 text-base";
+                                      "bg-emerald-500 text-white rounded-md px-2 py-0.5 text-xs";
                                   } else if (selfScore < oppScore) {
                                     scoreBgClass =
-                                      "bg-red-500 text-white rounded-md px-2 py-0.5 text-base";
+                                      "bg-red-500 text-white rounded-md px-2 py-0.5 text-xs";
                                   } else {
                                     scoreBgClass =
-                                      "bg-gray-500 text-white rounded-md px-2 py-0.5 text-base";
+                                      "bg-gray-500 text-white rounded-md px-2 py-0.5 text-xs";
                                   }
                                 }
 
                                 return (
-                                    <div key={match.id} className="block p-4 bg-white text-gray-900 rounded-lg border">
-                                        <div className="grid grid-cols-12 items-center gap-2">
-                                            <div className="col-span-5 flex items-center justify-end gap-2">
-                                                <span className="font-medium text-right flex-1 truncate">{match.homeTeamName}</span>
+                                    <div key={match.id} className="block p-2 bg-white text-gray-900 rounded-md border">
+                                        <div className="grid grid-cols-12 items-center gap-1">
+                                            <div className="col-span-5 flex items-center justify-end gap-1 min-w-0">
+                                                <span className="font-semibold text-[11px] text-right truncate">{match.homeTeamName}</span>
                                                 {match.homeTeamLogo ? (
-                                                    <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={28} height={28} className="rounded-full object-contain" />
+                                                    <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={18} height={18} className="rounded-full object-contain" />
                                                 ) : (
-                                                    <div className="w-7 h-7 bg-muted rounded-full" />
+                                                    <div className="w-[18px] h-[18px] bg-muted rounded-full" />
                                                 )}
                                             </div>
 
@@ -188,7 +188,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
                                                 >
                                                     {isFinished ? (
                                                         <div
-                                                          className={`inline-flex items-center justify-center whitespace-nowrap font-bold text-sm min-w-[52px] px-2 py-0.5 rounded-md transition-colors ${
+                                                          className={`inline-flex items-center justify-center whitespace-nowrap font-bold text-[11px] min-w-[44px] px-2 py-0.5 rounded-md transition-colors ${
                                                             scoreBgClass ||
                                                             "bg-gray-500 text-white hover:bg-primary"
                                                           }`}
@@ -196,23 +196,23 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
                                                             {match.scoreHome} - {match.scoreAway}
                                                         </div>
                                                     ) : (
-                                                        <div className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                                                        <div className="text-[11px] text-muted-foreground hover:text-primary transition-colors">
                                                             {match.matchTime || 'VS'}
                                                         </div>
                                                     )}
                                                 </Link>
                                             </div>
 
-                                            <div className="col-span-5 flex items-center gap-2">
+                                            <div className="col-span-5 flex items-center gap-1 min-w-0">
                                                 {match.awayTeamLogo ? (
-                                                    <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={28} height={28} className="rounded-full object-contain" />
+                                                    <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={18} height={18} className="rounded-full object-contain" />
                                                 ) : (
-                                                    <div className="w-7 h-7 bg-muted rounded-full" />
+                                                    <div className="w-[18px] h-[18px] bg-muted rounded-full" />
                                                 )}
-                                                <span className="font-medium flex-1 truncate">{match.awayTeamName}</span>
+                                                <span className="font-semibold text-[11px] truncate">{match.awayTeamName}</span>
                                             </div>
                                         </div>
-                                        <div className="text-xs text-muted-foreground text-center mt-2">
+                                        <div className="text-[10px] text-muted-foreground text-center mt-1">
                                             {match.roundId === 'single' ? match.competitionName : `${match.competitionName} / ${match.roundName}`}
                                         </div>
                                     </div>

@@ -1,7 +1,35 @@
 import { MatchDetails } from "@/types/match";
-import { format } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 import Link from 'next/link';
 import Image from 'next/image';
+
+function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | undefined): number {
+  const md: any = (m as any)?.matchDate;
+  let base: Date | null = null;
+
+  if (md?.toDate && typeof md.toDate === 'function') {
+    base = md.toDate();
+  } else if (md instanceof Date) {
+    base = md;
+  } else if (typeof md === 'string') {
+    const raw = md.trim();
+    if (!raw) return Number.POSITIVE_INFINITY;
+    const normalized = raw
+      .replace(/\//g, '-')
+      .replace(/^(\d{4})-(\d{1,2})-(\d{1,2})$/, (_m, y, mo, da) => `${y}-${String(mo).padStart(2, '0')}-${String(da).padStart(2, '0')}`);
+    const iso = parseISO(normalized);
+    base = isValid(iso) ? iso : new Date(normalized);
+  }
+
+  const baseMs = base instanceof Date && !Number.isNaN(base.getTime()) ? base.getTime() : Number.POSITIVE_INFINITY;
+
+  const rawTime = typeof m?.matchTime === 'string' ? m.matchTime.trim() : '';
+  const tm = rawTime.match(/^\s*(\d{1,2}):(\d{2})\s*$/);
+  if (!tm) return baseMs;
+  const hh = Math.min(23, Math.max(0, Number(tm[1])));
+  const mm = Math.min(59, Math.max(0, Number(tm[2])));
+  return baseMs + (hh * 60 + mm) * 60 * 1000;
+}
 
 function TeamDisplay({ logo, name }: { logo?: string, name: string }) {
   return (
@@ -36,7 +64,7 @@ function RecentMatchesStrip({
   const items = (matches || [])
     .filter((m) => typeof m.scoreHome === 'number' && typeof m.scoreAway === 'number')
     .slice()
-    .reverse();
+    .sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
   if (items.length === 0) return null;
 
   const resolveIsHome = (m: MatchDetails) => {

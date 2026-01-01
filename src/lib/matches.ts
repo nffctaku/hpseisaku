@@ -1,7 +1,35 @@
 import { db } from "./firebase/admin"; // Use admin SDK for server-side fetching
-import { startOfDay } from 'date-fns';
+import { isValid, parseISO, startOfDay } from 'date-fns';
 import { MatchDetails } from "@/types/match";
 import { Timestamp } from 'firebase-admin/firestore';
+
+function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | undefined): number {
+  const md: any = (m as any)?.matchDate;
+  let base: Date | null = null;
+
+  if (md?.toDate && typeof md.toDate === 'function') {
+    base = md.toDate();
+  } else if (md instanceof Date) {
+    base = md;
+  } else if (typeof md === 'string') {
+    const raw = md.trim();
+    if (!raw) return Number.POSITIVE_INFINITY;
+    const normalized = raw
+      .replace(/\//g, '-')
+      .replace(/^(\d{4})-(\d{1,2})-(\d{1,2})$/, (_m, y, mo, da) => `${y}-${String(mo).padStart(2, '0')}-${String(da).padStart(2, '0')}`);
+    const iso = parseISO(normalized);
+    base = isValid(iso) ? iso : new Date(normalized);
+  }
+
+  const baseMs = base instanceof Date && !Number.isNaN(base.getTime()) ? base.getTime() : Number.POSITIVE_INFINITY;
+
+  const rawTime = typeof m?.matchTime === 'string' ? m.matchTime.trim() : '';
+  const tm = rawTime.match(/^\s*(\d{1,2}):(\d{2})\s*$/);
+  if (!tm) return baseMs;
+  const hh = Math.min(23, Math.max(0, Number(tm[1])));
+  const mm = Math.min(59, Math.max(0, Number(tm[2])));
+  return baseMs + (hh * 60 + mm) * 60 * 1000;
+}
 
 export async function getMatchesGroupedByCompetition(): Promise<Record<string, MatchDetails[]>> {
   const clubsRef = db.collection('club_profiles');
@@ -142,9 +170,9 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
   const futureMatches = ownMatches.filter(m => m.scoreHome === null || m.scoreAway === null);
 
   // Sort past matches descending to get the latest one first
-  pastMatches.sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime());
+  pastMatches.sort((a, b) => getMatchSortMs(b) - getMatchSortMs(a));
   // Sort future matches ascending to get the next one first
-  futureMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
+  futureMatches.sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
 
   const latestResult = pastMatches.length > 0 ? pastMatches[0] : null;
   const nextMatch = futureMatches.length > 0 ? futureMatches[0] : null;

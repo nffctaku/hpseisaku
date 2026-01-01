@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { doc, deleteDoc, setDoc, increment } from "firebase/firestore";
@@ -66,10 +66,10 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
     if (!seasonRange) return [selectedYear];
     const start = seasonRange.fromDate.getFullYear();
     const end = seasonRange.toDate.getFullYear();
-    const list: number[] = [];
-    for (let y = start; y <= end; y++) list.push(y);
-    return list;
-  }, [seasonRange, selectedYear]);
+    if (start === end) return [start];
+    // Season is July->June. Avoid accidentally selecting the wrong year.
+    return selectedMonth >= 7 ? [start] : [end];
+  }, [seasonRange, selectedMonth, selectedYear]);
 
   const daysInMonth = useMemo(() => {
     const year = selectedYear;
@@ -87,6 +87,18 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
     const dayStr = d.toString().padStart(2, '0');
     onUpdate(match.id, 'matchDate', `${yearStr}-${monthStr}-${dayStr}`);
   };
+
+  useEffect(() => {
+    if (!seasonRange) return;
+    if (!Array.isArray(years) || years.length === 0) return;
+    if (years.includes(selectedYear)) return;
+
+    const y = years[0];
+    setSelectedYear(y);
+    const newDay = clampDay(selectedDay);
+    setSelectedDay(newDay);
+    updateMatchDate(y, selectedMonth, newDay);
+  }, [seasonRange, years, selectedYear, selectedMonth, selectedDay]);
 
   return (
     <div className="grid grid-cols-6 lg:grid-cols-12 items-center gap-2 p-3 bg-card text-gray-900 rounded-md border">
