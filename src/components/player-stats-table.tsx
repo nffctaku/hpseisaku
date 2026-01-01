@@ -16,9 +16,9 @@ const ratingOptions = (() => {
 
   const pivot = all.indexOf('7.0');
   if (pivot === -1) return all;
-  const below = all.slice(0, pivot);
-  const above = all.slice(pivot + 1);
-  return [...below, '7.0', ...above];
+  const below = all.slice(0, pivot); // 4.5..6.9
+  const above = all.slice(pivot + 1); // 7.1..10.0
+  return ['7.0', ...above, ...below];
 })();
 const starterMinutesOptions = (() => {
   // 45 を中心に表示したい
@@ -33,7 +33,7 @@ const benchMinutesOptions = Array.from({ length: 146 }, (_, i) => i.toString());
 export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPlayers: Player[] }) {
   console.log(`PlayerStatsTable (${teamId}): Received allPlayers`, allPlayers);
   const { control, watch, setValue } = useFormContext();
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, prepend, remove } = useFieldArray({
     control,
     name: 'playerStats',
   });
@@ -75,13 +75,15 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
       return;
     }
 
-    append({
+    const add = role === 'starter' ? prepend : append;
+
+    add({
       playerId: player.id,
       playerName: player.name,
       position: player.position || 'N/A',
       teamId,
       role,
-      rating: role === 'starter' ? 7.0 : undefined,
+      rating: undefined,
       minutesPlayed: role === 'starter' ? 45 : 0,
       goals: 0,
       assists: 0,

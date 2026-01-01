@@ -372,6 +372,27 @@ export default async function MatchDetailPage({ params }: PageProps) {
     (ps) => ps.teamId && ps.teamId === match.awayTeam && ps.role && ps.role !== "starter",
   );
 
+  const positionOrder: Record<string, number> = { GK: 0, DF: 1, MF: 2, FW: 3 };
+  const getPositionKey = (ps: any) => {
+    const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+    const pos = (meta?.position || ps.position || '').toString().toUpperCase();
+    return positionOrder[pos] ?? 99;
+  };
+  const getNumberKey = (ps: any) => {
+    const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+    const n = meta?.number;
+    return typeof n === 'number' && Number.isFinite(n) ? n : 999;
+  };
+  const sortLineup = (arr: any[]) =>
+    arr
+      .slice()
+      .sort((a, b) => getPositionKey(a) - getPositionKey(b) || getNumberKey(a) - getNumberKey(b));
+
+  const homeStartersSorted = sortLineup(homeStarters);
+  const homeSubsSorted = sortLineup(homeSubs);
+  const awayStartersSorted = sortLineup(awayStarters);
+  const awaySubsSorted = sortLineup(awaySubs);
+
   const hasLineups =
     homeStarters.length > 0 || homeSubs.length > 0 || awayStarters.length > 0 || awaySubs.length > 0;
   const hasTeamStats = teamStats.length > 0;
@@ -500,7 +521,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     </h3>
                     <div className="space-y-2 mb-4">
                       {homeStarters.length ? (
-                        homeStarters.map((ps: any, idx: number) => {
+                        homeStartersSorted.map((ps: any, idx: number) => {
                           const minutes = Number(ps.minutesPlayed) || 0;
                           const rating = Number(ps.rating) || 0;
                           const hasRating = rating > 0;
@@ -563,7 +584,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mb-2">Substitutes</h4>
                     <div className="space-y-2">
                       {homeSubs.length ? (
-                        homeSubs.map((ps: any, idx: number) => {
+                        homeSubsSorted.map((ps: any, idx: number) => {
                           const minutes = Number(ps.minutesPlayed) || 0;
                           const rating = Number(ps.rating) || 0;
                           const hasRating = rating > 0;
@@ -632,7 +653,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     </h3>
                     <div className="space-y-2 mb-4">
                       {awayStarters.length ? (
-                        awayStarters.map((ps: any, idx: number) => {
+                        awayStartersSorted.map((ps: any, idx: number) => {
                           const minutes = Number(ps.minutesPlayed) || 0;
                           const rating = Number(ps.rating) || 0;
                           const hasRating = rating > 0;
@@ -695,7 +716,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mb-2">Substitutes</h4>
                     <div className="space-y-2">
                       {awaySubs.length ? (
-                        awaySubs.map((ps: any, idx: number) => {
+                        awaySubsSorted.map((ps: any, idx: number) => {
                           const minutes = Number(ps.minutesPlayed) || 0;
                           const rating = Number(ps.rating) || 0;
                           const hasRating = rating > 0;
@@ -910,6 +931,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     const nameFromStats = ev.playerId ? playerNameMap.get(ev.playerId) : undefined;
                     const nameLabel = nameFromEvent || nameFromStats || "";
                     const assist = (ev as any).assistPlayerName as string | undefined;
+                    const assistId = (ev as any).assistPlayerId as string | undefined;
 
                     const outPlayerId = (ev as any).outPlayerId as string | undefined;
                     const inPlayerId = (ev as any).inPlayerId as string | undefined;
@@ -920,13 +942,18 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     let mobileLines: string[] = [];
                     let goalScoreLabel: string | null = null;
                     if (ev.type === "goal") {
-                      label = nameLabel || "ゴール";
-                      if (assist) label += `（A: ${assist}` + ")";
+                      const isPk = assistId === 'pk' || assist === 'PK';
+                      if (isPk) {
+                        label = nameLabel ? `${nameLabel} ゴール(PK)` : 'ゴール(PK)';
+                      } else {
+                        label = nameLabel || "ゴール";
+                        if (assist) label += `（A: ${assist}` + ")";
+                      }
                       goalScoreLabel = `${homeScore}-${awayScore}`;
 
                       mobileLines = [
-                        `${nameLabel || "ゴール"}`,
-                        assist ? `${assist}` : "",
+                        isPk ? `${nameLabel || "ゴール"} (PK)` : `${nameLabel || "ゴール"}`,
+                        !isPk && assist ? `${assist}` : "",
                       ].filter(Boolean);
                     } else if (ev.type === "yellow") {
                       label = nameLabel || "カード";

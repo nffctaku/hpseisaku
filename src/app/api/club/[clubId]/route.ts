@@ -42,11 +42,19 @@ async function getClubData(clubId: string) {
   const heroLimitRaw = (clubData as any)?.heroNewsLimit;
   const heroLimit = typeof heroLimitRaw === 'number' && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;
 
-  const { latestResult, nextMatch, recentMatches, upcomingMatches } = await getMatchDataForClub(ownerUid);
-
   const baseLimit = Math.max(heroLimit * 3, 5);
   const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy('publishedAt', 'desc').limit(baseLimit);
-  const newsSnap = await newsQuery.get();
+  const videosQuery = db.collection(`clubs/${ownerUid}/videos`).orderBy('publishedAt', 'desc').limit(4);
+  const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
+
+  const [{ latestResult, nextMatch, recentMatches, upcomingMatches }, newsSnap, videosSnap, competitionsSnap] =
+    await Promise.all([
+      getMatchDataForClub(ownerUid),
+      newsQuery.get(),
+      videosQuery.get(),
+      competitionsQuery.get(),
+    ]);
+
   const allNews = newsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
   // スライド用: featuredInHero を優先して heroLimit 件に絞る
@@ -69,8 +77,6 @@ async function getClubData(clubId: string) {
     })
     .slice(0, 5) as NewsArticle[];
 
-  const videosQuery = db.collection(`clubs/${ownerUid}/videos`).orderBy('publishedAt', 'desc').limit(4);
-  const videosSnap = await videosQuery.get();
   const videos = videosSnap.docs.map(doc => {
     const data = doc.data();
     return {
@@ -81,8 +87,6 @@ async function getClubData(clubId: string) {
     };
   });
 
-  const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
-  const competitionsSnap = await competitionsQuery.get();
   const competitions = competitionsSnap.docs.map(doc => {
     const data = doc.data();
     return {

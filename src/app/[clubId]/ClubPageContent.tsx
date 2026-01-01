@@ -33,6 +33,10 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
             return;
         }
 
+        let cancelled = false;
+        let idleHandle: number | null = null;
+        let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
         const fetchData = async () => {
             try {
                 // 1. まず軽量なサマリーデータを取得して、素早く初期表示する
@@ -48,20 +52,45 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                     return;
                 }
                 const summaryData = await summaryRes.json();
+                if (cancelled) return;
                 setClubInfo(summaryData);
 
                 // 2. バックグラウンドで重いフルデータを取得し、到着したら上書き
-                try {
-                    const fullRes = await fetch(`/api/club/${clubId}`);
-                    if (fullRes.ok) {
+                const runFullFetch = async () => {
+                    try {
+                        const fullRes = await fetch(`/api/club/${clubId}`);
+                        if (!fullRes.ok) {
+                            console.error(`Full club data HTTP error: ${fullRes.status}`);
+                            return;
+                        }
                         const fullData = await fullRes.json();
+                        if (cancelled) return;
                         setClubInfo(fullData);
-                    } else {
-                        console.error(`Full club data HTTP error: ${fullRes.status}`);
+                    } catch (fullErr) {
+                        console.error("Failed to fetch full club data:", fullErr);
                     }
-                } catch (fullErr) {
-                    console.error("Failed to fetch full club data:", fullErr);
+                };
+
+                // 初期描画を優先するため、アイドル時にフル取得を回す
+                const ric = (globalThis as any).requestIdleCallback as
+                    | ((cb: () => void) => number)
+                    | undefined;
+                const cic = (globalThis as any).cancelIdleCallback as ((id: number) => void) | undefined;
+
+                if (ric) {
+                    idleHandle = ric(() => {
+                        runFullFetch();
+                    });
+                } else {
+                    timeoutHandle = setTimeout(() => {
+                        runFullFetch();
+                    }, 0);
                 }
+
+                return () => {
+                    if (idleHandle != null && cic) cic(idleHandle);
+                    if (timeoutHandle) clearTimeout(timeoutHandle);
+                };
             } catch (e) {
                 console.error("Failed to fetch club summary:", e);
                 // Continue with empty state even if fetch fails
@@ -69,6 +98,13 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
         };
 
         fetchData();
+
+        return () => {
+            cancelled = true;
+            const cic = (globalThis as any).cancelIdleCallback as ((id: number) => void) | undefined;
+            if (idleHandle != null && cic) cic(idleHandle);
+            if (timeoutHandle) clearTimeout(timeoutHandle);
+        };
     }, [clubId]);
 
     const homeBgColor = clubInfo.profile?.homeBgColor as string | undefined;
