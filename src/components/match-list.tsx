@@ -14,6 +14,7 @@ interface EnrichedMatch {
   id: string;
   competitionId: string;
   competitionName: string;
+  competitionLogoUrl?: string;
   roundId: string;
   roundName: string;
   matchDate: string;
@@ -62,6 +63,15 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
     : allMatches.filter(m => getSeason(parseISO(m.matchDate)) === selectedSeason);
 
   const competitions = ['all', ...Array.from(new Set(filteredBySeason.map(m => m.competitionName)))];
+
+  const competitionLogoByName = new Map<string, string>();
+  for (const m of filteredBySeason) {
+    const name = m.competitionName;
+    const logo = (m as any).competitionLogoUrl;
+    if (!name || typeof name !== 'string') continue;
+    if (typeof logo !== 'string' || !logo) continue;
+    if (!competitionLogoByName.has(name)) competitionLogoByName.set(name, logo);
+  }
 
   const filteredByCompetition = selectedCompetition === 'all'
     ? filteredBySeason
@@ -116,7 +126,18 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
                       : 'bg-white text-gray-900 border-gray-300 hover:border-gray-500'
                   }`}
                 >
-                  {comp === 'all' ? '全大会' : comp}
+                  <span className="inline-flex items-center gap-1">
+                    {comp !== 'all' && competitionLogoByName.get(comp) ? (
+                      <Image
+                        src={competitionLogoByName.get(comp)!}
+                        alt=""
+                        width={14}
+                        height={14}
+                        className="h-3.5 w-3.5 object-contain"
+                      />
+                    ) : null}
+                    <span>{comp === 'all' ? '全大会' : comp}</span>
+                  </span>
                 </button>
               ))}
             </div>
@@ -213,7 +234,20 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
                                             </div>
                                         </div>
                                         <div className="text-[10px] text-muted-foreground text-center mt-1">
-                                            {match.roundId === 'single' ? match.competitionName : `${match.competitionName} / ${match.roundName}`}
+                                            <span className="inline-flex items-center justify-center gap-1">
+                                              {match.competitionLogoUrl ? (
+                                                <Image
+                                                  src={match.competitionLogoUrl}
+                                                  alt=""
+                                                  width={12}
+                                                  height={12}
+                                                  className="h-3 w-3 object-contain"
+                                                />
+                                              ) : null}
+                                              <span>
+                                                {match.roundId === 'single' ? match.competitionName : `${match.competitionName} / ${match.roundName}`}
+                                              </span>
+                                            </span>
                                         </div>
                                     </div>
                                 );

@@ -10,6 +10,7 @@ interface Match {
   id: string;
   competitionId: string;
   competitionName: string;
+  competitionLogoUrl?: string;
   roundId: string;
   roundName: string;
   matchDate: string;
@@ -78,6 +79,7 @@ async function getMatchesForClub(clubId: string) {
                             id: matchDoc.id,
                             competitionId: compDoc.id,
                             competitionName: competitionData.name,
+                            competitionLogoUrl: competitionData.logoUrl,
                             roundId: roundDoc.id,
                             roundName: roundData.name,
                             matchDate: matchData.matchDate,
@@ -113,6 +115,7 @@ async function getMatchesForClub(clubId: string) {
             id: matchDoc.id,
             competitionId: compId,
             competitionName: compName,
+            competitionLogoUrl: matchData.competitionLogoUrl,
             roundId: 'single',
             roundName: matchData.roundName || '単発',
             matchDate: matchData.matchDate,
