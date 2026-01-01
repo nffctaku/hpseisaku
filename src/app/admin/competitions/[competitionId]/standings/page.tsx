@@ -58,6 +58,7 @@ export default function StandingsPage() {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const [competitionName, setCompetitionName] = useState('');
+  const [competitionFormat, setCompetitionFormat] = useState<'league' | 'cup' | 'league_cup' | ''>('');
 
   const fetchStandingsAndTeams = async () => {
     if (!user || !competitionId) return;
@@ -68,6 +69,7 @@ export default function StandingsPage() {
       const competitionData = competitionSnap.data();
       if (competitionSnap.exists()) {
         setCompetitionName(competitionData?.name || '');
+        setCompetitionFormat(competitionData?.format || '');
       }
 
       const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
@@ -140,6 +142,10 @@ export default function StandingsPage() {
 
   const handleRecalculate = async () => {
     if (!user) return;
+
+    const ok = window.confirm('全試合結果から再計算して、現在の手入力順位表を上書き保存します。よろしいですか？');
+    if (!ok) return;
+
     setLoading(true);
     try {
       const competitionDocRef = doc(db, `clubs/${user.uid}/competitions`, competitionId);
@@ -232,8 +238,16 @@ export default function StandingsPage() {
 
       finalStandings.forEach((s, index) => s.rank = index + 1);
 
+      const batch = writeBatch(db);
+      finalStandings.forEach((standing) => {
+        const docRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/standings`, standing.id);
+        const { logoUrl, ...dataToSave } = standing;
+        batch.set(docRef, dataToSave);
+      });
+      await batch.commit();
+
       setStandings(finalStandings);
-      toast.success('順位表を再計算しました。内容を確認して保存してください。');
+      toast.success('順位表を再計算して保存しました。');
 
     } catch (error) {
       console.error('Error recalculating standings:', error);
@@ -268,44 +282,60 @@ export default function StandingsPage() {
   if (loading) {
     return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
+
+  if (competitionFormat === 'cup') {
+    return (
+      <div className="container mx-auto py-6 sm:py-10">
+        <h1 className="text-lg sm:text-2xl font-bold leading-tight">順位表編集</h1>
+        <div className="mt-4 text-muted-foreground">
+          カップ戦では順位表の更新・編集はできません。
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">順位表編集: {competitionName}</h1>
-        <div>
-          <Button onClick={handleRecalculate} disabled={loading || !user} variant="outline" className="mr-2 text-gray-900">
+    <div className="container mx-auto py-6 sm:py-10">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 sm:mb-6">
+        <h1 className="text-lg sm:text-2xl font-bold leading-tight">
+          <span className="block">順位表編集:</span>
+          <span className="block">{competitionName}</span>
+        </h1>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <Button onClick={handleRecalculate} disabled={loading || !user} variant="outline" className="text-gray-900 text-xs sm:text-sm h-9">
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            全試合結果から順位を再計算
+            全試合結果から再集計（上書き保存）
           </Button>
-          <Button onClick={handleSave} disabled={loading || !user}>
+          <Button onClick={handleSave} disabled={loading || !user} className="bg-green-600 text-white hover:bg-green-700 text-xs sm:text-sm h-9">
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             保存
           </Button>
         </div>
       </div>
-      <div className="bg-white text-gray-900 rounded-lg p-4">
-        <Table>
+      <div className="bg-white text-gray-900 rounded-lg p-4 overflow-x-auto">
+        <Table className="min-w-[720px]">
           <TableHeader>
             <TableRow>
-                <TableHead>#</TableHead>
-                <TableHead>Club</TableHead>
-                <TableHead>P</TableHead>
-                <TableHead>W</TableHead>
-                <TableHead>D</TableHead>
-                <TableHead>L</TableHead>
-                <TableHead>GF</TableHead>
-                <TableHead>GA</TableHead>
-                <TableHead>GD</TableHead>
-                <TableHead>Pts</TableHead>
+                <TableHead className="w-10">#</TableHead>
+                <TableHead className="min-w-[180px]">Club</TableHead>
+                <TableHead className="w-12">P</TableHead>
+                <TableHead className="w-14">W</TableHead>
+                <TableHead className="w-14">D</TableHead>
+                <TableHead className="w-14">L</TableHead>
+                <TableHead className="w-14">GF</TableHead>
+                <TableHead className="w-14">GA</TableHead>
+                <TableHead className="w-14">GD</TableHead>
+                <TableHead className="w-14">Pts</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {standings.map(s => (
               <TableRow key={s.id}>
                 <TableCell>{s.rank}</TableCell>
-                <TableCell className="font-medium flex items-center">
-                  {s.logoUrl && <img src={s.logoUrl} alt={s.teamName} className="w-6 h-6 mr-2" />}
-                  {s.teamName}
+                <TableCell className="font-medium min-w-[180px]">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {s.logoUrl && <img src={s.logoUrl} alt={s.teamName} className="w-6 h-6" />}
+                    <span className="min-w-0 truncate">{s.teamName}</span>
+                  </div>
                 </TableCell>
                 <TableCell>{s.played}</TableCell>
                 <TableCell><Input value={s.wins} onChange={e => handleInputChange(s.id, 'wins', e.target.value)} className="w-16 bg-white text-gray-900" /></TableCell>

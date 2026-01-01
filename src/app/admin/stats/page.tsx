@@ -7,8 +7,7 @@ export default function StatsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // 統合後は /admin/records に集約
-    router.replace("/admin/records");
+    router.replace("/admin/analysis");
   }, [router]);
 
   return null;

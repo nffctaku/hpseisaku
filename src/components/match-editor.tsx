@@ -180,7 +180,9 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
             <SelectValue placeholder="ホーム">
               {match.homeTeam && allTeamsMap.get(match.homeTeam) ? (
                 <div className="flex items-center gap-2">
-                  <Image src={allTeamsMap.get(match.homeTeam)!.logoUrl!} alt={allTeamsMap.get(match.homeTeam)!.name} width={20} height={20} className="rounded-full object-contain" />
+                  {allTeamsMap.get(match.homeTeam)!.logoUrl ? (
+                    <Image src={allTeamsMap.get(match.homeTeam)!.logoUrl!} alt={allTeamsMap.get(match.homeTeam)!.name} width={20} height={20} className="rounded-full object-contain" />
+                  ) : null}
                   <span>{allTeamsMap.get(match.homeTeam)!.name}</span>
                 </div>
               ) : "ホーム"}
@@ -228,7 +230,7 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
           }}
           placeholder="-"
         />
-        <span className="text-lg">-</span>
+        <span className="text-lg text-white">-</span>
         <Input 
           type="number" 
           min={0}
@@ -253,7 +255,9 @@ export function MatchEditor({ match, teams, allTeamsMap, roundId, season, onUpda
             <SelectValue placeholder="アウェイ">
               {match.awayTeam && allTeamsMap.get(match.awayTeam) ? (
                 <div className="flex items-center gap-2">
-                  <Image src={allTeamsMap.get(match.awayTeam)!.logoUrl!} alt={allTeamsMap.get(match.awayTeam)!.name} width={20} height={20} className="rounded-full object-contain" />
+                  {allTeamsMap.get(match.awayTeam)!.logoUrl ? (
+                    <Image src={allTeamsMap.get(match.awayTeam)!.logoUrl!} alt={allTeamsMap.get(match.awayTeam)!.name} width={20} height={20} className="rounded-full object-contain" />
+                  ) : null}
                   <span>{allTeamsMap.get(match.awayTeam)!.name}</span>
                 </div>
               ) : "アウェイ"}

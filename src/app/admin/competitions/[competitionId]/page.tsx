@@ -25,6 +25,7 @@ interface Competition {
   id: string;
   name: string;
   season: string;
+  format?: 'league' | 'cup' | 'league_cup';
   teams?: string[]; // Array of team IDs
 }
 
@@ -76,6 +77,12 @@ function getRoundSortKey(name: string): number {
   if (s in special) return special[s];
 
   return 100000;
+}
+
+function isLeagueRoundName(name: string | undefined): boolean {
+  const s = (name || '').trim();
+  if (!s) return false;
+  return /^第?\s*(\d+)\s*節$/.test(s);
 }
 
 export default function CompetitionDetailPage() {
@@ -153,6 +160,13 @@ export default function CompetitionDetailPage() {
   }, [user, competitionId]);
 
   const currentRound = useMemo(() => rounds[currentRoundIndex], [rounds, currentRoundIndex]);
+
+  const canEditStandings = useMemo(() => {
+    const fmt = competition?.format;
+    if (fmt === 'cup') return false;
+    if (fmt === 'league_cup') return isLeagueRoundName(currentRound?.name);
+    return true;
+  }, [competition?.format, currentRound?.name]);
 
   const syncPublicMatchIndex = async (roundId: string, matchId: string, patch?: Partial<Match>) => {
     if (!user) return;
@@ -294,14 +308,16 @@ export default function CompetitionDetailPage() {
 
   return (
     <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-start mb-8">
         <div>
           <h1 className="text-2xl font-bold">{competition?.name}</h1>
           <p className="text-muted-foreground">{competition?.season}</p>
         </div>
-        <Link href={`/admin/competitions/${competitionId}/standings`}>
-          <Button variant="outline" className="text-gray-900">順位表</Button>
-        </Link>
+        {canEditStandings ? (
+          <Link href={`/admin/competitions/${competitionId}/standings`}>
+            <Button className="bg-green-600 text-white hover:bg-green-700">順位表を更新・編集</Button>
+          </Link>
+        ) : null}
       </div>
 
       <div className="flex justify-between items-center bg-card p-2 rounded-lg mb-8">
@@ -343,6 +359,11 @@ export default function CompetitionDetailPage() {
             </div>
           ))}
           <Button variant="outline" className="w-full text-gray-900" onClick={handleAddMatch}><PlusCircle className="mr-2 h-4 w-4" />試合を追加</Button>
+          {canEditStandings ? (
+            <Link href={`/admin/competitions/${competitionId}/standings`}>
+              <Button className="w-full bg-green-600 text-white hover:bg-green-700">順位表を更新・編集</Button>
+            </Link>
+          ) : null}
         </div>
       ) : (
         <div className="text-center py-10 text-muted-foreground">
