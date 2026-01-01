@@ -64,17 +64,21 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
           competitions[0];
         if (!selectedComp) return;
 
-        // 1. Fetch all teams for the club to get their details
+        const competitionDocRef = doc(db, `clubs/${selectedComp.ownerUid}/competitions`, selectedComp.id);
+
+        // 1. Fetch teams + competition doc + (optional) manually saved standings in parallel
+        const [allTeamsSnap, competitionSnap, standingsSnap] = await Promise.all([
+          getDocs(query(collection(db, `clubs/${selectedComp.ownerUid}/teams`))),
+          getDoc(competitionDocRef),
+          getDocs(collection(competitionDocRef, 'standings')),
+        ]);
+
         const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
-        const allTeamsSnap = await getDocs(query(collection(db, `clubs/${selectedComp.ownerUid}/teams`)));
-        allTeamsSnap.forEach(doc => {
-          teamsMap.set(doc.id, { name: doc.data().name, logoUrl: doc.data().logoUrl });
+        allTeamsSnap.forEach((d) => {
+          teamsMap.set(d.id, { name: (d.data() as any).name, logoUrl: (d.data() as any).logoUrl });
         });
 
-        // 2. Fetch the competition document to get the list of participating teams
-        const competitionDocRef = doc(db, `clubs/${selectedComp.ownerUid}/competitions`, selectedComp.id);
-        const competitionSnap = await getDoc(competitionDocRef);
-        const competitionData = competitionSnap.data();
+        const competitionData = competitionSnap.data() as any;
 
         // Save selected competition info (name/logo) for display
         setSelectedCompetition({
@@ -90,7 +94,6 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
         }
 
         // Prefer manually saved standings if present
-        const standingsSnap = await getDocs(collection(competitionDocRef, 'standings'));
         if (!standingsSnap.empty) {
           const fetchedStandings = standingsSnap.docs
             .map((d) => {
@@ -140,48 +143,46 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
             });
         }
 
-        // 4. Fetch all matches and calculate results
-        console.log('Calculating standings...');
+        // 4. Fetch all matches and calculate results (rounds->matches in parallel)
         const roundsSnap = await getDocs(collection(competitionDocRef, 'rounds'));
-        console.log(`Found ${roundsSnap.size} rounds.`);
-        let processedMatches = 0;
 
-        for (const roundDoc of roundsSnap.docs) {
+        const matchesByRound = await Promise.all(
+          roundsSnap.docs.map(async (roundDoc) => {
             const matchesSnap = await getDocs(collection(roundDoc.ref, 'matches'));
-            console.log(`Round ${roundDoc.id} has ${matchesSnap.size} matches.`);
-            matchesSnap.forEach(matchDoc => {
-                const match = matchDoc.data();
-                if (match.scoreHome == null || match.scoreAway == null || match.scoreHome === '' || match.scoreAway === '') {
-                    return;
-                }
-                processedMatches++;
+            return matchesSnap.docs.map((matchDoc) => matchDoc.data() as any);
+          })
+        );
 
-                const homeTeamId = match.homeTeam;
-                const awayTeamId = match.awayTeam;
-                const homeScore = Number(match.scoreHome);
-                const awayScore = Number(match.scoreAway);
+        for (const match of matchesByRound.flat()) {
+          if (match.scoreHome == null || match.scoreAway == null || match.scoreHome === '' || match.scoreAway === '') {
+            continue;
+          }
 
-                const homeStanding = standingsMap.get(homeTeamId);
-                const awayStanding = standingsMap.get(awayTeamId);
+          const homeTeamId = match.homeTeam;
+          const awayTeamId = match.awayTeam;
+          const homeScore = Number(match.scoreHome);
+          const awayScore = Number(match.scoreAway);
 
-                if (homeStanding) {
-                    homeStanding.played += 1;
-                    homeStanding.goalsFor += homeScore;
-                    homeStanding.goalsAgainst += awayScore;
-                    if (homeScore > awayScore) homeStanding.wins += 1;
-                    else if (homeScore < awayScore) homeStanding.losses += 1;
-                    else homeStanding.draws += 1;
-                }
+          const homeStanding = standingsMap.get(homeTeamId);
+          const awayStanding = standingsMap.get(awayTeamId);
 
-                if (awayStanding) {
-                    awayStanding.played += 1;
-                    awayStanding.goalsFor += awayScore;
-                    awayStanding.goalsAgainst += homeScore;
-                    if (awayScore > homeScore) awayStanding.wins += 1;
-                    else if (awayScore < homeScore) awayStanding.losses += 1;
-                    else awayStanding.draws += 1;
-                }
-            });
+          if (homeStanding) {
+            homeStanding.played += 1;
+            homeStanding.goalsFor += homeScore;
+            homeStanding.goalsAgainst += awayScore;
+            if (homeScore > awayScore) homeStanding.wins += 1;
+            else if (homeScore < awayScore) homeStanding.losses += 1;
+            else homeStanding.draws += 1;
+          }
+
+          if (awayStanding) {
+            awayStanding.played += 1;
+            awayStanding.goalsFor += awayScore;
+            awayStanding.goalsAgainst += homeScore;
+            if (awayScore > homeScore) awayStanding.wins += 1;
+            else if (awayScore < homeScore) awayStanding.losses += 1;
+            else awayStanding.draws += 1;
+          }
         }
 
         // 5. Finalize points and goal difference, then sort
@@ -200,9 +201,6 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
 
         // 6. Assign ranks
         const rankedStandings = finalStandings.map((s, index) => ({ ...s, rank: index + 1 }));
-
-        console.log('Processed matches with scores:', processedMatches);
-        console.log('Final calculated standings:', rankedStandings);
 
         setStandings(rankedStandings);
       } catch (error) {

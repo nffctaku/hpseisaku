@@ -55,41 +55,51 @@ async function getMatchesForClub(clubId: string) {
     const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
     const competitionsSnap = await competitionsQuery.get();
 
-    for (const compDoc of competitionsSnap.docs) {
-        const competitionData = compDoc.data();
-        const roundsQuery = db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`);
-        const roundsSnap = await roundsQuery.get();
+    const nestedMatches = await Promise.all(
+        competitionsSnap.docs.map(async (compDoc) => {
+            const competitionData = compDoc.data() as any;
+            const roundsQuery = db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`);
+            const roundsSnap = await roundsQuery.get();
 
-        for (const roundDoc of roundsSnap.docs) {
-            const roundData = roundDoc.data();
-            const matchesQuery = db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`);
-            const matchesSnap = await matchesQuery.get();
+            const matchesByRound = await Promise.all(
+                roundsSnap.docs.map(async (roundDoc) => {
+                    const roundData = roundDoc.data() as any;
+                    const matchesQuery = db.collection(
+                        `clubs/${ownerUid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`
+                    );
+                    const matchesSnap = await matchesQuery.get();
 
-            for (const matchDoc of matchesSnap.docs) {
-                const matchData = matchDoc.data();
-                const homeTeam = teamsMap.get(matchData.homeTeam);
-                const awayTeam = teamsMap.get(matchData.awayTeam);
+                    return matchesSnap.docs.map((matchDoc) => {
+                        const matchData = matchDoc.data() as any;
+                        const homeTeam = teamsMap.get(matchData.homeTeam);
+                        const awayTeam = teamsMap.get(matchData.awayTeam);
 
-                enrichedMatches.push({
-                    id: matchDoc.id,
-                    competitionId: compDoc.id,
-                    competitionName: competitionData.name,
-                    roundId: roundDoc.id,
-                    roundName: roundData.name,
-                    matchDate: matchData.matchDate,
-                    matchTime: matchData.matchTime,
-                    homeTeamId: matchData.homeTeam,
-                    awayTeamId: matchData.awayTeam,
-                    homeTeamName: homeTeam?.name || '不明なチーム',
-                    awayTeamName: awayTeam?.name || '不明なチーム',
-                    homeTeamLogo: homeTeam?.logoUrl,
-                    awayTeamLogo: awayTeam?.logoUrl,
-                    scoreHome: matchData.scoreHome,
-                    scoreAway: matchData.scoreAway,
-                });
-            }
-        }
-    }
+                        return {
+                            id: matchDoc.id,
+                            competitionId: compDoc.id,
+                            competitionName: competitionData.name,
+                            roundId: roundDoc.id,
+                            roundName: roundData.name,
+                            matchDate: matchData.matchDate,
+                            matchTime: matchData.matchTime,
+                            homeTeamId: matchData.homeTeam,
+                            awayTeamId: matchData.awayTeam,
+                            homeTeamName: homeTeam?.name || '不明なチーム',
+                            awayTeamName: awayTeam?.name || '不明なチーム',
+                            homeTeamLogo: homeTeam?.logoUrl,
+                            awayTeamLogo: awayTeam?.logoUrl,
+                            scoreHome: matchData.scoreHome,
+                            scoreAway: matchData.scoreAway,
+                        } as Match;
+                    });
+                })
+            );
+
+            return matchesByRound.flat();
+        })
+    );
+
+    enrichedMatches.push(...nestedMatches.flat());
 
     const friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
     friendlySnap.forEach((matchDoc) => {

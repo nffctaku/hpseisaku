@@ -25,7 +25,11 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
 
     const mainTeamId = typeof (profile as any)?.mainTeamId === "string" ? (profile as any).mainTeamId : null;
 
-    const teamsSnap = await db.collection(`clubs/${ownerUid}/teams`).get();
+    const [teamsSnap, competitionsSnap] = await Promise.all([
+      db.collection(`clubs/${ownerUid}/teams`).get(),
+      db.collection(`clubs/${ownerUid}/competitions`).get(),
+    ]);
+
     const teams = teamsSnap.docs
       .map((d) => {
         const data = d.data() as any;
@@ -36,7 +40,6 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
       })
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    const competitionsSnap = await db.collection(`clubs/${ownerUid}/competitions`).get();
     const competitions = competitionsSnap.docs
       .map((d) => {
         const data = d.data() as any;
@@ -51,53 +54,68 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
     const players: any[] = [];
     const playersByTeam = new Map<string, any[]>();
 
-    for (const team of teams) {
-      if (mainTeamId && team.id !== mainTeamId) continue;
-      const pSnap = await db.collection(`clubs/${ownerUid}/teams/${team.id}/players`).get();
-      const rows = pSnap.docs.map((p) => {
-        const data = p.data() as any;
-        return {
-          id: p.id,
-          name: data?.name,
-          number: data?.number ?? 0,
-          position: data?.position,
-          teamId: team.id,
-          manualCompetitionStats: Array.isArray(data?.manualCompetitionStats) ? data.manualCompetitionStats : [],
-          seasonData: data?.seasonData && typeof data.seasonData === "object" ? data.seasonData : {},
-        };
-      });
-      rows.sort((a, b) => (a.number ?? 0) - (b.number ?? 0) || String(a.name || "").localeCompare(String(b.name || "")));
-      playersByTeam.set(team.id, rows);
-      players.push(...rows);
+    const targetTeams = teams.filter((t) => !mainTeamId || t.id === mainTeamId);
+    const playersByTeamRows = await Promise.all(
+      targetTeams.map(async (team) => {
+        const pSnap = await db.collection(`clubs/${ownerUid}/teams/${team.id}/players`).get();
+        const rows = pSnap.docs.map((p) => {
+          const data = p.data() as any;
+          return {
+            id: p.id,
+            name: data?.name,
+            number: data?.number ?? 0,
+            position: data?.position,
+            teamId: team.id,
+            manualCompetitionStats: Array.isArray(data?.manualCompetitionStats) ? data.manualCompetitionStats : [],
+            seasonData: data?.seasonData && typeof data.seasonData === "object" ? data.seasonData : {},
+          };
+        });
+        rows.sort(
+          (a, b) => (a.number ?? 0) - (b.number ?? 0) || String(a.name || "").localeCompare(String(b.name || ""))
+        );
+        return { teamId: team.id, rows };
+      })
+    );
+
+    for (const item of playersByTeamRows) {
+      playersByTeam.set(item.teamId, item.rows);
+      players.push(...item.rows);
     }
 
-    const matches: any[] = [];
-    for (const comp of competitions) {
-      const roundsSnap = await db.collection(`clubs/${ownerUid}/competitions/${comp.id}/rounds`).get();
-      for (const round of roundsSnap.docs) {
-        const mSnap = await round.ref.collection("matches").get();
-        for (const m of mSnap.docs) {
-          const data = m.data() as any;
-          matches.push({
-            id: m.id,
-            competitionId: comp.id,
-            competitionName: comp.name,
-            competitionSeason: comp.season,
-            roundId: round.id,
-            roundName: data?.roundName || (round.data() as any)?.name,
-            matchDate: data?.matchDate,
-            homeTeamId: data?.homeTeam,
-            awayTeamId: data?.awayTeam,
-            homeTeamName: data?.homeTeamName,
-            awayTeamName: data?.awayTeamName,
-            scoreHome: data?.scoreHome,
-            scoreAway: data?.scoreAway,
-            teamStats: Array.isArray(data?.teamStats) ? data.teamStats : [],
-            playerStats: Array.isArray(data?.playerStats) ? data.playerStats : [],
-          });
-        }
-      }
-    }
+
+    const matchesNested = await Promise.all(
+      competitions.map(async (comp) => {
+        const roundsSnap = await db.collection(`clubs/${ownerUid}/competitions/${comp.id}/rounds`).get();
+        const byRound = await Promise.all(
+          roundsSnap.docs.map(async (round) => {
+            const mSnap = await round.ref.collection("matches").get();
+            return mSnap.docs.map((m) => {
+              const data = m.data() as any;
+              return {
+                id: m.id,
+                competitionId: comp.id,
+                competitionName: comp.name,
+                competitionSeason: comp.season,
+                roundId: round.id,
+                roundName: data?.roundName || (round.data() as any)?.name,
+                matchDate: data?.matchDate,
+                homeTeamId: data?.homeTeam,
+                awayTeamId: data?.awayTeam,
+                homeTeamName: data?.homeTeamName,
+                awayTeamName: data?.awayTeamName,
+                scoreHome: data?.scoreHome,
+                scoreAway: data?.scoreAway,
+                teamStats: Array.isArray(data?.teamStats) ? data.teamStats : [],
+                playerStats: Array.isArray(data?.playerStats) ? data.playerStats : [],
+              };
+            });
+          })
+        );
+        return byRound.flat();
+      })
+    );
+
+    const matches: any[] = matchesNested.flat();
 
     return NextResponse.json({
       ownerUid,

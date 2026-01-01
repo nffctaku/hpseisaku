@@ -157,15 +157,15 @@ async function getMatchDetail(
     // 大会名・ラウンド名がマッチドキュメントに無ければ、元のコレクションから補完
     let competitionName = data.competitionName as string | undefined;
     let roundName = data.roundName as string | undefined;
-    if (!competitionName) {
-      const compDoc = await db.doc(`clubs/${ownerUid}/competitions/${competitionId}`).get();
-      if (compDoc.exists) {
+    if (!competitionName || !roundName) {
+      const [compDoc, roundDoc] = await Promise.all([
+        !competitionName ? db.doc(`clubs/${ownerUid}/competitions/${competitionId}`).get() : Promise.resolve(null as any),
+        !roundName ? db.doc(`clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}`).get() : Promise.resolve(null as any),
+      ]);
+      if (!competitionName && compDoc && compDoc.exists) {
         competitionName = (compDoc.data() as any).name;
       }
-    }
-    if (!roundName) {
-      const roundDoc = await db.doc(`clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}`).get();
-      if (roundDoc.exists) {
+      if (!roundName && roundDoc && roundDoc.exists) {
         roundName = (roundDoc.data() as any).name;
       }
     }
