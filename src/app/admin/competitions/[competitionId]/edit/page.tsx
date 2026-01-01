@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, collection, query, getDocs } from "firebase/firestore";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
@@ -18,6 +18,8 @@ import Image from 'next/image';
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ClubEmblemUploader } from "@/components/club-emblem-uploader";
+
+const rankLabelColors = ["green", "red", "orange", "blue", "yellow"] as const;
 
 // NOTE: This is largely a copy of the new page, but adapted for editing.
 // It does not support changing the competition format or re-generating rounds after creation.
@@ -33,6 +35,21 @@ const formSchema = z.object({
   season: z.string().min(1, "シーズンを選択してください。"),
   teams: z.array(z.string()).min(1, "最低1チームは選択してください。"),
   logoUrl: z.string().url().optional().or(z.literal('')),
+  rankLabels: z
+    .array(
+      z
+        .object({
+          from: z.coerce.number().int().positive("1以上の数値を入力してください。"),
+          to: z.coerce.number().int().positive("1以上の数値を入力してください。"),
+          color: z.enum(rankLabelColors),
+        })
+        .refine((v) => v.from <= v.to, {
+          message: "開始順位は終了順位以下にしてください。",
+          path: ["to"],
+        })
+    )
+    .max(5, "ラベルは最大5つまでです。")
+    .optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -53,13 +70,23 @@ export default function EditCompetitionPage() {
   const [allTeams, setAllTeams] = useState<Team[]>([]);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as any,
     defaultValues: {
       name: "",
       season: "",
       teams: [],
       logoUrl: "",
+      rankLabels: [],
     },
+  });
+
+  const {
+    fields: rankLabelFields,
+    append: appendRankLabel,
+    remove: removeRankLabel,
+  } = useFieldArray({
+    control: form.control as any,
+    name: "rankLabels",
   });
 
 
@@ -84,6 +111,7 @@ export default function EditCompetitionPage() {
             season: data.season,
             teams: data.teams || [],
             logoUrl: data.logoUrl || "",
+            rankLabels: Array.isArray((data as any).rankLabels) ? (data as any).rankLabels : [],
           });
         } else {
           toast.error("大会が見つかりません。");
@@ -99,7 +127,7 @@ export default function EditCompetitionPage() {
     fetchData();
   }, [user, competitionId, router, form]);
 
-  const onSubmit = async (data: FormValues) => {
+  const onSubmit: SubmitHandler<FormValues> = async (data) => {
     if (!user || !competitionId) return;
     setLoading(true);
     try {
@@ -109,6 +137,7 @@ export default function EditCompetitionPage() {
         season: data.season,
         teams: data.teams, // Save array of team IDs
         logoUrl: data.logoUrl || null,
+        rankLabels: Array.isArray((data as any).rankLabels) ? (data as any).rankLabels : [],
       });
       toast.success("大会情報が更新されました。");
       router.push("/admin/competitions");
@@ -183,7 +212,7 @@ export default function EditCompetitionPage() {
                     大会に参加するチームを選択してください。
                   </FormDescription>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {allTeams.map((team) => (
                     <FormField
                       key={team.id}
@@ -193,7 +222,7 @@ export default function EditCompetitionPage() {
                         return (
                           <FormItem
                             key={team.id}
-                            className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 transition-colors hover:bg-muted/50 data-[state=checked]:bg-primary/10"
+                            className="flex flex-row items-start gap-2 space-y-0 rounded-md border p-2 transition-colors hover:bg-muted/50 data-[state=checked]:bg-primary/10"
                           >
                             <FormControl>
                               <Checkbox
@@ -209,14 +238,14 @@ export default function EditCompetitionPage() {
                                 }}
                               />
                             </FormControl>
-                            <FormLabel className="font-normal flex-grow cursor-pointer">
-                              <div className="flex items-center gap-2">
+                            <FormLabel className="font-normal flex-1 min-w-0 cursor-pointer">
+                              <div className="flex items-start gap-2 min-w-0">
                                 {team.logoUrl ? (
                                   <Image src={team.logoUrl} alt={team.name} width={24} height={24} className="rounded-full object-contain" />
                                 ) : (
                                   <div className="w-6 h-6 bg-muted rounded-full" />
                                 )}
-                                <span>{team.name}</span>
+                                <span className="min-w-0 text-xs leading-snug line-clamp-2">{team.name}</span>
                               </div>
                             </FormLabel>
                           </FormItem>
@@ -229,6 +258,112 @@ export default function EditCompetitionPage() {
               </FormItem>
             )}
           />
+
+            <div className="space-y-4">
+              <div>
+                <FormLabel className="text-base">順位ラベル</FormLabel>
+                <FormDescription>
+                  順位表の左端に色付きラベルを表示します（最大5つ）。
+                </FormDescription>
+              </div>
+
+              <div className="space-y-3">
+                {rankLabelFields.map((f, idx) => (
+                  <div key={f.id} className="grid grid-cols-12 gap-2 rounded-md border p-2 overflow-hidden">
+                    <div className="col-span-4">
+                      <FormField
+                        control={form.control}
+                        name={`rankLabels.${idx}.from`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-[11px]">開始</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="1" className="h-7 w-[72px] px-2 text-xs" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="col-span-1 flex items-end justify-center pb-2 text-sm text-muted-foreground">
+                      〜
+                    </div>
+                    <div className="col-span-4">
+                      <FormField
+                        control={form.control}
+                        name={`rankLabels.${idx}.to`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-[11px]">終了</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="4" className="h-7 w-[72px] px-2 text-xs" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="col-span-3 min-w-0">
+                      <div className="h-[11px]" />
+                    </div>
+
+                    <div className="col-span-10 min-w-0">
+                      <FormField
+                        control={form.control}
+                        name={`rankLabels.${idx}.color`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-[11px]">色</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger className="h-7 w-full min-w-0 text-xs">
+                                  <SelectValue placeholder="色" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {rankLabelColors.map((c) => (
+                                  <SelectItem key={c} value={c}>
+                                    {c}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="col-span-2 flex justify-end items-end">
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => removeRankLabel(idx)}
+                        className="h-8 w-8 bg-red-600 text-white hover:bg-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                <div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (rankLabelFields.length >= 5) return;
+                      appendRankLabel({ from: 1, to: 1, color: "green" } as any);
+                    }}
+                    disabled={rankLabelFields.length >= 5}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    ラベルを追加
+                  </Button>
+                </div>
+              </div>
+            </div>
 
             <Button type="submit" disabled={loading} className="w-full">
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

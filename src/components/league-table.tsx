@@ -20,6 +20,14 @@ interface Competition {
   ownerUid: string;
 }
 
+type RankLabelColor = "green" | "red" | "orange" | "blue" | "yellow";
+
+interface RankLabelRule {
+  from: number;
+  to: number;
+  color: RankLabelColor;
+}
+
 interface Standing {
   id: string;
   rank: number;
@@ -44,6 +52,7 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompetition, setSelectedCompetition] = useState<{ name: string; logoUrl?: string } | null>(null);
+  const [rankLabels, setRankLabels] = useState<RankLabelRule[]>([]);
 
   const formatGoalDifference = (value: number) => {
     if (value > 0) return `+${value}`;
@@ -79,6 +88,26 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
         });
 
         const competitionData = competitionSnap.data() as any;
+
+        const fetchedRankLabels: RankLabelRule[] = Array.isArray((competitionData as any)?.rankLabels)
+          ? ((competitionData as any).rankLabels as any[])
+              .map((r) => ({
+                from: Number((r as any).from),
+                to: Number((r as any).to),
+                color: (r as any).color as RankLabelColor,
+              }))
+              .filter(
+                (r) =>
+                  Number.isFinite(r.from) &&
+                  Number.isFinite(r.to) &&
+                  r.from > 0 &&
+                  r.to > 0 &&
+                  r.from <= r.to &&
+                  ["green", "red", "orange", "blue", "yellow"].includes(r.color)
+              )
+          : [];
+
+        setRankLabels(fetchedRankLabels);
 
         // Save selected competition info (name/logo) for display
         setSelectedCompetition({
@@ -280,7 +309,29 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
             <TableBody>
               {standings.map((team) => (
                 <TableRow key={team.id}>
-                  <TableCell className="font-medium px-1 py-0.5 sm:px-2 sm:py-1">{team.rank}</TableCell>
+                  <TableCell className="font-medium px-1 py-0.5 sm:px-2 sm:py-1 relative">
+                    {(() => {
+                      const rule = rankLabels.find((r) => team.rank >= r.from && team.rank <= r.to);
+                      if (!rule) return null;
+                      const colorClass =
+                        rule.color === "green"
+                          ? "bg-emerald-500"
+                          : rule.color === "red"
+                            ? "bg-red-500"
+                            : rule.color === "orange"
+                              ? "bg-orange-500"
+                              : rule.color === "blue"
+                                ? "bg-blue-500"
+                                : "bg-yellow-400";
+                      return (
+                        <span
+                          className={`absolute left-0 top-0 bottom-0 ${colorClass}`}
+                          style={{ width: "2px", top: "2px", bottom: "2px" }}
+                        />
+                      );
+                    })()}
+                    {team.rank}
+                  </TableCell>
                   <TableCell className="px-1 py-0.5 sm:px-2 sm:py-1">
                     <div className="flex items-center gap-1.5">
                       {team.logoUrl ? (
