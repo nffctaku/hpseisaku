@@ -170,8 +170,8 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
     const feeClass = directionLabel === "IN" ? "text-red-600" : "text-emerald-600";
 
     return (
-      <div className="overflow-hidden rounded-lg border bg-white">
-        <div className="px-4 py-3 border-b">
+      <div className="overflow-hidden rounded-lg border-2 border-sky-600 bg-white">
+        <div className="px-4 py-3 border-b border-sky-500">
           <h2 className="text-lg font-semibold">{directionLabel}</h2>
         </div>
         {rows.length === 0 ? (
@@ -223,7 +223,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
   };
 
   return (
-    <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
+    <main className="min-h-screen flex flex-col bg-white">
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
 
       <div className="flex-1 w-full">
@@ -258,15 +258,15 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <div className="rounded-lg border bg-white px-4 py-3">
+            <div className="rounded-lg border-2 border-sky-600 bg-white px-4 py-3">
               <div className="text-xs text-muted-foreground">IN 合計</div>
               <div className="text-sm font-semibold text-red-600">{formatFeesSummary(inTotals)}</div>
             </div>
-            <div className="rounded-lg border bg-white px-4 py-3">
+            <div className="rounded-lg border-2 border-sky-600 bg-white px-4 py-3">
               <div className="text-xs text-muted-foreground">OUT 合計</div>
               <div className="text-sm font-semibold text-emerald-600">{formatFeesSummary(outTotals)}</div>
             </div>
-            <div className="rounded-lg border bg-white px-4 py-3">
+            <div className="rounded-lg border-2 border-sky-600 bg-white px-4 py-3">
               <div className="text-xs text-muted-foreground">収支</div>
               <div
                 className={`text-sm font-semibold ${
@@ -285,6 +285,10 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <TransferTable rows={inTransfers} directionLabel="IN" />
             <TransferTable rows={outTransfers} directionLabel="OUT" />
+          </div>
+
+          <div className="text-xs text-muted-foreground">
+            完＝完全移籍 / レ＝レンタル移籍 / 昇＝昇格 / 解＝契約解除 / 満＝契約満了
           </div>
         </div>
       </div>

@@ -88,6 +88,13 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
               Club
             </Link>
             <Link
+              href={`/${clubId}/transfers`}
+              className={navLinkClass(pathname?.startsWith(`/${clubId}/transfers`) ?? false, isNavigating)}
+              onClick={() => setNavigatingTo(`/${clubId}/transfers`)}
+            >
+              Transfers
+            </Link>
+            <Link
               href={`/${clubId}/results`}
               className={navLinkClass(pathname?.startsWith(`/${clubId}/results`) ?? false, isNavigating)}
               onClick={() => setNavigatingTo(`/${clubId}/results`)}
@@ -128,77 +135,89 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
       {/* Mobile dropdown menu */}
       {menuOpen && (
         <div className="sm:hidden border-t border-border/60 bg-black text-white">
-          <nav className="container mx-auto px-3 py-4 flex flex-col gap-2 text-base text-center">
-            <Link
-              href={`/${clubId}/news`}
-              className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => {
-                setNavigatingTo(`/${clubId}/news`);
-                setMenuOpen(false);
-              }}
-            >
-              News
-            </Link>
-            <Link
-              href={`/${clubId}/tv`}
-              className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => {
-                setNavigatingTo(`/${clubId}/tv`);
-                setMenuOpen(false);
-              }}
-            >
-              TV
-            </Link>
-            <Link
-              href={`/${clubId}/club`}
-              className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => {
-                setNavigatingTo(`/${clubId}/club`);
-                setMenuOpen(false);
-              }}
-            >
-              Club
-            </Link>
-            <Link
-              href={`/${clubId}/results`}
-              className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => {
-                setNavigatingTo(`/${clubId}/results`);
-                setMenuOpen(false);
-              }}
-            >
-              Matches
-            </Link>
-            <Link
-              href={`/${clubId}/table`}
-              className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => {
-                setNavigatingTo(`/${clubId}/table`);
-                setMenuOpen(false);
-              }}
-            >
-              Table
-            </Link>
-            <Link
-              href={`/${clubId}/stats`}
-              className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => {
-                setNavigatingTo(`/${clubId}/stats`);
-                setMenuOpen(false);
-              }}
-            >
-              Stats
-            </Link>
-            <Link
-              href={`/${clubId}/players`}
-              className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => {
-                setNavigatingTo(`/${clubId}/players`);
-                setMenuOpen(false);
-              }}
-            >
-              Squad
-            </Link>
+          <nav className="container mx-auto px-3 py-3 text-sm">
+            <div className="grid grid-cols-2 gap-1">
+              <Link
+                href={`/${clubId}/news`}
+                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
+                onClick={() => {
+                  setNavigatingTo(`/${clubId}/news`);
+                  setMenuOpen(false);
+                }}
+              >
+                News
+              </Link>
+              <Link
+                href={`/${clubId}/tv`}
+                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
+                onClick={() => {
+                  setNavigatingTo(`/${clubId}/tv`);
+                  setMenuOpen(false);
+                }}
+              >
+                TV
+              </Link>
+              <Link
+                href={`/${clubId}/club`}
+                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
+                onClick={() => {
+                  setNavigatingTo(`/${clubId}/club`);
+                  setMenuOpen(false);
+                }}
+              >
+                Club
+              </Link>
+              <Link
+                href={`/${clubId}/transfers`}
+                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
+                onClick={() => {
+                  setNavigatingTo(`/${clubId}/transfers`);
+                  setMenuOpen(false);
+                }}
+              >
+                Transfers
+              </Link>
+              <Link
+                href={`/${clubId}/results`}
+                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
+                onClick={() => {
+                  setNavigatingTo(`/${clubId}/results`);
+                  setMenuOpen(false);
+                }}
+              >
+                Matches
+              </Link>
+              <Link
+                href={`/${clubId}/table`}
+                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
+                onClick={() => {
+                  setNavigatingTo(`/${clubId}/table`);
+                  setMenuOpen(false);
+                }}
+              >
+                Table
+              </Link>
+              <Link
+                href={`/${clubId}/stats`}
+                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
+                onClick={() => {
+                  setNavigatingTo(`/${clubId}/stats`);
+                  setMenuOpen(false);
+                }}
+              >
+                Stats
+              </Link>
+              <Link
+                href={`/${clubId}/players`}
+                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
+                onClick={() => {
+                  setNavigatingTo(`/${clubId}/players`);
+                  setMenuOpen(false);
+                }}
+              >
+                Squad
+              </Link>
+            </div>
             {snsLinks && (snsLinks.x || snsLinks.youtube || snsLinks.tiktok || snsLinks.instagram) && (
               <div className="mt-3 pt-3 border-t border-border/60 flex justify-center gap-4 text-white">
                 {snsLinks.youtube && (

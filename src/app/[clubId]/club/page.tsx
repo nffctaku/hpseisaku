@@ -89,94 +89,106 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
 
       <div className="flex-1 w-full">
         <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <h1 className="text-3xl font-bold">{clubName}</h1>
+        <h1 className="text-3xl font-bold text-white">{clubName}</h1>
 
-        {stadiumPhotoUrl && stadiumPhotoUrl.length > 0 && (
-          <div className="mt-5 overflow-hidden rounded-lg border bg-white/60">
-            <div className="relative w-full aspect-[16/9]">
-              <Image src={stadiumPhotoUrl} alt={stadiumName || "Stadium"} fill className="object-cover" sizes="(max-width: 768px) 100vw, 768px" />
+        <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            {stadiumPhotoUrl && stadiumPhotoUrl.length > 0 ? (
+              <div className="overflow-hidden rounded-lg border bg-white/60">
+                <div className="relative w-full h-[220px] sm:h-[280px] md:h-[320px] lg:h-[360px]">
+                  <Image
+                    src={stadiumPhotoUrl}
+                    alt={stadiumName || "Stadium"}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 90vw, 1024px"
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-4">
+            {snsLinks && (snsLinks.x || snsLinks.youtube || snsLinks.tiktok || snsLinks.instagram) && (
+              <div className="flex flex-wrap items-center gap-3">
+                {snsLinks.youtube && (
+                  <Link
+                    href={snsLinks.youtube}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-10 h-10 rounded-full bg-white/60 border flex items-center justify-center hover:bg-white/80 transition-colors"
+                    aria-label="YouTube"
+                  >
+                    <FaYoutube className="w-5 h-5" />
+                  </Link>
+                )}
+                {snsLinks.x && (
+                  <Link
+                    href={snsLinks.x}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-10 h-10 rounded-full bg-white/60 border flex items-center justify-center hover:bg-white/80 transition-colors"
+                    aria-label="X"
+                  >
+                    <FaXTwitter className="w-4 h-4" />
+                  </Link>
+                )}
+                {snsLinks.tiktok && (
+                  <Link
+                    href={snsLinks.tiktok}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-10 h-10 rounded-full bg-white/60 border flex items-center justify-center hover:bg-white/80 transition-colors"
+                    aria-label="TikTok"
+                  >
+                    <FaTiktok className="w-4 h-4" />
+                  </Link>
+                )}
+                {snsLinks.instagram && (
+                  <Link
+                    href={snsLinks.instagram}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-10 h-10 rounded-full bg-white/60 border flex items-center justify-center hover:bg-white/80 transition-colors"
+                    aria-label="Instagram"
+                  >
+                    <FaInstagram className="w-4 h-4" />
+                  </Link>
+                )}
+              </div>
+            )}
+
+            <div>
+              <Button asChild variant="outline" className="bg-white/60 hover:bg-white/80">
+                <Link href={`/${clubId}/transfers`}>移籍履歴</Link>
+              </Button>
             </div>
-          </div>
-        )}
 
-        {snsLinks && (snsLinks.x || snsLinks.youtube || snsLinks.tiktok || snsLinks.instagram) && (
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            {snsLinks.youtube && (
-              <Link
-                href={snsLinks.youtube}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-10 h-10 rounded-full bg-white/60 border flex items-center justify-center hover:bg-white/80 transition-colors"
-                aria-label="YouTube"
-              >
-                <FaYoutube className="w-5 h-5" />
-              </Link>
-            )}
-            {snsLinks.x && (
-              <Link
-                href={snsLinks.x}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-10 h-10 rounded-full bg-white/60 border flex items-center justify-center hover:bg-white/80 transition-colors"
-                aria-label="X"
-              >
-                <FaXTwitter className="w-4 h-4" />
-              </Link>
-            )}
-            {snsLinks.tiktok && (
-              <Link
-                href={snsLinks.tiktok}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-10 h-10 rounded-full bg-white/60 border flex items-center justify-center hover:bg-white/80 transition-colors"
-                aria-label="TikTok"
-              >
-                <FaTiktok className="w-4 h-4" />
-              </Link>
-            )}
-            {snsLinks.instagram && (
-              <Link
-                href={snsLinks.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-10 h-10 rounded-full bg-white/60 border flex items-center justify-center hover:bg-white/80 transition-colors"
-                aria-label="Instagram"
-              >
-                <FaInstagram className="w-4 h-4" />
-              </Link>
-            )}
-          </div>
-        )}
-
-        <div className="mt-4">
-          <Button asChild variant="outline" className="bg-white/60 hover:bg-white/80">
-            <Link href={`/${clubId}/transfers`}>移籍履歴</Link>
-          </Button>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-lg border bg-white/60 p-4">
-            <div className="text-xs text-muted-foreground">創立</div>
-            <div className="mt-1 text-base font-medium">{foundedYear && foundedYear.length > 0 ? foundedYear : '-'}</div>
-          </div>
-          <div className="rounded-lg border bg-white/60 p-4">
-            <div className="text-xs text-muted-foreground">ホームタウン</div>
-            <div className="mt-1 text-base font-medium">{hometown && hometown.length > 0 ? hometown : '-'}</div>
-          </div>
-          <div className="rounded-lg border bg-white/60 p-4">
-            <div className="text-xs text-muted-foreground">スタジアム名</div>
-            <div className="mt-1 text-base font-medium">{stadiumName && stadiumName.length > 0 ? stadiumName : '-'}</div>
-          </div>
-          <div className="rounded-lg border bg-white/60 p-4">
-            <div className="text-xs text-muted-foreground">収容人数</div>
-            <div className="mt-1 text-base font-medium">{stadiumCapacity && stadiumCapacity.length > 0 ? stadiumCapacity : '-'}</div>
+            <div className="space-y-3">
+              <div className="rounded-lg border bg-white/60 p-4">
+                <div className="text-xs text-muted-foreground">創立</div>
+                <div className="mt-1 text-base font-medium">{foundedYear && foundedYear.length > 0 ? foundedYear : '-'}</div>
+              </div>
+              <div className="rounded-lg border bg-white/60 p-4">
+                <div className="text-xs text-muted-foreground">ホームタウン</div>
+                <div className="mt-1 text-base font-medium">{hometown && hometown.length > 0 ? hometown : '-'}</div>
+              </div>
+              <div className="rounded-lg border bg-white/60 p-4">
+                <div className="text-xs text-muted-foreground">スタジアム名</div>
+                <div className="mt-1 text-base font-medium">{stadiumName && stadiumName.length > 0 ? stadiumName : '-'}</div>
+              </div>
+              <div className="rounded-lg border bg-white/60 p-4">
+                <div className="text-xs text-muted-foreground">収容人数</div>
+                <div className="mt-1 text-base font-medium">{stadiumCapacity && stadiumCapacity.length > 0 ? stadiumCapacity : '-'}</div>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="mt-8">
-          <h2 className="text-xl font-semibold">獲得タイトル</h2>
+          <h2 className="text-xl font-semibold text-white">獲得タイトル</h2>
           {groupedTitles.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">登録されたタイトルはありません。</p>
+            <p className="mt-2 text-sm text-white/80">登録されたタイトルはありません。</p>
           ) : (
             <div className="mt-3 overflow-hidden rounded-lg border bg-white/60">
               <div className="grid grid-cols-[1fr,7rem] gap-2 border-b px-4 py-2 text-xs text-muted-foreground">
