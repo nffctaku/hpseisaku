@@ -11,6 +11,7 @@ import { ClubHeader } from "@/components/club-header";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { PublicPlayerOverallBySeasonChart } from "@/components/public-player-overall-by-season-chart";
 import { PublicPlayerSeasonSummaries } from "@/components/public-player-season-summaries";
+import { cache } from "react";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -128,14 +129,8 @@ function scorePlayerDocForPublic(data: any): number {
 }
 
 async function getRosterSeasonIdsOnly(ownerUid: string, playerId: string): Promise<string[]> {
-  const seasonsSnap = await db.collection(`clubs/${ownerUid}/seasons`).get();
-  const rosterSeasonIds: string[] = [];
-  for (const seasonDoc of seasonsSnap.docs) {
-    const rosterDocSnap = await seasonDoc.ref.collection("roster").doc(playerId).get();
-    if (rosterDocSnap.exists) {
-      rosterSeasonIds.push(seasonDoc.id);
-    }
-  }
+  const hits = await getRosterHits(ownerUid, playerId);
+  const rosterSeasonIds = hits.map((h) => h.seasonId);
   const normalized = rosterSeasonIds
     .map((s) => (typeof s === "string" ? s.trim() : ""))
     .filter((s) => s.length > 0)
@@ -145,30 +140,37 @@ async function getRosterSeasonIdsOnly(ownerUid: string, playerId: string): Promi
 }
 
 async function getPreferredTeamIdsFromRoster(ownerUid: string, playerId: string): Promise<string[]> {
-  const seasonsSnap = await db.collection(`clubs/${ownerUid}/seasons`).get();
+  const hits = await getRosterHits(ownerUid, playerId);
   const teamIds: string[] = [];
-  for (const seasonDoc of seasonsSnap.docs) {
-    const rosterDocSnap = await seasonDoc.ref.collection("roster").doc(playerId).get();
-    if (!rosterDocSnap.exists) continue;
-    const data = rosterDocSnap.data() as any;
-    const teamId = typeof data?.teamId === "string" ? data.teamId.trim() : "";
+  for (const h of hits) {
+    const teamId = typeof (h.data as any)?.teamId === "string" ? String((h.data as any).teamId).trim() : "";
     if (teamId) teamIds.push(teamId);
   }
   return Array.from(new Set(teamIds));
 }
 
 async function getLatestRosterPlayer(ownerUid: string, playerId: string): Promise<{ seasonId: string; data: any } | null> {
-  const seasonsSnap = await db.collection(`clubs/${ownerUid}/seasons`).get();
-  const hits: { seasonId: string; data: any }[] = [];
-  for (const seasonDoc of seasonsSnap.docs) {
-    const rosterDocSnap = await seasonDoc.ref.collection("roster").doc(playerId).get();
-    if (!rosterDocSnap.exists) continue;
-    hits.push({ seasonId: seasonDoc.id, data: rosterDocSnap.data() as any });
-  }
+  const hits = await getRosterHits(ownerUid, playerId);
   if (hits.length === 0) return null;
-  hits.sort((a, b) => toSlashSeason(b.seasonId).localeCompare(toSlashSeason(a.seasonId)));
-  return hits[0] ?? null;
+  const sorted = [...hits].sort((a, b) => toSlashSeason(b.seasonId).localeCompare(toSlashSeason(a.seasonId)));
+  return sorted[0] ?? null;
 }
+
+const getRosterHits = cache(async (ownerUid: string, playerId: string): Promise<{ seasonId: string; data: any }[]> => {
+  const seasonsSnap = await db.collection(`clubs/${ownerUid}/seasons`).get();
+  if (seasonsSnap.empty) return [];
+
+  const rosterSnaps = await Promise.all(
+    seasonsSnap.docs.map(async (seasonDoc) => {
+      const rosterDocSnap = await seasonDoc.ref.collection("roster").doc(playerId).get();
+      return { seasonId: seasonDoc.id, snap: rosterDocSnap };
+    })
+  );
+
+  return rosterSnaps
+    .filter((x) => x.snap.exists)
+    .map((x) => ({ seasonId: x.seasonId, data: x.snap.data() as any }));
+});
 
 function mergeWithoutUndefined(base: any, patch: any): any {
   const out: any = { ...(base || {}) };
@@ -203,13 +205,19 @@ async function findBestPlayerDoc(ownerUid: string, playerId: string, preferredSe
   const preferred = Array.isArray(preferredSeasons) ? preferredSeasons : [];
   const preferredTeams = Array.isArray(preferredTeamIds) ? preferredTeamIds : [];
 
-  for (const teamDoc of teamsSnap.docs) {
-    const playerSnap = await teamDoc.ref.collection("players").doc(playerId).get();
-    if (!playerSnap.exists) continue;
-    const data = playerSnap.data() as any;
+  const candidateSnaps = await Promise.all(
+    teamsSnap.docs.map(async (teamDoc) => {
+      const snap = await teamDoc.ref.collection("players").doc(playerId).get();
+      return { teamId: teamDoc.id, snap };
+    })
+  );
+
+  for (const c of candidateSnaps) {
+    if (!c.snap.exists) continue;
+    const data = c.snap.data() as any;
 
     const seasonMatchScore = scorePlayerDocSeasonMatch(data, preferred);
-    const teamMatchScore = preferredTeams.length > 0 && preferredTeams.includes(teamDoc.id) ? 100_000_000 : 0;
+    const teamMatchScore = preferredTeams.length > 0 && preferredTeams.includes(c.teamId) ? 100_000_000 : 0;
     const score = scorePlayerDocForPublic(data) + seasonMatchScore + teamMatchScore;
 
     if (!best || score > best.score) {
@@ -221,14 +229,8 @@ async function findBestPlayerDoc(ownerUid: string, playerId: string, preferredSe
 }
 
 async function getRegisteredSeasonIds(ownerUid: string, playerId: string, playerSeasons: string[] | undefined): Promise<string[]> {
-  const seasonsSnap = await db.collection(`clubs/${ownerUid}/seasons`).get();
-  const rosterSeasonIds: string[] = [];
-  for (const seasonDoc of seasonsSnap.docs) {
-    const rosterDocSnap = await seasonDoc.ref.collection("roster").doc(playerId).get();
-    if (rosterDocSnap.exists) {
-      rosterSeasonIds.push(seasonDoc.id);
-    }
-  }
+  const hits = await getRosterHits(ownerUid, playerId);
+  const rosterSeasonIds: string[] = hits.map((h) => h.seasonId);
 
   const base = rosterSeasonIds.length > 0 ? rosterSeasonIds : (Array.isArray(playerSeasons) ? playerSeasons : []);
   const normalized = base
