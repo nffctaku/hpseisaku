@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Menu } from "lucide-react";
+import { Loader2, Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
 
 interface ClubHeaderProps {
@@ -20,6 +21,13 @@ interface ClubHeaderProps {
 
 export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+  const pathname = usePathname();
+
+  const isNavigating = navigatingTo != null;
+
+  const navLinkClass = (active: boolean, disabled: boolean) =>
+    `${active ? "text-primary" : ""} ${disabled ? "opacity-60 pointer-events-none" : ""} hover:text-primary transition-colors inline-flex items-center gap-1.5`;
 
   return (
     <header className="w-full border-b border-border/60 bg-background/80 backdrop-blur relative z-20">
@@ -58,27 +66,61 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
 
           {/* Desktop navigation */}
           <nav className="hidden sm:flex items-center gap-2.5 sm:gap-4 md:gap-6">
-            <Link href={`/${clubId}/news`} className="hover:text-primary transition-colors">
+            <Link
+              href={`/${clubId}/news`}
+              className={navLinkClass(pathname?.startsWith(`/${clubId}/news`) ?? false, isNavigating)}
+              onClick={() => setNavigatingTo(`/${clubId}/news`)}
+            >
               News
             </Link>
-            <Link href={`/${clubId}/tv`} className="hover:text-primary transition-colors">
+            <Link
+              href={`/${clubId}/tv`}
+              className={navLinkClass(pathname?.startsWith(`/${clubId}/tv`) ?? false, isNavigating)}
+              onClick={() => setNavigatingTo(`/${clubId}/tv`)}
+            >
               TV
             </Link>
-            <Link href={`/${clubId}/club`} className="hover:text-primary transition-colors">
+            <Link
+              href={`/${clubId}/club`}
+              className={navLinkClass(pathname?.startsWith(`/${clubId}/club`) ?? false, isNavigating)}
+              onClick={() => setNavigatingTo(`/${clubId}/club`)}
+            >
               Club
             </Link>
-            <Link href={`/${clubId}/results`} className="hover:text-primary transition-colors">
+            <Link
+              href={`/${clubId}/results`}
+              className={navLinkClass(pathname?.startsWith(`/${clubId}/results`) ?? false, isNavigating)}
+              onClick={() => setNavigatingTo(`/${clubId}/results`)}
+            >
               Matches
             </Link>
-            <Link href={`/${clubId}/table`} className="hover:text-primary transition-colors">
+            <Link
+              href={`/${clubId}/table`}
+              className={navLinkClass(pathname?.startsWith(`/${clubId}/table`) ?? false, isNavigating)}
+              onClick={() => setNavigatingTo(`/${clubId}/table`)}
+            >
               Table
             </Link>
-            <Link href={`/${clubId}/stats`} className="hover:text-primary transition-colors">
+            <Link
+              href={`/${clubId}/stats`}
+              className={navLinkClass(pathname?.startsWith(`/${clubId}/stats`) ?? false, isNavigating)}
+              onClick={() => setNavigatingTo(`/${clubId}/stats`)}
+            >
               Stats
             </Link>
-            <Link href={`/${clubId}/players`} className="hover:text-primary transition-colors">
+            <Link
+              href={`/${clubId}/players`}
+              className={navLinkClass(pathname?.startsWith(`/${clubId}/players`) ?? false, isNavigating)}
+              onClick={() => setNavigatingTo(`/${clubId}/players`)}
+            >
               Squad
             </Link>
+
+            {isNavigating && (
+              <span className="inline-flex items-center text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+              </span>
+            )}
           </nav>
         </div>
       </div>
@@ -90,49 +132,70 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
             <Link
               href={`/${clubId}/news`}
               className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setNavigatingTo(`/${clubId}/news`);
+                setMenuOpen(false);
+              }}
             >
               News
             </Link>
             <Link
               href={`/${clubId}/tv`}
               className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setNavigatingTo(`/${clubId}/tv`);
+                setMenuOpen(false);
+              }}
             >
               TV
             </Link>
             <Link
               href={`/${clubId}/club`}
               className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setNavigatingTo(`/${clubId}/club`);
+                setMenuOpen(false);
+              }}
             >
               Club
             </Link>
             <Link
               href={`/${clubId}/results`}
               className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setNavigatingTo(`/${clubId}/results`);
+                setMenuOpen(false);
+              }}
             >
               Matches
             </Link>
             <Link
               href={`/${clubId}/table`}
               className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setNavigatingTo(`/${clubId}/table`);
+                setMenuOpen(false);
+              }}
             >
               Table
             </Link>
             <Link
               href={`/${clubId}/stats`}
               className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setNavigatingTo(`/${clubId}/stats`);
+                setMenuOpen(false);
+              }}
             >
               Stats
             </Link>
             <Link
               href={`/${clubId}/players`}
               className="py-4 rounded hover:bg-white/10 transition-colors"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setNavigatingTo(`/${clubId}/players`);
+                setMenuOpen(false);
+              }}
             >
               Squad
             </Link>

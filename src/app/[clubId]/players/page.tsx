@@ -103,13 +103,18 @@ async function getPlayersData(
   }
   const players: Player[] = [];
 
-  for (const teamDoc of teamsSnap.docs) {
-    const teamPlayersRef = teamDoc.ref.collection("players").orderBy("number", "asc");
-    const teamPlayersSnap = await teamPlayersRef.get();
-    teamPlayersSnap.docs.forEach((pDoc) => {
-      players.push({ id: pDoc.id, ...(pDoc.data() as any) } as Player);
-    });
-  }
+  const playersByTeam = await Promise.all(
+    teamsSnap.docs.map(async (teamDoc) => {
+      const teamPlayersRef = teamDoc.ref.collection("players").orderBy("number", "asc");
+      const teamPlayersSnap = await teamPlayersRef.get();
+      return teamPlayersSnap.docs.map((pDoc) => ({
+        id: pDoc.id,
+        ...(pDoc.data() as any),
+      })) as Player[];
+    })
+  );
+
+  players.push(...playersByTeam.flat());
 
   // シーズンでフィルタ（seasons 未設定 or 空配列は全シーズン所属として扱う）
   let filteredPlayers = activeSeason
