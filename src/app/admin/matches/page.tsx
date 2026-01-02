@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth, db } from "@/lib/firebase";
 import { collection, query, getDocs, orderBy, where } from "firebase/firestore";
@@ -76,22 +76,29 @@ export default function MatchesPage() {
   const [initialFocusMatchId, setInitialFocusMatchId] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
+  const didInitPreferredTeamRef = useRef(false);
+  const bootstrapDoneRef = useRef(false);
+  const teamsMapRef = useRef<Map<string, Team>>(new Map());
+  const competitionMetaRef = useRef<Map<string, { name: string; season?: string }>>(new Map());
+  const activeFetchIdRef = useRef(0);
+
   useEffect(() => {
     if (!user) {
       setLoading(false);
       return;
     }
-    setLoading(true);
 
-    const fetchData = async () => {
+    const bootstrap = async () => {
+      setLoading(true);
       try {
-        // 1. Fetch all teams into a single map
+        // 1. Fetch teams once
         const teamsMap = new Map<string, Team>();
         const teamsQueryRef = query(collection(db, `clubs/${user.uid}/teams`));
         const teamsSnap = await getDocs(teamsQueryRef);
-        teamsSnap.forEach(doc => teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as Team));
+        teamsSnap.forEach((doc) => teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as Team));
+        teamsMapRef.current = teamsMap;
 
-        // 2. Fetch competitions (for dropdown + season mapping)
+        // 2. Fetch competitions once
         const competitionsQueryRef = query(collection(db, `clubs/${user.uid}/competitions`));
         const competitionsSnap = await getDocs(competitionsQueryRef);
 
@@ -103,8 +110,9 @@ export default function MatchesPage() {
             season: typeof data?.season === 'string' ? data.season : undefined,
           });
         });
+        competitionMetaRef.current = competitionMeta;
 
-        const competitionOptions: CompetitionOption[] = competitionsSnap.docs.map(doc => ({
+        const competitionOptions: CompetitionOption[] = competitionsSnap.docs.map((doc) => ({
           id: doc.id,
           name: (doc.data().name as string) || doc.id,
           season: doc.data().season as string | undefined,
@@ -120,18 +128,41 @@ export default function MatchesPage() {
         });
         setCompetitionTeamIds(compTeams);
 
-        const preferredTeamId = (() => {
-          const current = selectedTeamId;
-          const main = typeof (user as any)?.mainTeamId === 'string' ? String((user as any).mainTeamId).trim() : '';
-          if (current !== 'all') return current;
-          if (main && teamsMap.has(main)) return main;
-          return 'all';
-        })();
+        // 3. Prepare dropdown teams
+        const teamsForDropdown = Array.from(teamsMap.values());
+        teamsForDropdown.sort((a, b) => a.name.localeCompare(b.name));
+        setTeams(teamsForDropdown);
 
-        if (preferredTeamId !== selectedTeamId) {
-          setSelectedTeamId(preferredTeamId);
+        // 4. Initialize preferred team only once (do not override user's selection)
+        if (!didInitPreferredTeamRef.current) {
+          const main = typeof (user as any)?.mainTeamId === 'string' ? String((user as any).mainTeamId).trim() : '';
+          if (selectedTeamId === 'all' && main && teamsMap.has(main)) {
+            setSelectedTeamId(main);
+          }
+          didInitPreferredTeamRef.current = true;
         }
 
+        bootstrapDoneRef.current = true;
+      } catch (error) {
+        console.error("Error fetching data: ", error);
+        toast.error("試合データの読み込みに失敗しました。");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    bootstrap();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (!bootstrapDoneRef.current) return;
+
+    const fetchMatches = async () => {
+      const fetchId = ++activeFetchIdRef.current;
+      setLoading(true);
+      try {
         const fetchIndexDocs = async (teamId: string) => {
           const indexRef = collection(db, `clubs/${user.uid}/public_match_index`);
           if (teamId === 'all') {
@@ -164,10 +195,9 @@ export default function MatchesPage() {
           return !hasRow;
         };
 
-        // 3. Fetch match index (single collection)
-        let indexSnap = await fetchIndexDocs(preferredTeamId);
+        let indexSnap = await fetchIndexDocs(selectedTeamId);
+        if (fetchId !== activeFetchIdRef.current) return;
 
-        // If index is empty, backfill via server API once, then refetch.
         if (isIndexEmpty(indexSnap)) {
           try {
             const token = await auth.currentUser?.getIdToken();
@@ -194,13 +224,17 @@ export default function MatchesPage() {
               toast.success('試合インデックスを生成しました');
             }
 
-            indexSnap = await fetchIndexDocs(preferredTeamId);
+            indexSnap = await fetchIndexDocs(selectedTeamId);
+            if (fetchId !== activeFetchIdRef.current) return;
           } catch (e) {
             const msg = e instanceof Error ? e.message : 'unknown error';
             console.warn('Failed to backfill public_match_index:', e);
             toast.error(`試合インデックス生成に失敗: ${msg}`);
           }
         }
+
+        const teamsMap = teamsMapRef.current;
+        const competitionMeta = competitionMetaRef.current;
 
         const enrichedMatches: EnrichedMatch[] = indexSnap.docs
           .map((d: any) => d.data() as any)
@@ -240,13 +274,8 @@ export default function MatchesPage() {
 
         setAllMatches(enrichedMatches);
 
-        // Initial focus (scroll target)
-        // 1) Prefer own matches with missing score
-        // 2) Then any match with missing score
-        // 3) Fallback to first upcoming match
         const hasMissingScore = (m: EnrichedMatch) => m.scoreHome == null || m.scoreAway == null;
         const isOwnMatch = (m: EnrichedMatch) => m.homeTeamId === user.uid || m.awayTeamId === user.uid;
-
         const ownMissing = enrichedMatches.find((m) => isOwnMatch(m) && hasMissingScore(m));
         const anyMissing = enrichedMatches.find((m) => hasMissingScore(m));
 
@@ -263,22 +292,18 @@ export default function MatchesPage() {
         }
 
         setInitialFocusMatchId(focusId);
-
-        // 4. Create a sorted list of teams for the dropdown
-        const teamsForDropdown = Array.from(teamsMap.values());
-        teamsForDropdown.sort((a, b) => a.name.localeCompare(b.name));
-        setTeams(teamsForDropdown);
-
       } catch (error) {
-        console.error("Error fetching data: ", error);
+        console.error("Error fetching matches: ", error);
         toast.error("試合データの読み込みに失敗しました。");
       } finally {
-        setLoading(false);
+        if (fetchId === activeFetchIdRef.current) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchData();
-  }, [user]);
+    fetchMatches();
+  }, [user, selectedTeamId]);
 
   useEffect(() => {
     if (initialFocusMatchId) {
