@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, query, getDocs } from "firebase/firestore";
+import { collection, query, getDocs, orderBy } from "firebase/firestore";
 import { format, isToday, isYesterday, isTomorrow, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { ChevronUp, FilePenLine, Loader2 } from "lucide-react";
@@ -45,6 +45,24 @@ interface EnrichedMatch {
   scoreAway?: number | null;
 }
 
+type MatchIndexRow = {
+  matchId: string;
+  competitionId: string;
+  roundId: string;
+  matchDate: string;
+  matchTime?: string;
+  competitionName?: string;
+  roundName?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  homeTeamName?: string;
+  awayTeamName?: string;
+  homeTeamLogo?: string;
+  awayTeamLogo?: string;
+  scoreHome?: number | null;
+  scoreAway?: number | null;
+};
+
 export default function MatchesPage() {
   const { user } = useAuth();
   const [allMatches, setAllMatches] = useState<EnrichedMatch[]>([]);
@@ -73,10 +91,18 @@ export default function MatchesPage() {
         const teamsSnap = await getDocs(teamsQueryRef);
         teamsSnap.forEach(doc => teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as Team));
 
-        // 2. Fetch all competitions, rounds, and matches
-        const enrichedMatches: EnrichedMatch[] = [];
+        // 2. Fetch competitions (for dropdown + season mapping)
         const competitionsQueryRef = query(collection(db, `clubs/${user.uid}/competitions`));
         const competitionsSnap = await getDocs(competitionsQueryRef);
+
+        const competitionMeta = new Map<string, { name: string; season?: string }>();
+        competitionsSnap.docs.forEach((d) => {
+          const data = d.data() as any;
+          competitionMeta.set(d.id, {
+            name: (data?.name as string) || d.id,
+            season: typeof data?.season === 'string' ? data.season : undefined,
+          });
+        });
 
         const competitionOptions: CompetitionOption[] = competitionsSnap.docs.map(doc => ({
           id: doc.id,
@@ -94,45 +120,46 @@ export default function MatchesPage() {
         });
         setCompetitionTeamIds(compTeams);
 
-        for (const compDoc of competitionsSnap.docs) {
-          const competitionData = compDoc.data();
-          const roundsQuery = query(collection(db, `clubs/${user.uid}/competitions/${compDoc.id}/rounds`));
-          const roundsSnap = await getDocs(roundsQuery);
+        // 3. Fetch match index (single collection)
+        const indexRef = collection(db, `clubs/${user.uid}/public_match_index`);
+        const indexSnap = await getDocs(query(indexRef, orderBy('matchDate')));
 
-          for (const roundDoc of roundsSnap.docs) {
-            const roundData = roundDoc.data();
-            const matchesQuery = query(collection(db, `clubs/${user.uid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`));
-            const matchesSnap = await getDocs(matchesQuery);
+        const enrichedMatches: EnrichedMatch[] = indexSnap.docs
+          .map((d) => d.data() as any)
+          .map((row: MatchIndexRow): EnrichedMatch | null => {
+            const compId = typeof row.competitionId === 'string' ? row.competitionId : '';
+            const meta = competitionMeta.get(compId);
+            const homeTeamId = typeof row.homeTeam === 'string' ? row.homeTeam : '';
+            const awayTeamId = typeof row.awayTeam === 'string' ? row.awayTeam : '';
+            const matchId = typeof row.matchId === 'string' ? row.matchId : '';
+            const roundId = typeof row.roundId === 'string' ? row.roundId : '';
+            const matchDate = typeof row.matchDate === 'string' ? row.matchDate : '';
+            if (!matchId || !compId || !roundId || !matchDate) return null;
 
-            for (const matchDoc of matchesSnap.docs) {
-              const matchData = matchDoc.data();
-              const homeTeam = teamsMap.get(matchData.homeTeam);
-              const awayTeam = teamsMap.get(matchData.awayTeam);
+            const homeTeamInfo = homeTeamId ? teamsMap.get(homeTeamId) : undefined;
+            const awayTeamInfo = awayTeamId ? teamsMap.get(awayTeamId) : undefined;
 
-              enrichedMatches.push({
-                id: matchDoc.id,
-                competitionId: compDoc.id,
-                competitionName: competitionData.name,
-                competitionSeason: competitionData.season,
-                roundId: roundDoc.id,
-                roundName: roundData.name,
-                matchDate: matchData.matchDate,
-                matchTime: matchData.matchTime,
-                homeTeamId: matchData.homeTeam,
-                awayTeamId: matchData.awayTeam,
-                homeTeamName: homeTeam?.name || '不明なチーム',
-                awayTeamName: awayTeam?.name || '不明なチーム',
-                homeTeamLogo: homeTeam?.logoUrl,
-                awayTeamLogo: awayTeam?.logoUrl,
-                scoreHome: matchData.scoreHome,
-                scoreAway: matchData.scoreAway,
-              });
-            }
-          }
-        }
+            return {
+              id: matchId,
+              competitionId: compId,
+              competitionName: meta?.name || row.competitionName || compId,
+              competitionSeason: meta?.season,
+              roundId,
+              roundName: row.roundName || '',
+              matchDate,
+              matchTime: typeof row.matchTime === 'string' ? row.matchTime : undefined,
+              homeTeamId,
+              awayTeamId,
+              homeTeamName: homeTeamInfo?.name || row.homeTeamName || '不明なチーム',
+              awayTeamName: awayTeamInfo?.name || row.awayTeamName || '不明なチーム',
+              homeTeamLogo: homeTeamInfo?.logoUrl || row.homeTeamLogo,
+              awayTeamLogo: awayTeamInfo?.logoUrl || row.awayTeamLogo,
+              scoreHome: typeof row.scoreHome === 'number' ? row.scoreHome : (row.scoreHome ?? null),
+              scoreAway: typeof row.scoreAway === 'number' ? row.scoreAway : (row.scoreAway ?? null),
+            };
+          })
+          .filter(Boolean) as EnrichedMatch[];
 
-        // 3. Sort all matches by date and update state
-        enrichedMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
         setAllMatches(enrichedMatches);
 
         // Initial focus (scroll target)

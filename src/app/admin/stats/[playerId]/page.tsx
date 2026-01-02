@@ -3,9 +3,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, collectionGroup, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { MatchDetails, Player } from '@/types/match';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Competition {
   id: string;
@@ -34,86 +36,119 @@ export default function PlayerStatsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCompetition, setSelectedCompetition] = useState('all');
 
-  useEffect(() => {
+  const fetchData = async () => {
     if (!playerId || !user) return;
 
-    const fetchData = async () => {
-      setLoading(true);
-      const ownerUid = user.uid;
+    setLoading(true);
+    const ownerUid = user.uid;
 
-      // 1. Get Player Info
-      const seasonsRef = collection(db, `clubs/${ownerUid}/seasons`);
-      const seasonsSnap = await getDocs(seasonsRef);
-      let pInfo: Player | null = null;
-      for (const seasonDoc of seasonsSnap.docs) {
-        const playerDocRef = doc(db, `clubs/${ownerUid}/seasons/${seasonDoc.id}/roster/${playerId}`);
-        const playerDocSnap = await getDoc(playerDocRef);
-        if (playerDocSnap.exists()) {
-          pInfo = { id: playerDocSnap.id, ...playerDocSnap.data() } as Player;
-          break;
-        }
+    const seasonsRef = collection(db, `clubs/${ownerUid}/seasons`);
+    const seasonsSnap = await getDocs(seasonsRef);
+    let pInfo: Player | null = null;
+    for (const seasonDoc of seasonsSnap.docs) {
+      const playerDocRef = doc(db, `clubs/${ownerUid}/seasons/${seasonDoc.id}/roster/${playerId}`);
+      const playerDocSnap = await getDoc(playerDocRef);
+      if (playerDocSnap.exists()) {
+        pInfo = { id: playerDocSnap.id, ...playerDocSnap.data() } as Player;
+        break;
       }
+    }
 
-      if (!pInfo) {
-        setLoading(false);
-        return;
-      }
-      setPlayerInfo(pInfo);
-
-      // 2. Pre-fetch all teams for efficient lookup
-      const teamsRef = collection(db, `clubs/${ownerUid}/teams`);
-      const teamsSnap = await getDocs(teamsRef);
-      const teamsMap = new Map(teamsSnap.docs.map((doc) => [doc.id, doc.data().name]));
-
-      // 3. Get all competitions
-      const competitionsRef = collection(db, `clubs/${ownerUid}/competitions`);
-      const competitionsSnap = await getDocs(competitionsRef);
-      const competitions = competitionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Competition));
-
-      // 4. Get all matches and filter
-      const matchStats: any[] = [];
-      for (const comp of competitions) {
-        const roundsRef = collection(db, `clubs/${ownerUid}/competitions/${comp.id}/rounds`);
-        const roundsSnap = await getDocs(roundsRef);
-        for (const roundDoc of roundsSnap.docs) {
-          const matchesRef = collection(db, `clubs/${ownerUid}/competitions/${comp.id}/rounds/${roundDoc.id}/matches`);
-          const matchesSnap = await getDocs(matchesRef);
-          for (const matchDoc of matchesSnap.docs) {
-                        const roundName = roundDoc.data().name;
-            const match = matchDoc.data() as MatchDetails;
-            if (!match.playerStats) continue;
-
-            const playerStat = match.playerStats.find(p => p.playerId === playerId);
-
-            if (playerStat) {
-              const isHomeMatch = match.homeTeam === pInfo.teamId;
-              const opponentId = isHomeMatch ? match.awayTeam : match.homeTeam;
-              const opponentName = teamsMap.get(opponentId || "") || (isHomeMatch ? match.awayTeamName : match.homeTeamName) || "Unknown Team";
-
-                            matchStats.push({
-                roundName: roundName,
-                competitionName: comp.name,
-                date: match.matchDate,
-                home: isHomeMatch,
-                opponent: opponentName,
-                result: `${match.scoreHome}-${match.scoreAway}`,
-                position: playerStat.position,
-                goals: playerStat.goals || 0,
-                assists: playerStat.assists || 0,
-                yellowCards: playerStat.yellowCards || 0,
-                redCards: playerStat.redCards || 0,
-                minutesPlayed: playerStat.minutesPlayed || 0,
-              });
-            }
-          }
-        }
-      }
-
-      matchStats.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setAllStats(matchStats);
+    if (!pInfo) {
       setLoading(false);
-    };
+      return;
+    }
+    setPlayerInfo(pInfo);
 
+    const teamsRef = collection(db, `clubs/${ownerUid}/teams`);
+    const teamsSnap = await getDocs(teamsRef);
+    const teamsMap = new Map(teamsSnap.docs.map((doc) => [doc.id, doc.data().name]));
+
+    const competitionsRef = collection(db, `clubs/${ownerUid}/competitions`);
+    const competitionsSnap = await getDocs(competitionsRef);
+    const competitions = competitionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Competition));
+
+    const matchStats: any[] = [];
+    for (const comp of competitions) {
+      const matchesGroupRef = collectionGroup(db, 'matches');
+      const qMatches = query(matchesGroupRef, where('competitionId', '==', comp.id));
+      const matchesSnap = await getDocs(qMatches);
+
+      for (const matchDoc of matchesSnap.docs) {
+        const match = matchDoc.data() as MatchDetails;
+        if (!match.playerStats) continue;
+
+        const playerStat = match.playerStats.find(p => p.playerId === playerId);
+
+        if (playerStat) {
+          const isHomeMatch = match.homeTeam === pInfo.teamId;
+          const opponentId = isHomeMatch ? match.awayTeam : match.homeTeam;
+          const opponentName = teamsMap.get(opponentId || "") || (isHomeMatch ? match.awayTeamName : match.homeTeamName) || "Unknown Team";
+
+          matchStats.push({
+            roundName: (match as any).roundName || (match as any).roundId || '- ',
+            competitionName: comp.name,
+            date: match.matchDate,
+            home: isHomeMatch,
+            opponent: opponentName,
+            result: `${match.scoreHome}-${match.scoreAway}`,
+            position: playerStat.position,
+            goals: playerStat.goals || 0,
+            assists: playerStat.assists || 0,
+            yellowCards: playerStat.yellowCards || 0,
+            redCards: playerStat.redCards || 0,
+            minutesPlayed: playerStat.minutesPlayed || 0,
+          });
+        }
+      }
+    }
+
+    matchStats.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setAllStats(matchStats);
+    setLoading(false);
+  };
+
+  const handleRefresh = async () => {
+    if (!user || !playerId) return;
+    setLoading(true);
+    try {
+      const clubId = typeof (user as any)?.clubId === 'string' ? String((user as any).clubId).trim() : '';
+      if (clubId) {
+        const res = await fetch(
+          `/api/public/club/${encodeURIComponent(clubId)}/players/${encodeURIComponent(playerId)}/stats?includeSummaries=1&force=1`,
+          { method: 'GET' }
+        );
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(typeof body?.error === 'string' ? body.error : `Failed (${res.status})`);
+        }
+      } else {
+        const token = await (user as any).getIdToken();
+        const res = await fetch('/api/club/invalidate-player-stats-cache', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ playerId }),
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(typeof body?.message === 'string' ? body.message : `Failed (${res.status})`);
+        }
+      }
+
+      await fetchData();
+      toast.success('更新しました');
+    } catch (e) {
+      toast.error('更新に失敗しました');
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!playerId || !user) return;
     fetchData();
   }, [playerId, user]);
 
@@ -151,6 +186,8 @@ export default function PlayerStatsPage() {
     <div className="container mx-auto py-8">
         <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold">{playerInfo.name} - 試合別スタッツ</h1>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleRefresh} disabled={loading}>更新</Button>
             <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
                 <SelectTrigger className="w-[200px]">
                     <SelectValue placeholder="大会で絞り込み" />
@@ -161,6 +198,7 @@ export default function PlayerStatsPage() {
                     ))}
                 </SelectContent>
             </Select>
+            </div>
         </div>
         <div className="rounded-md border">
             <Table>

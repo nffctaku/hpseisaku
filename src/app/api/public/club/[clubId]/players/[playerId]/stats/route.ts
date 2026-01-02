@@ -98,6 +98,38 @@ type SeasonSummaryRow = {
   }[];
 };
 
+type CachedPlayerStatsResponse = {
+  ownerUid: string;
+  playerId: string;
+  statsSeason: string | null;
+  seasonStats: PlayerStats;
+  careerStats: PlayerStats;
+  seasonSummaries: SeasonSummaryRow[] | null;
+  summariesIncluded: boolean;
+  cachedAtMs: number;
+  cacheVersion: number;
+};
+
+const PLAYER_STATS_CACHE_VERSION = 1;
+const PLAYER_STATS_CACHE_TTL_MS = 10 * 60 * 1000;
+
+function getPlayerStatsCacheRef(ownerUid: string, playerId: string) {
+  return db.doc(`clubs/${ownerUid}/public_player_stats_cache/${playerId}`);
+}
+
+function isFreshCache(cache: CachedPlayerStatsResponse | null): boolean {
+  if (!cache) return false;
+  if (cache.cacheVersion !== PLAYER_STATS_CACHE_VERSION) return false;
+  if (typeof cache.cachedAtMs !== "number" || !Number.isFinite(cache.cachedAtMs)) return false;
+  return Date.now() - cache.cachedAtMs <= PLAYER_STATS_CACHE_TTL_MS;
+}
+
+function canServeFromCache(cache: CachedPlayerStatsResponse, includeSummaries: boolean): boolean {
+  if (!isFreshCache(cache)) return false;
+  if (!includeSummaries) return true;
+  return cache.summariesIncluded === true && Array.isArray(cache.seasonSummaries);
+}
+
 function buildManualStatsMapFromPlayer(playerData: any, targetSeason?: string | null) {
   const manualStatsMap = new Map<
     string,
@@ -508,8 +540,32 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
   try {
     const { clubId, playerId } = await context.params;
     const includeSummaries = request.nextUrl.searchParams.get("includeSummaries") === "1";
+    const forceRefresh = request.nextUrl.searchParams.get("force") === "1";
 
     const { ownerUid } = await resolveOwnerUid(clubId);
+
+    const cacheSnap = await getPlayerStatsCacheRef(ownerUid, playerId).get();
+    if (!forceRefresh && cacheSnap.exists) {
+      const cached = cacheSnap.data() as any as CachedPlayerStatsResponse;
+      if (canServeFromCache(cached, includeSummaries)) {
+        return NextResponse.json(
+          {
+            ownerUid,
+            playerId,
+            statsSeason: cached.statsSeason ?? null,
+            seasonStats: cached.seasonStats,
+            careerStats: cached.careerStats,
+            seasonSummaries: includeSummaries ? cached.seasonSummaries : null,
+          },
+          {
+            headers: {
+              // Vercel Edge/Node cache hint for API response
+              "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+            },
+          }
+        );
+      }
+    }
 
     const rosterTeamId = await getLatestRosterTeamId(ownerUid, playerId);
     const playerDoc = await findPlayerDoc(ownerUid, playerId, rosterTeamId);
@@ -534,6 +590,19 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
     const seasonSummaries = includeSummaries
       ? await computeSeasonSummaries(ownerUid, playerId, registeredSeasonIds, playerDoc)
       : null;
+
+    const cachePayload: CachedPlayerStatsResponse = {
+      ownerUid,
+      playerId,
+      statsSeason,
+      seasonStats,
+      careerStats,
+      seasonSummaries,
+      summariesIncluded: includeSummaries,
+      cachedAtMs: Date.now(),
+      cacheVersion: PLAYER_STATS_CACHE_VERSION,
+    };
+    await getPlayerStatsCacheRef(ownerUid, playerId).set(cachePayload, { merge: true });
 
     return NextResponse.json(
       {
