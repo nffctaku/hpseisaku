@@ -19,13 +19,16 @@ export default function MatchAdminPage() {
   const params = useParams();
   const { competitionId, roundId, matchId } = params;
 
+  const ownerUid = (user as any)?.ownerUid || user?.uid;
+
   const [match, setMatch] = useState<MatchDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
+  const [resolvedMatchDocPath, setResolvedMatchDocPath] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || typeof matchId !== 'string' || typeof competitionId !== 'string' || typeof roundId !== 'string') {
+    if (!user || !ownerUid || typeof matchId !== 'string' || typeof competitionId !== 'string' || typeof roundId !== 'string') {
       setLoading(false);
       return;
     }
@@ -33,12 +36,12 @@ export default function MatchAdminPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const matchDocRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${matchId}`);
+        const matchDocRef = doc(db, `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${matchId}`);
         let matchDoc = await getDoc(matchDocRef);
 
         // Fallback: if not found under competitions/rounds, try legacy top-level matches collection
         if (!matchDoc.exists()) {
-          const legacyMatchRef = doc(db, `clubs/${user.uid}/matches`, matchId as string);
+          const legacyMatchRef = doc(db, `clubs/${ownerUid}/matches`, matchId as string);
           const legacySnap = await getDoc(legacyMatchRef);
           if (!legacySnap.exists()) {
             console.error("Match document not found in either competitions/rounds or legacy matches collection");
@@ -49,6 +52,8 @@ export default function MatchAdminPage() {
           matchDoc = legacySnap;
         }
 
+        setResolvedMatchDocPath(matchDoc.ref.path);
+
         console.log("Raw data from Firestore:", matchDoc.data());
 
         let matchData = { id: matchDoc.id, ...matchDoc.data() } as MatchDetails;
@@ -56,7 +61,7 @@ export default function MatchAdminPage() {
         // To ensure team names and logos are present, fetch them if not already on the match doc
         const fetchTeamData = async (teamId: string) => {
           if (!teamId) return null;
-          const teamDocRef = doc(db, `clubs/${user.uid}/teams`, teamId);
+          const teamDocRef = doc(db, `clubs/${ownerUid}/teams`, teamId);
           const teamDoc = await getDoc(teamDocRef);
           return teamDoc.exists() ? { name: teamDoc.data().name, logoUrl: teamDoc.data().logoUrl } : null;
         };
@@ -80,7 +85,7 @@ export default function MatchAdminPage() {
         // Fetch players for both teams (per-team collection path)
         const fetchPlayers = async (teamId: string): Promise<Player[]> => {
           if (!teamId || !user) return [];
-          const playersRef = collection(db, `clubs/${user.uid}/teams/${teamId}/players`);
+          const playersRef = collection(db, `clubs/${ownerUid}/teams/${teamId}/players`);
           const querySnapshot = await getDocs(playersRef);
           return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
         };
@@ -94,13 +99,14 @@ export default function MatchAdminPage() {
       } catch (error) {
         console.error("Error fetching match data: ", error);
         setMatch(null);
+        setResolvedMatchDocPath(null);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [user, competitionId, roundId, matchId]);
+  }, [user, ownerUid, competitionId, roundId, matchId]);
 
   if (loading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -216,9 +222,10 @@ export default function MatchAdminPage() {
         <TabsContent value="match-stats">
           <MatchTeamStatsForm 
             match={match} 
-            userId={user.uid}
+            userId={ownerUid as string}
             competitionId={competitionId as string}
             roundId={roundId as string}
+            matchDocPath={resolvedMatchDocPath ?? undefined}
           />
         </TabsContent>
         <TabsContent value="match-events">
@@ -228,6 +235,7 @@ export default function MatchAdminPage() {
             awayPlayers={awayPlayers} 
             roundId={roundId as string} 
             competitionId={competitionId as string} 
+            matchDocPath={resolvedMatchDocPath ?? undefined}
             view="events"
           />
         </TabsContent>
@@ -238,6 +246,7 @@ export default function MatchAdminPage() {
             awayPlayers={awayPlayers} 
             roundId={roundId as string} 
             competitionId={competitionId as string} 
+            matchDocPath={resolvedMatchDocPath ?? undefined}
             view="player"
           />
         </TabsContent>

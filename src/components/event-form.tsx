@@ -45,6 +45,7 @@ interface EventFormProps {
 
 export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: EventFormProps) {
   const { user } = useAuth();
+  const ownerUid = (user as any)?.ownerUid || user?.uid;
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<EventFormValues>({
@@ -76,7 +77,7 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
   }, [selectedTeamId, form]);
 
   const onSubmit = async (values: EventFormValues) => {
-    if (!user || !match) return;
+    if (!user || !ownerUid || !match) return;
     setIsSubmitting(true);
 
     const player = teamPlayers.find(p => p.id === values.playerId);
@@ -97,7 +98,7 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
     try {
       const eventsCollection = collection(
         db,
-        `${matchDocPath || `clubs/${user.uid}/competitions/${match.competitionId}/rounds/${match.roundId}/matches/${match.id}`}/events`
+        `${matchDocPath || `clubs/${ownerUid}/competitions/${match.competitionId}/rounds/${match.roundId}/matches/${match.id}`}/events`
       );
       await addDoc(eventsCollection, eventData);
       toast.success("イベントを追加しました。");

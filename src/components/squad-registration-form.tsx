@@ -68,6 +68,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   console.log('SquadForm: Received homePlayers', homePlayers);
   console.log('SquadForm: Received awayPlayers', awayPlayers);
   const { user } = useAuth();
+  const ownerUid = (user as any)?.ownerUid || user?.uid;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
@@ -83,14 +84,14 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
 
   useEffect(() => {
     const fetchMatchData = async () => {
-      if (!user || !roundId || !competitionId) {
+      if (!user || !ownerUid || !roundId || !competitionId) {
         setLoading(false);
         return;
       }
       try {
         const matchDocRef = doc(
           db,
-          matchDocPath || `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`
+          matchDocPath || `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`
         );
         const matchDoc = await getDoc(matchDocRef);
         if (matchDoc.exists()) {
@@ -109,10 +110,10 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       }
     };
     fetchMatchData();
-  }, [match.id, roundId, competitionId, user, methods, matchDocPath]);
+  }, [match.id, roundId, competitionId, user, ownerUid, methods, matchDocPath]);
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
-    if (!user || !roundId || !competitionId) {
+    if (!user || !ownerUid || !roundId || !competitionId) {
       toast.error('データが不完全なため保存できません。');
       return;
     }
@@ -120,7 +121,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     try {
       const matchDocRef = doc(
         db,
-        matchDocPath || `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`
+        matchDocPath || `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`
       );
 
       // イベントから G/A/Y/R を集計
@@ -213,7 +214,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       // - このフォーム由来の交代イベントは id が "sub-" で始まるドキュメントとして管理し、現状と差分を取って追加/削除
       const eventsColRef = collection(
         db,
-        `${(matchDocPath || `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`)}/events`
+        `${(matchDocPath || `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`)}/events`
       );
 
       const desiredSubDocIds = new Set<string>();
@@ -271,7 +272,8 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       toast.success('出場選手・スタッツ・イベントを更新しました。');
     } catch (error) {
       console.error("Error saving squad data:", error);
-      toast.error('更新に失敗しました。');
+      const code = typeof (error as any)?.code === 'string' ? (error as any).code : '';
+      toast.error(`更新に失敗しました。${code ? ` (${code})` : ''}`);
     } finally {
       setSaving(false);
     }
