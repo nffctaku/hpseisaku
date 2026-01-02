@@ -73,6 +73,31 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
 
+  const stripUndefinedDeep = <T,>(value: T): T => {
+    if (value === undefined) return value;
+    if (value === null) return value;
+    if (Array.isArray(value)) {
+      return value
+        .map((v) => stripUndefinedDeep(v))
+        .filter((v) => v !== undefined) as any;
+    }
+    if (typeof value === 'object') {
+      const proto = Object.getPrototypeOf(value);
+      if (proto !== Object.prototype && proto !== null) {
+        return value;
+      }
+      const out: any = {};
+      for (const [k, v] of Object.entries(value as any)) {
+        if (v === undefined) continue;
+        const vv = stripUndefinedDeep(v);
+        if (vv === undefined) continue;
+        out[k] = vv;
+      }
+      return out;
+    }
+    return value;
+  };
+
   const methods = useForm<FormValues>({
     resolver: zodResolver(formSchema) as any,
     defaultValues: {
@@ -203,11 +228,12 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         return base;
       });
 
-      await setDoc(matchDocRef, {
+      const payload = stripUndefinedDeep({
         customStatHeaders: data.customStatHeaders,
         playerStats: normalizedPlayerStats,
         events: sanitizedEvents,
-      }, { merge: true });
+      });
+      await setDoc(matchDocRef, payload, { merge: true });
 
       // 交代イベントを試合イベント（サブコレクション）へ反映
       // - 既存の手動追加イベント（goal/yellow/red/sub_*等）は保持

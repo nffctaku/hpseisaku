@@ -20,8 +20,8 @@ const formSchema = z.object({
     z.object({
       id: z.string(),
       name: z.string().min(1, '必須').max(8, '最大8文字です。'),
-      homeValue: z.union([z.string(), z.number()]),
-      awayValue: z.union([z.string(), z.number()]),
+      homeValue: z.string(),
+      awayValue: z.string(),
     })
   ).max(15, '最大15項目です。'), // 3 default + 10 custom
 });
@@ -127,8 +127,8 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
       .map((s) => ({
         id: s.id,
         name: String((s as any).name ?? '').slice(0, 8),
-        homeValue: (s as any).homeValue ?? 0,
-        awayValue: (s as any).awayValue ?? 0,
+        homeValue: (s as any).homeValue == null ? '' : String((s as any).homeValue),
+        awayValue: (s as any).awayValue == null ? '' : String((s as any).awayValue),
       }));
 
   const buildStatsForForm = (existingStats: TeamStat[], template: Array<{ id: string; name: string }>) => {
@@ -136,10 +136,22 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
     if (normalizedExisting.length > 0) return normalizedExisting;
 
     if (template.length > 0) {
-      return template.map((s) => ({ id: s.id, name: s.name, homeValue: 0, awayValue: 0 }));
+      return template.map((s) => ({ id: s.id, name: s.name, homeValue: '', awayValue: '' }));
     }
 
-    return defaultStats.map((ds) => ({ id: ds.id, name: ds.name, homeValue: 0, awayValue: 0 }));
+    return defaultStats.map((ds) => ({ id: ds.id, name: ds.name, homeValue: '', awayValue: '' }));
+  };
+
+  const toNumberOrNull = (v: string): number | null => {
+    const s = String(v ?? '').trim();
+    if (!s) return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const toComparable = (v: string): number => {
+    const n = toNumberOrNull(v);
+    return typeof n === 'number' ? n : 0;
   };
 
   useEffect(() => {
@@ -178,34 +190,12 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
     }
   };
 
-  const handleApplyDefault = async () => {
-    const tpl = templateStats ?? [];
-    if (tpl.length === 0) {
-      toast.warning('デフォルトが未設定です。');
-      return;
-    }
-
-    const current = form.getValues('teamStats') as TeamStat[];
-    const next = tpl.map((s) => {
-      const found = current.find((c) => c.id === s.id);
-      return {
-        id: s.id,
-        name: s.name,
-        homeValue: found ? found.homeValue : 0,
-        awayValue: found ? found.awayValue : 0,
-      };
-    });
-
-    replace(next);
-    toast.success('デフォルトを適用しました。');
-  };
-
   const handleAddStat = () => {
     if (fields.length >= 15) {
       toast.warning('スタッツ項目は最大15個です。');
       return;
     }
-    append({ id: `custom_${Date.now()}`, name: '', homeValue: 0, awayValue: 0 });
+    append({ id: `custom_${Date.now()}`, name: '', homeValue: '', awayValue: '' });
   };
 
   const onSubmit = async (data: FormValues) => {
@@ -216,7 +206,13 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
         db,
         matchDocPath || `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`
       );
-      await updateDoc(matchRef, { teamStats: data.teamStats });
+      const normalizedForSave = data.teamStats.map((s) => ({
+        id: s.id,
+        name: s.name,
+        homeValue: toNumberOrNull(s.homeValue),
+        awayValue: toNumberOrNull(s.awayValue),
+      }));
+      await updateDoc(matchRef, { teamStats: normalizedForSave });
       toast.success('試合スタッツを更新しました。');
     } catch (error) {
       console.error('Error updating team stats:', error);
@@ -247,16 +243,6 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            onClick={handleApplyDefault}
-            disabled={isTemplateLoading || isTemplateSaving || isSaving}
-          >
-            デフォルトを適用
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
             onClick={handleSetAsDefault}
             disabled={isTemplateLoading || isTemplateSaving || isSaving}
           >
@@ -267,8 +253,8 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           {fields.map((field, index) => {
             const statId = (field as any).id as string;
-            const homeVal = parseFloat(String(form.watch(`teamStats.${index}.homeValue`)));
-            const awayVal = parseFloat(String(form.watch(`teamStats.${index}.awayValue`)));
+            const homeVal = toComparable(String(form.watch(`teamStats.${index}.homeValue`) ?? ''));
+            const awayVal = toComparable(String(form.watch(`teamStats.${index}.awayValue`) ?? ''));
 
             return (
               <div
@@ -280,7 +266,8 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                   control={form.control}
                   render={({ field }) => (
                     <Input
-                      {...field}
+                      value={typeof field.value === 'string' ? field.value : ''}
+                      onChange={(e) => field.onChange(e.target.value)}
                       type="text"
                       className={`w-16 sm:w-24 text-center font-bold text-sm sm:text-lg bg-white text-gray-900 ${homeVal > awayVal ? 'bg-emerald-500/80 text-white' : ''}`}
                     />
@@ -307,7 +294,8 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                   control={form.control}
                   render={({ field }) => (
                     <Input
-                      {...field}
+                      value={typeof field.value === 'string' ? field.value : ''}
+                      onChange={(e) => field.onChange(e.target.value)}
                       type="text"
                       className={`w-16 sm:w-24 text-center font-bold text-sm sm:text-lg bg-white text-gray-900 ${awayVal > homeVal ? 'bg-emerald-500/80 text-white' : ''}`}
                     />

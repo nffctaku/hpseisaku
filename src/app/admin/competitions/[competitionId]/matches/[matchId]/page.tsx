@@ -24,14 +24,17 @@ export default function MatchAdminPage() {
   const params = useParams();
   const { competitionId, matchId } = params;
 
+  const ownerUid = (user as any)?.ownerUid || user?.uid;
+
   const [match, setMatch] = useState<MatchDetails | null>(null);
   const [events, setEvents] = useState<LocalMatchEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
+  const [resolvedMatchDocPath, setResolvedMatchDocPath] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || typeof matchId !== 'string' || typeof competitionId !== 'string') {
+    if (!user || !ownerUid || typeof matchId !== 'string' || typeof competitionId !== 'string') {
       setLoading(false);
       return;
     }
@@ -57,6 +60,8 @@ export default function MatchAdminPage() {
         const pathSegments = matchPath.split('/');
         const roundId = pathSegments[pathSegments.length - 3];
 
+        setResolvedMatchDocPath(matchDoc.ref.path);
+
         const matchData = { 
           id: matchDoc.id, 
           ...matchDoc.data(), 
@@ -68,7 +73,7 @@ export default function MatchAdminPage() {
         // Fetch players (per-team collection path)
         if (matchData.homeTeam && matchData.awayTeam) {
           const fetchPlayers = async (teamId: string): Promise<Player[]> => {
-            const playersRef = collection(db, `clubs/${user.uid}/teams/${teamId}/players`);
+            const playersRef = collection(db, `clubs/${ownerUid}/teams/${teamId}/players`);
             const snap = await getDocs(playersRef);
             return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
           };
@@ -92,6 +97,7 @@ export default function MatchAdminPage() {
       } catch (error) {
         console.error("Error fetching data: ", error);
         setMatch(null);
+        setResolvedMatchDocPath(null);
       } finally {
         setLoading(false);
       }
@@ -102,12 +108,13 @@ export default function MatchAdminPage() {
     return () => {
       unsubscribeEvents();
     };
-  }, [user, competitionId, matchId]);
+  }, [user, ownerUid, competitionId, matchId]);
 
   const handleDeleteEvent = async (eventId: string) => {
     if (!user || !match || !match.roundId || typeof matchId !== 'string') return;
     try {
-      const eventDocRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${match.roundId}/matches/${matchId}/events/${eventId}`);
+      const base = resolvedMatchDocPath || `clubs/${ownerUid}/competitions/${competitionId}/rounds/${match.roundId}/matches/${matchId}`;
+      const eventDocRef = doc(db, `${base}/events/${eventId}`);
       await deleteDoc(eventDocRef);
     } catch (error) {
       console.error("Error deleting event: ", error);
@@ -228,9 +235,10 @@ export default function MatchAdminPage() {
         <TabsContent value="match-stats">
           <MatchTeamStatsForm
             match={match}
-            userId={user.uid}
+            userId={ownerUid as string}
             competitionId={competitionId as string}
             roundId={match.roundId as string}
+            matchDocPath={resolvedMatchDocPath ?? undefined}
           />
         </TabsContent>
         <TabsContent value="match-events">
@@ -268,7 +276,7 @@ export default function MatchAdminPage() {
                   <CardTitle>イベントを追加</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <EventForm homePlayers={homePlayers} awayPlayers={awayPlayers} match={match} />
+                  <EventForm homePlayers={homePlayers} awayPlayers={awayPlayers} match={match} matchDocPath={resolvedMatchDocPath ?? undefined} />
                 </CardContent>
               </Card>
             </div>
@@ -281,6 +289,7 @@ export default function MatchAdminPage() {
             awayPlayers={awayPlayers}
             roundId={match.roundId as string}
             competitionId={competitionId as string}
+            matchDocPath={resolvedMatchDocPath ?? undefined}
           />
         </TabsContent>
       </Tabs>

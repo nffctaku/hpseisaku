@@ -146,7 +146,13 @@ export default function CompetitionDetailPage() {
       });
       setRounds(roundsData);
       if (roundsData.length > 0) {
-        setCurrentRoundIndex(0);
+        const hasMissingScore = (m: Match) => (m as any)?.scoreHome == null || (m as any)?.scoreAway == null;
+        const isOwnMatch = (m: Match) => (m as any)?.homeTeam === user.uid || (m as any)?.awayTeam === user.uid;
+
+        const ownMissingIndex = roundsData.findIndex((r) => r.matches?.some((m) => isOwnMatch(m) && hasMissingScore(m)));
+        const anyMissingIndex = roundsData.findIndex((r) => r.matches?.some((m) => hasMissingScore(m)));
+
+        setCurrentRoundIndex(ownMissingIndex >= 0 ? ownMissingIndex : anyMissingIndex >= 0 ? anyMissingIndex : 0);
       }
     } catch (error) {
       console.error("Error fetching data: ", error);

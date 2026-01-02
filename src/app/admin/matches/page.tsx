@@ -6,11 +6,12 @@ import { db } from "@/lib/firebase";
 import { collection, query, getDocs } from "firebase/firestore";
 import { format, isToday, isYesterday, isTomorrow, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { Loader2, FilePenLine } from "lucide-react";
+import { ChevronUp, FilePenLine, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import Image from 'next/image';
 import Link from 'next/link';
+import { useMemo } from "react";
 
 // Define structures
 interface Team {
@@ -49,11 +50,13 @@ export default function MatchesPage() {
   const [allMatches, setAllMatches] = useState<EnrichedMatch[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [competitions, setCompetitions] = useState<CompetitionOption[]>([]);
+  const [competitionTeamIds, setCompetitionTeamIds] = useState<Map<string, string[]>>(new Map());
   const [selectedSeason, setSelectedSeason] = useState<string>('all');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
-  const [upcomingMatchId, setUpcomingMatchId] = useState<string | null>(null);
+  const [initialFocusMatchId, setInitialFocusMatchId] = useState<string | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -82,6 +85,14 @@ export default function MatchesPage() {
         }));
         competitionOptions.sort((a, b) => a.name.localeCompare(b.name));
         setCompetitions(competitionOptions);
+
+        const compTeams = new Map<string, string[]>();
+        competitionsSnap.docs.forEach((d) => {
+          const data = d.data() as any;
+          const ids = Array.isArray(data?.teams) ? data.teams.filter((x: any) => typeof x === 'string') : [];
+          compTeams.set(d.id, ids);
+        });
+        setCompetitionTeamIds(compTeams);
 
         for (const compDoc of competitionsSnap.docs) {
           const competitionData = compDoc.data();
@@ -124,13 +135,29 @@ export default function MatchesPage() {
         enrichedMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
         setAllMatches(enrichedMatches);
 
-        // Find the first upcoming match
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Set to start of today
-        const upcomingMatch = enrichedMatches.find(match => new Date(match.matchDate) >= today);
-        if (upcomingMatch) {
-          setUpcomingMatchId(upcomingMatch.id);
+        // Initial focus (scroll target)
+        // 1) Prefer own matches with missing score
+        // 2) Then any match with missing score
+        // 3) Fallback to first upcoming match
+        const hasMissingScore = (m: EnrichedMatch) => m.scoreHome == null || m.scoreAway == null;
+        const isOwnMatch = (m: EnrichedMatch) => m.homeTeamId === user.uid || m.awayTeamId === user.uid;
+
+        const ownMissing = enrichedMatches.find((m) => isOwnMatch(m) && hasMissingScore(m));
+        const anyMissing = enrichedMatches.find((m) => hasMissingScore(m));
+
+        let focusId: string | null = null;
+        if (ownMissing) {
+          focusId = ownMissing.id;
+        } else if (anyMissing) {
+          focusId = anyMissing.id;
+        } else {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const upcomingMatch = enrichedMatches.find((m) => new Date(m.matchDate) >= today);
+          if (upcomingMatch) focusId = upcomingMatch.id;
         }
+
+        setInitialFocusMatchId(focusId);
 
         // 4. Create a sorted list of teams for the dropdown
         const teamsForDropdown = Array.from(teamsMap.values());
@@ -149,13 +176,22 @@ export default function MatchesPage() {
   }, [user]);
 
   useEffect(() => {
-    if (upcomingMatchId) {
-      const element = document.getElementById(upcomingMatchId);
+    if (initialFocusMatchId) {
+      const element = document.getElementById(initialFocusMatchId);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
-  }, [upcomingMatchId]);
+  }, [initialFocusMatchId]);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const getFormattedDateGroup = (dateString: string) => {
       const date = parseISO(dateString);
@@ -181,6 +217,13 @@ export default function MatchesPage() {
     ? competitions
     : competitions.filter((c) => c.season === selectedSeason);
 
+  const visibleTeams = useMemo(() => {
+    if (selectedCompetitionId === 'all') return teams;
+    const ids = competitionTeamIds.get(selectedCompetitionId) || [];
+    const idSet = new Set(ids);
+    return teams.filter((t) => idSet.has(t.id));
+  }, [teams, competitionTeamIds, selectedCompetitionId]);
+
   useEffect(() => {
     if (selectedCompetitionId === 'all') return;
     const isVisible = visibleCompetitions.some((c) => c.id === selectedCompetitionId);
@@ -188,6 +231,14 @@ export default function MatchesPage() {
       setSelectedCompetitionId('all');
     }
   }, [selectedSeason, selectedCompetitionId, visibleCompetitions]);
+
+  useEffect(() => {
+    if (selectedTeamId === 'all') return;
+    const isVisible = visibleTeams.some((t) => t.id === selectedTeamId);
+    if (!isVisible) {
+      setSelectedTeamId('all');
+    }
+  }, [selectedTeamId, visibleTeams]);
 
   const groupedMatches = filteredMatches.reduce((acc, match) => {
     const dateGroup = getFormattedDateGroup(match.matchDate);
@@ -242,7 +293,7 @@ export default function MatchesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">すべてのチーム</SelectItem>
-                {teams.map(team => (
+                {visibleTeams.map(team => (
                   <SelectItem key={team.id} value={team.id}>
                     <div className="flex items-center gap-2">
                       {team.logoUrl && (
@@ -337,6 +388,17 @@ export default function MatchesPage() {
           ))}
         </div>
       )}
+
+      {showScrollTop ? (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-5 z-50 inline-flex h-9 w-9 items-center justify-center rounded-full border bg-white text-gray-900 shadow-md hover:bg-gray-50"
+          aria-label="一番上へ戻る"
+        >
+          <ChevronUp className="h-4 w-4" />
+        </button>
+      ) : null}
     </div>
   );
 }
