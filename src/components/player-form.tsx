@@ -102,7 +102,7 @@ const formSchema = z.object({
       return v;
     },
     z.coerce
-      .number({ invalid_type_error: "背番号を入力してください。" })
+      .number()
       .int()
       .min(1, { message: "背番号は1以上です。" })
       .max(99, { message: "背番号は99以下です。" })
@@ -814,7 +814,7 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
               <div className="space-y-4">
                 {statsFieldArray.fields.map((f, idx) => (
                   <div key={f.id} className="rounded-lg border p-3 space-y-3">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <FormField
                         control={form.control}
                         name={`manualCompetitionStats.${idx}.competitionId` as const}
@@ -847,8 +847,17 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                         )}
                       />
 
-                      <Button type="button" variant="destructive" onClick={() => statsFieldArray.remove(idx)}>
-                        削除
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full sm:w-auto border-destructive text-destructive hover:bg-destructive/10"
+                        onClick={() => {
+                          const ok = window.confirm('この手入力成績を削除して、自動集計に戻しますか？');
+                          if (!ok) return;
+                          statsFieldArray.remove(idx);
+                        }}
+                      >
+                        自動集計に戻す
                       </Button>
                     </div>
 
@@ -1073,7 +1082,11 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
             </div>
           </TabsContent>
         </Tabs>
-        <Button type="submit" disabled={loading} className="w-full">
+        <Button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+        >
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           保存
         </Button>

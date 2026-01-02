@@ -65,6 +65,25 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<Player | null>(null);
 
+  const invalidatePlayerStatsCache = async (playerId: string) => {
+    if (!user) return;
+    const pid = typeof playerId === "string" ? playerId.trim() : "";
+    if (!pid) return;
+    try {
+      const token = await (user as any).getIdToken();
+      await fetch('/api/club/invalidate-player-stats-cache', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ playerId: pid }),
+      });
+    } catch (e) {
+      // ignore
+    }
+  };
+
   const playerFormKey = editingPlayer ? editingPlayer.id : `new-${selectedSeason || ""}`;
 
   const filteredPlayers = useMemo(() => {
@@ -222,6 +241,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
       const seasonPayloadClean = (stripUndefinedDeep(seasonPayload) || {}) as any;
 
+      let savedPlayerId: string | null = null;
+
       if (editingPlayer) {
         const currentSeasons = Array.isArray((editingPlayer as any)?.seasons) ? (((editingPlayer as any).seasons as string[]) || []) : [];
         const nextSeasons = currentSeasons.includes(selectedSeason) ? currentSeasons : [...currentSeasons, selectedSeason];
@@ -239,6 +260,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           photoUrl: values.photoUrl,
         });
         await updateDoc(playerDocRef, (updatePayload || {}) as any);
+        savedPlayerId = editingPlayer.id;
 
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeason}/roster`, editingPlayer.id);
         console.log("[PlayerManagement] write roster", {
@@ -269,6 +291,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           },
         });
         const created = await addDoc(playersColRef, (createPayload || {}) as any);
+        savedPlayerId = created.id;
 
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeason}/roster`, created.id);
         console.log("[PlayerManagement] write roster (create)", {
@@ -290,6 +313,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           } as any,
           { merge: true }
         );
+      }
+
+      if (savedPlayerId) {
+        await invalidatePlayerStatsCache(savedPlayerId);
       }
 
       toast.success("保存しました。", {
