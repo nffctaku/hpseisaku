@@ -150,14 +150,14 @@ async function backfillPublicMatchIndex(ownerUid: string) {
     await commitBatch(allRows.slice(i, i + chunkSize));
   }
 
-  await indexRef.doc('__meta__').set({ updatedAt: new Date().toISOString(), count: allRows.length }, { merge: true });
+  await indexRef.doc('_meta').set({ updatedAt: new Date().toISOString(), count: allRows.length }, { merge: true });
 }
 
 async function hasPublicMatchIndexData(ownerUid: string): Promise<boolean> {
   const ref = db.collection(`clubs/${ownerUid}/public_match_index`).limit(2);
   const snap = await ref.get();
   if (snap.empty) return false;
-  if (snap.size === 1 && snap.docs[0].id === '__meta__') return false;
+  if (snap.size === 1 && snap.docs[0].id === '_meta') return false;
   return true;
 }
 
@@ -189,7 +189,7 @@ async function getClubMatches(clubId: string): Promise<{ clubName: string; group
   if (await hasPublicMatchIndexData(ownerUid)) {
     const indexSnap = await indexRef.get();
     const rows = indexSnap.docs
-      .filter((d) => d.id !== '__meta__')
+      .filter((d) => d.id !== '_meta')
       .map((d) => d.data() as MatchIndexRow)
       .filter((r) => typeof r.matchDate === 'string' && r.matchDate);
 
@@ -230,7 +230,7 @@ async function getClubMatches(clubId: string): Promise<{ clubName: string; group
     await backfillPublicMatchIndex(ownerUid);
     const refetched = await indexRef.get();
     const rows = refetched.docs
-      .filter((d) => d.id !== '__meta__')
+      .filter((d) => d.id !== '_meta')
       .map((d) => d.data() as MatchIndexRow)
       .filter((r) => typeof r.matchDate === 'string' && r.matchDate);
 

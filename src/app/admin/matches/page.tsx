@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { db } from "@/lib/firebase";
-import { collection, query, getDocs, orderBy } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { collection, query, getDocs, orderBy, where } from "firebase/firestore";
 import { format, isToday, isYesterday, isTomorrow, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { ChevronUp, FilePenLine, Loader2 } from "lucide-react";
@@ -120,12 +120,90 @@ export default function MatchesPage() {
         });
         setCompetitionTeamIds(compTeams);
 
+        const preferredTeamId = (() => {
+          const current = selectedTeamId;
+          const main = typeof (user as any)?.mainTeamId === 'string' ? String((user as any).mainTeamId).trim() : '';
+          if (current !== 'all') return current;
+          if (main && teamsMap.has(main)) return main;
+          return 'all';
+        })();
+
+        if (preferredTeamId !== selectedTeamId) {
+          setSelectedTeamId(preferredTeamId);
+        }
+
+        const fetchIndexDocs = async (teamId: string) => {
+          const indexRef = collection(db, `clubs/${user.uid}/public_match_index`);
+          if (teamId === 'all') {
+            return getDocs(query(indexRef, orderBy('matchDate')));
+          }
+          const [homeSnap, awaySnap] = await Promise.all([
+            getDocs(query(indexRef, where('homeTeam', '==', teamId))),
+            getDocs(query(indexRef, where('awayTeam', '==', teamId))),
+          ]);
+
+          const docsMap = new Map<string, any>();
+          for (const d of homeSnap.docs) docsMap.set(d.id, d);
+          for (const d of awaySnap.docs) docsMap.set(d.id, d);
+
+          const docs = Array.from(docsMap.values());
+          docs.sort((a: any, b: any) => {
+            const ad = typeof a?.data === 'function' ? a.data() : (a?._data ?? {});
+            const bd = typeof b?.data === 'function' ? b.data() : (b?._data ?? {});
+            const am = typeof ad?.matchDate === 'string' ? ad.matchDate : '';
+            const bm = typeof bd?.matchDate === 'string' ? bd.matchDate : '';
+            return String(am).localeCompare(String(bm));
+          });
+
+          return { docs } as any;
+        };
+
+        const isIndexEmpty = (snap: any) => {
+          if (!snap || !Array.isArray(snap.docs) || snap.docs.length === 0) return true;
+          const hasRow = snap.docs.some((d: any) => d?.id && d.id !== '_meta');
+          return !hasRow;
+        };
+
         // 3. Fetch match index (single collection)
-        const indexRef = collection(db, `clubs/${user.uid}/public_match_index`);
-        const indexSnap = await getDocs(query(indexRef, orderBy('matchDate')));
+        let indexSnap = await fetchIndexDocs(preferredTeamId);
+
+        // If index is empty, backfill via server API once, then refetch.
+        if (isIndexEmpty(indexSnap)) {
+          try {
+            const token = await auth.currentUser?.getIdToken();
+            if (!token) throw new Error('No auth token');
+            const res = await fetch('/api/club/backfill-public-match-index', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+            });
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              const msg = typeof body?.message === 'string' ? body.message : `Failed (${res.status})`;
+              const detail = typeof body?.detail === 'string' ? ` / ${body.detail}` : '';
+              throw new Error(`${msg}${detail}`);
+            }
+
+            const okBody = await res.json().catch(() => ({} as any));
+            const count = typeof okBody?.count === 'number' ? okBody.count : null;
+            if (count != null) {
+              toast.success(`試合インデックスを生成しました（${count}件）`);
+            } else {
+              toast.success('試合インデックスを生成しました');
+            }
+
+            indexSnap = await fetchIndexDocs(preferredTeamId);
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : 'unknown error';
+            console.warn('Failed to backfill public_match_index:', e);
+            toast.error(`試合インデックス生成に失敗: ${msg}`);
+          }
+        }
 
         const enrichedMatches: EnrichedMatch[] = indexSnap.docs
-          .map((d) => d.data() as any)
+          .map((d: any) => d.data() as any)
           .map((row: MatchIndexRow): EnrichedMatch | null => {
             const compId = typeof row.competitionId === 'string' ? row.competitionId : '';
             const meta = competitionMeta.get(compId);
