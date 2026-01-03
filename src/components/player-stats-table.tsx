@@ -103,6 +103,10 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     const minutesFieldName = `playerStats.${globalIndex}.minutesPlayed`;
     const customStats = watch(customStatPath) || [];
     const rawRating = watch(ratingFieldName);
+    const goalsValue = watch(`playerStats.${globalIndex}.goals`) ?? 0;
+    const assistsValue = watch(`playerStats.${globalIndex}.assists`) ?? 0;
+    const yellowValue = watch(`playerStats.${globalIndex}.yellowCards`) ?? 0;
+    const redValue = watch(`playerStats.${globalIndex}.redCards`) ?? 0;
     const ratingValue =
       typeof rawRating === 'number' &&
       Number.isFinite(rawRating) &&
@@ -168,8 +172,8 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                     min="0"
                     max="10"
                     readOnly
+                    value={goalsValue}
                     className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
-                    {...control.register(`playerStats.${globalIndex}.goals`)}
                   />
                 </div>
 
@@ -180,8 +184,8 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                     min="0"
                     max="10"
                     readOnly
+                    value={assistsValue}
                     className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
-                    {...control.register(`playerStats.${globalIndex}.assists`)}
                   />
                 </div>
 
@@ -192,8 +196,8 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                     min="0"
                     max="2"
                     readOnly
+                    value={yellowValue}
                     className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
-                    {...control.register(`playerStats.${globalIndex}.yellowCards`)}
                   />
                 </div>
 
@@ -204,8 +208,8 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                     min="0"
                     max="1"
                     readOnly
+                    value={redValue}
                     className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
-                    {...control.register(`playerStats.${globalIndex}.redCards`)}
                   />
                 </div>
 
