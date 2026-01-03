@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm, FormProvider, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { db } from '@/lib/firebase';
@@ -106,6 +106,67 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       events: [],
     },
   });
+
+  const watchedEvents = useWatch({ control: methods.control, name: 'events' });
+  const watchedPlayerStats = useWatch({ control: methods.control, name: 'playerStats' });
+
+  useEffect(() => {
+    const events = Array.isArray(watchedEvents) ? watchedEvents : [];
+    const playerStats = Array.isArray(watchedPlayerStats) ? watchedPlayerStats : [];
+    if (playerStats.length === 0) return;
+
+    const goalCounts = new Map<string, number>();
+    const assistCounts = new Map<string, number>();
+    const yellowCounts = new Map<string, number>();
+    const redCounts = new Map<string, number>();
+
+    events.forEach((ev: any) => {
+      if (ev?.type === 'goal') {
+        if (ev.playerId) {
+          goalCounts.set(ev.playerId, (goalCounts.get(ev.playerId) || 0) + 1);
+        }
+        if (ev.assistPlayerId) {
+          assistCounts.set(ev.assistPlayerId, (assistCounts.get(ev.assistPlayerId) || 0) + 1);
+        }
+      }
+      if (ev?.type === 'card' && ev.playerId) {
+        if (ev.cardColor === 'yellow') {
+          yellowCounts.set(ev.playerId, (yellowCounts.get(ev.playerId) || 0) + 1);
+        }
+        if (ev.cardColor === 'red') {
+          redCounts.set(ev.playerId, (redCounts.get(ev.playerId) || 0) + 1);
+        }
+      }
+    });
+
+    playerStats.forEach((ps: any, index: number) => {
+      const playerId = ps?.playerId;
+      if (!playerId) return;
+
+      const nextGoals = goalCounts.get(playerId) ?? 0;
+      const nextAssists = assistCounts.get(playerId) ?? 0;
+      const nextYellow = yellowCounts.get(playerId) ?? 0;
+      const nextRed = redCounts.get(playerId) ?? 0;
+
+      const curGoals = typeof ps?.goals === 'number' ? ps.goals : 0;
+      const curAssists = typeof ps?.assists === 'number' ? ps.assists : 0;
+      const curYellow = typeof ps?.yellowCards === 'number' ? ps.yellowCards : 0;
+      const curRed = typeof ps?.redCards === 'number' ? ps.redCards : 0;
+
+      if (curGoals !== nextGoals) {
+        methods.setValue(`playerStats.${index}.goals` as any, nextGoals, { shouldDirty: false });
+      }
+      if (curAssists !== nextAssists) {
+        methods.setValue(`playerStats.${index}.assists` as any, nextAssists, { shouldDirty: false });
+      }
+      if (curYellow !== nextYellow) {
+        methods.setValue(`playerStats.${index}.yellowCards` as any, nextYellow, { shouldDirty: false });
+      }
+      if (curRed !== nextRed) {
+        methods.setValue(`playerStats.${index}.redCards` as any, nextRed, { shouldDirty: false });
+      }
+    });
+  }, [watchedEvents, watchedPlayerStats, methods]);
 
   useEffect(() => {
     const fetchMatchData = async () => {
