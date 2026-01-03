@@ -346,7 +346,11 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
               </div>
             ) : null}
             <div className="mt-8 flex justify-end">
-              <Button type="submit" disabled={saving}>
+              <Button
+                type="submit"
+                disabled={saving}
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+              >
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 更新
               </Button>

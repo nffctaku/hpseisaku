@@ -321,7 +321,11 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
               <PlusCircle className="mr-2 h-4 w-4" />
               項目を追加
             </Button>
-            <Button type="submit" disabled={isSaving}>
+            <Button
+              type="submit"
+              disabled={isSaving}
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+            >
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : '更新'}
             </Button>
           </div>

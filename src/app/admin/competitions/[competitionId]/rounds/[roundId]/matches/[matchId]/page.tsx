@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -33,30 +33,28 @@ export default function MatchAdminPage() {
       return;
     }
 
-    const fetchData = async () => {
-      setLoading(true);
+    let unsubscribe: null | (() => void) = null;
+    let cancelled = false;
+
+    setLoading(true);
+
+    const start = async () => {
       try {
         const matchDocRef = doc(db, `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${matchId}`);
-        let matchDoc = await getDoc(matchDocRef);
+        const primarySnap = await getDoc(matchDocRef);
 
         // Fallback: if not found under competitions/rounds, try legacy top-level matches collection
-        if (!matchDoc.exists()) {
-          const legacyMatchRef = doc(db, `clubs/${ownerUid}/matches`, matchId as string);
-          const legacySnap = await getDoc(legacyMatchRef);
-          if (!legacySnap.exists()) {
-            console.error("Match document not found in either competitions/rounds or legacy matches collection");
-            setMatch(null);
-            return;
-          }
-          console.log("Loaded match from legacy collection:", legacySnap.data());
-          matchDoc = legacySnap;
+        const resolvedRef = primarySnap.exists() ? matchDocRef : doc(db, `clubs/${ownerUid}/matches`, matchId as string);
+        const resolvedSnap = primarySnap.exists() ? primarySnap : await getDoc(resolvedRef);
+        if (!resolvedSnap.exists()) {
+          console.error("Match document not found in either competitions/rounds or legacy matches collection");
+          setMatch(null);
+          setResolvedMatchDocPath(null);
+          setLoading(false);
+          return;
         }
 
-        setResolvedMatchDocPath(matchDoc.ref.path);
-
-        console.log("Raw data from Firestore:", matchDoc.data());
-
-        let matchData = { id: matchDoc.id, ...matchDoc.data() } as MatchDetails;
+        setResolvedMatchDocPath(resolvedRef.path);
 
         // To ensure team names and logos are present, fetch them if not already on the match doc
         const fetchTeamData = async (teamId: string) => {
@@ -66,23 +64,6 @@ export default function MatchAdminPage() {
           return teamDoc.exists() ? { name: teamDoc.data().name, logoUrl: teamDoc.data().logoUrl } : null;
         };
 
-        const [homeTeamData, awayTeamData] = await Promise.all([
-          fetchTeamData(matchData.homeTeam),
-          fetchTeamData(matchData.awayTeam)
-        ]);
-
-        matchData = {
-          ...matchData,
-          homeTeamName: homeTeamData?.name || matchData.homeTeamName || 'Home Team',
-          homeTeamLogo: homeTeamData?.logoUrl || matchData.homeTeamLogo,
-          awayTeamName: awayTeamData?.name || matchData.awayTeamName || 'Away Team',
-          awayTeamLogo: awayTeamData?.logoUrl || matchData.awayTeamLogo,
-        };
-        
-        console.log("Final match data being set:", matchData);
-        setMatch(matchData);
-
-        // Fetch players for both teams (per-team collection path)
         const fetchPlayers = async (teamId: string): Promise<Player[]> => {
           if (!teamId || !user) return [];
           const playersRef = collection(db, `clubs/${ownerUid}/teams/${teamId}/players`);
@@ -90,22 +71,68 @@ export default function MatchAdminPage() {
           return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
         };
 
-        const home = await fetchPlayers(matchData.homeTeam);
-        const away = await fetchPlayers(matchData.awayTeam);
+        unsubscribe = onSnapshot(
+          resolvedRef,
+          async (snap) => {
+            if (cancelled) return;
+            if (!snap.exists()) {
+              setMatch(null);
+              setLoading(false);
+              return;
+            }
 
-        setHomePlayers(home);
-        setAwayPlayers(away);
+            const raw = snap.data() as any;
+            let matchData = { id: snap.id, ...raw } as MatchDetails;
 
+            const [homeTeamData, awayTeamData] = await Promise.all([
+              fetchTeamData(matchData.homeTeam),
+              fetchTeamData(matchData.awayTeam)
+            ]);
+
+            matchData = {
+              ...matchData,
+              homeTeamName: homeTeamData?.name || matchData.homeTeamName || 'Home Team',
+              homeTeamLogo: homeTeamData?.logoUrl || matchData.homeTeamLogo,
+              awayTeamName: awayTeamData?.name || matchData.awayTeamName || 'Away Team',
+              awayTeamLogo: awayTeamData?.logoUrl || matchData.awayTeamLogo,
+            };
+
+            setMatch(matchData);
+
+            if (matchData.homeTeam && matchData.awayTeam) {
+              const [home, away] = await Promise.all([
+                fetchPlayers(matchData.homeTeam),
+                fetchPlayers(matchData.awayTeam)
+              ]);
+              setHomePlayers(home);
+              setAwayPlayers(away);
+            }
+
+            setLoading(false);
+          },
+          (error) => {
+            if (cancelled) return;
+            console.error("Error fetching match data: ", error);
+            setMatch(null);
+            setResolvedMatchDocPath(null);
+            setLoading(false);
+          }
+        );
       } catch (error) {
+        if (cancelled) return;
         console.error("Error fetching match data: ", error);
         setMatch(null);
         setResolvedMatchDocPath(null);
-      } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
+    start();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, [user, ownerUid, competitionId, roundId, matchId]);
 
   if (loading) {

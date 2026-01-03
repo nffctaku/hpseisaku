@@ -4,15 +4,17 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useFieldArray } from 'react-hook-form';
+import type { SubmitHandler } from 'react-hook-form';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 // Define structures
 interface Match {
@@ -52,9 +54,10 @@ export default function MatchStatsPage() {
   const [match, setMatch] = useState<Match | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const form = useForm<MatchStatsFormValues>({
-    resolver: zodResolver(matchStatsSchema),
+    resolver: zodResolver(matchStatsSchema) as any,
   });
 
   const { fields, replace } = useFieldArray({
@@ -72,7 +75,21 @@ export default function MatchStatsPage() {
         const matchDocRef = doc(db, `clubs/${user.uid}/matches`, matchId);
         const matchSnap = await getDoc(matchDocRef);
         if (matchSnap.exists()) {
-          setMatch({ id: matchSnap.id, ...matchSnap.data() } as Match);
+          const data = matchSnap.data() as any;
+          setMatch({ id: matchSnap.id, ...data } as Match);
+
+          const existingPlayerStats = Array.isArray(data?.playerStats) ? data.playerStats : null;
+          if (existingPlayerStats) {
+            const normalized = existingPlayerStats
+              .filter((ps: any) => ps && typeof ps.playerId === 'string')
+              .map((ps: any) => ({
+                playerId: String(ps.playerId),
+                minutesPlayed: typeof ps.minutesPlayed === 'number' ? ps.minutesPlayed : (ps.minutesPlayed ?? 0),
+                goals: typeof ps.goals === 'number' ? ps.goals : (ps.goals ?? 0),
+                assists: typeof ps.assists === 'number' ? ps.assists : (ps.assists ?? 0),
+              }));
+            form.reset({ playerStats: normalized });
+          }
         } else {
           console.error("Match not found");
         }
@@ -83,8 +100,11 @@ export default function MatchStatsPage() {
         const playersData = playersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
         setPlayers(playersData);
         
-        // Initialize form with players
-        replace(playersData.map(p => ({ playerId: p.id, minutesPlayed: 0, goals: 0, assists: 0 })));
+        // Initialize form with players only if no existing values were loaded
+        const current = form.getValues('playerStats');
+        if (!Array.isArray(current) || current.length === 0) {
+          replace(playersData.map(p => ({ playerId: p.id, minutesPlayed: 0, goals: 0, assists: 0 })));
+        }
 
       } catch (error) {
         console.error("Error fetching data: ", error);
@@ -94,11 +114,31 @@ export default function MatchStatsPage() {
     };
 
     fetchMatchAndPlayers();
-  }, [user, matchId, replace]);
+  }, [user, matchId, replace, form]);
 
-  const handleFormSubmit = async (values: MatchStatsFormValues) => {
-    console.log(values);
-    // TODO: Save stats to a subcollection in the match document
+  const handleFormSubmit: SubmitHandler<MatchStatsFormValues> = async (values) => {
+    if (!user || !matchId) return;
+    setSaving(true);
+    try {
+      const matchDocRef = doc(db, `clubs/${user.uid}/matches`, matchId);
+      const payload = {
+        playerStats: values.playerStats.map((ps) => ({
+          playerId: ps.playerId,
+          minutesPlayed: typeof ps.minutesPlayed === 'number' ? ps.minutesPlayed : 0,
+          goals: typeof ps.goals === 'number' ? ps.goals : 0,
+          assists: typeof ps.assists === 'number' ? ps.assists : 0,
+        })),
+        updatedAt: serverTimestamp(),
+      };
+      await setDoc(matchDocRef, payload as any, { merge: true });
+      toast.success('スタッツを保存しました。');
+    } catch (e: any) {
+      console.error(e);
+      const code = typeof e?.code === 'string' ? e.code : '';
+      toast.error(`保存に失敗しました。${code ? ` (${code})` : ''}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -167,7 +207,14 @@ export default function MatchStatsPage() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full">スタッツを保存</Button>
+          <Button
+            type="submit"
+            className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+            disabled={saving}
+          >
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            スタッツを保存
+          </Button>
         </form>
       </Form>
     </div>

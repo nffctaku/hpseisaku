@@ -187,7 +187,13 @@ export default function PlayerStatsPage() {
         <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold">{playerInfo.name} - 試合別スタッツ</h1>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={handleRefresh} disabled={loading}>更新</Button>
+              <Button
+                onClick={handleRefresh}
+                disabled={loading}
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                更新
+              </Button>
             <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
                 <SelectTrigger className="w-[200px]">
                     <SelectValue placeholder="大会で絞り込み" />
