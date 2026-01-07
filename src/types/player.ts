@@ -40,10 +40,14 @@ export interface ManualCompetitionStat {
 export interface PlayerSeasonData {
   number?: number;
   position?: "GK" | "DF" | "MF" | "FW";
+  mainPosition?: "ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK";
+  subPositions?: ("ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK")[];
   nationality?: string;
   age?: number;
+  tenureYears?: number;
   height?: number;
   weight?: number;
+  profile?: string;
   preferredFoot?: 'left' | 'right' | 'both';
   annualSalary?: number;
   annualSalaryCurrency?: "JPY" | "GBP" | "EUR";
@@ -62,11 +66,15 @@ export interface Player {
   name: string;
   number: number;
   position: "GK" | "DF" | "MF" | "FW";
+  mainPosition?: "ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK";
+  subPositions?: ("ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK")[];
   nationality: string;
   birthDate: string; // or Date
   age: number;
+  tenureYears?: number;
   height: number; // in cm
   weight?: number; // in kg
+  profile?: string;
   preferredFoot?: 'left' | 'right' | 'both';
   annualSalary?: number;
   annualSalaryCurrency?: "JPY" | "GBP" | "EUR";

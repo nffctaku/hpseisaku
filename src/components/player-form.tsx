@@ -32,6 +32,9 @@ import { db } from "@/lib/firebase";
 
 const POSITIONS = ["GK", "DF", "MF", "FW"] as const;
 
+const DETAILED_POSITIONS = ["ST", "RW", "LW", "AM", "RM", "LM", "CM", "DM", "CB", "RB", "LB", "GK"] as const;
+type DetailedPosition = (typeof DETAILED_POSITIONS)[number];
+
 const snsLinkSchema = z
   .string()
   .url({ message: "無効なURLです。" })
@@ -76,6 +79,13 @@ const contractEndMonthSchema = z
   }, z.union([z.coerce.number().int().min(1).max(12), z.nan()]).optional())
   .transform((v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined));
 
+const tenureYearsSchema = z
+  .preprocess((v) => {
+    if (v === "" || v == null) return undefined;
+    return v;
+  }, z.coerce.number().int().min(0).max(50).optional())
+  .transform((v) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined));
+
 const ratingSchema = z
   .preprocess((v) => {
     if (v === "" || v == null) return undefined;
@@ -108,11 +118,14 @@ const formSchema = z.object({
       .max(99, { message: "背番号は99以下です。" })
   ),
   position: z.enum(POSITIONS),
+  mainPosition: z.enum(DETAILED_POSITIONS).optional(),
+  subPositions: z.array(z.enum(DETAILED_POSITIONS)).max(3).optional(),
   photoUrl: z.string().url({ message: "無効なURLです。" }).optional().or(z.literal('')), 
   height: z.coerce.number().optional(),
   weight: z.coerce.number().optional(),
   preferredFoot: z.enum(["left", "right", "both"]).optional(),
   age: z.coerce.number().int().optional(),
+  tenureYears: tenureYearsSchema,
   annualSalary: statNumberSchema,
   annualSalaryCurrency: z.enum(["JPY", "GBP", "EUR"]).optional(),
   contractEndYear: contractEndYearSchema,
@@ -152,6 +165,21 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
   const [loading, setLoading] = useState(false);
   const [competitions, setCompetitions] = useState<{ id: string; name: string; season?: string }[]>([]);
 
+  const detailedPositionLayout: Array<{ key: DetailedPosition; label: string; grid: string }> = [
+    { key: "ST", label: "ST", grid: "col-start-3 row-start-1" },
+    { key: "LW", label: "LW", grid: "col-start-1 row-start-1" },
+    { key: "RW", label: "RW", grid: "col-start-5 row-start-1" },
+    { key: "AM", label: "AM", grid: "col-start-3 row-start-2" },
+    { key: "LM", label: "LM", grid: "col-start-1 row-start-3" },
+    { key: "CM", label: "CM", grid: "col-start-3 row-start-3" },
+    { key: "RM", label: "RM", grid: "col-start-5 row-start-3" },
+    { key: "DM", label: "DM", grid: "col-start-3 row-start-4" },
+    { key: "LB", label: "LB", grid: "col-start-1 row-start-5" },
+    { key: "CB", label: "CB", grid: "col-start-3 row-start-5" },
+    { key: "RB", label: "RB", grid: "col-start-5 row-start-5" },
+    { key: "GK", label: "GK", grid: "col-start-3 row-start-6" },
+  ];
+
   const normalizeSeason = (s: string): string => {
     const v = (s || "").trim();
     if (!v) return "";
@@ -166,11 +194,14 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
       name: "",
       number: undefined as any,
       position: "MF",
+      mainPosition: undefined,
+      subPositions: [],
       photoUrl: "",
       height: undefined,
       weight: undefined,
       preferredFoot: undefined,
       age: undefined,
+      tenureYears: undefined,
       annualSalary: undefined,
       annualSalaryCurrency: "JPY" as any,
       contractEndYear: undefined,
@@ -199,6 +230,10 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
     () => ({
       ...baseDefaults,
       ...(defaultValues as any),
+      mainPosition: (defaultValues as any)?.mainPosition ?? (baseDefaults as any).mainPosition,
+      subPositions: Array.isArray((defaultValues as any)?.subPositions)
+        ? ((defaultValues as any)?.subPositions as any[]).filter((p) => typeof p === "string")
+        : ((baseDefaults as any).subPositions ?? []),
       contractEndYear:
         typeof (defaultValues as any)?.contractEndDate === "string" && /^\d{4}-\d{2}$/.test((defaultValues as any).contractEndDate)
           ? Number(String((defaultValues as any).contractEndDate).slice(0, 4))
@@ -389,6 +424,8 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
     setLoading(true);
     const cleaned: PlayerFormValues = {
       ...values,
+      mainPosition: values.mainPosition,
+      subPositions: Array.isArray(values.subPositions) ? values.subPositions.slice(0, 3) : [],
       manualCompetitionStats: Array.isArray(values.manualCompetitionStats)
         ? values.manualCompetitionStats
             .filter((r) => typeof r?.competitionId === "string" && r.competitionId.trim().length > 0)
@@ -495,6 +532,96 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                 )}
               />
 
+              <FormItem className="md:col-span-2">
+                <FormLabel>適正ポジション（メイン1 / サブ最大3）</FormLabel>
+                <FormControl>
+                  <div className="rounded-lg border p-4">
+                    <div className="grid grid-cols-5 grid-rows-6 gap-3 max-w-[520px] mx-auto">
+                      {detailedPositionLayout.map((p) => {
+                        const main = form.watch("mainPosition") as DetailedPosition | undefined;
+                        const subs = (form.watch("subPositions") || []) as DetailedPosition[];
+                        const isMain = main === p.key;
+                        const isSub = subs.includes(p.key);
+                        const selected = isMain || isSub;
+
+                        const onToggle = () => {
+                          const currentMain = (form.getValues("mainPosition") as DetailedPosition | undefined) ?? undefined;
+                          const currentSubs = ((form.getValues("subPositions") as DetailedPosition[] | undefined) ?? []).filter(Boolean);
+                          const isMainNow = currentMain === p.key;
+                          const isSubNow = currentSubs.includes(p.key);
+
+                          if (isMainNow) {
+                            form.setValue("mainPosition", undefined as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+                            return;
+                          }
+
+                          if (isSubNow) {
+                            const next = currentSubs.filter((x) => x !== p.key);
+                            form.setValue("subPositions", next as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+                            return;
+                          }
+
+                          if (currentMain == null) {
+                            form.setValue("mainPosition", p.key as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+                            return;
+                          }
+
+                          if (currentSubs.length >= 3) {
+                            return;
+                          }
+
+                          form.setValue("subPositions", [...currentSubs, p.key] as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+                        };
+
+                        const baseClass = "relative select-none rounded-md border text-sm font-semibold h-12 flex items-center justify-center transition-colors";
+                        const colorClass = isMain
+                          ? "bg-rose-500/90 text-white border-rose-500"
+                          : isSub
+                            ? "bg-rose-500/25 text-foreground border-rose-500/40"
+                            : "bg-muted/30 hover:bg-muted/50";
+                        const disabledClass = !selected && (form.watch("mainPosition") != null) && ((form.watch("subPositions") || []).length >= 3)
+                          ? "opacity-60"
+                          : "";
+
+                        return (
+                          <button
+                            key={p.key}
+                            type="button"
+                            onClick={onToggle}
+                            className={`${p.grid} ${baseClass} ${colorClass} ${disabledClass}`}
+                            aria-pressed={selected}
+                          >
+                            <span className="text-base tracking-wide">{p.label}</span>
+                            {selected && (
+                              <span className="absolute top-1 right-1 text-[10px] font-bold">
+                                {isMain ? "MAIN" : "SUB"}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-md bg-muted/30 p-3">
+                        <div className="text-xs text-muted-foreground">メイン</div>
+                        <div className="font-semibold">
+                          {(form.watch("mainPosition") as any) || "未選択"}
+                        </div>
+                      </div>
+                      <div className="rounded-md bg-muted/30 p-3">
+                        <div className="text-xs text-muted-foreground">サブ</div>
+                        <div className="font-semibold">
+                          {((form.watch("subPositions") as any[]) || []).length > 0
+                            ? ((form.watch("subPositions") as any[]) || []).join(", ")
+                            : "未選択"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </FormControl>
+              </FormItem>
+
               <FormField
                 control={form.control}
                 name="nationality"
@@ -591,6 +718,37 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="tenureYears"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>在籍年数</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="0"
+                        min="0"
+                        max="50"
+                        {...field}
+                        value={(field.value ?? "") as any}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === "" || value === "-") {
+                            field.onChange(undefined);
+                          } else {
+                            const num = Number(value);
+                            field.onChange(num >= 0 ? num : undefined);
+                          }
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -624,8 +782,18 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                           type="number"
                           inputMode="numeric"
                           placeholder="例: 10000"
+                          min="0"
+                          step="1"
                           value={(field.value ?? "") as any}
-                          onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === "" || value === "-") {
+                              field.onChange(undefined);
+                            } else {
+                              const num = Number(value);
+                              field.onChange(num >= 0 ? num : undefined);
+                            }
+                          }}
                         />
                       </div>
                     </FormControl>

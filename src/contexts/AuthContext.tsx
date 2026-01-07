@@ -20,6 +20,7 @@ interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
   clubProfileExists: boolean;
+  ownerUid?: string;
   refreshUserProfile?: () => Promise<void>;
 }
 
@@ -34,6 +35,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [clubProfileExists, setClubProfileExists] = useState(false);
+  const [ownerUid, setOwnerUid] = useState<string | undefined>(undefined);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -47,6 +49,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const profileData = profileDocSnap.data();
       setUser({ ...authUser, ...profileData } as UserProfile);
       setClubProfileExists(true);
+      setOwnerUid(authUser.uid);
       console.log('[AuthContext] profile found by doc id, user set', { uid: authUser.uid, profileData });
       return;
     }
@@ -58,6 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const profileData = querySnapshot.docs[0].data();
       setUser({ ...authUser, ...profileData } as UserProfile);
       setClubProfileExists(true);
+      setOwnerUid(profileData.ownerUid || querySnapshot.docs[0].id);
       console.log('[AuthContext] profile found by ownerUid, user set', { uid: authUser.uid, profileData });
       return;
     }
@@ -68,15 +72,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!adminSnap.empty) {
       const adminDoc = adminSnap.docs[0];
       const profileData = adminDoc.data() as any;
-      const ownerUid = (profileData?.ownerUid as string) || adminDoc.id;
-      setUser({ ...authUser, ...profileData, ownerUid } as UserProfile);
+      const foundOwnerUid = (profileData?.ownerUid as string) || adminDoc.id;
+      setUser({ ...authUser, ...profileData, ownerUid: foundOwnerUid } as UserProfile);
       setClubProfileExists(true);
-      console.log('[AuthContext] profile found by admins, user set', { uid: authUser.uid, ownerUid, profileData });
+      setOwnerUid(foundOwnerUid);
+      console.log('[AuthContext] profile found by admins, user set', { uid: authUser.uid, foundOwnerUid, profileData });
       return;
     }
 
     setUser(authUser as UserProfile);
     setClubProfileExists(false);
+    setOwnerUid(undefined);
     console.log('[AuthContext] no profile, using authUser only', { uid: authUser.uid });
   };
 
@@ -145,7 +151,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, clubProfileExists, refreshUserProfile }}>
+    <AuthContext.Provider value={{ user, loading, clubProfileExists, ownerUid, refreshUserProfile }}>
       {children}
     </AuthContext.Provider>
   );

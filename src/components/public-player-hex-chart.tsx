@@ -14,10 +14,10 @@ export function PublicPlayerHexChart({
   values: number[];
   overall: number;
 }) {
-  const size = 240;
-  const pad = 44;
+  const size = 120;
+  const pad = 24;
   const c = size / 2;
-  const r = 86;
+  const r = 45;
   const max = 99;
   const angles = Array.from({ length: 6 }, (_, i) => -Math.PI / 2 + (i * (Math.PI * 2)) / 6);
 
@@ -31,7 +31,7 @@ export function PublicPlayerHexChart({
     .join(" ");
 
   const labelPoints = angles.map((a) => {
-    const rr = r + 36;
+    const rr = r + 28;
     return {
       x: c + rr * Math.cos(a),
       y: c + rr * Math.sin(a),
@@ -41,7 +41,7 @@ export function PublicPlayerHexChart({
 
   const valueUnderLabelPoints = angles.map((a) => {
     // Place value under the label by moving toward center along the same axis.
-    const rr = r + 10;
+    const rr = r + 8;
     return {
       x: c + rr * Math.cos(a),
       y: c + rr * Math.sin(a),
@@ -50,7 +50,7 @@ export function PublicPlayerHexChart({
   });
 
   return (
-    <svg width="100%" viewBox={`${-pad} ${-pad} ${size + pad * 2} ${size + pad * 2}`} className="max-w-[360px]">
+    <svg width="100%" viewBox={`${-pad} ${-pad} ${size + pad * 2} ${size + pad * 2}`} className="max-w-[60px] h-auto">
       <polygon points={outerPoints} fill="none" stroke="#E5E7EB" strokeWidth="2" />
       {[0.2, 0.4, 0.6, 0.8].map((k) => (
         <polygon
@@ -70,10 +70,10 @@ export function PublicPlayerHexChart({
         <line key={idx} x1={c} y1={c} x2={c + r * Math.cos(a)} y2={c + r * Math.sin(a)} stroke="#F3F4F6" strokeWidth="2" />
       ))}
       <polygon points={valuePoints} fill="rgba(37,99,235,0.25)" stroke="#2563EB" strokeWidth="2" />
-      <text x={c} y={c - 6} textAnchor="middle" fontSize="12" fill="#6B7280">
+      <text x={c} y={c - 4} textAnchor="middle" fontSize="10" fill="#6B7280">
         総合
       </text>
-      <text x={c} y={c + 24} textAnchor="middle" fontSize="32" fontWeight="700" fill="#111827">
+      <text x={c} y={c + 18} textAnchor="middle" fontSize="18" fontWeight="700" fill="#111827">
         {clamp99(overall)}
       </text>
 
@@ -99,10 +99,9 @@ export function PublicPlayerHexChart({
           y={p.y}
           textAnchor={p.anchor}
           dominantBaseline="middle"
-          fontSize="12"
+          fontSize="10"
           fontWeight={700}
-          fill="#111827"
-        >
+          fill="#111827">
           {clamp99(values[i] ?? 0)}
         </text>
       ))}

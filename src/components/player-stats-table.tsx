@@ -9,23 +9,23 @@ import { Player } from '@/types/match';
 import { toast } from 'sonner';
 
 const ratingOptions = (() => {
-  const start = 4.5;
+  const start = 4.0;
   const end = 10.0;
   const steps = Math.round((end - start) / 0.1);
   const all = Array.from({ length: steps + 1 }, (_, i) => (start + i * 0.1).toFixed(1));
 
   const pivot = all.indexOf('7.0');
   if (pivot === -1) return all;
-  const below = all.slice(0, pivot); // 4.5..6.9
+  const below = all.slice(0, pivot); // 4.0..6.9
   const above = all.slice(pivot + 1); // 7.1..10.0
-  return ['7.0', ...above, ...below];
+  return [...below, '7.0', ...above];
 })();
 const starterMinutesOptions = (() => {
-  // 45 を中心に表示したい
-  // 上: 1..44, 中央: 45, 下: 46..145, 0 は末尾
-  const above = Array.from({ length: 44 }, (_, i) => String(i + 1));
-  const center = ['45'];
-  const below = Array.from({ length: 100 }, (_, i) => String(46 + i)); // 46..145
+  // 90 を中心に表示したい
+  // 上: 1..89 (昇順), 中央: 90, 下: 91..145, 0 は末尾
+  const above = Array.from({ length: 89 }, (_, i) => String(i + 1)); // 1, 2, ..., 89
+  const center = ['90'];
+  const below = Array.from({ length: 55 }, (_, i) => String(91 + i)); // 91..145
   return [...above, ...center, ...below, '0'];
 })();
 const benchMinutesOptions = Array.from({ length: 146 }, (_, i) => i.toString());
@@ -84,7 +84,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
       teamId,
       role,
       rating: undefined,
-      minutesPlayed: role === 'starter' ? 45 : 0,
+      minutesPlayed: role === 'starter' ? 90 : 0,
       goals: 0,
       assists: 0,
       yellowCards: 0,
@@ -110,7 +110,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     const ratingValue =
       typeof rawRating === 'number' &&
       Number.isFinite(rawRating) &&
-      rawRating >= 4.5 &&
+      rawRating >= 4.0 &&
       rawRating <= 10.0
         ? rawRating.toFixed(1)
         : '';

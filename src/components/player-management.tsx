@@ -97,10 +97,14 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           ...p,
           number: (season?.number ?? p.number) as any,
           position: (season?.position ?? p.position) as any,
+          mainPosition: (season as any)?.mainPosition ?? (p as any).mainPosition,
+          subPositions: (season as any)?.subPositions ?? (p as any).subPositions,
           nationality: (season?.nationality ?? p.nationality) as any,
           age: (season?.age ?? p.age) as any,
+          tenureYears: (season as any)?.tenureYears ?? (p as any).tenureYears,
           height: (season?.height ?? p.height) as any,
           weight: (season as any)?.weight ?? (p as any).weight,
+          profile: (season as any)?.profile ?? (p as any).profile,
           preferredFoot: (season as any)?.preferredFoot ?? (p as any).preferredFoot,
           annualSalary: (season as any)?.annualSalary ?? (p as any).annualSalary,
           annualSalaryCurrency: (season as any)?.annualSalaryCurrency ?? (p as any).annualSalaryCurrency,
@@ -125,10 +129,14 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       ...editingPlayer,
       number: season.number ?? editingPlayer.number,
       position: season.position ?? editingPlayer.position,
+      mainPosition: (season as any)?.mainPosition ?? (editingPlayer as any).mainPosition,
+      subPositions: (season as any)?.subPositions ?? (editingPlayer as any).subPositions,
       nationality: season.nationality ?? editingPlayer.nationality,
       age: season.age ?? editingPlayer.age,
+      tenureYears: (season as any)?.tenureYears ?? (editingPlayer as any).tenureYears,
       height: season.height ?? editingPlayer.height,
       weight: (season as any)?.weight ?? (editingPlayer as any).weight,
+      profile: (season as any)?.profile ?? (editingPlayer as any).profile,
       preferredFoot: (season as any)?.preferredFoot ?? (editingPlayer as any).preferredFoot,
       annualSalary: (season as any)?.annualSalary ?? (editingPlayer as any).annualSalary,
       annualSalaryCurrency: (season as any)?.annualSalaryCurrency ?? (editingPlayer as any).annualSalaryCurrency,
@@ -224,10 +232,14 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       const seasonPayload: PlayerSeasonData = {
         number: values.number,
         position: values.position as any,
+        mainPosition: (values as any).mainPosition,
+        subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
         nationality: values.nationality,
         age: values.age,
+        tenureYears: (values as any).tenureYears,
         height: values.height,
         weight: (values as any).weight,
+        profile: (values as any).profile,
         preferredFoot: (values as any).preferredFoot,
         annualSalary: (values as any).annualSalary,
         annualSalaryCurrency: (values as any).annualSalaryCurrency,
@@ -250,8 +262,11 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const updatePayload = stripUndefinedDeep({
           name: values.name,
           position: values.position as any,
+          mainPosition: (values as any).mainPosition,
+          subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
           number: values.number as any,
           photoUrl: values.photoUrl,
+          tenureYears: (values as any).tenureYears,
           seasons: nextSeasons,
           [`seasonData.${selectedSeason}`]: seasonPayloadClean,
         });
@@ -263,23 +278,27 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         savedPlayerId = editingPlayer.id;
 
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeason}/roster`, editingPlayer.id);
+        const rosterPayload = stripUndefinedDeep({
+          name: values.name,
+          teamId,
+          seasons: nextSeasons,
+          seasonData: {
+            [selectedSeason]: seasonPayloadClean,
+          },
+          number: values.number as any,
+          position: values.position as any,
+          mainPosition: (values as any).mainPosition,
+          subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
+          photoUrl: values.photoUrl,
+          tenureYears: (values as any).tenureYears,
+        });
         console.log("[PlayerManagement] write roster", {
           path: `clubs/${clubUid}/seasons/${selectedSeason}/roster/${editingPlayer.id}`,
           photoUrl: values.photoUrl,
         });
         await setDoc(
           rosterDocRef,
-          {
-            name: values.name,
-            teamId,
-            seasons: nextSeasons,
-            seasonData: {
-              [selectedSeason]: seasonPayloadClean,
-            },
-            number: values.number as any,
-            position: values.position as any,
-            photoUrl: values.photoUrl,
-          } as any,
+          (rosterPayload || {}) as any,
           { merge: true }
         );
       } else {
@@ -300,7 +319,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         });
         await setDoc(
           rosterDocRef,
-          {
+          (stripUndefinedDeep({
             ...(createPayload || {}),
             teamId,
             seasons: [selectedSeason],
@@ -309,8 +328,11 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             },
             number: values.number as any,
             position: values.position as any,
+            mainPosition: (values as any).mainPosition,
+            subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
             photoUrl: values.photoUrl,
-          } as any,
+            tenureYears: (values as any).tenureYears,
+          }) || {}) as any,
           { merge: true }
         );
       }
@@ -325,15 +347,19 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       setIsDialogOpen(false);
       setEditingPlayer(null);
     } catch (error) {
-      console.error("Error saving player: ", {
-        code: (error as any)?.code,
-        message: (error as any)?.message,
-        error,
-      });
       const code = (error as any)?.code;
-      toast.error(`保存に失敗しました。${code ? ` (${code})` : ""}`, {
+      const message = (error as any)?.message;
+      console.error("Error saving player:", error);
+      console.error("Error saving player (meta):", { code, message });
+
+      toast.error(
+        code === "permission-denied"
+          ? "保存に失敗しました（permission-denied）。権限設定をご確認ください。"
+          : `保存に失敗しました。${code ? ` (${code})` : ""}`,
+        {
         id: "player-save-failed",
-      });
+        }
+      );
     }
   };
 

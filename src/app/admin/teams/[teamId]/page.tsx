@@ -13,6 +13,20 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Season {
   id: string;
@@ -70,30 +84,30 @@ export default function TeamPlayersPage() {
     toast.success(`シーズン ${seasonId} を ${isPublic ? '公開' : '非公開'}にしました。`);
   };
 
-  const handleCopyFromPreviousSeason = async () => {
-    if (!clubUid || !selectedSeason) {
+  const [copySourceSeason, setCopySourceSeason] = useState<string>("");
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
+
+  const handleCopyFromSeason = async () => {
+    if (!clubUid || !selectedSeason || !copySourceSeason) {
       toast.error('シーズンが選択されていません。');
       return;
     }
 
-    const getPreviousSeason = (season: string): string => {
-      const startYear = parseInt(season.split('-')[0]);
-      const prevYear = startYear - 1;
-      const prevEnd = (prevYear + 1).toString().slice(-2);
-      return `${prevYear}-${prevEnd}`;
-    };
+    if (copySourceSeason === selectedSeason) {
+      toast.error('コピー元とコピー先のシーズンが同じです。');
+      return;
+    }
 
-    const previousSeason = getPreviousSeason(selectedSeason);
-    toast.info(`${previousSeason} シーズンから選手をコピーしています...`);
+    toast.info(`${copySourceSeason} シーズンから選手をコピーしています...`);
 
     try {
-      // teams/{teamId}/players の中で「前シーズン所属」の選手に、選択中シーズンを追加する（実質コピー）
+      // teams/{teamId}/players の中で「指定シーズン所属」の選手に、選択中シーズンを追加する（実質コピー）
       const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
-      const q = query(playersColRef, where('seasons', 'array-contains', previousSeason));
+      const q = query(playersColRef, where('seasons', 'array-contains', copySourceSeason));
       const prevPlayersSnap = await getDocs(q);
 
       if (prevPlayersSnap.empty) {
-        toast.info(`${previousSeason} シーズンに所属している選手がいません。`);
+        toast.info(`${copySourceSeason} シーズンに所属している選手がいません。`);
         return;
       }
 
@@ -105,9 +119,9 @@ export default function TeamPlayersPage() {
         const seasons: string[] = Array.isArray(data?.seasons) ? data.seasons : [];
         if (seasons.includes(selectedSeason)) return;
 
-        const prevSeasonData = (data?.seasonData && typeof data.seasonData === "object") ? data.seasonData[previousSeason] : undefined;
-        const seasonPayload = prevSeasonData
-          ? prevSeasonData
+        const sourceSeasonData = (data?.seasonData && typeof data.seasonData === "object") ? data.seasonData[copySourceSeason] : undefined;
+        const seasonPayload = sourceSeasonData
+          ? sourceSeasonData
           : {
               number: typeof data?.number === "number" ? data.number : undefined,
               position: typeof data?.position === "string" ? data.position : undefined,
@@ -135,6 +149,8 @@ export default function TeamPlayersPage() {
 
       await batch.commit();
       toast.success(`${copiedCount}人の選手を ${selectedSeason} シーズンにコピーしました。`);
+      setIsCopyDialogOpen(false);
+      setCopySourceSeason("");
 
     } catch (error) {
       console.error('Failed to copy players:', error);
@@ -153,14 +169,28 @@ export default function TeamPlayersPage() {
             </span>
           )}
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="bg-white text-gray-900 border border-border hover:bg-gray-100 whitespace-nowrap"
-          onClick={() => router.push(`/admin/teams/${teamId}/season`)}
-        >
-          シーズン選択に戻る
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="bg-white text-gray-900 border border-border hover:bg-gray-100 whitespace-nowrap"
+            disabled={!selectedSeason}
+            onClick={() => {
+              if (!selectedSeason) return;
+              router.push(`/admin/teams/${teamId}/booklet?season=${encodeURIComponent(selectedSeason)}`);
+            }}
+          >
+            名鑑
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="bg-white text-gray-900 border border-border hover:bg-gray-100 whitespace-nowrap"
+            onClick={() => router.push(`/admin/teams/${teamId}/season`)}
+          >
+            シーズン選択に戻る
+          </Button>
+        </div>
       </div>
 
       <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-3">
@@ -186,15 +216,50 @@ export default function TeamPlayersPage() {
           )}
 
           <div className="flex flex-col gap-1">
-            <Button
-              variant="outline"
-              onClick={handleCopyFromPreviousSeason}
-              disabled={!selectedSeason}
-              className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white"
-            >
-              昨シーズンから選手をコピー
-            </Button>
-            <p className="hidden sm:block text-xs text-muted-foreground">前年のロスターから未登録の選手だけを追加します。</p>
+            <Dialog open={isCopyDialogOpen} onOpenChange={setIsCopyDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={!selectedSeason}
+                  className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white"
+                >
+                  選手をコピー
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>選手をコピー</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="copy-source-season">コピー元シーズン</Label>
+                    <Select value={copySourceSeason} onValueChange={setCopySourceSeason}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="シーズンを選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {seasonIds.filter(s => s !== selectedSeason).map((seasonId) => (
+                          <SelectItem key={seasonId} value={seasonId}>
+                            {seasonId}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    選択したシーズンのロスターから未登録の選手だけを{selectedSeason}シーズンに追加します。
+                  </div>
+                  <Button 
+                    onClick={handleCopyFromSeason}
+                    disabled={!copySourceSeason}
+                    className="w-full"
+                  >
+                    コピーを実行
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <p className="hidden sm:block text-xs text-muted-foreground">他シーズンのロスターから未登録の選手だけを追加します。</p>
           </div>
         </div>
       </div>

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Loader2, ChevronLeft, ChevronRight, PlusCircle, Trash2, CalendarIcon } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, PlusCircle, Trash2, CalendarIcon, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from "sonner";
 import { cn } from '@/lib/utils';
@@ -19,6 +19,17 @@ import { format, isToday, isValid, isYesterday, isTomorrow, parseISO } from 'dat
 import { ja } from 'date-fns/locale';
 import { MatchEditor } from '@/components/match-editor';
 import { Match, Team } from '@/types/match';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 // Define TypeScript interfaces
 interface Competition {
@@ -272,6 +283,60 @@ export default function CompetitionDetailPage() {
       .sort(([a], [b]) => (reduced.sortMs[a] ?? Number.POSITIVE_INFINITY) - (reduced.sortMs[b] ?? Number.POSITIVE_INFINITY)) as [string, Match[]][];
   }, [currentRound]);
 
+  const handleResetAllScores = async () => {
+    if (!user || !competition) return;
+
+    try {
+      // まずローカル状態を即時更新してUIに反映
+      setRounds(prevRounds => 
+        prevRounds.map(round => ({
+          ...round,
+          matches: round.matches.map(match => ({
+            ...match,
+            scoreHome: null,
+            scoreAway: null,
+            status: 'scheduled' as const,
+            homeTeamScore: null,
+            awayTeamScore: null,
+            isCompleted: false
+          }))
+        }))
+      );
+
+      // すべてのラウンドのすべての試合のスコアをリセット
+      for (const round of rounds) {
+        for (const match of round.matches) {
+          const matchRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${round.id}/matches`, match.id);
+          await updateDoc(matchRef, {
+            scoreHome: null,
+            scoreAway: null,
+            status: 'scheduled',
+            homeTeamScore: null,
+            awayTeamScore: null,
+            isCompleted: false
+          });
+          
+          // パブリックマッチインデックスも更新
+          const indexDocId = `${competitionId}__${round.id}__${match.id}`;
+          const indexRef = doc(db, `clubs/${user.uid}/public_match_index`, indexDocId);
+          await updateDoc(indexRef, {
+            scoreHome: null,
+            scoreAway: null
+          });
+        }
+      }
+
+      toast.success("すべてのスコアをリセットしました");
+      // データを再読み込みして完全同期
+      await fetchAllData(); 
+    } catch (error) {
+      console.error("スコアリセットエラー:", error);
+      toast.error("スコアのリセットに失敗しました");
+      // エラー時はデータを再読み込みして状態を修正
+      await fetchAllData();
+    }
+  };
+
   const handleMatchUpdate = async (matchId: string, field: keyof Match, value: any) => {
     if (!user || !currentRound) return;
     const roundId = currentRound.id;
@@ -395,6 +460,35 @@ export default function CompetitionDetailPage() {
               <Button className="w-full bg-green-600 text-white hover:bg-green-700">順位表を更新・編集</Button>
             </Link>
           ) : null}
+          
+          <div className="flex justify-end mt-4">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="bg-red-600 hover:bg-red-700 text-white text-xs py-2 px-3">
+                  <AlertTriangle className="mr-1 h-3 w-3" />
+                  すべての試合スコアをリセット
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>⚠️ すべての試合スコアをリセット</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    この操作は<strong>元に戻せません</strong>。
+                    <br /><br />
+                    すべての試合スコアがリセットされます。
+                    <br />
+                    本当に実行してもよろしいですか？
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleResetAllScores} className="bg-red-600 hover:bg-red-700">
+                    リセットを実行
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       ) : (
         <div className="text-center py-10 text-muted-foreground">

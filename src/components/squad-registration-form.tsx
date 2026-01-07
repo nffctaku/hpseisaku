@@ -25,7 +25,7 @@ const formSchema = z.object({
       playerName: z.string(),
       position: z.string(),
       role: z.string().optional(),
-      rating: z.coerce.number().min(0).max(10).step(0.1).optional(),
+      rating: z.coerce.number().min(4.0).max(10.0).step(0.1).optional(),
       minutesPlayed: z.coerce.number().min(0).optional(),
       goals: z.coerce.number().min(0).optional(),
       assists: z.coerce.number().min(0).optional(),
@@ -71,7 +71,113 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   const ownerUid = (user as any)?.ownerUid || user?.uid;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [settingDefault, setSettingDefault] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
+
+  // localStorageからデフォルトスタメン・サブ設定を読み込む
+  const loadDefaultSquad = (teamPlayers: Player[]) => {
+    const storageKey = `default_squad_${ownerUid}`;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const data = JSON.parse(saved);
+        // チームIDを特定（最初の選手のteamId、またはmatch.homeTeam）
+        let teamId = teamPlayers[0]?.teamId;
+        if (!teamId) {
+          teamId = match.homeTeam;
+        }
+        
+        const teamDefaultSquad = data[teamId] || { starters: [], subs: [] };
+        
+        // デフォルトメンバーを構築
+        const defaultPlayerStats: any[] = [];
+        
+        // スタメン
+        teamDefaultSquad.starters.forEach((playerId: string) => {
+          const player = teamPlayers.find(p => p.id === playerId);
+          if (player) {
+            defaultPlayerStats.push({
+              playerId: player.id,
+              playerName: player.name,
+              position: player.position || 'N/A',
+              teamId: teamId,
+              role: 'starter',
+              rating: undefined,
+              minutesPlayed: 90,
+              goals: 0,
+              assists: 0,
+              yellowCards: 0,
+              redCards: 0,
+              customStats: [],
+            });
+          }
+        });
+        
+        // サブ
+        teamDefaultSquad.subs.forEach((playerId: string) => {
+          const player = teamPlayers.find(p => p.id === playerId);
+          if (player) {
+            defaultPlayerStats.push({
+              playerId: player.id,
+              playerName: player.name,
+              position: player.position || 'N/A',
+              teamId: teamId,
+              role: 'sub',
+              rating: undefined,
+              minutesPlayed: 0,
+              goals: 0,
+              assists: 0,
+              yellowCards: 0,
+              redCards: 0,
+              customStats: [],
+            });
+          }
+        });
+        
+        return defaultPlayerStats;
+      }
+    } catch (error) {
+      console.error('Error loading default squad:', error);
+    }
+    return [];
+  };
+
+  // デフォルトスタメン・サブ設定を保存
+  const saveDefaultSquad = (playerStats: any[]) => {
+    const storageKey = `default_squad_${ownerUid}`;
+    try {
+      const existingData = localStorage.getItem(storageKey);
+      const data = existingData ? JSON.parse(existingData) : {};
+      
+      // チームごとにスタメンとサブを分類
+      const teamGroups = playerStats.reduce((acc: any, ps: any) => {
+        // teamIdがundefinedの場合はmatchのhomeTeamを使用
+        let teamId = ps.teamId;
+        if (!teamId) {
+          teamId = match.homeTeam;
+        }
+        
+        if (!acc[teamId]) {
+          acc[teamId] = { starters: [], subs: [] };
+        }
+        if (ps.role === 'starter') {
+          acc[teamId].starters.push(ps.playerId);
+        } else {
+          acc[teamId].subs.push(ps.playerId);
+        }
+        return acc;
+      }, {});
+      
+      // データを更新
+      Object.keys(teamGroups).forEach(teamId => {
+        data[teamId] = teamGroups[teamId];
+      });
+      
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    } catch (error) {
+      console.error('Error saving default squad:', error);
+    }
+  };
 
   const stripUndefinedDeep = <T,>(value: T): T => {
     if (value === undefined) return value;
@@ -182,10 +288,28 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         const matchDoc = await getDoc(matchDocRef);
         if (matchDoc.exists()) {
           const data = matchDoc.data();
+          let playerStats = data.playerStats || [];
+          
+          // 既存の選手データがない場合はデフォルト設定を適用
+          if (playerStats.length === 0) {
+            const homeDefault = loadDefaultSquad(homePlayers);
+            const awayDefault = loadDefaultSquad(awayPlayers);
+            playerStats = [...homeDefault, ...awayDefault];
+          }
+          
           methods.reset({
             customStatHeaders: data.customStatHeaders || [],
-            playerStats: data.playerStats || [],
+            playerStats,
             events: data.events || [],
+          });
+        } else {
+          // 試合データが存在しない場合もデフォルト設定を適用
+          const homeDefault = loadDefaultSquad(homePlayers);
+          const awayDefault = loadDefaultSquad(awayPlayers);
+          methods.reset({
+            customStatHeaders: [],
+            playerStats: [...homeDefault, ...awayDefault],
+            events: [],
           });
         }
       } catch (error) {
@@ -356,6 +480,10 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       });
 
       await batch.commit();
+      
+      // デフォルトスタメン・サブ設定を保存
+      saveDefaultSquad(data.playerStats || []);
+      
       toast.success('出場選手・スタッツ・イベントを更新しました。');
     } catch (error) {
       console.error("Error saving squad data:", error);
@@ -364,6 +492,35 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     } finally {
       setSaving(false);
     }
+  };
+
+  // 現在のメンバーをデフォルトとして設定
+  const setAsDefaultSquad = () => {
+    const currentStats = methods.getValues('playerStats') || [];
+    const watchedStats = watchedPlayerStats;
+    const statsToUse = currentStats.length > 0 ? currentStats : watchedStats;
+    
+    if (statsToUse.length === 0) {
+      toast.error('メンバーが選択されていません');
+      return;
+    }
+    
+    setSettingDefault(true);
+    
+    const starterCount = statsToUse.filter(ps => ps.role === 'starter').length;
+    const subCount = statsToUse.filter(ps => ps.role === 'sub').length;
+    
+    saveDefaultSquad(statsToUse);
+    toast.success(`メンバーをデフォルトとして設定しました（スタメン: ${starterCount}名, サブ: ${subCount}名）`);
+    
+    setSettingDefault(false);
+  };
+
+  // デフォルトスタメン・サブ設定をリセット
+  const resetDefaultSquad = () => {
+    const storageKey = `default_squad_${ownerUid}`;
+    localStorage.removeItem(storageKey);
+    toast.success('デフォルトスタメン・サブ設定をリセットしました');
   };
 
   if (loading) {
@@ -406,16 +563,44 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                 />
               </div>
             ) : null}
+            {(view === 'player' || view === 'both') ? (
+            <div className="mt-8 flex justify-between">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setAsDefaultSquad();
+                }}
+                disabled={settingDefault}
+                className="bg-blue-600 text-white hover:bg-blue-700 px-3 py-1 text-sm"
+              >
+                {settingDefault ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                <div className="flex flex-col items-center">
+                  <span className="text-xs">このメンバーを今後</span>
+                  <span className="text-xs">デフォルト設定</span>
+                </div>
+              </Button>
+              <Button
+                type="submit"
+                disabled={saving}
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                保存
+              </Button>
+            </div>
+          ) : (
             <div className="mt-8 flex justify-end">
               <Button
                 type="submit"
                 disabled={saving}
                 className="bg-emerald-600 text-white hover:bg-emerald-700"
               >
-                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                更新
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                保存
               </Button>
             </div>
+          )}
           </form>
         </CardContent>
       </Card>

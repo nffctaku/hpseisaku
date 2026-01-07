@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, ArrowUpDown } from "lucide-react";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
+import { SeasonPerformance } from "@/components/season-performance";
 
 interface TeamOption {
   id: string;
@@ -18,6 +19,7 @@ interface CompetitionDoc {
   id: string;
   name: string;
   season?: string;
+  format?: string;
 }
 
 interface PlayerRow {
@@ -365,6 +367,7 @@ export default function ClubStatsPage() {
   const [statsData, setStatsData] = useState<StatsDataResponse | null>(null);
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>("all");
+  const [performanceSeason, setPerformanceSeason] = useState<string>("");
 
   const seasons = useMemo(() => {
     const set = new Set<string>();
@@ -415,6 +418,12 @@ export default function ClubStatsPage() {
   }, [clubId]);
 
   useEffect(() => {
+    if (seasons.length > 0 && !performanceSeason) {
+      setPerformanceSeason(seasons[0]);
+    }
+  }, [seasons, performanceSeason]);
+
+  useEffect(() => {
     if (!clubId) return;
     // When filters change, fetch server-filtered + cached aggregate.
     fetchStatsData({ season: selectedSeason, competitionId: selectedCompetitionId, showLoading: false });
@@ -444,7 +453,16 @@ export default function ClubStatsPage() {
           </div>
         ) : (
           <>
-            <div className="mt-4 flex flex-wrap items-center gap-2 justify-end">
+            <SeasonPerformance
+              matches={statsData.matches}
+              competitions={statsData.competitions}
+              teams={statsData.teams}
+              mainTeamId={mainTeamId}
+              selectedSeason={performanceSeason}
+              onSeasonChange={setPerformanceSeason}
+            />
+
+            <div className="mt-8 flex flex-wrap items-center gap-2 justify-end">
               <Select value={selectedSeason} onValueChange={setSelectedSeason}>
                 <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900 border">
                   <SelectValue placeholder="シーズンを選択" />

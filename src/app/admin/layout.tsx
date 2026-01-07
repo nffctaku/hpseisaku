@@ -13,6 +13,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
+import { useRouter, usePathname } from 'next/navigation';
 
 function AdminLayoutContent({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -21,6 +22,10 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   const [tosChecked, setTosChecked] = useState(false);
   const [tosLoading, setTosLoading] = useState(false);
   const [tosOpen, setTosOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const allowHorizontalScroll = (pathname || '').includes('/booklet');
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
@@ -156,7 +161,11 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
           isMenuOpen={isSidebarOpen}
           isAdminPage={true}
         />
-        <main className="flex-1 w-full p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8 overflow-y-auto overflow-x-hidden">
+        <main
+          className={`flex-1 w-full p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8 overflow-y-auto ${
+            allowHorizontalScroll ? 'overflow-x-auto' : 'overflow-x-hidden'
+          }`}
+        >
           {children}
         </main>
         <footer className="border-t border-gray-800 px-4 sm:px-6 md:px-8 py-4 text-xs text-gray-400">

@@ -19,9 +19,154 @@ interface PlayerPageProps {
   params: Promise<{ clubId: string; playerId: string }>;
 }
 
+const DETAILED_PITCH_LAYOUT: Array<{ key: string; label: string; grid: string }> = [
+  { key: "ST", label: "ST", grid: "col-start-3 row-start-1" },
+  { key: "LW", label: "LW", grid: "col-start-1 row-start-1" },
+  { key: "RW", label: "RW", grid: "col-start-5 row-start-1" },
+  { key: "AM", label: "AM", grid: "col-start-3 row-start-2" },
+  { key: "LM", label: "LM", grid: "col-start-1 row-start-3" },
+  { key: "CM", label: "CM", grid: "col-start-3 row-start-3" },
+  { key: "RM", label: "RM", grid: "col-start-5 row-start-3" },
+  { key: "DM", label: "DM", grid: "col-start-3 row-start-4" },
+  { key: "LB", label: "LB", grid: "col-start-1 row-start-5" },
+  { key: "CB", label: "CB", grid: "col-start-3 row-start-5" },
+  { key: "RB", label: "RB", grid: "col-start-5 row-start-5" },
+  { key: "GK", label: "GK", grid: "col-start-3 row-start-6" },
+];
+
+const DETAILED_PITCH_BOXES: Array<{ key: string; label: string; style: React.CSSProperties }> = [
+  { key: "ST", label: "ST", style: { left: "24%", top: "4%", width: "52%", height: "16%" } },
+  { key: "LW", label: "LW", style: { left: "4%", top: "4%", width: "21%", height: "26%" } },
+  { key: "RW", label: "RW", style: { left: "75%", top: "4%", width: "21%", height: "26%" } },
+  { key: "AM", label: "AM", style: { left: "24%", top: "20%", width: "52%", height: "16%" } },
+  { key: "LM", label: "LM", style: { left: "4%", top: "30%", width: "21%", height: "26%" } },
+  { key: "RM", label: "RM", style: { left: "75%", top: "30%", width: "21%", height: "26%" } },
+  { key: "CM", label: "CM", style: { left: "24%", top: "36%", width: "52%", height: "16%" } },
+  { key: "DM", label: "DM", style: { left: "24%", top: "52%", width: "52%", height: "16%" } },
+  { key: "LB", label: "LB", style: { left: "4%", top: "56%", width: "21%", height: "28%" } },
+  { key: "RB", label: "RB", style: { left: "75%", top: "56%", width: "21%", height: "28%" } },
+  { key: "CB", label: "CB", style: { left: "24%", top: "68%", width: "52%", height: "16%" } },
+  { key: "GK", label: "GK", style: { left: "33%", top: "84%", width: "34%", height: "8%" } },
+];
+
 interface LegalPageItem {
   title: string;
   slug: string;
+}
+
+function MiniPitch({
+  player,
+  className,
+  pitchClassName,
+}: {
+  player: PlayerData;
+  className?: string;
+  pitchClassName?: string;
+}) {
+  if (!player.mainPosition && !(Array.isArray(player.subPositions) && player.subPositions.length > 0)) {
+    return null;
+  }
+
+  const main = typeof player.mainPosition === "string" ? player.mainPosition : "";
+  const subs = Array.isArray(player.subPositions) ? player.subPositions : [];
+
+  const VIEW_W = 100;
+  const VIEW_H = 160;
+  const INSET = 4;
+
+  const pctToX = (pct: string | undefined): number => {
+    const n = typeof pct === "string" ? parseFloat(pct) : NaN;
+    if (!Number.isFinite(n)) return INSET;
+    return INSET + (n * (VIEW_W - INSET * 2)) / 100;
+  };
+
+  const pctToY = (pct: string | undefined): number => {
+    const n = typeof pct === "string" ? parseFloat(pct) : NaN;
+    if (!Number.isFinite(n)) return INSET;
+    return INSET + (n * (VIEW_H - INSET * 2)) / 100;
+  };
+
+  const pctToW = (pct: string | undefined): number => {
+    const n = typeof pct === "string" ? parseFloat(pct) : NaN;
+    if (!Number.isFinite(n)) return 0;
+    return (n * (VIEW_W - INSET * 2)) / 100;
+  };
+
+  const pctToH = (pct: string | undefined): number => {
+    const n = typeof pct === "string" ? parseFloat(pct) : NaN;
+    if (!Number.isFinite(n)) return 0;
+    return (n * (VIEW_H - INSET * 2)) / 100;
+  };
+
+  return (
+    <div className={className}>
+      <div className="inline-flex flex-col">
+        <div
+          className={`relative rounded-md bg-white overflow-hidden flex-shrink-0 ${
+            pitchClassName || "w-[200px] h-[260px] sm:w-[220px] sm:h-[286px]"
+          }`}
+        >
+          <svg
+            className="absolute inset-0 w-full h-full"
+            viewBox="0 0 100 160"
+            fill="none"
+            aria-hidden="true"
+          >
+            {/* zones */}
+            {DETAILED_PITCH_BOXES.map((p) => {
+              const isMain = main === p.key;
+              const isSub = subs.includes(p.key);
+              const fill = isMain ? "rgba(244,63,94,0.80)" : isSub ? "rgba(244,63,94,0.25)" : "rgba(0,0,0,0.03)";
+
+              const x = pctToX((p.style as any)?.left);
+              const y = pctToY((p.style as any)?.top);
+              const w = pctToW((p.style as any)?.width);
+              const h = pctToH((p.style as any)?.height);
+
+              return (
+                <rect
+                  key={p.key}
+                  x={x}
+                  y={y}
+                  width={w}
+                  height={h}
+                  rx="1"
+                  fill={fill}
+                />
+              );
+            })}
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PositionBadges({ player }: { player: PlayerData }) {
+  const main = typeof player.mainPosition === "string" ? player.mainPosition.trim() : "";
+  const subs = Array.isArray(player.subPositions)
+    ? player.subPositions.filter((p) => typeof p === "string" && p.trim().length > 0).slice(0, 3)
+    : [];
+
+  if (!main && subs.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2 items-start">
+      {main && (
+        <span className="inline-flex items-center rounded-full bg-rose-500/90 text-white px-3 py-1 text-sm font-semibold">
+          {main}
+        </span>
+      )}
+      {subs.map((p, idx) => (
+        <span
+          key={`${p}-${idx}`}
+          className="inline-flex items-center rounded-full bg-rose-500/25 text-foreground px-3 py-1 text-sm font-semibold"
+        >
+          {p}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function toSlashSeason(season: string): string {
@@ -47,12 +192,7 @@ function toSlashSeason(season: string): string {
 function toDashSeason(season: string): string {
   if (!season) return season;
   if (season.includes("-")) {
-    const parts = season.split("-");
-    if (parts.length === 2 && /^\d{4}$/.test(parts[0])) {
-      const end = parts[1];
-      const end2 = /^\d{4}$/.test(end) ? end.slice(-2) : end;
-      if (/^\d{2}$/.test(end2)) return `${parts[0]}-${end2}`;
-    }
+    // すでにダッシュ形式の場合はそのまま返す（変換しない）
     return season;
   }
   const mShort = season.match(/^(\d{4})\/(\d{2})$/);
@@ -355,6 +495,8 @@ interface PlayerData {
   name: string;
   number: number;
   position: string;
+  mainPosition?: string;
+  subPositions?: string[];
   photoUrl?: string;
   snsLinks?: {
     x?: string;
@@ -462,8 +604,44 @@ async function getPlayerStats(ownerUid: string, playerId: string, playerData: an
   for (const competitionDoc of competitionsSnap.docs) {
     const competitionData = competitionDoc.data() as any;
     const competitionSeason = typeof competitionData?.season === "string" ? competitionData.season : null;
-    if (normalizedTargetSeason && competitionSeason && !seasonEquals(competitionSeason, normalizedTargetSeason)) {
-      continue;
+    
+    // 強化されたシーズンマッチング
+    if (normalizedTargetSeason && competitionSeason) {
+      const targetSlash = toSlashSeason(normalizedTargetSeason);
+      const targetDash = toDashSeason(normalizedTargetSeason);
+      const competitionSlash = toSlashSeason(competitionSeason);
+      const competitionDash = toDashSeason(competitionSeason);
+      
+      const targetFormats = [
+        normalizedTargetSeason,
+        targetSlash,
+        targetDash
+      ];
+      const competitionFormats = [
+        competitionSeason,
+        competitionSlash,
+        competitionDash
+      ];
+      
+      const isMatch = targetFormats.some(tf => competitionFormats.includes(tf));
+      console.log("Final debug - Competition:", {
+        competitionId: competitionDoc.id,
+        originalCompetitionSeason: competitionSeason,
+        normalizedTargetSeason,
+        conversions: {
+          targetSlash,
+          targetDash,
+          competitionSlash,
+          competitionDash
+        },
+        targetFormats,
+        competitionFormats,
+        isMatch
+      });
+      
+      if (!isMatch) {
+        continue;
+      }
     }
     const manual = manualStatsMap.get(competitionDoc.id);
     const roundsSnap = await competitionDoc.ref.collection('rounds').get();
@@ -520,13 +698,50 @@ async function PlayerStatsSection({
   playerId,
   registeredSeasonIds,
   player,
+  currentSeason,
 }: {
   ownerUid: string;
   playerId: string;
   registeredSeasonIds: string[];
   player: PlayerData;
+  currentSeason?: string | null;
 }) {
   const statsSeason = (() => {
+    // URLから指定されたシーズンがあればそれを優先、なければ最新シーズン
+    if (currentSeason) {
+      // 直接マッチング
+      if (registeredSeasonIds.includes(currentSeason)) {
+        return currentSeason;
+      }
+      
+      // 全ての形式変換でマッチングを試行
+      const currentFormats = [
+        currentSeason,
+        toSlashSeason(currentSeason),
+        toDashSeason(currentSeason)
+      ];
+      
+      for (const currentFormat of currentFormats) {
+        if (registeredSeasonIds.includes(currentFormat)) {
+          return currentFormat;
+        }
+        
+        // 登録されているシーズンも形式変換して比較
+        for (const registeredId of registeredSeasonIds) {
+          const registeredFormats = [
+            registeredId,
+            toSlashSeason(registeredId),
+            toDashSeason(registeredId)
+          ];
+          
+          if (currentFormats.some(cf => registeredFormats.includes(cf))) {
+            return registeredId;
+          }
+        }
+      }
+    }
+    
+    // フォールバック：最新シーズン
     const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
     candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
     return candidates.length > 0 ? candidates[0] : null;
@@ -952,10 +1167,13 @@ async function getPlayer(
 
 export default async function PlayerPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ clubId: string; playerId: string }>;
+  searchParams: Promise<{ season?: string }>;
 }) {
   const { clubId, playerId } = await params;
+  const { season: urlSeason } = await searchParams;
   const result = await getPlayer(clubId, playerId);
   if (!result) return notFound();
 
@@ -980,7 +1198,8 @@ export default async function PlayerPage({
   const overallSeries = (() => {
     const seasons = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
     seasons.sort((a, b) => toSlashSeason(a).localeCompare(toSlashSeason(b)));
-    return seasons.map((seasonId) => {
+    const last5 = seasons.slice(-5);
+    return last5.map((seasonId) => {
       const slash = toSlashSeason(seasonId);
       return {
         season: slash,
@@ -989,7 +1208,49 @@ export default async function PlayerPage({
     });
   })();
 
+  // URLで指定されたシーズンを優先的に使用
+  const targetSeason = (() => {
+    if (!urlSeason || !registeredSeasonIds.length) return null;
+    
+    // 直接マッチング
+    if (registeredSeasonIds.includes(urlSeason)) {
+      return urlSeason;
+    }
+    
+    // 全ての形式変換でマッチングを試行
+    const urlFormats = [
+      urlSeason,
+      toSlashSeason(urlSeason),
+      toDashSeason(urlSeason)
+    ];
+    
+    for (const urlFormat of urlFormats) {
+      if (registeredSeasonIds.includes(urlFormat)) {
+        return urlFormat;
+      }
+      
+      // 登録されているシーズンも形式変換して比較
+      for (const registeredId of registeredSeasonIds) {
+        const registeredFormats = [
+          registeredId,
+          toSlashSeason(registeredId),
+          toDashSeason(registeredId)
+        ];
+        
+        if (urlFormats.some(uf => registeredFormats.includes(uf))) {
+          return registeredId;
+        }
+      }
+    }
+    
+    return null;
+  })();
+  
+  // 現在のシーズンデータを取得
+  const currentSeasonData = targetSeason ? getSeasonDataEntry(seasonData as any, targetSeason) : undefined;
+
   const latestSeasonKeyForParams = (() => {
+    if (targetSeason) return targetSeason;
     const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
     candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
     for (const seasonId of candidates) {
@@ -1005,6 +1266,7 @@ export default async function PlayerPage({
   })();
 
   const latestSeasonKeyForContract = (() => {
+    if (targetSeason) return targetSeason;
     const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
     candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
     for (const seasonId of candidates) {
@@ -1016,6 +1278,7 @@ export default async function PlayerPage({
   })();
 
   const latestSeasonKeyForProfile = (() => {
+    if (targetSeason) return targetSeason;
     const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
     candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
     for (const seasonId of candidates) {
@@ -1031,6 +1294,7 @@ export default async function PlayerPage({
   })();
 
   const latestSeasonKeyForWeight = (() => {
+    if (targetSeason) return targetSeason;
     const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
     candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
     for (const seasonId of candidates) {
@@ -1041,6 +1305,7 @@ export default async function PlayerPage({
   })();
 
   const latestSeasonKeyForPreferredFoot = (() => {
+    if (targetSeason) return targetSeason;
     const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
     candidates.sort((a, b) => toSlashSeason(b).localeCompare(toSlashSeason(a)));
     for (const seasonId of candidates) {
@@ -1177,18 +1442,41 @@ export default async function PlayerPage({
                     />
                   ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
-                      <p className="text-7xl font-black text-primary tracking-tighter">{player.number}</p>
+                      <p className="text-7xl font-black text-primary tracking-tighter">
+                        {currentSeasonData?.number ?? player.number ?? "-"}
+                      </p>
                       <h1 className="mt-4 text-3xl font-bold uppercase text-center break-words">{player.name}</h1>
                     </div>
                   )}
                 </div>
+
+                <MiniPitch
+                  player={player}
+                  className="hidden md:block mt-4 w-full"
+                  pitchClassName="w-full aspect-[3/4] min-h-[340px]"
+                />
               </div>
 
               <div className="md:col-span-2">
-                <p className="text-7xl font-black text-primary tracking-tighter">{player.number}</p>
-                <h1 className="text-5xl font-bold uppercase mt-2">{player.name}</h1>
-                {player.nationality && <p className="text-xl text-muted-foreground mt-2">{player.nationality}</p>}
-                <p className="text-2xl text-muted-foreground mt-1">{player.position}</p>
+                <p className="text-7xl font-black text-primary tracking-tighter">
+                  {currentSeasonData?.number ?? player.number ?? "-"}
+                </p>
+                <h1 className="text-5xl font-bold uppercase mt-1">{player.name}</h1>
+                {player.nationality && <p className="text-xl text-muted-foreground mt-1">{player.nationality}</p>}
+                <p className="text-2xl text-muted-foreground mt-0.5">
+                  {currentSeasonData?.position ?? player.position ?? ""}
+                </p>
+
+                <div className="mt-2 md:hidden flex items-start justify-center gap-4 mx-auto w-full">
+                  <MiniPitch
+                    player={player}
+                    className="shrink-0"
+                    pitchClassName="w-[160px] h-[208px]"
+                  />
+                  <div className="pt-0.5">
+                    <PositionBadges player={player} />
+                  </div>
+                </div>
 
                 {snsEntries.length > 0 && (
                   <div className="mt-6 flex flex-wrap gap-2">
@@ -1266,17 +1554,27 @@ export default async function PlayerPage({
 
                 <div className="mt-8">
                   <h2 className="text-xl font-bold mb-4">パラメーター</h2>
-                  <div className="flex flex-col items-center gap-4 rounded-lg border p-4">
-                    <PublicPlayerHexChart labels={paramLabels} values={paramValues} overall={overall} />
-                    <div className="w-full max-w-[520px]">
-                      <PublicPlayerOverallBySeasonChart data={overallSeries} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border p-4 items-start">
+                    <div className="flex flex-col items-center gap-4">
+                      <PublicPlayerHexChart labels={paramLabels} values={paramValues} overall={overall} />
+                    </div>
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-full max-w-[520px]">
+                        <PublicPlayerOverallBySeasonChart data={overallSeries} />
+                      </div>
                     </div>
                   </div>
                   {!hasParams && <p className="mt-3 text-xs text-muted-foreground">パラメーター未登録</p>}
                 </div>
 
                 <Suspense fallback={<div className="mt-8 text-sm text-muted-foreground">スタッツ集計中...</div>}>
-                  <PlayerStatsSection ownerUid={ownerUid} playerId={playerId} registeredSeasonIds={registeredSeasonIds} player={player} />
+                  <PlayerStatsSection 
+                    ownerUid={ownerUid} 
+                    playerId={playerId} 
+                    registeredSeasonIds={registeredSeasonIds} 
+                    player={player} 
+                    currentSeason={urlSeason}
+                  />
                 </Suspense>
               </div>
             </div>
