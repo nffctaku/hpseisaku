@@ -1,13 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
-import { AnalysisHeader, AnalysisFilters, AnalysisTabs } from "./components";
+import { AnalysisHeader } from "./components";
 import { useAnalysisData } from "./hooks";
 import { LoadingState, ErrorState, NoTeamState } from "./utils";
+import { OverallSection } from "./components/overall-section";
+import { TournamentTypeSelection } from "./components/tournament-type-selection";
+import { TournamentSelection } from "./components/tournament-selection";
+import { ByTournamentSection } from "./components/by-tournament-section";
 
 export default function AnalysisPage() {
   const { user, clubProfileExists, ownerUid } = useAuth();
+  const [activeView, setActiveView] = useState<"overall" | "tournament" | "headtohead">("overall");
+  const [selectedTournamentType, setSelectedTournamentType] = useState("all");
+  
   const {
     matches,
     competitions,
@@ -72,24 +80,70 @@ export default function AnalysisPage() {
       <div className="max-w-7xl mx-auto space-y-4 md:space-y-6">
         <AnalysisHeader />
         
-        <AnalysisFilters
-          selectedSeason={selectedSeason}
-          setSelectedSeason={setSelectedSeason}
-          selectedCompetitionId={selectedCompetitionId}
-          setSelectedCompetitionId={setSelectedCompetitionId}
-          selectedCompetitionType={selectedCompetitionType}
-          setSelectedCompetitionType={setSelectedCompetitionType}
-          seasons={seasons}
-          competitions={competitions}
-        />
+        <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
+          <div className="relative p-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={() => setActiveView("overall")}
+                className={`flex-1 sm:flex-none px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                  activeView === "overall"
+                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg"
+                    : "bg-slate-700/50 text-slate-300 hover:bg-slate-700/70 hover:text-white"
+                }`}
+              >
+                通算
+              </button>
+              <button
+                onClick={() => setActiveView("tournament")}
+                className={`flex-1 sm:flex-none px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                  activeView === "tournament"
+                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg"
+                    : "bg-slate-700/50 text-slate-300 hover:bg-slate-700/70 hover:text-white"
+                }`}
+              >
+                大会別
+              </button>
+            </div>
+          </div>
+        </div>
 
-        <AnalysisTabs
-          matches={filteredMatches}
-          seasonRecords={seasonRecords}
-          mainStatsData={mainStats}
-          topGoalscorers={topGoalscorers}
-          topAssists={topAssists}
-        />
+        {activeView === "overall" && (
+          <OverallSection
+            matches={matches}
+            seasonRecords={seasonRecords}
+            mainStatsData={mainStats}
+            topGoalscorers={topGoalscorers}
+            topAssists={topAssists}
+          />
+        )}
+
+        {activeView === "tournament" && (
+          <div className="space-y-6">
+            <TournamentTypeSelection
+              selectedType={selectedTournamentType}
+              onTypeChange={setSelectedTournamentType}
+            />
+            
+            <TournamentSelection
+              selectedTournament={selectedCompetitionId}
+              onTournamentChange={setSelectedCompetitionId}
+              tournaments={competitions}
+              selectedSeason={selectedSeason}
+              onSeasonChange={setSelectedSeason}
+              seasons={seasons}
+            />
+
+            <ByTournamentSection
+              matches={filteredMatches}
+              seasonRecords={seasonRecords}
+              mainStatsData={mainStats}
+              topGoalscorers={topGoalscorers}
+              topAssists={topAssists}
+              selectedTournament={selectedCompetitionId}
+              selectedTournamentType={selectedTournamentType}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

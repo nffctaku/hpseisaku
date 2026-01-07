@@ -3,13 +3,19 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // TEMPORARY: Allow all reads for debugging
+    // TEMPORARY DEBUG: Allow all reads to identify the exact issue
     match /{document=**} {
       allow read: if true;
       allow write: if false;
     }
 
-    // USER-SPECIFIC DATA
+    // CLUB PROFILES - Allow read for authenticated users, write for owners
+    match /club_profiles/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // USER-SPECIFIC DATA - Full access for owners
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
@@ -17,6 +23,72 @@ service cloud.firestore {
     // 利用規約同意状態（本人のみ）
     match /user_consents/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // CLUB DATA - Allow read for authenticated users, write for club owners
+    match /clubs/{clubId} {
+      // Allow read access for authenticated users
+      allow read: if request.auth != null;
+      
+      // Club metadata - write only for club owners
+      allow write: if request.auth != null && request.auth.uid == clubId;
+      
+      // Competitions
+      match /competitions/{competitionId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == clubId;
+        
+        // Competition rounds and matches
+        match /rounds/{roundId} {
+          allow read: if request.auth != null;
+          allow write: if request.auth != null && request.auth.uid == clubId;
+          
+          match /matches/{matchId} {
+            allow read: if request.auth != null;
+            allow write: if request.auth != null && request.auth.uid == clubId;
+          }
+        }
+      }
+      
+      // Teams and players
+      match /teams/{teamId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == clubId;
+        
+        match /players/{playerId} {
+          allow read: if request.auth != null;
+          allow write: if request.auth != null && request.auth.uid == clubId;
+        }
+      }
+      
+      // Seasons and roster
+      match /seasons/{seasonId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == clubId;
+        
+        match /roster/{playerId} {
+          allow read: if request.auth != null;
+          allow write: if request.auth != null && request.auth.uid == clubId;
+        }
+      }
+      
+      // Friendly matches
+      match /friendly_matches/{matchId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == clubId;
+      }
+      
+      // Public player stats cache
+      match /public_player_stats_cache/{playerId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == clubId;
+      }
+    }
+
+    // Global collections (if any)
+    match /matches/{matchId} {
+      allow read: if request.auth != null;
+      allow write: if false; // No writes to global matches
     }
   }
 }

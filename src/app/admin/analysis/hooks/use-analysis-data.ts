@@ -556,7 +556,7 @@ export function useAnalysisData() {
 
     return Object.values(goals)
       .sort((a, b) => b.goals - a.goals)
-      .slice(0, 3);
+      .slice(0, 10);
   }, [filteredMatches]);
 
   const topAssists = useMemo(() => {
@@ -584,7 +584,7 @@ export function useAnalysisData() {
 
     return Object.values(assists)
       .sort((a, b) => b.assists - a.assists)
-      .slice(0, 3);
+      .slice(0, 10);
   }, [filteredMatches]);
 
   return {
@@ -604,5 +604,6 @@ export function useAnalysisData() {
     mainStats: mainStatsData,
     topGoalscorers,
     topAssists,
+    mainTeamId,
   };
 }
