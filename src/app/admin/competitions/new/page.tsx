@@ -96,6 +96,16 @@ interface TeamCategory {
   name: string;
 }
 
+interface CompetitionTemplate {
+  id: string;
+  name: string;
+  season?: string;
+  format?: 'league' | 'cup' | 'league_cup';
+  teams?: string[];
+  logoUrl?: string | null;
+  rankLabels?: any[];
+}
+
 export default function NewCompetitionPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -103,6 +113,10 @@ export default function NewCompetitionPage() {
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [categories, setCategories] = useState<TeamCategory[]>([]);
   const [teamCategoryFilters, setTeamCategoryFilters] = useState<string[]>([]);
+  const [competitionNameSuggestions, setCompetitionNameSuggestions] = useState<string[]>([]);
+  const [competitionNameMode, setCompetitionNameMode] = useState<'existing' | 'new'>('new');
+  const [selectedCompetitionName, setSelectedCompetitionName] = useState<string>('__new__');
+  const [templateByName, setTemplateByName] = useState<Record<string, CompetitionTemplate>>({});
 
   const clubUid = (user as any)?.ownerUid || user?.uid;
 
@@ -182,6 +196,38 @@ export default function NewCompetitionPage() {
       } as Team));
       setAllTeams(teamsData);
     };
+    const fetchCompetitionNames = async () => {
+      const compsColRef = collection(db, `clubs/${clubUid}/competitions`);
+      const q = query(compsColRef);
+      const snap = await getDocs(q);
+      const set = new Set<string>();
+      const bestByName: Record<string, CompetitionTemplate> = {};
+      for (const d of snap.docs) {
+        const data = d.data() as any;
+        const name = typeof data?.name === 'string' ? String(data.name).trim() : '';
+        if (!name) continue;
+        set.add(name);
+
+        const season = typeof data?.season === 'string' ? String(data.season).trim() : '';
+        const prev = bestByName[name];
+        const shouldReplace = !prev || String(season).localeCompare(String(prev.season || ''), 'ja') > 0;
+        if (shouldReplace) {
+          bestByName[name] = {
+            id: d.id,
+            name,
+            season,
+            format: (data?.format as any) ?? undefined,
+            teams: Array.isArray(data?.teams) ? data.teams : undefined,
+            logoUrl: typeof data?.logoUrl === 'string' ? data.logoUrl : null,
+            rankLabels: Array.isArray(data?.rankLabels) ? data.rankLabels : [],
+          };
+        }
+      }
+      const list = Array.from(set);
+      list.sort((a, b) => a.localeCompare(b, 'ja'));
+      setCompetitionNameSuggestions(list);
+      setTemplateByName(bestByName);
+    };
     const fetchCategories = async () => {
       const categoriesColRef = collection(db, `clubs/${clubUid}/team_categories`);
       const q = query(categoriesColRef);
@@ -193,10 +239,53 @@ export default function NewCompetitionPage() {
       setCategories(categoriesData);
     };
     fetchTeams();
+    fetchCompetitionNames();
     fetchCategories();
   }, [user, clubUid]);
 
   const selectedFormat = form.watch("format");
+
+  const applyTemplateFromCompetition = async (template: CompetitionTemplate) => {
+    if (!clubUid) return;
+    if (!template?.id) return;
+
+    const nextFormat = (template.format as any) ?? 'league';
+    form.setValue('format', nextFormat, { shouldDirty: true, shouldValidate: true });
+    form.setValue('logoUrl', typeof template.logoUrl === 'string' ? template.logoUrl : '', { shouldDirty: true, shouldValidate: true });
+    form.setValue('teams', Array.isArray(template.teams) ? template.teams : [], { shouldDirty: true, shouldValidate: true });
+    form.setValue('rankLabels', Array.isArray(template.rankLabels) ? template.rankLabels : [], { shouldDirty: true, shouldValidate: true });
+
+    try {
+      const roundsColRef = collection(db, `clubs/${clubUid}/competitions`, template.id, 'rounds');
+      const roundsSnap = await getDocs(query(roundsColRef));
+      const roundNames = roundsSnap.docs
+        .map((d) => (d.data() as any)?.name)
+        .filter((n) => typeof n === 'string') as string[];
+
+      if (nextFormat === 'league' || nextFormat === 'league_cup') {
+        const leagueNames = roundNames.filter((n) => /^第\d+節$/.test(String(n).trim()));
+        const leagueRounds = leagueNames.length > 0 ? leagueNames.length : undefined;
+        form.setValue('leagueRounds', leagueRounds, { shouldDirty: true, shouldValidate: true });
+      }
+
+      if (nextFormat === 'cup' || nextFormat === 'league_cup') {
+        const cupNames = roundNames.filter((n) => !/^第\d+節$/.test(String(n).trim()));
+        form.setValue(
+          'cupRounds',
+          cupNames.length > 0 ? cupNames.map((name) => ({ name })) : [{ name: '' }],
+          { shouldDirty: true, shouldValidate: true }
+        );
+      }
+    } catch (e) {
+      console.warn('[NewCompetitionPage] Failed to load rounds template:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (competitionNameMode === 'new') {
+      setSelectedCompetitionName('__new__');
+    }
+  }, [competitionNameMode]);
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     if (!user) {
@@ -274,7 +363,46 @@ export default function NewCompetitionPage() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>大会名</FormLabel>
-                <FormControl><Input placeholder="プレミアリーグ" {...field} /></FormControl>
+                <div className="space-y-2">
+                  <Select
+                    value={selectedCompetitionName}
+                    onValueChange={(v) => {
+                      setSelectedCompetitionName(v);
+                      if (v === '__new__') {
+                        setCompetitionNameMode('new');
+                        field.onChange('');
+                        return;
+                      }
+                      setCompetitionNameMode('existing');
+                      field.onChange(v);
+
+                      const template = templateByName[v];
+                      if (template) {
+                        applyTemplateFromCompetition(template);
+                      }
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="大会名を選択" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {competitionNameSuggestions.map((n) => (
+                        <SelectItem key={n} value={n}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__new__">（新しい大会名を追加）</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {competitionNameMode === 'new' && (
+                    <FormControl>
+                      <Input placeholder="プレミアリーグ" {...field} />
+                    </FormControl>
+                  )}
+                </div>
                 <FormMessage />
               </FormItem>
             )}
@@ -310,15 +438,15 @@ export default function NewCompetitionPage() {
                 <FormControl>
                   <div className="flex flex-col space-y-2">
                     <label className="flex items-center space-x-3">
-                      <input type="radio" {...field} value="league" checked={field.value === 'league'} className="form-radio" />
+                      <input type="radio" {...field} value="league" checked={field.value === 'league'} className="form-radio" disabled={competitionNameMode === 'existing'} />
                       <span className="font-normal">リーグ戦</span>
                     </label>
                     <label className="flex items-center space-x-3">
-                      <input type="radio" {...field} value="cup" checked={field.value === 'cup'} className="form-radio" />
+                      <input type="radio" {...field} value="cup" checked={field.value === 'cup'} className="form-radio" disabled={competitionNameMode === 'existing'} />
                       <span className="font-normal">カップ戦</span>
                     </label>
                     <label className="flex items-center space-x-3">
-                      <input type="radio" {...field} value="league_cup" checked={field.value === 'league_cup'} className="form-radio" />
+                      <input type="radio" {...field} value="league_cup" checked={field.value === 'league_cup'} className="form-radio" disabled={competitionNameMode === 'existing'} />
                       <span className="font-normal">リーグ & トーナメント</span>
                     </label>
                   </div>

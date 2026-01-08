@@ -7,6 +7,7 @@ interface TournamentSelectionProps {
   selectedTournament: string;
   onTournamentChange: (tournament: string) => void;
   tournaments: Array<{ id: string; name: string; season?: string }>;
+  selectedTournamentType: string;
   selectedSeason: string;
   onSeasonChange: (season: string) => void;
   seasons: string[];
@@ -16,11 +17,37 @@ export function TournamentSelection({
   selectedTournament,
   onTournamentChange,
   tournaments,
+  selectedTournamentType,
   selectedSeason,
   onSeasonChange,
   seasons
 }: TournamentSelectionProps) {
-  const visibleTournaments = tournaments.filter(t => !t.name.toLowerCase().includes("test"));
+  const visibleTournaments = tournaments
+    .filter(t => !t.name.toLowerCase().includes("test"))
+    .filter((t: any) => {
+      if (!selectedTournamentType) return true;
+      const format = typeof t?.format === 'string' ? String(t.format) : '';
+      const normalized = format === 'league_cup' ? 'league-cup' : format;
+      if (selectedTournamentType === 'league-cup') return normalized === 'league-cup';
+      if (selectedTournamentType === 'league') return normalized === 'league';
+      if (selectedTournamentType === 'cup') return normalized === 'cup';
+      return true;
+    });
+  const tournamentNameOptions = Array.from(new Set(visibleTournaments.map((t) => t.name).filter((n) => typeof n === 'string' && n.trim().length > 0)))
+    .sort((a, b) => a.localeCompare(b, 'ja'));
+
+  const seasonOptions = (() => {
+    if (selectedTournament === 'all') return seasons;
+    const set = new Set<string>();
+    for (const t of visibleTournaments) {
+      if (t.name !== selectedTournament) continue;
+      const s = typeof t.season === 'string' ? t.season.trim() : '';
+      if (s) set.add(s);
+    }
+    const list = Array.from(set);
+    list.sort((a, b) => b.localeCompare(a, 'ja'));
+    return list;
+  })();
 
   return (
     <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
@@ -37,16 +64,22 @@ export function TournamentSelection({
         
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
-            <Select value={selectedSeason} onValueChange={onSeasonChange}>
-              <SelectTrigger className="w-full bg-gradient-to-r from-blue-600/30 to-cyan-600/30 border-cyan-500/40 text-white backdrop-blur-sm hover:from-blue-600/40 hover:to-cyan-600/40 transition-all">
-                <Calendar className="h-4 w-4 mr-2 text-cyan-300" />
-                <SelectValue placeholder="シーズン" />
+            <Select
+              value={selectedTournament}
+              onValueChange={(v) => {
+                onTournamentChange(v);
+                onSeasonChange('all');
+              }}
+            >
+              <SelectTrigger className="w-full bg-gradient-to-r from-purple-600/30 to-indigo-600/30 border-purple-500/40 text-white backdrop-blur-sm hover:from-purple-600/40 hover:to-indigo-600/40 transition-all">
+                <Trophy className="h-4 w-4 mr-2 text-purple-300" />
+                <SelectValue placeholder="大会" />
               </SelectTrigger>
-              <SelectContent className="bg-slate-900/95 border-cyan-500/40 text-white">
-                <SelectItem value="all" className="text-white">すべてのシーズン</SelectItem>
-                {seasons.map((season) => (
-                  <SelectItem key={season} value={season} className="text-white">
-                    {season}
+              <SelectContent className="bg-slate-900/95 border-purple-500/40 text-white">
+                <SelectItem value="all" className="text-white">すべての大会</SelectItem>
+                {tournamentNameOptions.map((name) => (
+                  <SelectItem key={name} value={name} className="text-white">
+                    {name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -54,16 +87,16 @@ export function TournamentSelection({
           </div>
 
           <div className="relative flex-1">
-            <Select value={selectedTournament} onValueChange={onTournamentChange}>
-              <SelectTrigger className="w-full bg-gradient-to-r from-purple-600/30 to-indigo-600/30 border-purple-500/40 text-white backdrop-blur-sm hover:from-purple-600/40 hover:to-indigo-600/40 transition-all">
-                <Trophy className="h-4 w-4 mr-2 text-purple-300" />
-                <SelectValue placeholder="大会" />
+            <Select value={selectedSeason} onValueChange={onSeasonChange}>
+              <SelectTrigger className="w-full bg-gradient-to-r from-blue-600/30 to-cyan-600/30 border-cyan-500/40 text-white backdrop-blur-sm hover:from-blue-600/40 hover:to-cyan-600/40 transition-all">
+                <Calendar className="h-4 w-4 mr-2 text-cyan-300" />
+                <SelectValue placeholder="シーズン" />
               </SelectTrigger>
-              <SelectContent className="bg-slate-900/95 border-purple-500/40 text-white">
-                <SelectItem value="all" className="text-white">すべての大会</SelectItem>
-                {visibleTournaments.map((tournament) => (
-                  <SelectItem key={tournament.id} value={tournament.id} className="text-white">
-                    {tournament.season ? `${tournament.name} (${tournament.season})` : tournament.name}
+              <SelectContent className="bg-slate-900/95 border-cyan-500/40 text-white">
+                <SelectItem value="all" className="text-white">すべてのシーズン</SelectItem>
+                {seasonOptions.map((season) => (
+                  <SelectItem key={season} value={season} className="text-white">
+                    {season}
                   </SelectItem>
                 ))}
               </SelectContent>

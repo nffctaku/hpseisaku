@@ -61,10 +61,12 @@ interface Team {
 }
 
 export default function EditCompetitionPage() {
-  const { user } = useAuth();
+  const { user, ownerUid } = useAuth();
   const router = useRouter();
   const params = useParams();
   const competitionId = params.competitionId as string;
+
+  const clubUid = ownerUid || user?.uid;
 
   const [loading, setLoading] = useState(true);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
@@ -92,17 +94,18 @@ export default function EditCompetitionPage() {
 
   useEffect(() => {
     if (!user || !competitionId) return;
+    if (!clubUid) return;
     const fetchData = async () => {
       setLoading(true);
       try {
         // Fetch all teams
-        const teamsQuery = query(collection(db, `clubs/${user.uid}/teams`));
+        const teamsQuery = query(collection(db, `clubs/${clubUid}/teams`));
         const teamsSnapshot = await getDocs(teamsQuery);
         const teamsData = teamsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
         setAllTeams(teamsData);
 
         // Fetch the specific competition
-        const docRef = doc(db, `clubs/${user.uid}/competitions`, competitionId);
+        const docRef = doc(db, `clubs/${clubUid}/competitions`, competitionId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
@@ -125,13 +128,14 @@ export default function EditCompetitionPage() {
       }
     };
     fetchData();
-  }, [user, competitionId, router, form]);
+  }, [user, clubUid, competitionId, router, form]);
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     if (!user || !competitionId) return;
+    if (!clubUid) return;
     setLoading(true);
     try {
-      const compRef = doc(db, `clubs/${user.uid}/competitions`, competitionId);
+      const compRef = doc(db, `clubs/${clubUid}/competitions`, competitionId);
       await updateDoc(compRef, {
         name: data.name,
         season: data.season,

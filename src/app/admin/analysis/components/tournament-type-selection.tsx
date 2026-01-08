@@ -1,7 +1,7 @@
 "use client";
 
 import { Trophy } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface TournamentTypeSelectionProps {
   selectedType: string;
@@ -30,28 +30,19 @@ export function TournamentTypeSelection({
             <p className="text-slate-400 text-sm">分析対象の大会タイプを選択</p>
           </div>
         </div>
-        
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {tournamentTypes.map((type) => (
-            <button
-              key={type.id}
-              onClick={() => onTypeChange(type.id)}
-              className={cn(
-                "relative overflow-hidden rounded-lg border transition-all duration-300 p-3 text-center",
-                selectedType === type.id
-                  ? "bg-gradient-to-r from-blue-600/30 to-cyan-600/30 border-blue-500/50 text-white shadow-lg"
-                  : "bg-slate-700/30 border-slate-600/50 text-slate-300 hover:bg-slate-700/50 hover:text-white"
-              )}
-            >
-              <div className="relative z-10">
-                <p className="font-medium text-sm">{type.label}</p>
-              </div>
-              {selectedType === type.id && (
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-cyan-600/20"></div>
-              )}
-            </button>
-          ))}
-        </div>
+
+        <Select value={selectedType} onValueChange={onTypeChange}>
+          <SelectTrigger className="w-full bg-slate-700/30 border-slate-600/50 text-white">
+            <SelectValue placeholder="大会種類を選択" />
+          </SelectTrigger>
+          <SelectContent>
+            {tournamentTypes.map((type) => (
+              <SelectItem key={type.id} value={type.id}>
+                {type.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );

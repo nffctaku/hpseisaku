@@ -66,47 +66,44 @@ export function OverallSection({
             <Trophy className="h-5 w-5 text-yellow-400" />
             通算成績
           </h2>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-            <div className="text-center">
-              <p className="text-slate-400 text-sm mb-1">試合数</p>
-              <p className="text-2xl font-bold text-white">{totalMatches}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-purple-400 text-sm mb-1 flex items-center justify-center gap-1">
-                <TrendingUp className="h-4 w-4" />
-                勝率
-              </p>
-              <p className="text-2xl font-bold text-purple-400">{winRate}%</p>
-            </div>
-            <div className="text-center hidden md:block"></div>
-          </div>
 
-          <div className="grid grid-cols-3 md:grid-cols-3 gap-4 mb-4">
-            <div className="text-center">
-              <p className="text-green-400 text-sm mb-1">勝</p>
-              <p className="text-2xl font-bold text-green-400">{totalWins}</p>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-6">
+              <div className="text-center">
+                <p className="text-slate-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">試合数</p>
+                <p className="text-lg sm:text-2xl font-bold text-white leading-none">{totalMatches}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-purple-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
+                  <TrendingUp className="h-4 w-4 hidden sm:block" />
+                  勝率
+                </p>
+                <p className="text-lg sm:text-2xl font-bold text-purple-400 leading-none">{winRate}%</p>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="text-yellow-400 text-sm mb-1">分</p>
-              <p className="text-2xl font-bold text-yellow-400">{totalDraws}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-red-400 text-sm mb-1">負</p>
-              <p className="text-2xl font-bold text-red-400">{totalLosses}</p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="text-center">
-              <p className="text-blue-400 text-sm mb-1">得点</p>
-              <p className="text-2xl font-bold text-blue-400">{totalGoalsFor}</p>
+            <div className="flex items-center justify-between gap-2 sm:gap-6">
+              <div className="text-center flex-1 min-w-0">
+                <p className="text-green-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">勝</p>
+                <p className="text-lg sm:text-2xl font-bold text-green-400 leading-none">{totalWins}</p>
+              </div>
+              <div className="text-center flex-1 min-w-0">
+                <p className="text-yellow-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">分</p>
+                <p className="text-lg sm:text-2xl font-bold text-yellow-400 leading-none">{totalDraws}</p>
+              </div>
+              <div className="text-center flex-1 min-w-0">
+                <p className="text-red-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">負</p>
+                <p className="text-lg sm:text-2xl font-bold text-red-400 leading-none">{totalLosses}</p>
+              </div>
+              <div className="text-center flex-1 min-w-0">
+                <p className="text-blue-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">得点</p>
+                <p className="text-lg sm:text-2xl font-bold text-blue-400 leading-none">{totalGoalsFor}</p>
+              </div>
+              <div className="text-center flex-1 min-w-0">
+                <p className="text-orange-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">失点</p>
+                <p className="text-lg sm:text-2xl font-bold text-orange-400 leading-none">{totalGoalsAgainst}</p>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="text-orange-400 text-sm mb-1">失点</p>
-              <p className="text-2xl font-bold text-orange-400">{totalGoalsAgainst}</p>
-            </div>
-            <div className="text-center hidden md:block"></div>
           </div>
         </div>
       </div>

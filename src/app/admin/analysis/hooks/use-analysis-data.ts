@@ -171,6 +171,7 @@ export function useAnalysisData() {
                   id: doc.id,
                   competitionId: comp.id,
                   competitionName: comp.name,
+                  competitionSeason: (comp as any)?.season,
                   competitionType: competitionType,
                   roundId: roundId,
                   ...doc.data()
@@ -359,13 +360,14 @@ export function useAnalysisData() {
 
     if (selectedSeason !== "all") {
       filtered = filtered.filter(m => {
-        const season = m.matchDate ? new Date(m.matchDate).getFullYear().toString() : null;
+        const season = typeof (m as any)?.competitionSeason === 'string' ? String((m as any).competitionSeason).trim() : '';
         return season === selectedSeason;
       });
     }
 
     if (selectedCompetitionId !== "all") {
-      filtered = filtered.filter(m => m.competitionId === selectedCompetitionId);
+      // selectedCompetitionId is used as selected competition NAME in the UI
+      filtered = filtered.filter(m => String((m as any)?.competitionName || '') === selectedCompetitionId);
     }
 
     if (selectedCompetitionType === "league") {
@@ -467,20 +469,21 @@ export function useAnalysisData() {
   }, [matches, selectedSeason, selectedCompetitionId, selectedCompetitionType, mainTeamId]);
 
   const seasons = useMemo(() => {
-    const uniqueSeasons = Array.from(new Set(matches.map(m => {
-      // Extract season from matchDate (e.g., "2025-08-17" -> "2025")
-      const year = m.matchDate ? new Date(m.matchDate).getFullYear().toString() : null;
-      return year;
-    }).filter(Boolean))) as string[];
-    return uniqueSeasons.sort((a, b) => b.localeCompare(a));
-  }, [matches]);
+    const set = new Set<string>();
+    for (const c of competitions) {
+      const s = typeof (c as any)?.season === 'string' ? String((c as any).season).trim() : '';
+      if (s) set.add(s);
+    }
+    const list = Array.from(set);
+    list.sort((a, b) => b.localeCompare(a, 'ja'));
+    return list;
+  }, [competitions]);
 
   const seasonRecords = useMemo(() => {
     const records: { [key: string]: SeasonRecord } = {};
 
     filteredMatches.forEach(match => {
-      // Extract season from matchDate
-      const season = match.matchDate ? new Date(match.matchDate).getFullYear().toString() : null;
+      const season = typeof (match as any)?.competitionSeason === 'string' ? String((match as any).competitionSeason).trim() : '';
       if (!season) return;
 
       // Only count completed matches with a known result

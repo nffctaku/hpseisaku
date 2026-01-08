@@ -42,13 +42,15 @@ interface Competition {
 const MAX_COMPETITIONS_FREE = 1;
 
 export default function CompetitionsPage() {
-  const { user } = useAuth();
+  const { user, ownerUid } = useAuth();
   const isPro = user?.plan === "pro";
   const router = useRouter();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
   const [deletingCompetition, setDeletingCompetition] = useState<Competition | null>(null);
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+
+  const clubUid = ownerUid || user?.uid;
 
   const seasonOptions = useMemo(() => {
     const set = new Set<string>();
@@ -69,7 +71,8 @@ export default function CompetitionsPage() {
 
   useEffect(() => {
     if (!user) return;
-    const competitionsColRef = collection(db, `clubs/${user.uid}/competitions`);
+    if (!clubUid) return;
+    const competitionsColRef = collection(db, `clubs/${clubUid}/competitions`);
     const q = query(competitionsColRef);
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -81,15 +84,16 @@ export default function CompetitionsPage() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, clubUid]);
 
 
   const handleSetShowOnHome = async (target: Competition) => {
     if (!user) return;
+    if (!clubUid) return;
     try {
       // すべての大会の showOnHome を一旦 false にし、選択した大会だけ true にする
       const updates = competitions.map(async (comp) => {
-        const ref = doc(db, `clubs/${user.uid}/competitions`, comp.id);
+        const ref = doc(db, `clubs/${clubUid}/competitions`, comp.id);
         const value = comp.id === target.id;
         // 変更がある大会だけ更新
         if ((comp.showOnHome ?? false) !== value) {
@@ -104,8 +108,9 @@ export default function CompetitionsPage() {
 
   const handleToggleShowOnTable = async (target: Competition, nextValue: boolean) => {
     if (!user) return;
+    if (!clubUid) return;
     try {
-      const ref = doc(db, `clubs/${user.uid}/competitions`, target.id);
+      const ref = doc(db, `clubs/${clubUid}/competitions`, target.id);
       await updateDoc(ref, { showOnTable: nextValue });
     } catch (error) {
       console.error("Error updating showOnTable: ", error);
@@ -123,8 +128,9 @@ export default function CompetitionsPage() {
 
   const handleDelete = async () => {
     if (!user || !deletingCompetition) return;
+    if (!clubUid) return;
     try {
-      const competitionDocRef = doc(db, `clubs/${user.uid}/competitions`, deletingCompetition.id);
+      const competitionDocRef = doc(db, `clubs/${clubUid}/competitions`, deletingCompetition.id);
       await deleteDoc(competitionDocRef);
       setDeletingCompetition(null);
     } catch (error) {
