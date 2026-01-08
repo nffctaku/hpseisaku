@@ -97,9 +97,11 @@ function isLeagueRoundName(name: string | undefined): boolean {
 }
 
 export default function CompetitionDetailPage() {
-  const { user } = useAuth();
+  const { user, ownerUid } = useAuth();
   const params = useParams();
   const competitionId = params.competitionId as string;
+
+  const clubUid = ownerUid || user?.uid;
 
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [rounds, setRounds] = useState<Round[]>([]);
@@ -109,46 +111,71 @@ export default function CompetitionDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const fetchAllData = async () => {
-    if (!user || !competitionId) return;
+    if (!user || !competitionId || !clubUid) return;
     setLoading(true);
     try {
-      // Fetch all teams first to create a map
-      const allTeamsQuery = query(collection(db, `clubs/${user.uid}/teams`));
-      const allTeamsSnap = await getDocs(allTeamsQuery);
       const teamsMap = new Map<string, Team>();
-      allTeamsSnap.forEach(doc => teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as Team));
-      setAllTeams(teamsMap);
+      try {
+        // Fetch all teams first to create a map
+        const allTeamsPath = `clubs/${clubUid}/teams`;
+        const allTeamsQuery = query(collection(db, allTeamsPath));
+        const allTeamsSnap = await getDocs(allTeamsQuery);
+        allTeamsSnap.forEach(doc => teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as Team));
+        setAllTeams(teamsMap);
+      } catch (e) {
+        console.error('[CompetitionDetailPage] Failed to fetch teams', { clubUid, path: `clubs/${clubUid}/teams`, error: e });
+        throw e;
+      }
 
 
       // Then fetch the competition
-      const compRef = doc(db, `clubs/${user.uid}/competitions`, competitionId);
-      const compSnap = await getDoc(compRef);
       let fetchedCompetition: Competition | null = null;
-      if (compSnap.exists()) {
-        fetchedCompetition = { id: compSnap.id, ...compSnap.data() } as Competition;
-        setCompetition(fetchedCompetition);
+      try {
+        const compPath = `clubs/${clubUid}/competitions/${competitionId}`;
+        const compRef = doc(db, compPath);
+        const compSnap = await getDoc(compRef);
+        if (compSnap.exists()) {
+          fetchedCompetition = { id: compSnap.id, ...compSnap.data() } as Competition;
+          setCompetition(fetchedCompetition);
+        }
+      } catch (e) {
+        console.error('[CompetitionDetailPage] Failed to fetch competition', { clubUid, competitionId, path: `clubs/${clubUid}/competitions/${competitionId}`, error: e });
+        throw e;
       }
 
       // Filter teams for the current competition
       if (fetchedCompetition && fetchedCompetition.teams) {
         const compTeams = fetchedCompetition.teams.map(id => teamsMap.get(id)).filter(Boolean) as Team[];
         // Also add the user's own team to the list, as it's now in the teamsMap
-        const ownTeam = teamsMap.get(user.uid);
-        if (ownTeam && !compTeams.some(t => t.id === user.uid)) {
+        const ownTeam = teamsMap.get(clubUid);
+        if (ownTeam && !compTeams.some(t => t.id === clubUid)) {
           compTeams.push(ownTeam);
         }
         setCompetitionTeams(compTeams);
       }
 
-      const roundsColRef = collection(db, `clubs/${user.uid}/competitions`, competitionId, 'rounds');
-      const roundsSnap = await getDocs(query(roundsColRef));
-      const roundsData = await Promise.all(roundsSnap.docs.map(async (roundDoc) => {
-        const matchesColRef = collection(roundDoc.ref, 'matches');
-        const matchesSnap = await getDocs(query(matchesColRef));
-        const matchesData = matchesSnap.docs.map(matchDoc => ({ id: matchDoc.id, ...matchDoc.data() } as Match));
-        matchesData.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
-        return { id: roundDoc.id, name: roundDoc.data().name, matches: matchesData };
-      }));
+      let roundsData: Round[] = [];
+      try {
+        const roundsPath = `clubs/${clubUid}/competitions/${competitionId}/rounds`;
+        const roundsColRef = collection(db, roundsPath);
+        const roundsSnap = await getDocs(query(roundsColRef));
+        roundsData = await Promise.all(roundsSnap.docs.map(async (roundDoc) => {
+          try {
+            const matchesPath = `clubs/${clubUid}/competitions/${competitionId}/rounds/${roundDoc.id}/matches`;
+            const matchesColRef = collection(db, matchesPath);
+            const matchesSnap = await getDocs(query(matchesColRef));
+            const matchesData = matchesSnap.docs.map(matchDoc => ({ id: matchDoc.id, ...matchDoc.data() } as Match));
+            matchesData.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
+            return { id: roundDoc.id, name: roundDoc.data().name, matches: matchesData };
+          } catch (e) {
+            console.error('[CompetitionDetailPage] Failed to fetch matches for round', { clubUid, competitionId, roundId: roundDoc.id, path: `clubs/${clubUid}/competitions/${competitionId}/rounds/${roundDoc.id}/matches`, error: e });
+            throw e;
+          }
+        }));
+      } catch (e) {
+        console.error('[CompetitionDetailPage] Failed to fetch rounds', { clubUid, competitionId, path: `clubs/${clubUid}/competitions/${competitionId}/rounds`, error: e });
+        throw e;
+      }
       roundsData.sort((a, b) => {
         const ka = getRoundSortKey(a.name);
         const kb = getRoundSortKey(b.name);
@@ -205,7 +232,7 @@ export default function CompetitionDetailPage() {
   }, [currentRound?.matches]);
 
   const syncPublicMatchIndex = async (roundId: string, matchId: string, patch?: Partial<Match>) => {
-    if (!user) return;
+    if (!user || !clubUid) return;
 
     const round = rounds.find((r) => r.id === roundId);
     const match = round?.matches.find((m) => m.id === matchId);
@@ -243,7 +270,7 @@ export default function CompetitionDetailPage() {
     }
 
     const indexDocId = `${competitionId}__${roundId}__${matchId}`;
-    const indexRef = doc(db, `clubs/${user.uid}/public_match_index`, indexDocId);
+    const indexRef = doc(db, `clubs/${clubUid}/public_match_index`, indexDocId);
     await setDoc(indexRef, rowForFirestore, { merge: true });
   };
 
@@ -284,7 +311,7 @@ export default function CompetitionDetailPage() {
   }, [currentRound]);
 
   const handleResetAllScores = async () => {
-    if (!user || !competition) return;
+    if (!user || !competition || !clubUid) return;
 
     try {
       // まずローカル状態を即時更新してUIに反映
@@ -306,7 +333,7 @@ export default function CompetitionDetailPage() {
       // すべてのラウンドのすべての試合のスコアをリセット
       for (const round of rounds) {
         for (const match of round.matches) {
-          const matchRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${round.id}/matches`, match.id);
+          const matchRef = doc(db, `clubs/${clubUid}/competitions/${competitionId}/rounds/${round.id}/matches`, match.id);
           await updateDoc(matchRef, {
             scoreHome: null,
             scoreAway: null,
@@ -318,11 +345,22 @@ export default function CompetitionDetailPage() {
           
           // パブリックマッチインデックスも更新
           const indexDocId = `${competitionId}__${round.id}__${match.id}`;
-          const indexRef = doc(db, `clubs/${user.uid}/public_match_index`, indexDocId);
-          await updateDoc(indexRef, {
-            scoreHome: null,
-            scoreAway: null
-          });
+          const indexRef = doc(db, `clubs/${clubUid}/public_match_index`, indexDocId);
+          try {
+            await updateDoc(indexRef, {
+              scoreHome: null,
+              scoreAway: null
+            });
+          } catch (e) {
+            console.warn('[CompetitionDetailPage] Failed to update public_match_index (continuing):', {
+              clubUid,
+              competitionId,
+              roundId: round.id,
+              matchId: match.id,
+              path: `clubs/${clubUid}/public_match_index/${indexDocId}`,
+              error: e,
+            });
+          }
         }
       }
 
@@ -338,9 +376,9 @@ export default function CompetitionDetailPage() {
   };
 
   const handleMatchUpdate = async (matchId: string, field: keyof Match, value: any) => {
-    if (!user || !currentRound) return;
+    if (!user || !currentRound || !clubUid) return;
     const roundId = currentRound.id;
-    const matchRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches`, matchId);
+    const matchRef = doc(db, `clubs/${clubUid}/competitions/${competitionId}/rounds/${roundId}/matches`, matchId);
     try {
       const normalizedValue =
         (field === 'scoreHome' || field === 'scoreAway') && typeof value === 'number'
@@ -353,8 +391,28 @@ export default function CompetitionDetailPage() {
         matches: r.matches.map(m => m.id === matchId ? { ...m, [field]: normalizedValue } : m)
       } : r));
 
-      await syncPublicMatchIndex(roundId, matchId, { [field]: normalizedValue } as any);
-      await setDoc(doc(db, `clubs/${user.uid}`), { statsCacheVersion: increment(1) }, { merge: true });
+      try {
+        await syncPublicMatchIndex(roundId, matchId, { [field]: normalizedValue } as any);
+      } catch (e) {
+        console.warn('[CompetitionDetailPage] Failed to sync public_match_index (continuing):', {
+          clubUid,
+          competitionId,
+          roundId,
+          matchId,
+          path: `clubs/${clubUid}/public_match_index`,
+          error: e,
+        });
+      }
+
+      try {
+        await setDoc(doc(db, `clubs/${clubUid}`), { statsCacheVersion: increment(1) }, { merge: true });
+      } catch (e) {
+        console.warn('[CompetitionDetailPage] Failed to bump statsCacheVersion (continuing):', {
+          clubUid,
+          path: `clubs/${clubUid}`,
+          error: e,
+        });
+      }
       toast.success('更新しました。');
     } catch (error) {
       console.error(`Error updating match ${field}:`, error);
@@ -363,37 +421,70 @@ export default function CompetitionDetailPage() {
   };
 
   const handleAddRound = async () => {
-    if (!user) return;
+    if (!user || !clubUid) return;
     const newRoundName = `第${rounds.length + 1}節`;
-    const roundRef = await addDoc(collection(db, `clubs/${user.uid}/competitions`, competitionId, 'rounds'), { name: newRoundName });
+    const roundRef = await addDoc(collection(db, `clubs/${clubUid}/competitions`, competitionId, 'rounds'), { name: newRoundName });
     setRounds([...rounds, { id: roundRef.id, name: newRoundName, matches: [] }]);
     setCurrentRoundIndex(rounds.length);
     toast.success(`${newRoundName}を追加しました。`);
   };
 
   const handleAddMatch = async () => {
-    if (!currentRound || !user) return;
-    const lastMatchDate =
-      Array.isArray(currentRound.matches) && currentRound.matches.length > 0
-        ? currentRound.matches[currentRound.matches.length - 1]?.matchDate
-        : undefined;
-    const defaultMatchDate =
-      typeof lastMatchDate === 'string' && lastMatchDate.trim().length > 0
-        ? lastMatchDate
-        : format(new Date(), 'yyyy-MM-dd');
-    const newMatchData = { 
-      homeTeam: '', awayTeam: '', 
-      matchDate: defaultMatchDate, 
-      competitionId, 
-      scoreHome: null, scoreAway: null 
-    };
-    const matchRef = await addDoc(collection(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${currentRound.id}/matches`), newMatchData);
-    const newMatch = { id: matchRef.id, ...newMatchData };
-    setRounds(prev => prev.map(r => r.id === currentRound.id ? {...r, matches: [...r.matches, newMatch] } : r));
+    if (!currentRound || !user || !clubUid) return;
+    try {
+      const lastMatchDate =
+        Array.isArray(currentRound.matches) && currentRound.matches.length > 0
+          ? currentRound.matches[currentRound.matches.length - 1]?.matchDate
+          : undefined;
+      const defaultMatchDate =
+        typeof lastMatchDate === 'string' && lastMatchDate.trim().length > 0
+          ? lastMatchDate
+          : format(new Date(), 'yyyy-MM-dd');
+      const newMatchData = { 
+        homeTeam: '', awayTeam: '', 
+        matchDate: defaultMatchDate, 
+        competitionId, 
+        scoreHome: null, scoreAway: null 
+      };
 
-    await syncPublicMatchIndex(currentRound.id, matchRef.id, newMatch as any);
-    await setDoc(doc(db, `clubs/${user.uid}`), { statsCacheVersion: increment(1) }, { merge: true });
-    toast.success('新しい試合を追加しました。');
+      const matchesPath = `clubs/${clubUid}/competitions/${competitionId}/rounds/${currentRound.id}/matches`;
+      const matchRef = await addDoc(collection(db, matchesPath), newMatchData);
+      const newMatch = { id: matchRef.id, ...newMatchData };
+      setRounds(prev => prev.map(r => r.id === currentRound.id ? {...r, matches: [...r.matches, newMatch] } : r));
+
+      try {
+        await syncPublicMatchIndex(currentRound.id, matchRef.id, newMatch as any);
+      } catch (e) {
+        console.warn('[CompetitionDetailPage] Failed to sync public_match_index (continuing):', {
+          clubUid,
+          competitionId,
+          roundId: currentRound.id,
+          matchId: matchRef.id,
+          path: `clubs/${clubUid}/public_match_index`,
+          error: e,
+        });
+      }
+
+      try {
+        await setDoc(doc(db, `clubs/${clubUid}`), { statsCacheVersion: increment(1) }, { merge: true });
+      } catch (e) {
+        console.warn('[CompetitionDetailPage] Failed to bump statsCacheVersion (continuing):', {
+          clubUid,
+          path: `clubs/${clubUid}`,
+          error: e,
+        });
+      }
+
+      toast.success('新しい試合を追加しました。');
+    } catch (error) {
+      console.error('[CompetitionDetailPage] Error adding match:', {
+        clubUid,
+        competitionId,
+        roundId: currentRound.id,
+        error,
+      });
+      toast.error('試合の追加に失敗しました。');
+    }
   };
 
   

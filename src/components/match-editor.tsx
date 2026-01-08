@@ -36,13 +36,15 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
     if (!season) return undefined;
     return getSeasonDateRange(season);
   }, [season]);
-  const { user } = useAuth();
+  const { user, ownerUid } = useAuth();
   const params = useParams();
   const competitionId = params.competitionId as string;
 
+  const clubUid = ownerUid || user?.uid;
+
 
   const handleDelete = async () => {
-    if (!user) {
+    if (!user || !clubUid) {
       toast.error("ログインしていません。");
       return;
     }
@@ -50,18 +52,18 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
       const ok = window.confirm('この試合を削除します。よろしいですか？');
       if (!ok) return;
 
-      await deleteDoc(doc(db, `clubs/${user.uid}/competitions/${competitionId}/rounds/${roundId}/matches`, match.id));
+      await deleteDoc(doc(db, `clubs/${clubUid}/competitions/${competitionId}/rounds/${roundId}/matches`, match.id));
 
       const indexDocId = `${competitionId}__${roundId}__${match.id}`;
 
       try {
-        await deleteDoc(doc(db, `clubs/${user.uid}/public_match_index`, indexDocId));
+        await deleteDoc(doc(db, `clubs/${clubUid}/public_match_index`, indexDocId));
       } catch (e) {
         console.warn('Failed to delete public_match_index (continuing):', e);
       }
 
       try {
-        await setDoc(doc(db, `clubs/${user.uid}`), { statsCacheVersion: increment(1) }, { merge: true });
+        await setDoc(doc(db, `clubs/${clubUid}`), { statsCacheVersion: increment(1) }, { merge: true });
       } catch (e) {
         console.warn('Failed to bump statsCacheVersion (continuing):', e);
       }

@@ -65,8 +65,8 @@ export function AnalysisFilters({
                   <SelectValue placeholder="大会タイプ" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-900/95 border-purple-500/40 text-white">
-                  <SelectItem value="all" className="text-white">すべてのタイプ</SelectItem>
                   <SelectItem value="league" className="text-white">リーグ戦</SelectItem>
+                  <SelectItem value="league-cup" className="text-white">リーグ&カップ戦</SelectItem>
                   <SelectItem value="cup" className="text-white">カップ戦</SelectItem>
                 </SelectContent>
               </Select>

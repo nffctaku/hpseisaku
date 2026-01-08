@@ -25,16 +25,14 @@ export function ByTournamentSection({
   selectedTournamentType
 }: ByTournamentSectionProps) {
   const getTournamentTitle = () => {
-    if (selectedTournamentType === "all") {
-      return "すべての大会";
-    } else if (selectedTournamentType === "league") {
+    if (selectedTournamentType === "league") {
       return "リーグ戦";
     } else if (selectedTournamentType === "league-cup") {
       return "リーグ&カップ戦";
     } else if (selectedTournamentType === "cup") {
       return "カップ戦";
     }
-    return "大会別成績";
+    return "リーグ&カップ戦";
   };
 
   return (

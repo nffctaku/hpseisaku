@@ -64,7 +64,7 @@ type MatchIndexRow = {
 };
 
 export default function MatchesPage() {
-  const { user } = useAuth();
+  const { user, ownerUid } = useAuth();
   const [allMatches, setAllMatches] = useState<EnrichedMatch[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [competitions, setCompetitions] = useState<CompetitionOption[]>([]);
@@ -81,9 +81,10 @@ export default function MatchesPage() {
   const teamsMapRef = useRef<Map<string, Team>>(new Map());
   const competitionMetaRef = useRef<Map<string, { name: string; season?: string }>>(new Map());
   const activeFetchIdRef = useRef(0);
+  const clubUid = ownerUid || user?.uid;
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !clubUid) {
       setLoading(false);
       return;
     }
@@ -93,13 +94,13 @@ export default function MatchesPage() {
       try {
         // 1. Fetch teams once
         const teamsMap = new Map<string, Team>();
-        const teamsQueryRef = query(collection(db, `clubs/${user.uid}/teams`));
+        const teamsQueryRef = query(collection(db, `clubs/${clubUid}/teams`));
         const teamsSnap = await getDocs(teamsQueryRef);
         teamsSnap.forEach((doc) => teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as Team));
         teamsMapRef.current = teamsMap;
 
         // 2. Fetch competitions once
-        const competitionsQueryRef = query(collection(db, `clubs/${user.uid}/competitions`));
+        const competitionsQueryRef = query(collection(db, `clubs/${clubUid}/competitions`));
         const competitionsSnap = await getDocs(competitionsQueryRef);
 
         const competitionMeta = new Map<string, { name: string; season?: string }>();
@@ -153,18 +154,25 @@ export default function MatchesPage() {
 
     bootstrap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, clubUid]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !clubUid) return;
     if (!bootstrapDoneRef.current) return;
 
     const fetchMatches = async () => {
       const fetchId = ++activeFetchIdRef.current;
       setLoading(true);
       try {
+        const devLog = (...args: any[]) => {
+          if (process.env.NODE_ENV === 'production') return;
+          console.log('[MatchesPage]', ...args);
+        };
+
+        devLog('fetchMatches start', { clubUid, selectedTeamId, selectedSeason, selectedCompetitionId });
+
         const fetchIndexDocs = async (teamId: string) => {
-          const indexRef = collection(db, `clubs/${user.uid}/public_match_index`);
+          const indexRef = collection(db, `clubs/${clubUid}/public_match_index`);
           if (teamId === 'all') {
             return getDocs(query(indexRef, orderBy('matchDate')));
           }
@@ -195,8 +203,68 @@ export default function MatchesPage() {
           return !hasRow;
         };
 
+        const fetchMatchesFromTree = async (): Promise<EnrichedMatch[]> => {
+          const teamsMap = teamsMapRef.current;
+          const competitionMeta = competitionMetaRef.current;
+
+          const result: EnrichedMatch[] = [];
+          const competitionsSnap = await getDocs(query(collection(db, `clubs/${clubUid}/competitions`)));
+          for (const compDoc of competitionsSnap.docs) {
+            const compId = compDoc.id;
+            const compData = compDoc.data() as any;
+            const meta = competitionMeta.get(compId);
+            const compName = meta?.name || (compData?.name as string) || compId;
+            const compSeason = meta?.season || (typeof compData?.season === 'string' ? compData.season : undefined);
+
+            const roundsSnap = await getDocs(query(collection(db, `clubs/${clubUid}/competitions/${compId}/rounds`)));
+            for (const roundDoc of roundsSnap.docs) {
+              const roundId = roundDoc.id;
+              const roundName = ((roundDoc.data() as any)?.name as string) || '';
+              const matchesSnap = await getDocs(query(collection(db, `clubs/${clubUid}/competitions/${compId}/rounds/${roundId}/matches`)));
+              for (const matchDoc of matchesSnap.docs) {
+                const m = matchDoc.data() as any;
+                const matchId = matchDoc.id;
+                const matchDate = typeof m?.matchDate === 'string' ? m.matchDate : '';
+                if (!matchId || !matchDate) continue;
+
+                const homeTeamId = typeof m?.homeTeam === 'string' ? m.homeTeam : '';
+                const awayTeamId = typeof m?.awayTeam === 'string' ? m.awayTeam : '';
+                const homeTeamInfo = homeTeamId ? teamsMap.get(homeTeamId) : undefined;
+                const awayTeamInfo = awayTeamId ? teamsMap.get(awayTeamId) : undefined;
+
+                result.push({
+                  id: matchId,
+                  competitionId: compId,
+                  competitionName: compName,
+                  competitionSeason: compSeason,
+                  roundId,
+                  roundName,
+                  matchDate,
+                  matchTime: typeof m?.matchTime === 'string' ? m.matchTime : undefined,
+                  homeTeamId,
+                  awayTeamId,
+                  homeTeamName: homeTeamInfo?.name || (typeof m?.homeTeamName === 'string' ? m.homeTeamName : '不明なチーム'),
+                  awayTeamName: awayTeamInfo?.name || (typeof m?.awayTeamName === 'string' ? m.awayTeamName : '不明なチーム'),
+                  homeTeamLogo: homeTeamInfo?.logoUrl || (typeof m?.homeTeamLogo === 'string' ? m.homeTeamLogo : undefined),
+                  awayTeamLogo: awayTeamInfo?.logoUrl || (typeof m?.awayTeamLogo === 'string' ? m.awayTeamLogo : undefined),
+                  scoreHome: typeof m?.scoreHome === 'number' ? m.scoreHome : (m?.scoreHome ?? null),
+                  scoreAway: typeof m?.scoreAway === 'number' ? m.scoreAway : (m?.scoreAway ?? null),
+                });
+              }
+            }
+          }
+
+          result.sort((a, b) => String(a.matchDate).localeCompare(String(b.matchDate)));
+          return result;
+        };
+
         let indexSnap = await fetchIndexDocs(selectedTeamId);
         if (fetchId !== activeFetchIdRef.current) return;
+
+        devLog('public_match_index fetched', {
+          docs: Array.isArray((indexSnap as any)?.docs) ? (indexSnap as any).docs.length : null,
+          empty: isIndexEmpty(indexSnap),
+        });
 
         if (isIndexEmpty(indexSnap)) {
           try {
@@ -226,6 +294,11 @@ export default function MatchesPage() {
 
             indexSnap = await fetchIndexDocs(selectedTeamId);
             if (fetchId !== activeFetchIdRef.current) return;
+
+            devLog('public_match_index re-fetched after backfill', {
+              docs: Array.isArray((indexSnap as any)?.docs) ? (indexSnap as any).docs.length : null,
+              empty: isIndexEmpty(indexSnap),
+            });
           } catch (e) {
             const msg = e instanceof Error ? e.message : 'unknown error';
             console.warn('Failed to backfill public_match_index:', e);
@@ -233,10 +306,60 @@ export default function MatchesPage() {
           }
         }
 
+        const mergeMatches = (a: EnrichedMatch[], b: EnrichedMatch[]) => {
+          const map = new Map<string, EnrichedMatch>();
+          for (const m of a) map.set(m.id, m);
+          for (const m of b) {
+            if (!map.has(m.id)) map.set(m.id, m);
+          }
+          const merged = Array.from(map.values());
+          merged.sort((x, y) => String(x.matchDate).localeCompare(String(y.matchDate)));
+          return merged;
+        };
+
+        if (isIndexEmpty(indexSnap)) {
+          const enrichedMatches = await fetchMatchesFromTree();
+          if (fetchId !== activeFetchIdRef.current) return;
+
+          devLog('using tree fallback', { count: enrichedMatches.length });
+          setAllMatches(enrichedMatches);
+
+          const unsetMatches = enrichedMatches.filter((m) => !m.homeTeamId && !m.awayTeamId);
+          devLog('unset matches (tree fallback)', {
+            count: unsetMatches.length,
+            sample: unsetMatches.slice(0, 5).map((m) => ({ id: m.id, matchDate: m.matchDate, competitionId: m.competitionId, roundId: m.roundId })),
+          });
+
+          const hasMissingScore = (m: EnrichedMatch) => m.scoreHome == null || m.scoreAway == null;
+          const isOwnMatch = (m: EnrichedMatch) => m.homeTeamId === (clubUid || '') || m.awayTeamId === (clubUid || '');
+          const ownMissing = enrichedMatches.find((m) => isOwnMatch(m) && hasMissingScore(m));
+          const anyMissing = enrichedMatches.find((m) => hasMissingScore(m));
+
+          let focusId: string | null = null;
+          if (unsetMatches.length > 0) {
+            focusId = unsetMatches[0].id;
+          }
+          if (ownMissing) {
+            focusId = ownMissing.id;
+          } else if (anyMissing) {
+            focusId = anyMissing.id;
+          } else {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const upcomingMatch = enrichedMatches.find((m) => new Date(m.matchDate) >= today);
+            if (upcomingMatch) focusId = upcomingMatch.id;
+          }
+
+          setInitialFocusMatchId(focusId);
+          return;
+        }
+
+        devLog('using public_match_index', { count: (indexSnap as any).docs.length });
+
         const teamsMap = teamsMapRef.current;
         const competitionMeta = competitionMetaRef.current;
 
-        const enrichedMatches: EnrichedMatch[] = indexSnap.docs
+        const enrichedMatchesFromIndex: EnrichedMatch[] = indexSnap.docs
           .map((d: any) => d.data() as any)
           .map((row: MatchIndexRow): EnrichedMatch | null => {
             const compId = typeof row.competitionId === 'string' ? row.competitionId : '';
@@ -272,14 +395,34 @@ export default function MatchesPage() {
           })
           .filter(Boolean) as EnrichedMatch[];
 
+        let enrichedMatches = enrichedMatchesFromIndex;
+        try {
+          const treeMatches = await fetchMatchesFromTree();
+          if (fetchId !== activeFetchIdRef.current) return;
+          const merged = mergeMatches(enrichedMatchesFromIndex, treeMatches);
+          enrichedMatches = merged;
+          devLog('merged index + tree', { index: enrichedMatchesFromIndex.length, tree: treeMatches.length, merged: merged.length });
+        } catch (e) {
+          console.warn('[MatchesPage] Failed to fetch matches from tree (continuing):', e);
+        }
+
         setAllMatches(enrichedMatches);
 
+        const unsetMatches = enrichedMatches.filter((m) => !m.homeTeamId && !m.awayTeamId);
+        devLog('unset matches (merged)', {
+          count: unsetMatches.length,
+          sample: unsetMatches.slice(0, 5).map((m) => ({ id: m.id, matchDate: m.matchDate, competitionId: m.competitionId, roundId: m.roundId })),
+        });
+
         const hasMissingScore = (m: EnrichedMatch) => m.scoreHome == null || m.scoreAway == null;
-        const isOwnMatch = (m: EnrichedMatch) => m.homeTeamId === user.uid || m.awayTeamId === user.uid;
+        const isOwnMatch = (m: EnrichedMatch) => m.homeTeamId === (clubUid || '') || m.awayTeamId === (clubUid || '');
         const ownMissing = enrichedMatches.find((m) => isOwnMatch(m) && hasMissingScore(m));
         const anyMissing = enrichedMatches.find((m) => hasMissingScore(m));
 
         let focusId: string | null = null;
+        if (unsetMatches.length > 0) {
+          focusId = unsetMatches[0].id;
+        }
         if (ownMissing) {
           focusId = ownMissing.id;
         } else if (anyMissing) {
@@ -303,7 +446,7 @@ export default function MatchesPage() {
     };
 
     fetchMatches();
-  }, [user, selectedTeamId]);
+  }, [user, clubUid, selectedTeamId, selectedSeason, selectedCompetitionId]);
 
   useEffect(() => {
     if (initialFocusMatchId) {
@@ -331,11 +474,19 @@ export default function MatchesPage() {
       return format(date, 'M月d日(E)', { locale: ja });
   };
 
-  const filteredMatches = allMatches.filter(match => 
-    (selectedSeason === 'all' || match.competitionSeason === selectedSeason) &&
-    (selectedTeamId === 'all' || match.homeTeamId === selectedTeamId || match.awayTeamId === selectedTeamId) &&
-    (selectedCompetitionId === 'all' || match.competitionId === selectedCompetitionId)
-  );
+  const filteredMatches = allMatches.filter(match => {
+    const seasonOk = selectedSeason === 'all' || match.competitionSeason === selectedSeason;
+    const competitionOk = selectedCompetitionId === 'all' || match.competitionId === selectedCompetitionId;
+
+    const teamsUnset = !match.homeTeamId && !match.awayTeamId;
+    const teamOk =
+      selectedTeamId === 'all' ||
+      match.homeTeamId === selectedTeamId ||
+      match.awayTeamId === selectedTeamId ||
+      teamsUnset;
+
+    return seasonOk && competitionOk && teamOk;
+  });
 
   const seasons = ['all', ...Array.from(new Set(competitions.map((c) => c.season).filter((s): s is string => typeof s === 'string' && s.length > 0)))].sort((a, b) => {
     if (a === 'all') return 1;

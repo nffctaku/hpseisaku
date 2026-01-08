@@ -14,7 +14,7 @@ import { ByTournamentSection } from "./components/by-tournament-section";
 export default function AnalysisPage() {
   const { user, clubProfileExists, ownerUid } = useAuth();
   const [activeView, setActiveView] = useState<"overall" | "tournament" | "headtohead">("overall");
-  const [selectedTournamentType, setSelectedTournamentType] = useState("all");
+  const [selectedTournamentType, setSelectedTournamentType] = useState("league-cup");
   
   const {
     matches,
@@ -110,6 +110,7 @@ export default function AnalysisPage() {
         {activeView === "overall" && (
           <OverallSection
             matches={matches}
+            filteredMatches={filteredMatches}
             seasonRecords={seasonRecords}
             mainStatsData={mainStats}
             topGoalscorers={topGoalscorers}

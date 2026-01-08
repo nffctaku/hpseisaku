@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 function TeamVsTeamPage() {
   const router = useRouter();
   const { user, ownerUid } = useAuth();
-  const { filteredMatches } = useAnalysisData();
+  const { filteredMatches, loading: loadingAnalysis } = useAnalysisData();
   
   // useAnalysisDataからmainTeamIdを取得
   const mainTeamId = '4YlnB4MNHT8YlprIvjDO'; // ログから確認した値
@@ -110,6 +110,8 @@ function TeamVsTeamPage() {
     match.scoreHome !== null && match.scoreHome !== undefined && 
     match.scoreAway !== null && match.scoreAway !== undefined
   );
+
+  const isLoading = loadingTeams || loadingAnalysis;
 
   // 対戦相手ごとの成績を集計
   const opponentStats = new Map<string, {
@@ -217,15 +219,33 @@ function TeamVsTeamPage() {
             <div className="flex justify-center gap-2 mb-6 flex-nowrap">
               <div className="bg-slate-700/50 rounded-lg p-2 border border-slate-600 text-center flex-1 flex-shrink-0">
                 <p className="text-slate-400 text-xs">試合数</p>
-                <p className="text-sm font-bold text-white">{totalMatches}</p>
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-1">
+                    <div className="h-4 w-4 rounded-full border-2 border-slate-500 border-t-white animate-spin" />
+                  </div>
+                ) : (
+                  <p className="text-sm font-bold text-white">{totalMatches}</p>
+                )}
               </div>
               <div className="bg-slate-700/50 rounded-lg p-2 border border-slate-600 text-center flex-1 flex-shrink-0">
                 <p className="text-slate-400 text-xs">対チーム数</p>
-                <p className="text-sm font-bold text-white">{sortedOpponents.length}</p>
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-1">
+                    <div className="h-4 w-4 rounded-full border-2 border-slate-500 border-t-white animate-spin" />
+                  </div>
+                ) : (
+                  <p className="text-sm font-bold text-white">{sortedOpponents.length}</p>
+                )}
               </div>
               <div className="bg-slate-700/50 rounded-lg p-2 border border-slate-600 text-center flex-1 flex-shrink-0">
                 <p className="text-slate-400 text-xs">勝率</p>
-                <p className="text-sm font-bold text-yellow-400">{overallWinRate}%</p>
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-1">
+                    <div className="h-4 w-4 rounded-full border-2 border-slate-500 border-t-white animate-spin" />
+                  </div>
+                ) : (
+                  <p className="text-sm font-bold text-yellow-400">{overallWinRate}%</p>
+                )}
               </div>
             </div>
 
@@ -336,14 +356,16 @@ function TeamVsTeamPage() {
               {sortedOpponents.length === 0 && (
                 <div className="text-center text-slate-400 py-8 md:py-12">
                   <p className="text-base md:text-lg mb-2">対戦成績データがありません</p>
-                  <div className="mt-3 md:mt-4">
-                    <p className="text-xs md:text-sm mb-3 md:mb-4">現在のデータ状況:</p>
-                    <div className="bg-slate-700/30 rounded-lg p-3 md:p-4 text-left max-w-md mx-auto">
-                      <p className="text-xs md:text-sm">・総試合数: {myTeamMatches.length}</p>
-                      <p className="text-xs md:text-sm">・完了試合数: {filteredMatches.filter((m: any) => m.isCompleted).length}</p>
-                      <p className="text-xs md:text-sm mt-2 text-slate-500">スコアが入力された試合が登録されると表示されます</p>
+                  {!isLoading && (
+                    <div className="mt-3 md:mt-4">
+                      <p className="text-xs md:text-sm mb-3 md:mb-4">現在のデータ状況:</p>
+                      <div className="bg-slate-700/30 rounded-lg p-3 md:p-4 text-left max-w-md mx-auto">
+                        <p className="text-xs md:text-sm">・総試合数: {myTeamMatches.length}</p>
+                        <p className="text-xs md:text-sm">・完了試合数: {filteredMatches.filter((m: any) => m.isCompleted).length}</p>
+                        <p className="text-xs md:text-sm mt-2 text-slate-500">スコアが入力された試合が登録されると表示されます</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>

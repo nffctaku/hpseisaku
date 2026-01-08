@@ -22,7 +22,7 @@ export function useAnalysisData() {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedSeason, setSelectedSeason] = useState("all");
   const [selectedCompetitionId, setSelectedCompetitionId] = useState("all");
-  const [selectedCompetitionType, setSelectedCompetitionType] = useState("all");
+  const [selectedCompetitionType, setSelectedCompetitionType] = useState("league-cup");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
@@ -30,9 +30,10 @@ export function useAnalysisData() {
   useEffect(() => {
     // Try both clubId and ownerUid to find the data
     const clubId = clubInfo.id;
-    console.log(`[useAnalysisData] Hook called with clubId: ${clubId}, ownerUid: ${ownerUid}, user:`, user);
+    const firestoreClubDocId = ownerUid || user?.uid || null;
+    console.log(`[useAnalysisData] Hook called with clubId: ${clubId}, firestoreClubDocId: ${firestoreClubDocId}, ownerUid: ${ownerUid}, user:`, user);
     
-    if (!clubId && !ownerUid) {
+    if (!firestoreClubDocId) {
       console.log('[useAnalysisData] No clubId or ownerUid, returning');
       setLoading(false);
       return;
@@ -69,10 +70,10 @@ export function useAnalysisData() {
       try {
         setLoading(true);
         
-        console.log('[useAnalysisData] Starting data fetch with clubId:', clubId, 'ownerUid:', ownerUid);
+        console.log('[useAnalysisData] Starting data fetch with firestoreClubDocId:', firestoreClubDocId, 'ownerUid:', ownerUid);
         
-        // Try both paths to find the data
-        const possibleIds = [clubId, ownerUid].filter((id): id is string => Boolean(id));
+        // Firestore上のclubs/{docId}は ownerUid / uid を使う（clubId(例:nffctaku)は公開URL用スラッグ）
+        const possibleIds = [firestoreClubDocId].filter((id): id is string => Boolean(id));
         let competitionsData: Competition[] = [];
         let foundPath = '';
         
@@ -367,8 +368,12 @@ export function useAnalysisData() {
       filtered = filtered.filter(m => m.competitionId === selectedCompetitionId);
     }
 
-    if (selectedCompetitionType !== "all") {
-      filtered = filtered.filter(m => m.competitionType === selectedCompetitionType);
+    if (selectedCompetitionType === "league") {
+      filtered = filtered.filter(m => m.competitionType === "league");
+    }
+
+    if (selectedCompetitionType === "cup") {
+      filtered = filtered.filter(m => m.competitionType === "cup");
     }
 
     // Filter for home team only (mainTeamId matches)
@@ -420,23 +425,45 @@ export function useAnalysisData() {
     }
 
     // Transform match data to expected structure
-    return homeTeamMatches.map(match => ({
-      ...match,
-      isCompleted: match.isCompleted !== undefined ? match.isCompleted : (
-        match.scoreHome !== null && match.scoreAway !== null && 
-        typeof match.scoreHome === 'number' && typeof match.scoreAway === 'number'
-      ),
-      result: match.result || (
-        match.scoreHome !== null && match.scoreAway !== null ? 
-          (match.scoreHome > match.scoreAway ? 'win' : 
-           match.scoreHome < match.scoreAway ? 'loss' : 'draw') : undefined
-      ),
-      goalsFor: match.goalsFor || match.scoreHome,
-      goalsAgainst: match.goalsAgainst || match.scoreAway,
-      isHome: match.isHome !== undefined ? match.isHome : 
-        (match.homeTeam && typeof match.homeTeam === 'string' ? 
-          match.homeTeam === mainTeamId : false)
-    }));
+    return homeTeamMatches.map(match => {
+      const isHome = match.homeTeam === mainTeamId;
+
+      const parseScore = (value: any): number | null => {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          if (trimmed === '') return null;
+          const num = Number(trimmed);
+          return Number.isFinite(num) ? num : null;
+        }
+        return null;
+      };
+
+      const scoreHome = parseScore(match.scoreHome);
+      const scoreAway = parseScore(match.scoreAway);
+      const hasScores = scoreHome !== null && scoreAway !== null;
+      const isCompleted = match.isCompleted === true ? true : hasScores;
+
+      const goalsFor = isCompleted
+        ? (isHome ? scoreHome! : scoreAway!)
+        : (match.goalsFor ?? null);
+      const goalsAgainst = isCompleted
+        ? (isHome ? scoreAway! : scoreHome!)
+        : (match.goalsAgainst ?? null);
+
+      const derivedResult = isCompleted
+        ? (goalsFor! > goalsAgainst! ? 'win' : goalsFor! < goalsAgainst! ? 'loss' : 'draw')
+        : undefined;
+
+      return {
+        ...match,
+        isHome,
+        isCompleted,
+        result: match.result || derivedResult,
+        goalsFor: match.goalsFor ?? goalsFor,
+        goalsAgainst: match.goalsAgainst ?? goalsAgainst,
+      };
+    });
   }, [matches, selectedSeason, selectedCompetitionId, selectedCompetitionType, mainTeamId]);
 
   const seasons = useMemo(() => {
@@ -456,6 +483,11 @@ export function useAnalysisData() {
       const season = match.matchDate ? new Date(match.matchDate).getFullYear().toString() : null;
       if (!season) return;
 
+      // Only count completed matches with a known result
+      if (!match.isCompleted) return;
+      const result = match.result;
+      if (result !== "win" && result !== "draw" && result !== "loss") return;
+
       if (!records[season]) {
         records[season] = {
           season,
@@ -474,7 +506,6 @@ export function useAnalysisData() {
 
       const record = records[season];
       const isHome = match.isHome;
-      const result = match.result;
 
       if (result === "win") {
         record.points += 3;
@@ -488,8 +519,8 @@ export function useAnalysisData() {
         record.losses += 1;
       }
 
-      record.goalsFor += match.goalsFor || 0;
-      record.goalsAgainst += match.goalsAgainst || 0;
+      record.goalsFor += typeof match.goalsFor === 'number' ? match.goalsFor : 0;
+      record.goalsAgainst += typeof match.goalsAgainst === 'number' ? match.goalsAgainst : 0;
       record.goalDifference = record.goalsFor - record.goalsAgainst;
     });
 

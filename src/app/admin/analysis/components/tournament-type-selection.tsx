@@ -9,7 +9,6 @@ interface TournamentTypeSelectionProps {
 }
 
 const tournamentTypes = [
-  { id: "all", name: "すべて", label: "すべて" },
   { id: "league", name: "リーグ戦", label: "リーグ戦" },
   { id: "league-cup", name: "リーグ&カップ戦", label: "リーグ&カップ戦" },
   { id: "cup", name: "カップ戦", label: "カップ戦" }
@@ -32,7 +31,7 @@ export function TournamentTypeSelection({
           </div>
         </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {tournamentTypes.map((type) => (
             <button
               key={type.id}

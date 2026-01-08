@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SeasonRecord, PlayerStats } from "../types";
 import { Trophy, Target, Shield, TrendingUp, ChevronDown, ChevronUp, Users } from "lucide-react";
 import Link from "next/link";
 
 interface OverallSectionProps {
   matches: Array<{ isCompleted: boolean }>;
+  filteredMatches: any[];
   seasonRecords: SeasonRecord[];
   mainStatsData: any[];
   topGoalscorers: PlayerStats[];
@@ -15,6 +16,7 @@ interface OverallSectionProps {
 
 export function OverallSection({
   matches,
+  filteredMatches,
   seasonRecords,
   mainStatsData,
   topGoalscorers,
@@ -23,13 +25,37 @@ export function OverallSection({
   const [showMoreGoals, setShowMoreGoals] = useState(false);
   const [showMoreAssists, setShowMoreAssists] = useState(false);
   
-  const totalMatches = matches.filter(m => m.isCompleted).length;
-  const totalWins = seasonRecords.reduce((sum, r) => sum + r.wins, 0);
-  const totalDraws = seasonRecords.reduce((sum, r) => sum + r.draws, 0);
-  const totalLosses = seasonRecords.reduce((sum, r) => sum + r.losses, 0);
-  const totalGoalsFor = seasonRecords.reduce((sum, r) => sum + r.goalsFor, 0);
-  const totalGoalsAgainst = seasonRecords.reduce((sum, r) => sum + r.goalsAgainst, 0);
+  const completed = filteredMatches.filter((m: any) => m?.isCompleted && (m.result === 'win' || m.result === 'draw' || m.result === 'loss'));
+  const totalWins = completed.filter((m: any) => m.result === 'win').length;
+  const totalDraws = completed.filter((m: any) => m.result === 'draw').length;
+  const totalLosses = completed.filter((m: any) => m.result === 'loss').length;
+  const totalMatches = completed.length;
+  const totalGoalsFor = completed.reduce((sum: number, m: any) => sum + (typeof m.goalsFor === 'number' ? m.goalsFor : 0), 0);
+  const totalGoalsAgainst = completed.reduce((sum: number, m: any) => sum + (typeof m.goalsAgainst === 'number' ? m.goalsAgainst : 0), 0);
   const winRate = totalMatches > 0 ? ((totalWins / totalMatches) * 100).toFixed(1) : '0.0';
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+
+    const completedButNoResult = filteredMatches.filter((m: any) => m?.isCompleted && !(m.result === 'win' || m.result === 'draw' || m.result === 'loss'));
+    const hasScoresButNotCompleted = filteredMatches.filter((m: any) => {
+      const hasScores = m?.scoreHome !== null && m?.scoreHome !== undefined && m?.scoreAway !== null && m?.scoreAway !== undefined;
+      return hasScores && !m?.isCompleted;
+    });
+
+    console.log("[OverallSection] filteredMatches:", filteredMatches.length);
+    console.log("[OverallSection] completed (counted):", completed.length, { wins: totalWins, draws: totalDraws, losses: totalLosses });
+    console.log(
+      "[OverallSection] completedButNoResult:",
+      completedButNoResult.length,
+      completedButNoResult.slice(0, 5).map((m: any) => ({ id: m.id, scoreHome: m.scoreHome, scoreAway: m.scoreAway, result: m.result, isHome: m.isHome }))
+    );
+    console.log(
+      "[OverallSection] hasScoresButNotCompleted:",
+      hasScoresButNotCompleted.length,
+      hasScoresButNotCompleted.slice(0, 5).map((m: any) => ({ id: m.id, scoreHome: m.scoreHome, scoreAway: m.scoreAway, isCompleted: m.isCompleted, result: m.result }))
+    );
+  }, [filteredMatches, completed.length, totalWins, totalDraws, totalLosses]);
 
   return (
     <div className="space-y-6">
