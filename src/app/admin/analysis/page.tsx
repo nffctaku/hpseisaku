@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { AnalysisHeader } from "./components";
@@ -10,16 +10,14 @@ import { OverallSection } from "./components/overall-section";
 import { TournamentTypeSelection } from "./components/tournament-type-selection";
 import { TournamentSelection } from "./components/tournament-selection";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export default function AnalysisPage() {
   const { user, clubProfileExists, ownerUid } = useAuth();
   const [activeView, setActiveView] = useState<"overall" | "tournament" | "headtohead">("overall");
   const [selectedTournamentType, setSelectedTournamentType] = useState("league-cup");
-  const [leagueCompareMetric, setLeagueCompareMetric] = useState<
-    'rank' | 'rankTrend' | 'points' | 'goalsFor' | 'goalsAgainst' | 'homeAwayWins' | 'wdl'
-  >('points');
+  const leagueCompareMetric: 'rank' = 'rank';
   
   const {
     matches,
@@ -41,7 +39,44 @@ export default function AnalysisPage() {
     mainTeamId,
   } = useAnalysisData();
 
+  const LEAGUE_RANK_PLOT_PADDING_VB = 3.2;
+
   const clubUid = ownerUid || user?.uid || null;
+
+  const [resolvedTeamId, setResolvedTeamId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const resolve = async () => {
+      if (!clubUid) {
+        setResolvedTeamId(null);
+        return;
+      }
+      if (!mainTeamId) {
+        setResolvedTeamId(null);
+        return;
+      }
+      try {
+        const teamsSnap = await getDocs(collection(db, 'clubs', clubUid, 'teams'));
+        let found: string | null = null;
+        teamsSnap.forEach((d) => {
+          if (found) return;
+          const data = d.data() as any;
+          const idMatch = d.id === String(mainTeamId);
+          const fieldMatch =
+            data?.teamId === mainTeamId ||
+            data?.teamUid === mainTeamId ||
+            data?.uid === mainTeamId ||
+            data?.ownerUid === mainTeamId;
+          if (idMatch || fieldMatch) found = d.id;
+        });
+        setResolvedTeamId(found || String(mainTeamId));
+      } catch {
+        setResolvedTeamId(String(mainTeamId));
+      }
+    };
+
+    resolve();
+  }, [clubUid, mainTeamId]);
 
   const leagueMatches = useMemo(() => {
     const base = Array.isArray(filteredMatches) ? filteredMatches : [];
@@ -114,6 +149,8 @@ export default function AnalysisPage() {
   }, [leagueMatches]);
 
   const [leagueRanksBySeason, setLeagueRanksBySeason] = useState<Record<string, number | null>>({});
+  const [leagueTeamsBySeason, setLeagueTeamsBySeason] = useState<Record<string, number | null>>({});
+  const [leagueRanksLoading, setLeagueRanksLoading] = useState(false);
 
   const leagueCompareSeasons = useMemo(() => {
     const list = leagueSeasonRows.map((r) => r.season);
@@ -129,43 +166,108 @@ export default function AnalysisPage() {
   const leagueCompareMax = useMemo(() => {
     let max = 0;
     for (const season of leagueCompareSeasons) {
-      const row = leagueRowBySeason.get(season);
-      if (!row) continue;
-      if (leagueCompareMetric === 'points') max = Math.max(max, row.points);
-      else if (leagueCompareMetric === 'goalsFor') max = Math.max(max, row.goalsFor);
-      else if (leagueCompareMetric === 'goalsAgainst') max = Math.max(max, row.goalsAgainst);
-      else if (leagueCompareMetric === 'homeAwayWins') {
-        const rec = seasonRecords.find((s: any) => s.season === season);
-        const homeWins = typeof rec?.homeWins === 'number' ? rec.homeWins : 0;
-        const awayWins = typeof rec?.awayWins === 'number' ? rec.awayWins : 0;
-        max = Math.max(max, homeWins, awayWins);
-      } else if (leagueCompareMetric === 'wdl') {
-        max = Math.max(max, row.wins + row.draws + row.losses);
-      } else if (leagueCompareMetric === 'rank' || leagueCompareMetric === 'rankTrend') {
-        const rank = leagueRanksBySeason[season];
-        if (typeof rank === 'number') max = Math.max(max, rank);
+      const teams = leagueTeamsBySeason[season];
+      if (typeof teams === 'number') max = Math.max(max, teams);
+    }
+    if (max === 0) {
+      for (const season of leagueCompareSeasons) {
+        const r = leagueRanksBySeason[season];
+        if (typeof r === 'number') max = Math.max(max, r);
       }
     }
     return max;
-  }, [leagueCompareMetric, leagueCompareSeasons, leagueRowBySeason, leagueRanksBySeason, seasonRecords]);
+  }, [leagueCompareSeasons, leagueTeamsBySeason, leagueRanksBySeason]);
 
-  const leagueCompareLinePoints = useMemo(() => {
-    if (!(leagueCompareMetric === 'rankTrend')) return [] as Array<{ xPct: number; yPct: number; season: string; value: number }>;
-    const values: Array<{ season: string; value: number }> = [];
-    for (const season of leagueCompareSeasons) {
-      const v = leagueRanksBySeason[season];
-      if (typeof v === 'number') values.push({ season, value: v });
+  const leagueCompareTicks = useMemo(() => {
+    const rawMax = Math.max(0, leagueCompareMax);
+    const max = rawMax > 0 ? rawMax : 1;
+
+    // For these metrics, values are integers and should use integer ticks.
+    const forceIntegerTicks = true;
+    const isRankMetric = leagueCompareMetric === 'rank';
+
+    if (isRankMetric) {
+      const top = Math.max(1, Math.round(max));
+      const ticks = Array.from({ length: top }, (_, i) => i + 1);
+      return { step: 1, top, ticks, rawMax, isRankMetric };
     }
-    if (values.length <= 1) return [];
-    const max = Math.max(...values.map((v) => v.value), 1);
-    const min = Math.min(...values.map((v) => v.value), 1);
-    const span = Math.max(1, max - min);
-    return values.map((v, idx) => {
-      const xPct = (idx / (values.length - 1)) * 100;
-      const yPct = ((v.value - min) / span) * 100;
-      return { xPct, yPct, season: v.season, value: v.value };
+
+    const roughStep = max / 5;
+    const pow = Math.pow(10, Math.floor(Math.log10(roughStep)));
+    const n = roughStep / pow;
+    let step = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * pow;
+
+    if (forceIntegerTicks) {
+      step = Math.max(1, Math.round(step));
+    }
+
+    let top = Math.ceil(max / step) * step;
+    if (forceIntegerTicks) top = Math.max(1, Math.round(top));
+
+    const ticks: number[] = [];
+    if (!isRankMetric) {
+      for (let v = 0; v <= top; v += step) {
+        ticks.push(forceIntegerTicks ? Math.round(v) : v);
+      }
+      if (ticks[ticks.length - 1] !== top) ticks.push(top);
+    }
+
+    return { step, top, ticks, rawMax, isRankMetric };
+  }, [leagueCompareMax, leagueCompareMetric]);
+
+  const leagueRankHistory = useMemo(() => {
+    const topRank = Math.max(2, leagueCompareTicks.top);
+    const denom = Math.max(1, topRank - 1);
+    const count = Math.max(1, leagueCompareSeasons.length);
+    const minY = LEAGUE_RANK_PLOT_PADDING_VB;
+    const maxY = 100 - LEAGUE_RANK_PLOT_PADDING_VB;
+
+    const points = leagueCompareSeasons.map((season, index) => {
+      const rank = leagueRanksBySeason[season];
+      if (typeof rank !== 'number') return { season, index, rank: null as number | null, xPct: 0, yPct: 0 };
+      const xPct = ((index + 0.5) / count) * 100;
+      const ratio = (rank - 1) / denom;
+      const yPct = minY + ratio * (maxY - minY);
+      return { season, index, rank, xPct, yPct };
     });
-  }, [leagueCompareMetric, leagueCompareSeasons, leagueRanksBySeason]);
+
+    const segments: string[] = [];
+    let buf: Array<{ xPct: number; yPct: number }> = [];
+    for (const p of points) {
+      if (p.rank == null) {
+        if (buf.length >= 2) segments.push(buf.map((q) => `${q.xPct},${q.yPct}`).join(' '));
+        buf = [];
+        continue;
+      }
+      buf.push({ xPct: p.xPct, yPct: p.yPct });
+    }
+    if (buf.length >= 2) segments.push(buf.map((q) => `${q.xPct},${q.yPct}`).join(' '));
+
+    return { points, segments, topRank };
+  }, [leagueCompareSeasons, leagueRanksBySeason, leagueCompareTicks.top, LEAGUE_RANK_PLOT_PADDING_VB]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+    const hasAnyRank = leagueRankHistory.points.some((p) => typeof p.rank === 'number');
+    // eslint-disable-next-line no-console
+    console.log('[analysis] leagueRanksBySeason', leagueRanksBySeason);
+    // eslint-disable-next-line no-console
+    console.log('[analysis] leagueRankHistory.points', leagueRankHistory.points);
+    // eslint-disable-next-line no-console
+    console.log(
+      '[analysis] leagueRankHistory.points.simple',
+      leagueRankHistory.points.map((p) => ({
+        season: p.season,
+        rank: p.rank,
+        xPct: p.xPct,
+        yPct: p.yPct,
+      }))
+    );
+    // eslint-disable-next-line no-console
+    console.log('[analysis] leagueRankHistory.hasAnyRank', hasAnyRank);
+    // eslint-disable-next-line no-console
+    console.log('[analysis] leagueRankHistory.segments', leagueRankHistory.segments);
+  }, [leagueRanksBySeason, leagueRankHistory.points, leagueRankHistory.segments]);
 
   useEffect(() => {
     const fetchRanks = async () => {
@@ -173,35 +275,82 @@ export default function AnalysisPage() {
       if (selectedSeason !== 'all') return;
       if (!clubUid) return;
       if (!mainTeamId) return;
+      const targetTeamId = resolvedTeamId || String(mainTeamId);
       if (selectedCompetitionId === 'all') return;
+
+      setLeagueRanksLoading(true);
 
       const comps = (Array.isArray(competitions) ? competitions : []).filter((c: any) => {
         if (String(c?.name || '') !== selectedCompetitionId) return false;
-        const format = typeof c?.format === 'string' ? String(c.format) : '';
-        return format === 'league';
+        const formatRaw = typeof c?.format === 'string' ? String(c.format) : '';
+        const typeRaw = typeof c?.type === 'string' ? String(c.type) : '';
+        const normalized = formatRaw === 'league_cup' ? 'league-cup' : formatRaw;
+        if (normalized === 'league') return true;
+        if (typeRaw === 'league') return true;
+        return false;
       });
 
       const next: Record<string, number | null> = {};
-      await Promise.all(
-        comps.map(async (c: any) => {
-          const season = typeof c?.season === 'string' ? String(c.season).trim() : '';
-          if (!season) return;
-          try {
-            const ref = doc(db, 'clubs', clubUid, 'competitions', String(c.id), 'standings', String(mainTeamId));
-            const snap = await getDoc(ref);
-            const rank = snap.exists() ? (snap.data() as any)?.rank : null;
-            next[season] = typeof rank === 'number' ? rank : null;
-          } catch {
-            next[season] = null;
-          }
-        })
-      );
+      const teamCounts: Record<string, number | null> = {};
+      try {
+        await Promise.all(
+          comps.map(async (c: any) => {
+            const season = typeof c?.season === 'string' ? String(c.season).trim() : '';
+            if (!season) return;
+            try {
+              const standingsCol = collection(db, 'clubs', clubUid, 'competitions', String(c.id), 'standings');
+              const standingsSnap = await getDocs(standingsCol);
+              teamCounts[season] = standingsSnap.size;
 
-      setLeagueRanksBySeason(next);
+              const direct = await getDoc(doc(standingsCol, String(targetTeamId)));
+              let rank: unknown = direct.exists() ? (direct.data() as any)?.rank : null;
+
+              if (typeof rank !== 'number') {
+                standingsSnap.forEach((d) => {
+                  if (typeof rank === 'number') return;
+                  const data = d.data() as any;
+                  const idMatch = d.id === String(targetTeamId) || d.id === String(mainTeamId);
+                  const fieldMatch =
+                    data?.teamId === targetTeamId ||
+                    data?.teamUid === targetTeamId ||
+                    data?.uid === targetTeamId ||
+                    data?.ownerUid === targetTeamId ||
+                    data?.teamId === mainTeamId ||
+                    data?.teamUid === mainTeamId ||
+                    data?.uid === mainTeamId ||
+                    data?.ownerUid === mainTeamId;
+                  if (idMatch || fieldMatch) {
+                    rank = data?.rank;
+                  }
+                });
+              }
+
+              const normalizedRank =
+                typeof rank === 'number'
+                  ? rank
+                  : typeof rank === 'string'
+                    ? (() => {
+                        const n = Number(rank);
+                        return Number.isFinite(n) ? n : null;
+                      })()
+                    : null;
+
+              next[season] = normalizedRank;
+            } catch {
+              next[season] = null;
+              teamCounts[season] = null;
+            }
+          })
+        );
+      } finally {
+        setLeagueRanksBySeason(next);
+        setLeagueTeamsBySeason(teamCounts);
+        setLeagueRanksLoading(false);
+      }
     };
 
     fetchRanks();
-  }, [selectedTournamentType, selectedSeason, selectedCompetitionId, clubUid, mainTeamId, competitions]);
+  }, [selectedTournamentType, selectedSeason, selectedCompetitionId, clubUid, mainTeamId, competitions, resolvedTeamId]);
 
   if (!user) {
     return <div className="min-h-screen flex items-center justify-center">
@@ -346,114 +495,6 @@ export default function AnalysisPage() {
                             </TableBody>
                           </Table>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={leagueCompareMetric}
-                            onChange={(e) => setLeagueCompareMetric(e.target.value as any)}
-                            className="h-8 rounded-md bg-slate-900/70 border border-slate-700 text-white text-xs px-2"
-                          >
-                            <option value="rank">順位</option>
-                            <option value="rankTrend">順位推移</option>
-                            <option value="points">勝点</option>
-                            <option value="goalsFor">得点</option>
-                            <option value="goalsAgainst">失点</option>
-                            <option value="homeAwayWins">H/A 勝利数</option>
-                            <option value="wdl">勝/分/負</option>
-                          </select>
-                          <div className="text-slate-400 text-xs">全シーズン比較</div>
-                        </div>
-
-                        <div className="-mx-3 sm:-mx-4 px-3 sm:px-4">
-                          <div className="h-36 sm:h-44 relative rounded-md border border-slate-700 bg-slate-900/30 overflow-hidden">
-                            <div className="absolute inset-0 flex items-end">
-                              {leagueCompareSeasons.map((season) => {
-                                const row = leagueRowBySeason.get(season);
-                                if (!row) return null;
-
-                                const max = Math.max(1, leagueCompareMax);
-                                const label = season;
-
-                                if (leagueCompareMetric === 'rank') {
-                                  const rank = leagueRanksBySeason[season];
-                                  const value = typeof rank === 'number' ? rank : null;
-                                  const heightPct = value == null ? 0 : (1 - (value - 1) / Math.max(1, max - 1)) * 100;
-                                  return (
-                                    <div key={season} className="flex-1 min-w-0 px-0.5 flex flex-col items-center justify-end">
-                                      <div className="w-full bg-indigo-500/70" style={{ height: `${heightPct}%` }} />
-                                      <div className="text-[10px] text-slate-400 truncate w-full text-center mt-1">{label}</div>
-                                    </div>
-                                  );
-                                }
-
-                                if (leagueCompareMetric === 'points' || leagueCompareMetric === 'goalsFor' || leagueCompareMetric === 'goalsAgainst') {
-                                  const value = leagueCompareMetric === 'points' ? row.points : leagueCompareMetric === 'goalsFor' ? row.goalsFor : row.goalsAgainst;
-                                  const heightPct = (value / max) * 100;
-                                  const color = leagueCompareMetric === 'points' ? 'bg-emerald-500/70' : leagueCompareMetric === 'goalsFor' ? 'bg-sky-500/70' : 'bg-rose-500/70';
-                                  return (
-                                    <div key={season} className="flex-1 min-w-0 px-0.5 flex flex-col items-center justify-end">
-                                      <div className={`w-full ${color}`} style={{ height: `${heightPct}%` }} />
-                                      <div className="text-[10px] text-slate-400 truncate w-full text-center mt-1">{label}</div>
-                                    </div>
-                                  );
-                                }
-
-                                if (leagueCompareMetric === 'homeAwayWins') {
-                                  const rec = seasonRecords.find((s: any) => s.season === season);
-                                  const homeWins = typeof rec?.homeWins === 'number' ? rec.homeWins : 0;
-                                  const awayWins = typeof rec?.awayWins === 'number' ? rec.awayWins : 0;
-                                  const hPct = (homeWins / max) * 100;
-                                  const aPct = (awayWins / max) * 100;
-                                  return (
-                                    <div key={season} className="flex-1 min-w-0 px-0.5 flex flex-col items-center justify-end">
-                                      <div className="w-full flex items-end gap-0.5">
-                                        <div className="flex-1 bg-amber-500/70" style={{ height: `${hPct}%` }} />
-                                        <div className="flex-1 bg-cyan-500/70" style={{ height: `${aPct}%` }} />
-                                      </div>
-                                      <div className="text-[10px] text-slate-400 truncate w-full text-center mt-1">{label}</div>
-                                    </div>
-                                  );
-                                }
-
-                                if (leagueCompareMetric === 'wdl') {
-                                  const total = Math.max(1, row.wins + row.draws + row.losses);
-                                  const wPct = (row.wins / total) * 100;
-                                  const dPct = (row.draws / total) * 100;
-                                  const lPct = (row.losses / total) * 100;
-                                  const heightPct = (total / max) * 100;
-                                  return (
-                                    <div key={season} className="flex-1 min-w-0 px-0.5 flex flex-col items-center justify-end">
-                                      <div className="w-full" style={{ height: `${heightPct}%` }}>
-                                        <div className="w-full bg-emerald-500/70" style={{ height: `${wPct}%` }} />
-                                        <div className="w-full bg-yellow-500/70" style={{ height: `${dPct}%` }} />
-                                        <div className="w-full bg-rose-500/70" style={{ height: `${lPct}%` }} />
-                                      </div>
-                                      <div className="text-[10px] text-slate-400 truncate w-full text-center mt-1">{label}</div>
-                                    </div>
-                                  );
-                                }
-
-                                return (
-                                  <div key={season} className="flex-1 min-w-0 px-0.5 flex flex-col items-center justify-end">
-                                    <div className="w-full bg-slate-700" style={{ height: `0%` }} />
-                                    <div className="text-[10px] text-slate-400 truncate w-full text-center mt-1">{label}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            {leagueCompareMetric === 'rankTrend' && leagueCompareLinePoints.length > 1 && (
-                              <svg className="absolute inset-0" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                <polyline
-                                  fill="none"
-                                  stroke="rgba(99, 102, 241, 0.9)"
-                                  strokeWidth="2"
-                                  points={leagueCompareLinePoints.map((p) => `${p.xPct},${p.yPct}`).join(' ')}
-                                />
-                              </svg>
-                            )}
-                          </div>
-                        </div>
                       </div>
                     ) : (
                       <div className="flex items-center justify-between gap-2">
@@ -479,6 +520,166 @@ export default function AnalysisPage() {
                         </div>
                       </div>
                     )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selectedTournamentType === "league" && selectedCompetitionId !== "all" && selectedSeason === 'all' && (
+              <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
+                <div className="relative pt-3 px-3 pb-2 sm:pt-4 sm:px-4 sm:pb-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="text-white text-sm font-semibold">リーグ表での順位履歴</div>
+                  </div>
+
+                  <div className="-mx-3 sm:-mx-4">
+                    <div className="space-y-1">
+                      <div className="h-52 sm:h-72 relative rounded-md border border-slate-700 bg-slate-900/30 overflow-hidden">
+                        {leagueRanksLoading && (
+                          <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
+                            読み込み中...
+                          </div>
+                        )}
+
+                        {!leagueRanksLoading && leagueRankHistory.points.every((p) => p.rank == null) && (
+                          <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
+                            データがありません
+                          </div>
+                        )}
+
+                        <div className="absolute inset-0 flex">
+                          <div className="w-10 sm:w-12 border-r border-slate-700/60 relative">
+                            <div className="absolute left-0 top-0 bottom-0 w-10 sm:w-12 flex items-center justify-center pointer-events-none">
+                              <div className="text-[9px] text-slate-400 -rotate-90 tracking-widest">順位</div>
+                            </div>
+                            {!leagueRanksLoading && (
+                              <>
+                                {leagueCompareTicks.ticks.map((t) => {
+                                  const denom = Math.max(1, leagueCompareTicks.top - 1);
+                                  const ratio = (t - 1) / denom;
+                                  const yPct = LEAGUE_RANK_PLOT_PADDING_VB + ratio * (100 - 2 * LEAGUE_RANK_PLOT_PADDING_VB);
+                                  return (
+                                    <div
+                                      key={t}
+                                      className="absolute left-0 right-0 text-[9px] text-slate-400 pr-1 text-right"
+                                      style={{
+                                        top: `${yPct}%`,
+                                        transform:
+                                          t === 1
+                                            ? 'translateY(0%)'
+                                            : t === leagueCompareTicks.top
+                                              ? 'translateY(-100%)'
+                                              : 'translateY(-50%)',
+                                      }}
+                                    >
+                                      {t}
+                                    </div>
+                                  );
+                                })}
+                              </>
+                            )}
+                          </div>
+
+                          <div className="flex-1 h-full relative">
+                            <div className="absolute inset-0 z-0">
+                              <div className="absolute inset-x-0 top-0 h-1/2 bg-white/[0.02]" />
+                              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-white/[0.04]" />
+                            </div>
+
+                            {!leagueRanksLoading && !leagueRankHistory.points.every((p) => p.rank == null) && (
+                              <>
+                                <div className="absolute inset-0 z-0">
+                                  {leagueCompareTicks.ticks.map((t) => {
+                                    const denom = Math.max(1, leagueCompareTicks.top - 1);
+                                    const ratio = (t - 1) / denom;
+                                    const yPct = LEAGUE_RANK_PLOT_PADDING_VB + ratio * (100 - 2 * LEAGUE_RANK_PLOT_PADDING_VB);
+                                    return (
+                                      <div
+                                        key={t}
+                                        className="absolute left-0 right-0 border-t border-slate-700/25"
+                                        style={{ top: `${yPct}%` }}
+                                      />
+                                    );
+                                  })}
+                                </div>
+
+                                <div className="absolute inset-0 z-0">
+                                  {leagueCompareSeasons.map((season, i) => (
+                                    <div
+                                      key={season}
+                                      className="absolute top-0 bottom-0 border-l border-slate-700/25"
+                                      style={{ left: `${((i + 0.5) / Math.max(1, leagueCompareSeasons.length)) * 100}%` }}
+                                    />
+                                  ))}
+                                </div>
+
+                                <svg className="absolute inset-0 z-10 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                  {leagueRankHistory.segments.map((pts, idx) => (
+                                    <polyline
+                                      key={idx}
+                                      fill="none"
+                                      stroke="rgba(20, 184, 166, 0.95)"
+                                      strokeWidth="2"
+                                      points={pts}
+                                    />
+                                  ))}
+                                </svg>
+
+                                <div className="absolute inset-0 z-20 pointer-events-none">
+                                  {leagueRankHistory.points
+                                    .filter((p) => typeof p.rank === 'number')
+                                    .map((p) => (
+                                      <div
+                                        key={p.season}
+                                        className="absolute flex items-center justify-center font-semibold"
+                                        style={{
+                                          left: `${p.xPct}%`,
+                                          top: `${p.yPct}%`,
+                                          transform: 'translate(-50%, -50%)',
+                                          width: '26px',
+                                          height: '26px',
+                                          borderRadius: '9999px',
+                                          background: '#ffffff',
+                                          border: '2px solid rgba(20, 184, 166, 0.95)',
+                                          color: 'rgba(20, 184, 166, 0.95)',
+                                          fontSize: '12px',
+                                          lineHeight: '12px',
+                                        }}
+                                      >
+                                        {p.rank}
+                                      </div>
+                                    ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="h-10 sm:h-12 flex items-end">
+                        <div className="w-10 sm:w-12" />
+                        <div className="flex-1">
+                          <div className="flex items-end w-full">
+                            {leagueCompareSeasons.map((season, idx) => {
+                              const isLast = idx === leagueCompareSeasons.length - 1;
+                              return (
+                                <div key={season} className="flex-1 min-w-0 px-0.5 text-center">
+                                  <div
+                                    className={
+                                      isLast
+                                        ? 'text-[10px] text-white bg-teal-600 rounded-full px-2 py-0.5 inline-block'
+                                        : 'text-[10px] text-slate-400'
+                                    }
+                                  >
+                                    {season}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

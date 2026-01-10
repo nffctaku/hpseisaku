@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc } from "firebase/firestore";
+import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc, getDocs } from "firebase/firestore";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -183,6 +183,40 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       toast.error("シーズンが選択されていません。");
       return;
     }
+
+    const prevPhotoUrl = ((seasonDefaults as any)?.photoUrl ?? (editingPlayer as any)?.photoUrl ?? '') as string;
+    const nextPhotoUrl = (values as any)?.photoUrl as string | undefined;
+    const isNewPhoto = Boolean(nextPhotoUrl && String(nextPhotoUrl).trim().length > 0 && (!prevPhotoUrl || String(prevPhotoUrl).trim().length === 0));
+
+    if (!isPro && isNewPhoto) {
+      try {
+        const teamsSnap = await getDocs(collection(db, `clubs/${clubUid}/teams`));
+        const teamIds = teamsSnap.docs.map((d) => d.id);
+        let count = 0;
+        await Promise.all(
+          teamIds.map(async (tid) => {
+            try {
+              const playersSnap = await getDocs(collection(db, `clubs/${clubUid}/teams/${tid}/players`));
+              playersSnap.forEach((d) => {
+                const p = d.data() as any;
+                const url = typeof p?.photoUrl === 'string' ? p.photoUrl.trim() : '';
+                if (url) count += 1;
+              });
+            } catch {
+              // ignore
+            }
+          })
+        );
+
+        if (count >= 20) {
+          toast.error('無料プランでは選手画像は最大20枚まで登録できます。');
+          return;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     try {
       console.log("[PlayerManagement] save start", {
         clubUid,

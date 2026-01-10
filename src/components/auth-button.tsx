@@ -23,6 +23,11 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const { user } = useAuth();
   console.log('[AuthButton] render', { hasUser: !!user, user });
 
+  const planLabel = user?.plan === 'pro' ? 'Pro' : 'Free';
+  const planClassName = user?.plan === 'pro'
+    ? 'bg-emerald-600/20 text-emerald-200 border-emerald-500/30'
+    : 'bg-slate-700/50 text-slate-200 border-slate-500/30';
+
   const shouldUseRedirect = () => {
     if (typeof window === 'undefined') return false;
     const ua = window.navigator.userAgent || '';
@@ -66,12 +71,16 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       return null; // Already in admin, no need for this link
     }
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger>
-          <Avatar>
-            <AvatarFallback><User /></AvatarFallback>
-          </Avatar>
-        </DropdownMenuTrigger>
+      <div className="flex items-center gap-2">
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${planClassName}`}>
+          {planLabel}
+        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            <Avatar>
+              <AvatarFallback><User /></AvatarFallback>
+            </Avatar>
+          </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="bg-white text-gray-900">
           <DropdownMenuLabel>{user.displayName}</DropdownMenuLabel>
           <DropdownMenuSeparator />
@@ -80,7 +89,8 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
           </Link>
           <DropdownMenuItem onClick={handleSignOut}>ログアウト</DropdownMenuItem>
         </DropdownMenuContent>
-      </DropdownMenu>
+        </DropdownMenu>
+      </div>
     );
   }
 

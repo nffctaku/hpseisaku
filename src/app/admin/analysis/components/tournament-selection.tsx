@@ -76,7 +76,7 @@ export function TournamentSelection({
                 <SelectValue placeholder="大会" />
               </SelectTrigger>
               <SelectContent className="bg-slate-900/95 border-purple-500/40 text-white">
-                <SelectItem value="all" className="text-white">すべての大会</SelectItem>
+                <SelectItem value="all" className="text-white">大会を選択</SelectItem>
                 {tournamentNameOptions.map((name) => (
                   <SelectItem key={name} value={name} className="text-white">
                     {name}

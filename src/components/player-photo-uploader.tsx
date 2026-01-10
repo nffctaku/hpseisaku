@@ -13,6 +13,13 @@ interface PlayerPhotoUploaderProps {
 export function PlayerPhotoUploader({ value, onChange }: PlayerPhotoUploaderProps) {
   const [uploading, setUploading] = useState(false);
 
+  const handleClear = () => {
+    if (!value) return;
+    const ok = window.confirm('選手写真を削除しますか？');
+    if (!ok) return;
+    onChange('');
+  };
+
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0) {
       return;
@@ -81,7 +88,16 @@ export function PlayerPhotoUploader({ value, onChange }: PlayerPhotoUploaderProp
         {uploading ? (
           <Loader2 className="animate-spin" size={32} />
         ) : value ? (
-          <Image src={value} alt="Player Photo" fill className="object-cover rounded-lg" />
+          <>
+            <Image src={value} alt="Player Photo" fill className="object-cover rounded-lg" />
+            <button
+              type="button"
+              onClick={handleClear}
+              className="absolute right-2 top-2 z-20 rounded-md bg-black/60 px-2 py-1 text-[11px] font-semibold text-white hover:bg-black/70"
+            >
+              削除
+            </button>
+          </>
         ) : (
           <div className="text-center">
             <UserSquare className="mx-auto h-10 w-10" />

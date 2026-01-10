@@ -61,17 +61,21 @@ function computeAndRankStandings(input: Standing[]): Standing[] {
 export default function StandingsPage() {
   const params = useParams();
   const competitionId = params.competitionId as string;
-  const { user } = useAuth();
+  const { user, ownerUid } = useAuth();
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const [competitionName, setCompetitionName] = useState('');
   const [competitionFormat, setCompetitionFormat] = useState<'league' | 'cup' | 'league_cup' | ''>('');
 
+  const clubUid = ownerUid || user?.uid || null;
+  const canEdit = Boolean(user?.uid && clubUid && user.uid === clubUid);
+
   const fetchStandingsAndTeams = async () => {
     if (!user || !competitionId) return;
+    if (!clubUid) return;
     setLoading(true);
     try {
-      const competitionDocRef = doc(db, `clubs/${user.uid}/competitions`, competitionId);
+      const competitionDocRef = doc(db, `clubs/${clubUid}/competitions`, competitionId);
       const competitionSnap = await getDoc(competitionDocRef);
       const competitionData = competitionSnap.data();
       if (competitionSnap.exists()) {
@@ -80,12 +84,12 @@ export default function StandingsPage() {
       }
 
       const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
-      const teamsSnap = await getDocs(collection(db, `clubs/${user.uid}/teams`));
+      const teamsSnap = await getDocs(collection(db, `clubs/${clubUid}/teams`));
       teamsSnap.forEach(doc => {
           teamsMap.set(doc.id, { name: doc.data().name, logoUrl: doc.data().logoUrl });
       });
 
-      const standingsSnap = await getDocs(collection(db, `clubs/${user.uid}/competitions/${competitionId}/standings`));
+      const standingsSnap = await getDocs(collection(db, `clubs/${clubUid}/competitions/${competitionId}/standings`));
       const fetchedStandings = standingsSnap.docs.map(doc => {
         const data = doc.data();
         const teamInfo = teamsMap.get(doc.id);
@@ -135,8 +139,9 @@ export default function StandingsPage() {
   };
 
   useEffect(() => {
+    console.log('[StandingsPage] auth debug', { userUid: user?.uid || null, ownerUid: ownerUid || null, clubUid, canEdit });
     fetchStandingsAndTeams();
-  }, [user, competitionId]);
+  }, [user?.uid, ownerUid, competitionId]);
 
   const handleInputChange = (teamId: string, field: keyof Standing, value: string) => {
     const numericValue = parseInt(value, 10);
@@ -149,13 +154,21 @@ export default function StandingsPage() {
 
   const handleRecalculate = async () => {
     if (!user) return;
-
+    if (!clubUid) return;
+    if (!canEdit) {
+      toast.error('順位表の再計算・保存はオーナーのみ可能です。');
+      return;
+    }
+    setLoading(true);
     const ok = window.confirm('全試合結果から再計算して、現在の手入力順位表を上書き保存します。よろしいですか？');
-    if (!ok) return;
+    if (!ok) {
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     try {
-      const competitionDocRef = doc(db, `clubs/${user.uid}/competitions`, competitionId);
+      const competitionDocRef = doc(db, `clubs/${clubUid}/competitions`, competitionId);
       const competitionSnap = await getDoc(competitionDocRef);
       const competitionData = competitionSnap.data();
 
@@ -174,7 +187,7 @@ export default function StandingsPage() {
       }
       console.log(`Found ${competitionData.teams.length} teams in the competition.`);
 
-      const teamDetailsSnap = await getDocs(collection(db, `clubs/${user.uid}/teams`));
+      const teamDetailsSnap = await getDocs(collection(db, `clubs/${clubUid}/teams`));
       const teamDetailsMap = new Map(teamDetailsSnap.docs.map(d => [d.id, d.data()]));
 
       const standingsMap = new Map<string, Standing>();
@@ -189,7 +202,7 @@ export default function StandingsPage() {
         });
       }
 
-      const roundsSnap = await getDocs(collection(db, `clubs/${user.uid}/competitions/${competitionId}/rounds`));
+      const roundsSnap = await getDocs(collection(db, `clubs/${clubUid}/competitions/${competitionId}/rounds`));
       console.log(`Found ${roundsSnap.size} rounds.`);
 
       if (roundsSnap.empty) {
@@ -252,7 +265,7 @@ export default function StandingsPage() {
 
       const batch = writeBatch(db);
       finalStandings.forEach((standing) => {
-        const docRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/standings`, standing.id);
+        const docRef = doc(db, `clubs/${clubUid}/competitions/${competitionId}/standings`, standing.id);
         const { logoUrl, ...dataToSave } = standing;
         batch.set(docRef, dataToSave);
       });
@@ -260,6 +273,7 @@ export default function StandingsPage() {
 
       setStandings(finalStandings);
       toast.success('順位表を再計算して保存しました。');
+      await fetchStandingsAndTeams();
 
     } catch (error) {
       console.error('Error recalculating standings:', error);
@@ -271,11 +285,23 @@ export default function StandingsPage() {
 
   const handleSave = async () => {
     if (!user) return;
+    if (!clubUid) return;
+    if (!canEdit) {
+      toast.error('順位表の保存はオーナーのみ可能です。');
+      return;
+    }
     setLoading(true);
+
+    console.log('[StandingsPage] Saving standings', {
+      clubUid,
+      competitionId,
+      rows: standings.length,
+      sample: standings[0] || null,
+    });
 
     const batch = writeBatch(db);
     standings.forEach(standing => {
-      const docRef = doc(db, `clubs/${user.uid}/competitions/${competitionId}/standings`, standing.id);
+      const docRef = doc(db, `clubs/${clubUid}/competitions/${competitionId}/standings`, standing.id);
       const { logoUrl, ...dataToSave } = standing;
       batch.set(docRef, dataToSave);
     });
@@ -283,6 +309,7 @@ export default function StandingsPage() {
     try {
       await batch.commit();
       toast.success("順位表を保存しました。");
+      await fetchStandingsAndTeams();
     } catch (error) {
       console.error("Error saving standings: ", error);
       toast.error("保存に失敗しました。");
