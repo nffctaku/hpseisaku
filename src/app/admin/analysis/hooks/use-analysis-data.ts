@@ -42,25 +42,51 @@ export function useAnalysisData() {
     // Fetch mainTeamId from club profile
     const fetchMainTeamId = async () => {
       try {
-        const profilesQuery = query(
-          collection(db, "club_profiles"),
-          where("ownerUid", "==", ownerUid),
-          limit(1)
-        );
+        const key = firestoreClubDocId;
+        if (!key) {
+          setMainTeamId(ownerUid || user?.uid || null);
+          return;
+        }
+
+        // 1) Prefer query by ownerUid field
+        const profilesQuery = query(collection(db, "club_profiles"), where("ownerUid", "==", key), limit(1));
         const profilesSnapshot = await getDocs(profilesQuery);
-        
+
         if (!profilesSnapshot.empty) {
           const profileData = profilesSnapshot.docs[0].data() as any;
           const teamId = profileData.mainTeamId as string | undefined;
           console.log(`[useAnalysisData] Found mainTeamId: ${teamId}`);
-          setMainTeamId(teamId || ownerUid || null);
-        } else {
-          console.log(`[useAnalysisData] No club profile found, using ownerUid: ${ownerUid}`);
-          setMainTeamId(ownerUid || null);
+          setMainTeamId(teamId || key || null);
+          return;
         }
+
+        // 2) Fallback: treat key as docId
+        const directSnap = await getDoc(doc(db, "club_profiles", key));
+        if (directSnap.exists()) {
+          const profileData = directSnap.data() as any;
+          const teamId = profileData?.mainTeamId as string | undefined;
+          console.log(`[useAnalysisData] Found mainTeamId (direct): ${teamId}`);
+          setMainTeamId(teamId || (profileData?.ownerUid as string | undefined) || key || null);
+          return;
+        }
+
+        // 3) Fallback: treat public slug as docId
+        if (clubId) {
+          const bySlugSnap = await getDoc(doc(db, "club_profiles", String(clubId)));
+          if (bySlugSnap.exists()) {
+            const profileData = bySlugSnap.data() as any;
+            const teamId = profileData?.mainTeamId as string | undefined;
+            console.log(`[useAnalysisData] Found mainTeamId (slug): ${teamId}`);
+            setMainTeamId(teamId || (profileData?.ownerUid as string | undefined) || key || null);
+            return;
+          }
+        }
+
+        console.log(`[useAnalysisData] No club profile found, using key: ${key}`);
+        setMainTeamId(key || null);
       } catch (err) {
         console.error('[useAnalysisData] Error fetching mainTeamId:', err);
-        setMainTeamId(ownerUid || null);
+        setMainTeamId(firestoreClubDocId || null);
       }
     };
 
@@ -366,15 +392,12 @@ export function useAnalysisData() {
     }
 
     if (selectedCompetitionId !== "all") {
-      // selectedCompetitionId is used as selected competition NAME in the UI
-      filtered = filtered.filter(m => String((m as any)?.competitionName || '') === selectedCompetitionId);
+      filtered = filtered.filter((m) => String((m as any)?.competitionName || '').trim() === selectedCompetitionId);
     }
 
     if (selectedCompetitionType === "league") {
       filtered = filtered.filter(m => m.competitionType === "league");
-    }
-
-    if (selectedCompetitionType === "cup") {
+    } else if (selectedCompetitionType === "cup") {
       filtered = filtered.filter(m => m.competitionType === "cup");
     }
 

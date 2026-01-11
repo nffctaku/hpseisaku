@@ -94,6 +94,11 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
 
   const clampScore = (value: number) => (Number.isFinite(value) ? Math.max(0, value) : 0);
 
+  const canInputPk = useMemo(() => {
+    const fmt = (match as any)?.competitionFormat;
+    return fmt === 'cup' || fmt === 'league_cup' || fmt === 'league-cup';
+  }, [match]);
+
   const homeTeamOptions = useMemo(() => {
     const currentHome = typeof match.homeTeam === 'string' ? match.homeTeam : '';
     const currentAway = typeof match.awayTeam === 'string' ? match.awayTeam : '';
@@ -134,7 +139,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
   }, [seasonRange, years, selectedYear, selectedMonth, selectedDay]);
 
   return (
-    <div className="grid grid-cols-6 lg:grid-cols-12 items-center gap-1 p-2 bg-card text-gray-900 rounded-md border">
+    <div className="grid grid-cols-6 lg:grid-cols-12 items-start lg:items-center gap-1 p-2 bg-card text-gray-900 rounded-md border">
       {/* Date Picker (Year / Month / Day Selects) */}
       <div className="col-span-6 lg:col-span-3 flex gap-2">
         {/* Year */}
@@ -247,38 +252,77 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
       </div>
 
       {/* Score Inputs */}
-      <div className="col-span-2 lg:col-span-2 flex justify-center items-center gap-2">
-        <Input 
-          type="number" 
-          min={0}
-          className="w-14 text-center font-bold text-lg bg-white text-gray-900" 
-          value={match.scoreHome ?? ''}
-          onChange={(e) => {
-            if (e.target.value === '') {
-              onUpdate(match.id, 'scoreHome', null);
-              return;
-            }
-            const n = parseInt(e.target.value, 10);
-            onUpdate(match.id, 'scoreHome', clampScore(n));
-          }}
-          placeholder="-"
-        />
-        <span className="text-lg text-white">-</span>
-        <Input 
-          type="number" 
-          min={0}
-          className="w-14 text-center font-bold text-lg bg-white text-gray-900" 
-          value={match.scoreAway ?? ''}
-          onChange={(e) => {
-            if (e.target.value === '') {
-              onUpdate(match.id, 'scoreAway', null);
-              return;
-            }
-            const n = parseInt(e.target.value, 10);
-            onUpdate(match.id, 'scoreAway', clampScore(n));
-          }}
-          placeholder="-"
-        />
+      <div className="col-span-2 lg:col-span-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            min={0}
+            className="w-14 text-center font-bold text-lg bg-white text-gray-900"
+            value={match.scoreHome ?? ''}
+            onChange={(e) => {
+              if (e.target.value === '') {
+                onUpdate(match.id, 'scoreHome', null);
+                return;
+              }
+              const n = parseInt(e.target.value, 10);
+              onUpdate(match.id, 'scoreHome', clampScore(n));
+            }}
+            placeholder="-"
+          />
+          <span className="text-lg text-white">-</span>
+          <Input
+            type="number"
+            min={0}
+            className="w-14 text-center font-bold text-lg bg-white text-gray-900"
+            value={match.scoreAway ?? ''}
+            onChange={(e) => {
+              if (e.target.value === '') {
+                onUpdate(match.id, 'scoreAway', null);
+                return;
+              }
+              const n = parseInt(e.target.value, 10);
+              onUpdate(match.id, 'scoreAway', clampScore(n));
+            }}
+            placeholder="-"
+          />
+        </div>
+
+        {canInputPk && (
+          <div className="flex items-center gap-1 text-[10px] text-white/70">
+            <span>PK</span>
+            <Input
+              type="number"
+              min={0}
+              className="h-7 w-9 text-center font-semibold text-xs bg-white text-gray-900"
+              value={(match as any).pkScoreHome ?? ''}
+              onChange={(e) => {
+                if (e.target.value === '') {
+                  onUpdate(match.id, 'pkScoreHome', null);
+                  return;
+                }
+                const n = parseInt(e.target.value, 10);
+                onUpdate(match.id, 'pkScoreHome', clampScore(n));
+              }}
+              placeholder="-"
+            />
+            <span className="text-xs text-white/60">-</span>
+            <Input
+              type="number"
+              min={0}
+              className="h-7 w-9 text-center font-semibold text-xs bg-white text-gray-900"
+              value={(match as any).pkScoreAway ?? ''}
+              onChange={(e) => {
+                if (e.target.value === '') {
+                  onUpdate(match.id, 'pkScoreAway', null);
+                  return;
+                }
+                const n = parseInt(e.target.value, 10);
+                onUpdate(match.id, 'pkScoreAway', clampScore(n));
+              }}
+              placeholder="-"
+            />
+          </div>
+        )}
       </div>
 
       {/* Away Team Selector */}

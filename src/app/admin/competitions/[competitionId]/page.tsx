@@ -381,7 +381,7 @@ export default function CompetitionDetailPage() {
     const matchRef = doc(db, `clubs/${clubUid}/competitions/${competitionId}/rounds/${roundId}/matches`, matchId);
     try {
       const normalizedValue =
-        (field === 'scoreHome' || field === 'scoreAway') && typeof value === 'number'
+        (field === 'scoreHome' || field === 'scoreAway' || field === 'pkScoreHome' || field === 'pkScoreAway') && typeof value === 'number'
           ? Math.max(0, value)
           : value;
 
@@ -444,7 +444,8 @@ export default function CompetitionDetailPage() {
         homeTeam: '', awayTeam: '', 
         matchDate: defaultMatchDate, 
         competitionId, 
-        scoreHome: null, scoreAway: null 
+        scoreHome: null, scoreAway: null,
+        pkScoreHome: null, pkScoreAway: null 
       };
 
       const matchesPath = `clubs/${clubUid}/competitions/${competitionId}/rounds/${currentRound.id}/matches`;
@@ -532,7 +533,7 @@ export default function CompetitionDetailPage() {
                 {matchesInGroup.map(match => (
                   <MatchEditor 
                     key={match.id} 
-                    match={match} 
+                    match={{ ...(match as any), competitionFormat: competition.format }} 
                     teams={competitionTeams} 
                     allTeamsMap={allTeams}
                     excludedTeamIds={excludedTeamIdsByMatchId.get(match.id) ?? new Set()}

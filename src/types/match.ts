@@ -62,6 +62,8 @@ export interface Match {
   matchTime?: string;
   scoreHome?: number | null;
   scoreAway?: number | null;
+  pkScoreHome?: number | null;
+  pkScoreAway?: number | null;
 }
 
 export interface MatchDetails {
@@ -81,6 +83,8 @@ export interface MatchDetails {
   matchTime?: string;
   scoreHome?: number | null;
   scoreAway?: number | null;
+  pkScoreHome?: number | null;
+  pkScoreAway?: number | null;
   userId?: string;
   teamStats?: TeamStat[];
   playerStats?: PlayerStats[];

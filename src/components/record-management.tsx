@@ -69,7 +69,9 @@ function normalizeSeasonKey(season: string): string {
 }
 
 export function RecordManagement() {
-  const { user } = useAuth();
+  const { user, ownerUid } = useAuth();
+  const clubUid = ownerUid || user?.uid || null;
+  const canEdit = Boolean(user?.uid && clubUid && user.uid === clubUid);
   const [seasons, setSeasons] = useState<string[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>('');
   const [competitions, setCompetitions] = useState<CompetitionDoc[]>([]);
@@ -87,12 +89,16 @@ export function RecordManagement() {
       setLoading(false);
       return;
     }
+    if (!clubUid) {
+      setLoading(false);
+      return;
+    }
 
     const fetchData = async () => {
       setLoading(true);
       try {
         // Fetch competitions and build season options
-        const competitionsQueryRef = query(collection(db, `clubs/${user.uid}/competitions`));
+        const competitionsQueryRef = query(collection(db, `clubs/${clubUid}/competitions`));
         const competitionsSnap = await getDocs(competitionsQueryRef);
 
         const competitionsData: CompetitionDoc[] = competitionsSnap.docs.map(doc => {
@@ -134,11 +140,12 @@ export function RecordManagement() {
     };
 
     fetchData();
-  }, [user, selectedSeason]);
+  }, [user, clubUid, selectedSeason]);
 
   useEffect(() => {
     const fetchStandingsDraft = async () => {
       if (!user) return;
+      if (!clubUid) return;
       if (!selectedCompetitionId) {
         setStandingsDraft([]);
         return;
@@ -146,12 +153,12 @@ export function RecordManagement() {
 
       setStandingsLoading(true);
       try {
-        const competitionDocRef = doc(db, `clubs/${user.uid}/competitions`, selectedCompetitionId);
+        const competitionDocRef = doc(db, `clubs/${clubUid}/competitions`, selectedCompetitionId);
         const competitionSnap = await getDoc(competitionDocRef);
         const competitionData = competitionSnap.data() as any;
 
         const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
-        const teamsSnap = await getDocs(collection(db, `clubs/${user.uid}/teams`));
+        const teamsSnap = await getDocs(collection(db, `clubs/${clubUid}/teams`));
         teamsSnap.forEach((d) => {
           const data = d.data() as any;
           teamsMap.set(d.id, { name: data?.name || d.id, logoUrl: data?.logoUrl });
@@ -225,7 +232,7 @@ export function RecordManagement() {
     };
 
     fetchStandingsDraft();
-  }, [selectedCompetitionId, user]);
+  }, [selectedCompetitionId, user, clubUid]);
 
   const handleStandingInputChange = (teamId: string, field: keyof ManualStanding, value: string) => {
     const numericValue = parseInt(value, 10);
@@ -236,13 +243,18 @@ export function RecordManagement() {
 
   const handleSaveStandings = async () => {
     if (!user) return;
+    if (!clubUid) return;
     if (!selectedCompetitionId) return;
+    if (!canEdit) {
+      toast.error('順位表の保存はオーナーのみ可能です。');
+      return;
+    }
 
     setStandingsSaving(true);
     try {
       const computedList = computeAndRankStandings(standingsDraft);
       const batch = writeBatch(db);
-      const baseRef = doc(db, `clubs/${user.uid}/competitions`, selectedCompetitionId);
+      const baseRef = doc(db, `clubs/${clubUid}/competitions`, selectedCompetitionId);
       computedList.forEach((s) => {
         const docRef = doc(baseRef, 'standings', s.id);
         const { logoUrl, ...dataToSave } = s;
@@ -263,14 +275,19 @@ export function RecordManagement() {
 
   const handleClearStandingsOverride = async () => {
     if (!user) return;
+    if (!clubUid) return;
     if (!selectedCompetitionId) return;
+    if (!canEdit) {
+      toast.error('手入力順位の削除はオーナーのみ可能です。');
+      return;
+    }
 
     const ok = window.confirm('手入力の順位表を削除して、自動計算（試合結果）に戻します。よろしいですか？');
     if (!ok) return;
 
     setStandingsSaving(true);
     try {
-      const competitionDocRef = doc(db, `clubs/${user.uid}/competitions`, selectedCompetitionId);
+      const competitionDocRef = doc(db, `clubs/${clubUid}/competitions`, selectedCompetitionId);
       const competitionSnap = await getDoc(competitionDocRef);
       const competitionData = competitionSnap.data() as any;
 
@@ -285,7 +302,7 @@ export function RecordManagement() {
 
       // Reset draft to initial order so the user can continue editing if desired
       const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
-      const teamsSnap = await getDocs(collection(db, `clubs/${user.uid}/teams`));
+      const teamsSnap = await getDocs(collection(db, `clubs/${clubUid}/teams`));
       teamsSnap.forEach((d) => {
         const data = d.data() as any;
         teamsMap.set(d.id, { name: data?.name || d.id, logoUrl: data?.logoUrl });

@@ -33,15 +33,21 @@ export function TournamentSelection({
       if (selectedTournamentType === 'cup') return normalized === 'cup';
       return true;
     });
-  const tournamentNameOptions = Array.from(new Set(visibleTournaments.map((t) => t.name).filter((n) => typeof n === 'string' && n.trim().length > 0)))
-    .sort((a, b) => a.localeCompare(b, 'ja'));
+
+  const tournamentNameOptions = Array.from(
+    new Set(
+      visibleTournaments
+        .map((t: any) => (typeof t?.name === 'string' ? t.name.trim() : ''))
+        .filter((n: string) => n.length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b, 'ja'));
 
   const seasonOptions = (() => {
     if (selectedTournament === 'all') return seasons;
     const set = new Set<string>();
-    for (const t of visibleTournaments) {
-      if (t.name !== selectedTournament) continue;
-      const s = typeof t.season === 'string' ? t.season.trim() : '';
+    for (const t of visibleTournaments as any[]) {
+      if (String(t?.name || '').trim() !== selectedTournament) continue;
+      const s = typeof t?.season === 'string' ? t.season.trim() : '';
       if (s) set.add(s);
     }
     const list = Array.from(set);

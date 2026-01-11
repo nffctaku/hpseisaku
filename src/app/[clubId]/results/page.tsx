@@ -11,6 +11,7 @@ interface Match {
   competitionId: string;
   competitionName: string;
   competitionLogoUrl?: string;
+  season?: string;
   roundId: string;
   roundName: string;
   matchDate: string;
@@ -51,6 +52,26 @@ async function getMatchesForClub(clubId: string) {
     const teamsSnap = await teamsQuery.get();
     teamsSnap.forEach(doc => teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as { id: string; name: string; logoUrl?: string; }));
 
+    // Resolve mainTeamId to actual team document id (doc.id)
+    let resolvedMainTeamId: string | undefined = undefined;
+    if (mainTeamId) {
+      const direct = teamsMap.get(mainTeamId);
+      if (direct) {
+        resolvedMainTeamId = direct.id;
+      } else {
+        teamsSnap.forEach((d) => {
+          if (resolvedMainTeamId) return;
+          const data = d.data() as any;
+          const fieldMatch =
+            data?.teamId === mainTeamId ||
+            data?.teamUid === mainTeamId ||
+            data?.uid === mainTeamId ||
+            data?.ownerUid === mainTeamId;
+          if (fieldMatch) resolvedMainTeamId = d.id;
+        });
+      }
+    }
+
     // 3. Fetch all competitions, rounds, and matches
     const enrichedMatches: Match[] = [];
     const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
@@ -80,6 +101,7 @@ async function getMatchesForClub(clubId: string) {
                             competitionId: compDoc.id,
                             competitionName: competitionData.name,
                             competitionLogoUrl: competitionData.logoUrl,
+                            season: competitionData.season,
                             roundId: roundDoc.id,
                             roundName: roundData.name,
                             matchDate: matchData.matchDate,
@@ -134,7 +156,7 @@ async function getMatchesForClub(clubId: string) {
     // 4. Sort all matches by date
     enrichedMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
 
-    return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId, snsLinks, sponsors, legalPages, homeBgColor };
+    return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor };
 }
 
 export default async function ResultsPage({
@@ -154,7 +176,7 @@ export default async function ResultsPage({
         notFound();
     }
 
-    const { matches, clubName, ownerUid, logoUrl, mainTeamId, snsLinks, sponsors, legalPages, homeBgColor } = data as any;
+    const { matches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor } = data as any;
 
     return (
         <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
@@ -162,7 +184,7 @@ export default async function ResultsPage({
           <div className="flex-1">
             <MatchList 
               allMatches={matches} 
-              clubId={mainTeamId || ownerUid} // 自チーム判定にはメインチームIDを優先
+              clubId={resolvedMainTeamId || mainTeamId || ownerUid} // 自チーム判定にはメインチームIDを優先（docIdへ解決）
               clubSlug={clubId} // public clubId slug for URLs
               clubName={clubName} 
             />

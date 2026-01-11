@@ -15,6 +15,7 @@ interface EnrichedMatch {
   competitionId: string;
   competitionName: string;
   competitionLogoUrl?: string;
+  season?: string;
   roundId: string;
   roundName: string;
   matchDate: string;
@@ -56,11 +57,28 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListP
   const [selectedCompetition, setSelectedCompetition] = useState<string>('all');
   const [selectedSeason, setSelectedSeason] = useState<string>('all');
 
-  const seasons = ['all', ...Array.from(new Set(allMatches.map(m => getSeason(parseISO(m.matchDate)))))].sort().reverse();
+  const seasons = [
+    'all',
+    ...Array.from(
+      new Set(
+        allMatches.map((m) => (typeof (m as any).season === 'string' && (m as any).season.trim().length > 0
+          ? String((m as any).season)
+          : getSeason(parseISO(m.matchDate))))
+      )
+    ),
+  ]
+    .sort()
+    .reverse();
 
   const filteredBySeason = selectedSeason === 'all'
     ? allMatches
-    : allMatches.filter(m => getSeason(parseISO(m.matchDate)) === selectedSeason);
+    : allMatches.filter(m => {
+        const season =
+          typeof (m as any).season === 'string' && (m as any).season.trim().length > 0
+            ? String((m as any).season)
+            : getSeason(parseISO(m.matchDate));
+        return season === selectedSeason;
+      });
 
   const competitions = ['all', ...Array.from(new Set(filteredBySeason.map(m => m.competitionName)))];
 

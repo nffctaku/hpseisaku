@@ -62,47 +62,36 @@ export function OverallSection({
       {/* 試合成績セクション */}
       <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
         <div className="relative p-6">
-          <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-yellow-400" />
-            通算成績
-          </h2>
+          <h2 className="text-xl font-bold text-white mb-6">通算成績</h2>
 
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 sm:gap-6">
-              <div className="text-center">
-                <p className="text-slate-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">試合数</p>
-                <p className="text-lg sm:text-2xl font-bold text-white leading-none">{totalMatches}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-purple-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
-                  <TrendingUp className="h-4 w-4 hidden sm:block" />
-                  勝率
-                </p>
-                <p className="text-lg sm:text-2xl font-bold text-purple-400 leading-none">{winRate}%</p>
-              </div>
+          <div className="flex items-end justify-between gap-2 sm:gap-6">
+            <div className="text-center flex-1 min-w-0">
+              <p className="text-slate-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">試合数</p>
+              <p className="text-lg sm:text-2xl font-bold text-white leading-none">{totalMatches}</p>
             </div>
-
-            <div className="flex items-center justify-between gap-2 sm:gap-6">
-              <div className="text-center flex-1 min-w-0">
-                <p className="text-green-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">勝</p>
-                <p className="text-lg sm:text-2xl font-bold text-green-400 leading-none">{totalWins}</p>
-              </div>
-              <div className="text-center flex-1 min-w-0">
-                <p className="text-yellow-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">分</p>
-                <p className="text-lg sm:text-2xl font-bold text-yellow-400 leading-none">{totalDraws}</p>
-              </div>
-              <div className="text-center flex-1 min-w-0">
-                <p className="text-red-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">負</p>
-                <p className="text-lg sm:text-2xl font-bold text-red-400 leading-none">{totalLosses}</p>
-              </div>
-              <div className="text-center flex-1 min-w-0">
-                <p className="text-blue-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">得点</p>
-                <p className="text-lg sm:text-2xl font-bold text-blue-400 leading-none">{totalGoalsFor}</p>
-              </div>
-              <div className="text-center flex-1 min-w-0">
-                <p className="text-orange-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">失点</p>
-                <p className="text-lg sm:text-2xl font-bold text-orange-400 leading-none">{totalGoalsAgainst}</p>
-              </div>
+            <div className="text-center flex-1 min-w-0">
+              <p className="text-green-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">勝</p>
+              <p className="text-lg sm:text-2xl font-bold text-green-400 leading-none">{totalWins}</p>
+            </div>
+            <div className="text-center flex-1 min-w-0">
+              <p className="text-yellow-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">分</p>
+              <p className="text-lg sm:text-2xl font-bold text-yellow-400 leading-none">{totalDraws}</p>
+            </div>
+            <div className="text-center flex-1 min-w-0">
+              <p className="text-red-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">負</p>
+              <p className="text-lg sm:text-2xl font-bold text-red-400 leading-none">{totalLosses}</p>
+            </div>
+            <div className="text-center flex-1 min-w-0">
+              <p className="text-blue-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">得点</p>
+              <p className="text-lg sm:text-2xl font-bold text-blue-400 leading-none">{totalGoalsFor}</p>
+            </div>
+            <div className="text-center flex-1 min-w-0">
+              <p className="text-orange-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">失点</p>
+              <p className="text-lg sm:text-2xl font-bold text-orange-400 leading-none">{totalGoalsAgainst}</p>
+            </div>
+            <div className="text-center flex-1 min-w-0">
+              <p className="text-purple-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">勝率</p>
+              <p className="text-lg sm:text-2xl font-bold text-purple-400 leading-none">{winRate}%</p>
             </div>
           </div>
         </div>

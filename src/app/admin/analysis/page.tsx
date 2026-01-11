@@ -9,6 +9,7 @@ import { LoadingState, ErrorState, NoTeamState } from "./utils";
 import { OverallSection } from "./components/overall-section";
 import { TournamentTypeSelection } from "./components/tournament-type-selection";
 import { TournamentSelection } from "./components/tournament-selection";
+import { TeamVsTeamLeagueSection } from "./components/team-vs-team-league-section";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -39,7 +40,7 @@ export default function AnalysisPage() {
     mainTeamId,
   } = useAnalysisData();
 
-  const LEAGUE_RANK_PLOT_PADDING_VB = 3.2;
+  const LEAGUE_RANK_PLOT_PADDING_VB = 8;
 
   const clubUid = ownerUid || user?.uid || null;
 
@@ -122,8 +123,40 @@ export default function AnalysisPage() {
     };
   }, [leagueMatches]);
 
+  const [leagueRanksBySeason, setLeagueRanksBySeason] = useState<Record<string, number | null>>({});
+  const [leagueTeamsBySeason, setLeagueTeamsBySeason] = useState<Record<string, number | null>>({});
+  const [leagueStandingsBySeason, setLeagueStandingsBySeason] = useState<
+    Record<
+      string,
+      {
+        played: number;
+        wins: number;
+        draws: number;
+        losses: number;
+        goalsFor: number;
+        goalsAgainst: number;
+        goalDifference: number;
+        points: number;
+      } | null
+    >
+  >({});
+  const [leagueRanksLoading, setLeagueRanksLoading] = useState(false);
+
   const leagueSeasonRows = useMemo(() => {
-    const bySeason: Record<string, { season: string; played: number; wins: number; draws: number; losses: number; points: number; goalsFor: number; goalsAgainst: number; goalDifference: number; }> = {};
+    const bySeason: Record<
+      string,
+      {
+        season: string;
+        played: number;
+        wins: number;
+        draws: number;
+        losses: number;
+        points: number;
+        goalsFor: number;
+        goalsAgainst: number;
+        goalDifference: number;
+      }
+    > = {};
     for (const m of leagueMatches) {
       const season = typeof m?.competitionSeason === 'string' ? String(m.competitionSeason).trim() : '';
       if (!season) continue;
@@ -145,12 +178,20 @@ export default function AnalysisPage() {
       row.goalsAgainst += typeof m.goalsAgainst === 'number' ? m.goalsAgainst : 0;
       row.goalDifference = row.goalsFor - row.goalsAgainst;
     }
-    return Object.values(bySeason).sort((a, b) => b.season.localeCompare(a.season, 'ja'));
-  }, [leagueMatches]);
 
-  const [leagueRanksBySeason, setLeagueRanksBySeason] = useState<Record<string, number | null>>({});
-  const [leagueTeamsBySeason, setLeagueTeamsBySeason] = useState<Record<string, number | null>>({});
-  const [leagueRanksLoading, setLeagueRanksLoading] = useState(false);
+    // When comparing across all seasons, include seasons that have standings/rank even if there are no matches.
+    if (selectedSeason === 'all') {
+      for (const season of Object.keys(leagueRanksBySeason || {})) {
+        const s = typeof season === 'string' ? season.trim() : '';
+        if (!s) continue;
+        if (!bySeason[s]) {
+          bySeason[s] = { season: s, played: 0, wins: 0, draws: 0, losses: 0, points: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0 };
+        }
+      }
+    }
+
+    return Object.values(bySeason).sort((a, b) => b.season.localeCompare(a.season, 'ja'));
+  }, [leagueMatches, leagueRanksBySeason, selectedSeason]);
 
   const leagueCompareSeasons = useMemo(() => {
     const list = leagueSeasonRows.map((r) => r.season);
@@ -246,6 +287,32 @@ export default function AnalysisPage() {
     return { points, segments, topRank };
   }, [leagueCompareSeasons, leagueRanksBySeason, leagueCompareTicks.top, LEAGUE_RANK_PLOT_PADDING_VB]);
 
+  const leagueGoalsBar = useMemo(() => {
+    const values = leagueCompareSeasons.map((season) => {
+      const standings = leagueStandingsBySeason[season];
+      const byMatch = leagueRowBySeason.get(season);
+      const goalsFor = standings ? standings.goalsFor : byMatch ? byMatch.goalsFor : 0;
+      const goalsAgainst = standings ? standings.goalsAgainst : byMatch ? byMatch.goalsAgainst : 0;
+      return { season, goalsFor, goalsAgainst };
+    });
+    const max = values.reduce((acc, v) => Math.max(acc, v.goalsFor, v.goalsAgainst), 0);
+    return { values, max };
+  }, [leagueCompareSeasons, leagueStandingsBySeason, leagueRowBySeason]);
+
+  const leagueGoalsForTicks = useMemo(() => {
+    const rawMax = Math.max(0, leagueGoalsBar.max);
+    const max = rawMax > 0 ? rawMax : 1;
+    const roughStep = max / 4;
+    const pow = Math.pow(10, Math.floor(Math.log10(roughStep)));
+    const n = roughStep / pow;
+    const step = Math.max(1, Math.round((n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * pow));
+    const top = Math.max(1, Math.ceil(max / step) * step);
+    const ticks: number[] = [];
+    for (let v = 0; v <= top; v += step) ticks.push(v);
+    if (ticks[ticks.length - 1] !== top) ticks.push(top);
+    return { top, step, ticks, rawMax };
+  }, [leagueGoalsBar.max]);
+
   useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return;
     const hasAnyRank = leagueRankHistory.points.some((p) => typeof p.rank === 'number');
@@ -280,18 +347,45 @@ export default function AnalysisPage() {
 
       setLeagueRanksLoading(true);
 
+      const selectedName = typeof selectedCompetitionId === 'string' ? selectedCompetitionId.trim() : '';
       const comps = (Array.isArray(competitions) ? competitions : []).filter((c: any) => {
-        if (String(c?.name || '') !== selectedCompetitionId) return false;
+        const nameKey = typeof c?.name === 'string' ? c.name.trim() : '';
+        const matchesSelection = selectedName.length > 0 && selectedName !== 'all' && selectedName === nameKey;
+        if (!matchesSelection) return false;
         const formatRaw = typeof c?.format === 'string' ? String(c.format) : '';
         const typeRaw = typeof c?.type === 'string' ? String(c.type) : '';
         const normalized = formatRaw === 'league_cup' ? 'league-cup' : formatRaw;
         if (normalized === 'league') return true;
+        if (normalized === 'league-cup') return true;
         if (typeRaw === 'league') return true;
         return false;
       });
 
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.log(
+          '[analysis] fetchRanks comps',
+          comps
+            .map((c: any) => ({ id: String(c?.id), season: String(c?.season || ''), format: String(c?.format || ''), name: String(c?.name || '') }))
+            .sort((a, b) => a.season.localeCompare(b.season))
+        );
+      }
+
       const next: Record<string, number | null> = {};
       const teamCounts: Record<string, number | null> = {};
+      const standingsBySeason: Record<
+        string,
+        {
+          played: number;
+          wins: number;
+          draws: number;
+          losses: number;
+          goalsFor: number;
+          goalsAgainst: number;
+          goalDifference: number;
+          points: number;
+        } | null
+      > = {};
       try {
         await Promise.all(
           comps.map(async (c: any) => {
@@ -302,26 +396,171 @@ export default function AnalysisPage() {
               const standingsSnap = await getDocs(standingsCol);
               teamCounts[season] = standingsSnap.size;
 
-              const direct = await getDoc(doc(standingsCol, String(targetTeamId)));
-              let rank: unknown = direct.exists() ? (direct.data() as any)?.rank : null;
+              if (process.env.NODE_ENV === 'development') {
+                // eslint-disable-next-line no-console
+                console.log('[analysis] standings debug', {
+                  season,
+                  competitionId: String(c.id),
+                  standingsSize: standingsSnap.size,
+                });
+              }
 
-              if (typeof rank !== 'number') {
-                standingsSnap.forEach((d) => {
-                  if (typeof rank === 'number') return;
+              const candidateIds = Array.from(
+                new Set([String(targetTeamId), String(mainTeamId), String(clubUid)].filter((v) => v && v.length > 0))
+              );
+
+              const candidates: Array<{ id: string; data: any }> = [];
+
+              for (const candidateId of candidateIds) {
+                const direct = await getDoc(doc(standingsCol, candidateId));
+                if (direct.exists()) {
+                  candidates.push({ id: direct.id, data: direct.data() as any });
+                }
+              }
+
+              // Also scan the collection in case the team's identifier is stored in a field.
+              standingsSnap.forEach((d) => {
+                const data = d.data() as any;
+                const idMatch = candidateIds.includes(d.id);
+                const fieldMatch =
+                  candidateIds.includes(String(data?.teamId || '')) ||
+                  candidateIds.includes(String(data?.teamUid || '')) ||
+                  candidateIds.includes(String(data?.uid || '')) ||
+                  candidateIds.includes(String(data?.ownerUid || ''));
+
+                if (idMatch || fieldMatch) {
+                  candidates.push({ id: d.id, data });
+                }
+              });
+
+              const scoreStanding = (data: any): number => {
+                if (!data) return 0;
+                let score = 0;
+                const hasNumber = (v: any) => typeof v === 'number' && Number.isFinite(v);
+
+                if (hasNumber(data.points)) score += 10;
+                if (hasNumber(data.wins) || hasNumber(data.draws) || hasNumber(data.losses)) score += 6;
+                if (hasNumber(data.goalsFor) || hasNumber(data.goalsAgainst)) score += 4;
+                if (hasNumber(data.played)) score += 2;
+                if (hasNumber(data.rank)) score += 1;
+
+                // Prefer documents that actually have non-zero match stats (likely manually saved standings)
+                const sum =
+                  (hasNumber(data.points) ? data.points : 0) +
+                  (hasNumber(data.wins) ? data.wins : 0) +
+                  (hasNumber(data.draws) ? data.draws : 0) +
+                  (hasNumber(data.losses) ? data.losses : 0) +
+                  (hasNumber(data.goalsFor) ? data.goalsFor : 0) +
+                  (hasNumber(data.goalsAgainst) ? data.goalsAgainst : 0);
+                if (sum > 0) score += 100;
+
+                return score;
+              };
+
+              // Pick the best candidate.
+              candidates.sort((a, b) => scoreStanding(b.data) - scoreStanding(a.data));
+              const picked = candidates.length > 0 ? candidates[0] : null;
+              const pickedData: any = picked ? picked.data : null;
+              const rank: unknown = pickedData?.rank ?? null;
+
+              if (pickedData) {
+                const wins = typeof pickedData?.wins === 'number' ? pickedData.wins : 0;
+                const draws = typeof pickedData?.draws === 'number' ? pickedData.draws : 0;
+                const losses = typeof pickedData?.losses === 'number' ? pickedData.losses : 0;
+                const goalsFor = typeof pickedData?.goalsFor === 'number' ? pickedData.goalsFor : 0;
+                const goalsAgainst = typeof pickedData?.goalsAgainst === 'number' ? pickedData.goalsAgainst : 0;
+
+                const played =
+                  typeof pickedData?.played === 'number'
+                    ? pickedData.played
+                    : wins + draws + losses;
+                const points =
+                  typeof pickedData?.points === 'number'
+                    ? pickedData.points
+                    : wins * 3 + draws;
+                const goalDifference =
+                  typeof pickedData?.goalDifference === 'number'
+                    ? pickedData.goalDifference
+                    : goalsFor - goalsAgainst;
+
+                const prev = standingsBySeason[season];
+                if (!prev) {
+                  standingsBySeason[season] = {
+                    played,
+                    wins,
+                    draws,
+                    losses,
+                    goalsFor,
+                    goalsAgainst,
+                    goalDifference,
+                    points,
+                  };
+                }
+              }
+
+              if (process.env.NODE_ENV === 'development') {
+                const topCandidates = candidates.slice(0, 5).map((c) => {
+                  const d = c.data as any;
+                  return {
+                    id: c.id,
+                    score: scoreStanding(d),
+                    rank: d?.rank,
+                    points: d?.points,
+                    wins: d?.wins,
+                    draws: d?.draws,
+                    losses: d?.losses,
+                    goalsFor: d?.goalsFor,
+                    goalsAgainst: d?.goalsAgainst,
+                    played: d?.played,
+                    teamId: d?.teamId,
+                    teamUid: d?.teamUid,
+                    uid: d?.uid,
+                    ownerUid: d?.ownerUid,
+                    teamName: d?.teamName,
+                  };
+                });
+                // eslint-disable-next-line no-console
+                console.log('[analysis] standings picked', {
+                  season,
+                  competitionId: String(c.id),
+                  candidateIds,
+                  candidateCount: candidates.length,
+                  pickedId: picked?.id || null,
+                  pickedSummary: pickedData
+                    ? {
+                        rank: pickedData?.rank,
+                        points: pickedData?.points,
+                        wins: pickedData?.wins,
+                        draws: pickedData?.draws,
+                        losses: pickedData?.losses,
+                        goalsFor: pickedData?.goalsFor,
+                        goalsAgainst: pickedData?.goalsAgainst,
+                        played: pickedData?.played,
+                      }
+                    : null,
+                  topCandidates,
+                });
+              }
+
+              if (process.env.NODE_ENV === 'development' && (rank == null || rank === '')) {
+                const sampleDocs = standingsSnap.docs.slice(0, 8).map((d) => {
                   const data = d.data() as any;
-                  const idMatch = d.id === String(targetTeamId) || d.id === String(mainTeamId);
-                  const fieldMatch =
-                    data?.teamId === targetTeamId ||
-                    data?.teamUid === targetTeamId ||
-                    data?.uid === targetTeamId ||
-                    data?.ownerUid === targetTeamId ||
-                    data?.teamId === mainTeamId ||
-                    data?.teamUid === mainTeamId ||
-                    data?.uid === mainTeamId ||
-                    data?.ownerUid === mainTeamId;
-                  if (idMatch || fieldMatch) {
-                    rank = data?.rank;
-                  }
+                  return {
+                    id: d.id,
+                    rank: data?.rank,
+                    teamId: data?.teamId,
+                    teamUid: data?.teamUid,
+                    uid: data?.uid,
+                    ownerUid: data?.ownerUid,
+                    teamName: data?.teamName,
+                  };
+                });
+                // eslint-disable-next-line no-console
+                console.log('[analysis] standings rank not resolved', {
+                  season,
+                  competitionId: String(c.id),
+                  candidateIds,
+                  sampleDocs,
                 });
               }
 
@@ -335,16 +574,42 @@ export default function AnalysisPage() {
                       })()
                     : null;
 
-              next[season] = normalizedRank;
+              const prevRank = next[season];
+              if (typeof prevRank === 'number') {
+                if (typeof normalizedRank === 'number') {
+                  next[season] = Math.min(prevRank, normalizedRank);
+                } else {
+                  // Keep previously resolved rank for the same season.
+                }
+              } else {
+                next[season] = normalizedRank;
+              }
+
+              const prevCount = teamCounts[season];
+              if (typeof prevCount === 'number') {
+                if (typeof teamCounts[season] === 'number') {
+                  teamCounts[season] = Math.max(prevCount, teamCounts[season] as number);
+                }
+              }
             } catch {
-              next[season] = null;
-              teamCounts[season] = null;
+              const prevRank = next[season];
+              if (typeof prevRank !== 'number') {
+                next[season] = null;
+              }
+              const prevCount = teamCounts[season];
+              if (typeof prevCount !== 'number') {
+                teamCounts[season] = null;
+              }
+              if (!(season in standingsBySeason)) {
+                standingsBySeason[season] = null;
+              }
             }
           })
         );
       } finally {
         setLeagueRanksBySeason(next);
         setLeagueTeamsBySeason(teamCounts);
+        setLeagueStandingsBySeason(standingsBySeason);
         setLeagueRanksLoading(false);
       }
     };
@@ -478,17 +743,25 @@ export default function AnalysisPage() {
                             <TableBody>
                               {leagueSeasonRows.map((row) => {
                                 const rank = leagueRanksBySeason[row.season];
+                                const standings = leagueStandingsBySeason[row.season];
+                                const points = standings ? standings.points : row.points;
+                                const wins = standings ? standings.wins : row.wins;
+                                const draws = standings ? standings.draws : row.draws;
+                                const losses = standings ? standings.losses : row.losses;
+                                const goalsFor = standings ? standings.goalsFor : row.goalsFor;
+                                const goalsAgainst = standings ? standings.goalsAgainst : row.goalsAgainst;
+                                const goalDifference = standings ? standings.goalDifference : row.goalDifference;
                                 return (
                                   <TableRow key={row.season} className="border-slate-700">
                                     <TableCell className="text-white font-medium px-2 py-1 text-xs sm:text-sm">{row.season}</TableCell>
                                     <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{typeof rank === 'number' ? rank : '-'}</TableCell>
-                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{row.points}</TableCell>
-                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{row.wins}</TableCell>
-                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{row.draws}</TableCell>
-                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{row.losses}</TableCell>
-                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{row.goalsFor}</TableCell>
-                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{row.goalsAgainst}</TableCell>
-                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{row.goalDifference}</TableCell>
+                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{points}</TableCell>
+                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{wins}</TableCell>
+                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{draws}</TableCell>
+                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{losses}</TableCell>
+                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{goalsFor}</TableCell>
+                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{goalsAgainst}</TableCell>
+                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{goalDifference}</TableCell>
                                   </TableRow>
                                 );
                               })}
@@ -613,18 +886,6 @@ export default function AnalysisPage() {
                                   ))}
                                 </div>
 
-                                <svg className="absolute inset-0 z-10 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                  {leagueRankHistory.segments.map((pts, idx) => (
-                                    <polyline
-                                      key={idx}
-                                      fill="none"
-                                      stroke="rgba(20, 184, 166, 0.95)"
-                                      strokeWidth="2"
-                                      points={pts}
-                                    />
-                                  ))}
-                                </svg>
-
                                 <div className="absolute inset-0 z-20 pointer-events-none">
                                   {leagueRankHistory.points
                                     .filter((p) => typeof p.rank === 'number')
@@ -679,10 +940,120 @@ export default function AnalysisPage() {
                           </div>
                         </div>
                       </div>
+
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-white text-sm font-semibold">得点 / 失点</div>
+                          <div className="text-[11px] text-slate-400">シーズン別</div>
+                        </div>
+
+                        <div className="rounded-md border border-slate-700 bg-slate-900/20 overflow-hidden">
+                          <div className="h-28 sm:h-36 relative">
+                            <div className="absolute inset-0 flex">
+                              <div className="w-10 sm:w-12 border-r border-slate-700/60 relative">
+                                <div className="absolute left-0 top-0 bottom-0 w-10 sm:w-12 flex items-center justify-center pointer-events-none">
+                                  <div className="text-[9px] text-slate-400 -rotate-90 tracking-widest">得点/失点</div>
+                                </div>
+
+                                {leagueGoalsForTicks.ticks.map((t) => {
+                                  const ratio = leagueGoalsForTicks.top > 0 ? t / leagueGoalsForTicks.top : 0;
+                                  const yPct = 100 - ratio * 100;
+                                  return (
+                                    <div
+                                      key={t}
+                                      className="absolute left-0 right-0 text-[9px] text-slate-400 pr-1 text-right"
+                                      style={{
+                                        top: `${yPct}%`,
+                                        transform: t === 0 ? 'translateY(0%)' : t === leagueGoalsForTicks.top ? 'translateY(-100%)' : 'translateY(-50%)',
+                                      }}
+                                    >
+                                      {t}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="flex-1 h-full relative">
+                                <div className="absolute inset-0 z-0">
+                                  {leagueGoalsForTicks.ticks.map((t) => {
+                                    const ratio = leagueGoalsForTicks.top > 0 ? t / leagueGoalsForTicks.top : 0;
+                                    const yPct = 100 - ratio * 100;
+                                    return (
+                                      <div
+                                        key={t}
+                                        className="absolute left-0 right-0 border-t border-slate-700/25"
+                                        style={{ top: `${yPct}%` }}
+                                      />
+                                    );
+                                  })}
+                                </div>
+
+                                <div className="absolute inset-0 z-10 flex items-end gap-2 px-3 pb-2">
+                                  {leagueGoalsBar.values.map((v) => {
+                                    const ratioFor = leagueGoalsForTicks.top > 0 ? v.goalsFor / leagueGoalsForTicks.top : 0;
+                                    const ratioAgainst = leagueGoalsForTicks.top > 0 ? v.goalsAgainst / leagueGoalsForTicks.top : 0;
+                                    const hPctFor = Math.max(0, Math.min(100, ratioFor * 100));
+                                    const hPctAgainst = Math.max(0, Math.min(100, ratioAgainst * 100));
+                                    return (
+                                      <div key={v.season} className="flex-1 min-w-0 h-full flex flex-col items-center justify-end gap-1">
+                                        <div className="w-full flex-1 flex items-end justify-center">
+                                          <div className="flex items-end gap-0.5 h-full">
+                                            <div
+                                              className="w-4 sm:w-5 bg-gradient-to-t from-teal-600/90 to-teal-300/90 shadow-[0_0_0_1px_rgba(45,212,191,0.25)]"
+                                              style={{ height: `${Math.max(2, hPctFor)}%` }}
+                                            />
+                                            <div
+                                              className="w-4 sm:w-5 bg-gradient-to-t from-red-600/90 to-red-300/90 shadow-[0_0_0_1px_rgba(248,113,113,0.25)]"
+                                              style={{ height: `${Math.max(2, hPctAgainst)}%` }}
+                                            />
+                                          </div>
+                                        </div>
+                                        <div className="text-[10px] text-slate-300 tabular-nums">{v.goalsFor}/{v.goalsAgainst}</div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="h-10 sm:h-12 flex items-end">
+                            <div className="w-10 sm:w-12" />
+                            <div className="flex-1">
+                              <div className="flex items-end w-full">
+                                {leagueCompareSeasons.map((season, idx) => {
+                                  const isLast = idx === leagueCompareSeasons.length - 1;
+                                  return (
+                                    <div key={season} className="flex-1 min-w-0 px-0.5 text-center">
+                                      <div
+                                        className={
+                                          isLast
+                                            ? 'text-[10px] text-white bg-teal-600 rounded-full px-2 py-0.5 inline-block'
+                                            : 'text-[10px] text-slate-400'
+                                        }
+                                      >
+                                        {season}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
+            )}
+
+            {selectedTournamentType === "league" && selectedCompetitionId !== "all" && selectedSeason === 'all' && (
+              <TeamVsTeamLeagueSection
+                clubUid={clubUid || ''}
+                teamId={resolvedTeamId || (mainTeamId ? String(mainTeamId) : '')}
+                matches={filteredMatches as any}
+              />
             )}
           </div>
         )}

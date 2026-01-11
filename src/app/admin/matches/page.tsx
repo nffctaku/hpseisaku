@@ -310,7 +310,38 @@ export default function MatchesPage() {
           const map = new Map<string, EnrichedMatch>();
           for (const m of a) map.set(m.id, m);
           for (const m of b) {
-            if (!map.has(m.id)) map.set(m.id, m);
+            const existing = map.get(m.id);
+            if (!existing) {
+              map.set(m.id, m);
+              continue;
+            }
+
+            const pick = <T,>(primary: T, fallback: T) => {
+              if (primary === undefined || primary === null) return fallback;
+              if (typeof primary === 'string' && primary.trim().length === 0) return fallback;
+              return primary;
+            };
+
+            // Tree側のスコアが入っていればそれを優先（indexが古い/nullの場合の取りこぼし対策）
+            const scoreHome = pick(m.scoreHome, existing.scoreHome);
+            const scoreAway = pick(m.scoreAway, existing.scoreAway);
+
+            map.set(m.id, {
+              ...existing,
+              ...m,
+              competitionName: pick(m.competitionName, existing.competitionName),
+              competitionSeason: pick(m.competitionSeason, existing.competitionSeason),
+              roundName: pick(m.roundName, existing.roundName),
+              matchTime: pick(m.matchTime, existing.matchTime),
+              homeTeamId: pick(m.homeTeamId, existing.homeTeamId),
+              awayTeamId: pick(m.awayTeamId, existing.awayTeamId),
+              homeTeamName: pick(m.homeTeamName, existing.homeTeamName),
+              awayTeamName: pick(m.awayTeamName, existing.awayTeamName),
+              homeTeamLogo: pick(m.homeTeamLogo, existing.homeTeamLogo),
+              awayTeamLogo: pick(m.awayTeamLogo, existing.awayTeamLogo),
+              scoreHome,
+              scoreAway,
+            });
           }
           const merged = Array.from(map.values());
           merged.sort((x, y) => String(x.matchDate).localeCompare(String(y.matchDate)));

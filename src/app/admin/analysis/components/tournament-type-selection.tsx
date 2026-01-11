@@ -1,7 +1,8 @@
 "use client";
 
-import { Trophy } from "lucide-react";
+import { Lock, Trophy } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useEffect } from "react";
 
 interface TournamentTypeSelectionProps {
   selectedType: string;
@@ -18,6 +19,12 @@ export function TournamentTypeSelection({
   selectedType,
   onTypeChange
 }: TournamentTypeSelectionProps) {
+  useEffect(() => {
+    if (selectedType && selectedType !== "league") {
+      onTypeChange("league");
+    }
+  }, [selectedType, onTypeChange]);
+
   return (
     <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
       <div className="relative p-6">
@@ -37,8 +44,11 @@ export function TournamentTypeSelection({
           </SelectTrigger>
           <SelectContent>
             {tournamentTypes.map((type) => (
-              <SelectItem key={type.id} value={type.id}>
-                {type.label}
+              <SelectItem key={type.id} value={type.id} disabled={type.id !== "league"}>
+                <span className="flex items-center gap-2">
+                  <span>{type.label}</span>
+                  {type.id !== "league" && <Lock className="h-3.5 w-3.5 text-slate-400" />}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>

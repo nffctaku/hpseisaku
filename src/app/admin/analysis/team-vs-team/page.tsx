@@ -10,17 +10,50 @@ import { useRouter } from "next/navigation";
 function TeamVsTeamPage() {
   const router = useRouter();
   const { user, ownerUid } = useAuth();
-  const { filteredMatches, loading: loadingAnalysis } = useAnalysisData();
+  const { filteredMatches, loading: loadingAnalysis, mainTeamId } = useAnalysisData();
   
-  // useAnalysisDataからmainTeamIdを取得
-  const mainTeamId = '4YlnB4MNHT8YlprIvjDO'; // ログから確認した値
   const actualUid = ownerUid || user?.uid; // ownerUidを優先
+  const [resolvedTeamId, setResolvedTeamId] = useState<string | null>(null);
   
   const [teamNames, setTeamNames] = useState<Map<string, string>>(new Map());
   const [teamLogos, setTeamLogos] = useState<Map<string, string>>(new Map());
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [selectedOpponent, setSelectedOpponent] = useState<any>(null);
   const [opponentMatches, setOpponentMatches] = useState<any[]>([]);
+
+  // 自チームIDを teams コレクションから解決（mainTeamId が docId と違うケースに対応）
+  useEffect(() => {
+    const resolve = async () => {
+      if (!actualUid) {
+        setResolvedTeamId(null);
+        return;
+      }
+      if (!mainTeamId) {
+        setResolvedTeamId(null);
+        return;
+      }
+      try {
+        const teamsSnap = await getDocs(collection(db, `clubs/${actualUid}/teams`));
+        let found: string | null = null;
+        teamsSnap.forEach((d) => {
+          if (found) return;
+          const data = d.data() as any;
+          const idMatch = d.id === String(mainTeamId);
+          const fieldMatch =
+            data?.teamId === mainTeamId ||
+            data?.teamUid === mainTeamId ||
+            data?.uid === mainTeamId ||
+            data?.ownerUid === mainTeamId;
+          if (idMatch || fieldMatch) found = d.id;
+        });
+        setResolvedTeamId(found || String(mainTeamId));
+      } catch {
+        setResolvedTeamId(String(mainTeamId));
+      }
+    };
+
+    resolve();
+  }, [actualUid, mainTeamId]);
 
   // チーム情報を取得
   useEffect(() => {
@@ -61,18 +94,19 @@ function TeamVsTeamPage() {
 
   // 対戦相手との過去対戦成績を取得
   const getOpponentMatches = (opponentId: string) => {
+    if (!resolvedTeamId) return [];
     const myTeamMatches = filteredMatches.filter(match => 
       match.scoreHome !== null && match.scoreHome !== undefined && 
       match.scoreAway !== null && match.scoreAway !== undefined
     );
     
     const matches = myTeamMatches.filter(match => 
-      (match.homeTeam === mainTeamId && match.awayTeam === opponentId) ||
-      (match.homeTeam === opponentId && match.awayTeam === mainTeamId)
+      (match.homeTeam === resolvedTeamId && match.awayTeam === opponentId) ||
+      (match.homeTeam === opponentId && match.awayTeam === resolvedTeamId)
     );
     
     return matches.map(match => {
-      const isHome = match.homeTeam === mainTeamId;
+      const isHome = match.homeTeam === resolvedTeamId;
       const myScore = isHome ? match.scoreHome : match.scoreAway;
       const opponentScore = isHome ? match.scoreAway : match.scoreHome;
       
@@ -105,11 +139,21 @@ function TeamVsTeamPage() {
     </div>;
   }
 
+  if (!resolvedTeamId) {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="text-white">自チームが設定されていません。</div>
+    </div>;
+  }
+
   // スコアが入力されている試合のみをフィルタリング
-  const myTeamMatches = filteredMatches.filter(match => 
-    match.scoreHome !== null && match.scoreHome !== undefined && 
-    match.scoreAway !== null && match.scoreAway !== undefined
-  );
+  const myTeamMatches = filteredMatches.filter(match => {
+    if (match.scoreHome === null || match.scoreHome === undefined) return false;
+    if (match.scoreAway === null || match.scoreAway === undefined) return false;
+    const homeId = String(match.homeTeam || '');
+    const awayId = String(match.awayTeam || '');
+    if (!homeId || !awayId) return false;
+    return homeId === resolvedTeamId || awayId === resolvedTeamId;
+  });
 
   const isLoading = loadingTeams || loadingAnalysis;
 
@@ -127,24 +171,26 @@ function TeamVsTeamPage() {
   }>();
 
   myTeamMatches.forEach(match => {
-    const homeTeamId = match.homeTeam;
-    const awayTeamId = match.awayTeam;
+    const homeTeamId = String(match.homeTeam || '');
+    const awayTeamId = String(match.awayTeam || '');
     const homeScore = match.scoreHome || 0;
     const awayScore = match.scoreAway || 0;
 
     let opponentId: string;
     let myTeamIsHome: boolean;
 
-    if (homeTeamId === mainTeamId) {
+    if (homeTeamId === String(resolvedTeamId)) {
       opponentId = awayTeamId;
       myTeamIsHome = true;
-    } else {
+    } else if (awayTeamId === String(resolvedTeamId)) {
       opponentId = homeTeamId;
       myTeamIsHome = false;
+    } else {
+      return;
     }
 
     // 自チームは除外
-    if (opponentId === mainTeamId) return;
+    if (opponentId === String(resolvedTeamId)) return;
 
     const opponentName = teamNames.get(opponentId) || `対戦相手 ${opponentId.slice(0, 8)}`;
 
@@ -443,9 +489,9 @@ function TeamVsTeamPage() {
                         <div className="flex items-center gap-2 min-w-0">
                           <div className="w-7 h-7 rounded-full overflow-hidden bg-transparent flex items-center justify-center flex-shrink-0">
                             {(() => {
-                              const id = match.isHome ? mainTeamId : selectedOpponent.opponentId;
+                              const id = match.isHome ? resolvedTeamId : selectedOpponent.opponentId;
                               const name = match.isHome
-                                ? (teamNames.get(mainTeamId) || '自チーム')
+                                ? (teamNames.get(resolvedTeamId) || '自チーム')
                                 : selectedOpponent.opponentName;
                               const logo = teamLogos.get(id);
                               if (!logo) {
@@ -461,7 +507,7 @@ function TeamVsTeamPage() {
                             })()}
                           </div>
                           <p className="text-white font-semibold text-sm truncate">
-                            {match.isHome ? (teamNames.get(mainTeamId) || '自チーム') : selectedOpponent.opponentName}
+                            {match.isHome ? (teamNames.get(resolvedTeamId) || '自チーム') : selectedOpponent.opponentName}
                           </p>
                         </div>
 
@@ -471,14 +517,14 @@ function TeamVsTeamPage() {
 
                         <div className="flex items-center gap-2 min-w-0 justify-end">
                           <p className="text-white font-semibold text-sm truncate text-right">
-                            {match.isHome ? selectedOpponent.opponentName : (teamNames.get(mainTeamId) || '自チーム')}
+                            {match.isHome ? selectedOpponent.opponentName : (teamNames.get(resolvedTeamId) || '自チーム')}
                           </p>
                           <div className="w-7 h-7 rounded-full overflow-hidden bg-transparent flex items-center justify-center flex-shrink-0">
                             {(() => {
-                              const id = match.isHome ? selectedOpponent.opponentId : mainTeamId;
+                              const id = match.isHome ? selectedOpponent.opponentId : resolvedTeamId;
                               const name = match.isHome
                                 ? selectedOpponent.opponentName
-                                : (teamNames.get(mainTeamId) || '自チーム');
+                                : (teamNames.get(resolvedTeamId) || '自チーム');
                               const logo = teamLogos.get(id);
                               if (!logo) {
                                 return (
