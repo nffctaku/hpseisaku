@@ -2,31 +2,72 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import * as React from "react";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  type CarouselApi,
-} from "@/components/ui/carousel";
 
 export default function LandingPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [featureCarouselApi, setFeatureCarouselApi] = React.useState<CarouselApi>();
+  const slideRefs = React.useRef<Array<HTMLDivElement | null>>([]);
+  const [slideIndex, setSlideIndex] = React.useState(0);
+
+  const xEmbedRef = React.useRef<HTMLDivElement | null>(null);
+  const xEmbedInitStartedRef = React.useRef(false);
+
+  const loadXWidgets = React.useCallback(() => {
+    const twttr = (window as any)?.twttr;
+    const container = xEmbedRef.current;
+    if (!container) return;
+    if (xEmbedInitStartedRef.current) return;
+    if (container.querySelector("iframe")) return;
+
+    xEmbedInitStartedRef.current = true;
+
+    if (twttr?.widgets?.createTimeline) {
+      twttr.widgets.createTimeline(
+        {
+          sourceType: "profile",
+          screenName: "footchron_hp",
+        },
+        container,
+        {
+          height: 520,
+        }
+      );
+      return;
+    }
+
+    if (twttr?.widgets?.load) {
+      twttr.widgets.load(container);
+    }
+  }, []);
 
   React.useEffect(() => {
-    if (!featureCarouselApi) return;
-    const id = window.setInterval(() => {
-      featureCarouselApi.scrollNext();
+    const intervalId = window.setInterval(() => {
+      setSlideIndex((prev) => (prev + 1) % 4);
     }, 3000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  React.useEffect(() => {
+    const el = slideRefs.current[slideIndex];
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [slideIndex]);
+
+  React.useEffect(() => {
+    const t = window.setTimeout(() => {
+      loadXWidgets();
+    }, 800);
+
     return () => {
-      window.clearInterval(id);
+      window.clearTimeout(t);
     };
-  }, [featureCarouselApi]);
+  }, [loadXWidgets]);
 
   const handleViewClub = () => {
     const clubId = user?.clubId;
@@ -40,156 +81,206 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="w-full bg-white text-gray-900 flex items-center justify-between px-4 py-3 border-b">
-        <div className="text-2xl font-extrabold tracking-tight text-yellow-400 drop-shadow">
-          FHUB
+      <header className="w-full bg-white text-gray-900 flex items-center justify-between px-2 sm:px-4 py-2 border-b">
+        <div className="relative w-[40px] sm:w-[250px] h-[40px] sm:h-[48px] flex-shrink-0">
+          <Image
+            src="/サイトロゴのみ.png"
+            alt="FootChorn"
+            fill
+            className="object-contain object-center sm:object-left"
+            sizes="(min-width: 640px) 220px, 40px"
+            priority
+          />
         </div>
-        <Link
-          href="/admin/competitions"
-          className="text-sm px-4 py-2 rounded-md bg-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
-        >
-          FHUBを開く
-        </Link>
+        <div className="flex items-center gap-1 sm:gap-3 overflow-x-auto flex-nowrap max-w-full">
+          <Link
+            href="#features"
+            className="text-sm px-2 sm:px-3 py-2 rounded-md hover:bg-gray-100 transition-colors whitespace-nowrap"
+          >
+            機能
+          </Link>
+          <Link
+            href="/admin/plan"
+            className="text-sm px-2 sm:px-3 py-2 rounded-md hover:bg-gray-100 transition-colors whitespace-nowrap"
+          >
+            プラン
+          </Link>
+          <Link
+            href="/admin/competitions"
+            className="inline-flex items-center text-sm px-3 sm:px-4 py-2 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
+          >
+            始める
+          </Link>
+        </div>
       </header>
 
       <main className="flex-grow">
         <section className="relative overflow-hidden">
-          <div className="container mx-auto px-4 py-10 sm:py-14">
+          <div className="container mx-auto px-4 pt-28 pb-2 sm:pt-40 sm:pb-6">
             <div className="max-w-5xl mx-auto">
-              <div className="text-center space-y-4 sm:space-y-5">
-                <div className="text-4xl sm:text-6xl font-extrabold tracking-tight text-yellow-400 drop-shadow">
-                  FHUB
-                </div>
-                <h1 className="text-2xl sm:text-4xl font-bold tracking-tight">
-                  スマホひとつで、
-                  <br />
-                  プロ仕様のクラブサイト。
-                </h1>
-              </div>
-
-              <div className="mt-8 sm:mt-10 flex justify-center">
-                <div className="grid grid-cols-2 gap-4 sm:gap-8 items-end">
-                  <div className="relative w-[44vw] max-w-[260px] sm:w-[240px] sm:max-w-none aspect-[9/16]">
+              <div className="text-center space-y-2 sm:space-y-3">
+                <div className="flex justify-center">
+                  <div className="relative w-[360px] sm:w-[520px] h-[68px] sm:h-[96px]">
                     <Image
-                      src="/FHUBスマホ①.png"
-                      alt="FHUB 1"
+                      src="/サイトロゴ文字.png"
+                      alt="FootChorn"
                       fill
                       className="object-contain"
-                      sizes="(min-width: 640px) 240px, 44vw"
+                      sizes="(min-width: 640px) 520px, 360px"
                       priority
                     />
                   </div>
-                  <div className="relative w-[44vw] max-w-[260px] sm:w-[240px] sm:max-w-none aspect-[9/16]">
+                </div>
+                <h1 className="mt-16 sm:mt-24 text-2xl sm:text-4xl font-bold tracking-tight leading-tight mb-1 sm:mb-2">クラブの歴史を、ここに刻め。</h1>
+              </div>
+
+              <div className="mt-10 sm:mt-16 flex justify-center">
+                <div className="grid grid-cols-1 gap-3 items-end w-[92vw] max-w-[420px]">
+                  <div className="relative w-full aspect-[1/1] bg-transparent">
                     <Image
-                      src="/FHUBスマホ②.png"
-                      alt="FHUB 2"
+                      src="/LP用１０.png"
+                      alt="FootChorn screen 1"
                       fill
                       className="object-contain"
-                      sizes="(min-width: 640px) 240px, 44vw"
+                      sizes="(min-width: 640px) 420px, 92vw"
+                      priority
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="mt-8 sm:mt-10 text-center space-y-4">
+              <div className="mt-2 sm:mt-3 text-center">
+                <div className="mx-auto max-w-2xl text-sm sm:text-base leading-relaxed text-muted-foreground">
+                  <p className="font-semibold text-foreground">
+                    <span className="block">リアルも、ゲームも。</span>
+                    <span className="block">これ一つで、プロ級のクラブ管理。</span>
+                  </p>
+                  <p className="mt-1 text-[11px] sm:text-xs">
+                    <span className="block sm:inline">リアルなサッカークラブの運営から、</span>{" "}
+                    <span className="block sm:inline">eスポーツ（Footballゲーム）のクラン管理まで。</span>{" "}
+                    <span className="block sm:inline">クラブに関わるすべての情報を、一つの公式記録として集約します。</span>
+                  </p>
+                  <p className="mt-2">
+                    <br />
+                    <span className="block sm:inline">自分のチームを「プロのクラブ」として可視化したい、</span>{" "}
+                    <span className="block sm:inline">すべてのプレイヤー・監督のために。</span>
+                    <br />
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-2 sm:mt-3">
+                <div className="mx-auto max-w-5xl overflow-x-auto">
+                  <div className="flex gap-3 px-4 snap-x snap-mandatory">
+                    <div
+                      ref={(el) => {
+                        slideRefs.current[0] = el;
+                      }}
+                      className="snap-center shrink-0 w-[88vw] max-w-[420px]"
+                    >
+                      <div className="relative w-full aspect-[1/1]">
+                        <Image
+                          src="/LP用３.png"
+                          alt="FootChorn screen 2"
+                          fill
+                          className="object-contain"
+                          sizes="(min-width: 640px) 420px, 88vw"
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      ref={(el) => {
+                        slideRefs.current[1] = el;
+                      }}
+                      className="snap-center shrink-0 w-[88vw] max-w-[420px]"
+                    >
+                      <div className="relative w-full aspect-[1/1]">
+                        <Image
+                          src="/LP用８.png"
+                          alt="FootChorn screen 3"
+                          fill
+                          className="object-contain"
+                          sizes="(min-width: 640px) 420px, 88vw"
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      ref={(el) => {
+                        slideRefs.current[2] = el;
+                      }}
+                      className="snap-center shrink-0 w-[88vw] max-w-[420px]"
+                    >
+                      <div className="relative w-full aspect-[1/1]">
+                        <Image
+                          src="/LP用９.png"
+                          alt="FootChorn screen 4"
+                          fill
+                          className="object-contain"
+                          sizes="(min-width: 640px) 420px, 88vw"
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      ref={(el) => {
+                        slideRefs.current[3] = el;
+                      }}
+                      className="snap-center shrink-0 w-[88vw] max-w-[420px]"
+                    >
+                      <div className="relative w-full aspect-[1/1]">
+                        <Image
+                          src="/LP用７.png"
+                          alt="FootChorn screen 5"
+                          fill
+                          className="object-contain"
+                          sizes="(min-width: 640px) 420px, 88vw"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="features" className="mt-2 sm:mt-3 text-center">
+                <ul className="mx-auto max-w-2xl text-sm sm:text-base leading-relaxed text-muted-foreground space-y-1">
+                  <li>試合結果・順位表を自動でグラフ化</li>
+                  <li>詳細な選手名鑑と能力レーダーチャート</li>
+                  <li>クラブ専用の公式サイトを即時公開</li>
+                  <li>日々の記録が、そのままクラブの歴史に</li>
+                </ul>
+              </div>
+
+              <div className="mt-3 sm:mt-4 text-center space-y-3">
                 <p className="text-lg sm:text-2xl font-bold">
-                  Footballに特化し
-                  <br />
-                  HPを作成出来るWEBアプリ
+                  試合・選手・順位を
+                  <br className="sm:hidden" />
+                  簡単に記録・公開が可能。
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <Link
                     href="/admin/competitions"
-                    className="inline-flex items-center justify-center px-6 py-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 font-semibold text-sm transition-colors"
+                    className="inline-flex items-center justify-center px-8 py-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 font-semibold text-sm transition-colors"
                   >
-                    ログインして管理する
+                    ログイン
                   </Link>
                 </div>
 
-                <p className="text-xs text-muted-foreground">
+                <p className="mt-2 text-xs text-muted-foreground">
                   ※ ログインしている場合は自分のクラブページへ、未設定の場合はチーム管理画面へ移動します。
                 </p>
               </div>
 
-              <div className="mt-12 sm:mt-16">
-                <div className="sm:hidden">
-                  <Carousel
-                    setApi={setFeatureCarouselApi}
-                    opts={{ loop: true }}
-                    className="w-full max-w-[260px] mx-auto"
-                  >
-                    <CarouselContent>
-                      <CarouselItem>
-                        <div className="relative w-full aspect-[4/5] bg-transparent">
-                          <Image
-                            src="/FHUB.png"
-                            alt="FHUB feature 1"
-                            fill
-                            className="object-contain"
-                            sizes="100vw"
-                          />
-                        </div>
-                      </CarouselItem>
-                      <CarouselItem>
-                        <div className="relative w-full aspect-[4/5] bg-transparent">
-                          <Image
-                            src="/FHUB (1).png"
-                            alt="FHUB feature 2"
-                            fill
-                            className="object-contain"
-                            sizes="100vw"
-                          />
-                        </div>
-                      </CarouselItem>
-                      <CarouselItem>
-                        <div className="relative w-full aspect-[4/5] bg-transparent">
-                          <Image
-                            src="/FHUB (2).png"
-                            alt="FHUB feature 3"
-                            fill
-                            className="object-contain"
-                            sizes="100vw"
-                          />
-                        </div>
-                      </CarouselItem>
-                    </CarouselContent>
-                  </Carousel>
+              <div className="mt-6 sm:mt-8">
+                <div ref={xEmbedRef} className="mx-auto max-w-2xl">
+                  <Script
+                    src="https://platform.twitter.com/widgets.js"
+                    strategy="afterInteractive"
+                    onLoad={loadXWidgets}
+                  />
                 </div>
-
-                <div className="hidden sm:grid grid-cols-3 gap-6 sm:gap-8 items-center">
-                  <div className="relative w-full max-w-[280px] mx-auto aspect-[4/5] bg-transparent">
-                    <Image
-                      src="/FHUB.png"
-                      alt="FHUB feature 1"
-                      fill
-                      className="object-contain"
-                      sizes="(min-width: 640px) 33vw, 100vw"
-                    />
-                  </div>
-                  <div className="relative w-full max-w-[280px] mx-auto aspect-[4/5] bg-transparent">
-                    <Image
-                      src="/FHUB (1).png"
-                      alt="FHUB feature 2"
-                      fill
-                      className="object-contain"
-                      sizes="(min-width: 640px) 33vw, 100vw"
-                    />
-                  </div>
-                  <div className="relative w-full max-w-[280px] mx-auto aspect-[4/5] bg-transparent">
-                    <Image
-                      src="/FHUB (2).png"
-                      alt="FHUB feature 3"
-                      fill
-                      className="object-contain"
-                      sizes="(min-width: 640px) 33vw, 100vw"
-                    />
-                  </div>
-                </div>
-
-                <p className="mt-3 text-center text-[10px] text-muted-foreground">
-                  ※画像の選手はAIで生成しております。
-                </p>
               </div>
             </div>
           </div>

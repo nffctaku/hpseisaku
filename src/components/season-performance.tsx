@@ -5,6 +5,47 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+function toSlashSeason(season: string): string {
+  if (!season) return season;
+  if (season.includes("/")) {
+    const parts = season.split("/");
+    if (parts.length === 2 && /^\d{4}$/.test(parts[0])) {
+      const end = parts[1];
+      const end2 = /^\d{4}$/.test(end) ? end.slice(-2) : end;
+      if (/^\d{2}$/.test(end2)) return `${parts[0]}/${end2}`;
+    }
+    return season;
+  }
+  const mShort = season.match(/^(\d{4})-(\d{2})$/);
+  if (mShort) return `${mShort[1]}/${mShort[2]}`;
+  const m4 = season.match(/^(\d{4})-(\d{4})$/);
+  if (m4) return `${m4[1]}/${m4[2].slice(-2)}`;
+  return season;
+}
+
+function toDashSeason(season: string): string {
+  if (!season) return season;
+  if (season.includes("-")) {
+    const parts = season.split("-");
+    if (parts.length === 2 && /^\d{4}$/.test(parts[0])) {
+      const end = parts[1];
+      const end2 = /^\d{4}$/.test(end) ? end.slice(-2) : end;
+      if (/^\d{2}$/.test(end2)) return `${parts[0]}-${end2}`;
+    }
+    return season;
+  }
+  const mShort = season.match(/^(\d{4})\/(\d{2})$/);
+  if (mShort) return `${mShort[1]}-${mShort[2]}`;
+  const m4 = season.match(/^(\d{4})\/(\d{4})$/);
+  if (m4) return `${m4[1]}-${m4[2].slice(-2)}`;
+  return season;
+}
+
+function seasonEquals(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  return a === b || toSlashSeason(a) === toSlashSeason(b) || toDashSeason(a) === toDashSeason(b);
+}
+
 interface Competition {
   id: string;
   name: string;
@@ -76,7 +117,7 @@ export function SeasonPerformance({
     const stats: Record<string, SeasonStats> = {};
 
     seasons.forEach((season) => {
-      const seasonCompetitions = competitions.filter((c) => c.season === season);
+      const seasonCompetitions = competitions.filter((c) => typeof c.season === "string" && seasonEquals(c.season, season));
       const competitionIds = new Set(seasonCompetitions.map((c) => c.id));
 
       const seasonMatches = matches.filter((m) => competitionIds.has(m.competitionId));
@@ -137,7 +178,7 @@ export function SeasonPerformance({
     const stats: Record<string, LeagueStats> = {};
 
     seasons.forEach((season) => {
-      const seasonCompetitions = competitions.filter((c) => c.season === season && c.format === 'league');
+      const seasonCompetitions = competitions.filter((c) => typeof c.season === "string" && seasonEquals(c.season, season) && c.format === 'league');
       const competitionIds = new Set(seasonCompetitions.map((c) => c.id));
 
       const seasonMatches = matches.filter((m) => competitionIds.has(m.competitionId));
@@ -200,7 +241,7 @@ export function SeasonPerformance({
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold">シーズン別成績</h2>
         <Select value={selectedSeason} onValueChange={onSeasonChange}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[180px] bg-white text-gray-900 border">
             <SelectValue placeholder="シーズンを選択" />
           </SelectTrigger>
           <SelectContent>
@@ -215,7 +256,7 @@ export function SeasonPerformance({
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* 公式戦成績 */}
-        <Card>
+        <Card className="bg-white text-gray-900">
           <CardHeader>
             <CardTitle className="text-lg">
               {selectedSeason} 公式戦
@@ -247,7 +288,7 @@ export function SeasonPerformance({
         </Card>
 
         {/* ホーム・アウェイ別勝利数 */}
-        <Card>
+        <Card className="bg-white text-gray-900">
           <CardHeader>
             <CardTitle className="text-lg">ホーム・アウェイ別勝利数</CardTitle>
           </CardHeader>
@@ -267,14 +308,14 @@ export function SeasonPerformance({
       </div>
 
       {/* リーグ戦詳細成績 */}
-      <Card>
+      <Card className="bg-white text-gray-900">
         <CardHeader>
           <CardTitle className="text-lg">
             大会別(リーグ戦のみ) {selectedSeason}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="bg-white">
             <TableHeader>
               <TableRow>
                 <TableHead>リーグ戦</TableHead>

@@ -36,6 +36,7 @@ interface StatsDataResponse {
   ownerUid: string;
   profile: any;
   mainTeamId: string | null;
+  resolvedMainTeamId?: string | null;
   teams: TeamOption[];
   competitions: CompetitionDoc[];
   players: PlayerRow[];
@@ -402,7 +403,9 @@ export default function ClubStatsPage() {
       setSponsors(Array.isArray((profile as any).sponsors) ? (profile as any).sponsors : []);
       setLegalPages(Array.isArray((profile as any).legalPages) ? (profile as any).legalPages : []);
       setHomeBgColor(typeof (profile as any).homeBgColor === 'string' ? (profile as any).homeBgColor : null);
-      setMainTeamId(typeof (profile as any).mainTeamId === "string" ? (profile as any).mainTeamId : data.mainTeamId);
+      const rawMainTeamId = typeof (profile as any).mainTeamId === "string" ? (profile as any).mainTeamId : data.mainTeamId;
+      const resolved = typeof (data as any)?.resolvedMainTeamId === 'string' ? (data as any).resolvedMainTeamId : null;
+      setMainTeamId(resolved || rawMainTeamId);
     } catch (e) {
       console.error(e);
       setError("クラブ情報の取得中にエラーが発生しました。");

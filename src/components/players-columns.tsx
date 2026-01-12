@@ -11,7 +11,17 @@ type PlayerRow = Player & { __raw?: Player };
 export const columns = (openEditDialog: (player: Player) => void, setDeletingPlayer: (player: Player) => void): ColumnDef<PlayerRow>[] => [
   {
     accessorKey: "number",
-    header: "No.",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          No.
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
     size: 60,
     minSize: 50,
     cell: ({ row }) => {
@@ -43,7 +53,25 @@ export const columns = (openEditDialog: (player: Player) => void, setDeletingPla
   },
   {
     accessorKey: "position",
-    header: "POS",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          POS
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
+    sortingFn: (rowA, rowB, columnId) => {
+      const order: Record<string, number> = { GK: 0, DF: 1, MF: 2, FW: 3 };
+      const a = String(rowA.getValue(columnId) ?? "").trim().toUpperCase();
+      const b = String(rowB.getValue(columnId) ?? "").trim().toUpperCase();
+      const oa = order[a] ?? 999;
+      const ob = order[b] ?? 999;
+      return oa === ob ? a.localeCompare(b) : oa - ob;
+    },
     size: 70,
     minSize: 60,
   },

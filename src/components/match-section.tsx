@@ -102,12 +102,12 @@ function RecentMatchesStrip({
 
   return (
     <div className="mb-4">
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-flow-col md:auto-cols-fr">
         {items.map((m) => {
           const opp = resolveOpponent(m);
           const href = `/${clubSlug}/matches/${m.competitionId}/${m.roundId}/${m.id}`;
           return (
-            <Link key={m.id} href={href} className="flex-shrink-0 w-[110px]">
+            <Link key={m.id} href={href} className="flex-shrink-0 w-[110px] md:w-full md:min-w-[110px]">
               <div className="rounded-md p-1 hover:bg-muted/50 transition-colors">
                 <div className="mb-2 flex items-center justify-center gap-1 text-[11px] font-semibold text-muted-foreground">
                   {opp.competitionLogoUrl ? (
@@ -191,12 +191,10 @@ interface MatchSectionProps {
 export function MatchSection({ nextMatch, recentMatches = [], mainTeamId, clubSlug }: MatchSectionProps) {
   return (
     <section className="py-8 md:py-12">
-      <div className="container mx-auto">
-        <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 w-full max-w-2xl mx-auto">
-          <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center">MATCHES</h2>
-          <RecentMatchesStrip matches={recentMatches} mainTeamId={mainTeamId} clubSlug={clubSlug} />
-          <NextMatch match={nextMatch} />
-        </div>
+      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 w-full">
+        <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center">MATCHES</h2>
+        <RecentMatchesStrip matches={recentMatches} mainTeamId={mainTeamId} clubSlug={clubSlug} />
+        <NextMatch match={nextMatch} />
       </div>
     </section>
   );

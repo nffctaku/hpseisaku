@@ -89,7 +89,28 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const filteredPlayers = useMemo(() => {
     if (!selectedSeason) return players as any[];
 
-    return players
+    const positionOrder: Record<string, number> = {
+      GK: 0,
+      DF: 1,
+      MF: 2,
+      FW: 3,
+    };
+
+    const normalizeNumber = (n: unknown): number => {
+      if (typeof n === "number" && Number.isFinite(n)) return n;
+      if (typeof n === "string" && n.trim() !== "") {
+        const parsed = Number(n);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return Number.POSITIVE_INFINITY;
+    };
+
+    const normalizePosition = (p: unknown): string => {
+      if (typeof p !== "string") return "";
+      return p.trim().toUpperCase();
+    };
+
+    const mergedList = players
       .filter((p) => (p.seasons || []).includes(selectedSeason))
       .map((p) => {
         const season = (p.seasonData || {})[selectedSeason] as PlayerSeasonData | undefined;
@@ -116,6 +137,24 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           isPublished: typeof season?.isPublished === "boolean" ? season.isPublished : p.isPublished,
         };
         return { ...merged, __raw: p } as any;
+      });
+
+    return mergedList
+      .slice()
+      .sort((a: any, b: any) => {
+        const pa = normalizePosition(a?.position);
+        const pb = normalizePosition(b?.position);
+        const oa = positionOrder[pa] ?? 999;
+        const ob = positionOrder[pb] ?? 999;
+        if (oa !== ob) return oa - ob;
+
+        const na = normalizeNumber(a?.number);
+        const nb = normalizeNumber(b?.number);
+        if (na !== nb) return na - nb;
+
+        const nameA = typeof a?.name === "string" ? a.name : "";
+        const nameB = typeof b?.name === "string" ? b.name : "";
+        return nameA.localeCompare(nameB, "ja");
       });
   }, [players, selectedSeason]);
 

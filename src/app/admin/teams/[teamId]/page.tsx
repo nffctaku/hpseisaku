@@ -40,6 +40,7 @@ export default function TeamPlayersPage() {
   const searchParams = useSearchParams();
   const teamId = params.teamId as string;
   const clubUid = (user as any)?.ownerUid || user?.uid;
+  const isPro = user?.plan === 'pro';
   const [seasons, setSeasons] = useState<Season[]>([]);
   const seasonFromQuery = (searchParams.get('season') || '').trim();
   const [selectedSeason, setSelectedSeason] = useState<string>(seasonFromQuery);
@@ -174,7 +175,7 @@ export default function TeamPlayersPage() {
             type="button"
             variant="outline"
             className="bg-white text-gray-900 border border-border hover:bg-gray-100 whitespace-nowrap"
-            disabled={!selectedSeason}
+            disabled={!selectedSeason || !isPro}
             onClick={() => {
               if (!selectedSeason) return;
               router.push(`/admin/teams/${teamId}/booklet?season=${encodeURIComponent(selectedSeason)}`);

@@ -1,6 +1,47 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/lib/firebase/admin";
 
+function toSlashSeason(season: string): string {
+  if (!season) return season;
+  if (season.includes("/")) {
+    const parts = season.split("/");
+    if (parts.length === 2 && /^\d{4}$/.test(parts[0])) {
+      const end = parts[1];
+      const end2 = /^\d{4}$/.test(end) ? end.slice(-2) : end;
+      if (/^\d{2}$/.test(end2)) return `${parts[0]}/${end2}`;
+    }
+    return season;
+  }
+  const mShort = season.match(/^(\d{4})-(\d{2})$/);
+  if (mShort) return `${mShort[1]}/${mShort[2]}`;
+  const m4 = season.match(/^(\d{4})-(\d{4})$/);
+  if (m4) return `${m4[1]}/${m4[2].slice(-2)}`;
+  return season;
+}
+
+function toDashSeason(season: string): string {
+  if (!season) return season;
+  if (season.includes("-")) {
+    const parts = season.split("-");
+    if (parts.length === 2 && /^\d{4}$/.test(parts[0])) {
+      const end = parts[1];
+      const end2 = /^\d{4}$/.test(end) ? end.slice(-2) : end;
+      if (/^\d{2}$/.test(end2)) return `${parts[0]}-${end2}`;
+    }
+    return season;
+  }
+  const mShort = season.match(/^(\d{4})\/(\d{2})$/);
+  if (mShort) return `${mShort[1]}-${mShort[2]}`;
+  const m4 = season.match(/^(\d{4})\/(\d{4})$/);
+  if (m4) return `${m4[1]}-${m4[2].slice(-2)}`;
+  return season;
+}
+
+function seasonEquals(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  return a === b || toSlashSeason(a) === toSlashSeason(b) || toDashSeason(a) === toDashSeason(b);
+}
+
 async function resolveOwnerUid(clubId: string): Promise<{ ownerUid: string; profile: any }> {
   const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
   const profilesSnap = await profilesQuery.get();
@@ -51,7 +92,7 @@ function computeAggregatedStats(params: {
   const allowedPlayerIds = new Set(players.map((p) => p.id));
 
   const compsFiltered = competitions.filter((c) => {
-    if (selectedSeason !== 'all' && c.season !== selectedSeason) return false;
+    if (selectedSeason !== 'all' && typeof c.season === 'string' && !seasonEquals(c.season, selectedSeason)) return false;
     if (selectedCompetitionId !== 'all' && c.id !== selectedCompetitionId) return false;
     return true;
   });
@@ -146,23 +187,43 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
 
     const seasonKey = seasonParam && seasonParam !== '' ? seasonParam : 'all';
     const competitionKey = competitionIdParam && competitionIdParam !== '' ? competitionIdParam : 'all';
-    const teamKey = mainTeamId || 'all';
-    const cacheKey = `${statsCacheVersion}__${teamKey}__${seasonKey}__${competitionKey}`;
 
     const [teamsSnap, competitionsSnap] = await Promise.all([
       db.collection(`clubs/${ownerUid}/teams`).get(),
       db.collection(`clubs/${ownerUid}/competitions`).get(),
     ]);
 
-    const teams = teamsSnap.docs
+    const teamsDocs = teamsSnap.docs.map((d) => ({ id: d.id, data: d.data() as any }));
+    const teams = teamsDocs
       .map((d) => {
-        const data = d.data() as any;
         return {
           id: d.id,
-          name: (data?.name as string) || d.id,
+          name: (d.data?.name as string) || d.id,
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
+
+    let resolvedMainTeamId: string | null = null;
+    if (mainTeamId) {
+      const direct = teamsDocs.find((t) => t.id === mainTeamId);
+      if (direct) {
+        resolvedMainTeamId = direct.id;
+      } else {
+        const byField = teamsDocs.find((t) => {
+          const data = t.data;
+          return (
+            data?.teamId === mainTeamId ||
+            data?.teamUid === mainTeamId ||
+            data?.uid === mainTeamId ||
+            data?.ownerUid === mainTeamId
+          );
+        });
+        if (byField) resolvedMainTeamId = byField.id;
+      }
+    }
+
+    const teamKey = resolvedMainTeamId || mainTeamId || 'all';
+    const cacheKey = `${statsCacheVersion}__${teamKey}__${seasonKey}__${competitionKey}`;
 
     const competitions = competitionsSnap.docs
       .map((d) => {
@@ -171,6 +232,7 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
           id: d.id,
           name: (data?.name as string) || d.id,
           season: typeof data?.season === "string" ? data.season : undefined,
+          format: typeof data?.format === "string" ? data.format : undefined,
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -178,7 +240,8 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
     const players: any[] = [];
     const playersByTeam = new Map<string, any[]>();
 
-    const targetTeams = teams.filter((t) => !mainTeamId || t.id === mainTeamId);
+    const effectiveMainTeamId = resolvedMainTeamId || mainTeamId;
+    const targetTeams = teams.filter((t) => !effectiveMainTeamId || t.id === effectiveMainTeamId);
     const playersByTeamRows = await Promise.all(
       targetTeams.map(async (team) => {
         const pSnap = await db.collection(`clubs/${ownerUid}/teams/${team.id}/players`).get();
@@ -206,29 +269,21 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
       players.push(...item.rows);
     }
 
-    // Fast-path: return cached aggregated stats if present
+    // Use cached aggregated stats if present (but still return matches for UI computations)
     const cacheRef = db.collection(`clubs/${ownerUid}/public_stats_index`).doc(cacheKey);
     const cacheSnap = await cacheRef.get();
+    let cachedAggregatedStats: Record<string, AggregatedPlayerStats> | null = null;
     if (cacheSnap.exists) {
       const cached = cacheSnap.data() as any;
       if (cached && cached.aggregatedStats && typeof cached.aggregatedStats === 'object') {
-        return NextResponse.json({
-          ownerUid,
-          profile,
-          mainTeamId,
-          teams,
-          competitions,
-          players,
-          matches: [],
-          aggregatedStats: cached.aggregatedStats,
-        });
+        cachedAggregatedStats = cached.aggregatedStats as Record<string, AggregatedPlayerStats>;
       }
     }
 
 
     const compsForMatches = competitions.filter((c) => {
       if (competitionIdParam && competitionIdParam !== 'all' && c.id !== competitionIdParam) return false;
-      if (seasonParam && seasonParam !== 'all' && c.season !== seasonParam) return false;
+      if (seasonParam && seasonParam !== 'all' && typeof c.season === 'string' && !seasonEquals(c.season, seasonParam)) return false;
       return true;
     });
 
@@ -267,27 +322,90 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
 
     const matches: any[] = matchesNested.flat();
 
-    const aggregatedStats = computeAggregatedStats({
-      matches,
-      players,
-      competitions,
-      selectedSeason: seasonKey,
-      selectedCompetitionId: competitionKey,
-    });
+    // Include friendly matches (and practice if stored there)
+    try {
+      const friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
+      friendlySnap.forEach((matchDoc) => {
+        const data = matchDoc.data() as any;
+        const compId = typeof data?.competitionId === 'string' ? data.competitionId : 'friendly';
+        matches.push({
+          id: matchDoc.id,
+          competitionId: compId,
+          competitionName: data?.competitionName || (compId === 'practice' ? '練習試合' : '親善試合'),
+          competitionSeason: typeof data?.competitionSeason === 'string' ? data.competitionSeason : undefined,
+          roundId: 'single',
+          roundName: data?.roundName || '単発',
+          matchDate: data?.matchDate,
+          homeTeamId: data?.homeTeam,
+          awayTeamId: data?.awayTeam,
+          homeTeamName: data?.homeTeamName,
+          awayTeamName: data?.awayTeamName,
+          scoreHome: data?.scoreHome,
+          scoreAway: data?.scoreAway,
+          teamStats: Array.isArray(data?.teamStats) ? data.teamStats : [],
+          playerStats: Array.isArray(data?.playerStats) ? data.playerStats : [],
+        });
+      });
+    } catch {
+      // ignore
+    }
 
-    await cacheRef.set({
-      aggregatedStats,
-      updatedAt: new Date().toISOString(),
-      statsCacheVersion,
-      teamKey,
-      seasonKey,
-      competitionKey,
-    }, { merge: true });
+    // Include direct matches if stored under clubs/{ownerUid}/matches
+    try {
+      const directSnap = await db.collection(`clubs/${ownerUid}/matches`).get();
+      directSnap.forEach((matchDoc) => {
+        const data = matchDoc.data() as any;
+        matches.push({
+          id: matchDoc.id,
+          competitionId: typeof data?.competitionId === 'string' ? data.competitionId : 'direct',
+          competitionName: data?.competitionName || '試合',
+          competitionSeason: typeof data?.competitionSeason === 'string' ? data.competitionSeason : undefined,
+          roundId: typeof data?.roundId === 'string' ? data.roundId : 'single',
+          roundName: data?.roundName,
+          matchDate: data?.matchDate,
+          homeTeamId: data?.homeTeam,
+          awayTeamId: data?.awayTeam,
+          homeTeamName: data?.homeTeamName,
+          awayTeamName: data?.awayTeamName,
+          scoreHome: data?.scoreHome,
+          scoreAway: data?.scoreAway,
+          teamStats: Array.isArray(data?.teamStats) ? data.teamStats : [],
+          playerStats: Array.isArray(data?.playerStats) ? data.playerStats : [],
+        });
+      });
+    } catch {
+      // ignore
+    }
+
+    const aggregatedStats =
+      cachedAggregatedStats ??
+      computeAggregatedStats({
+        matches,
+        players,
+        competitions,
+        selectedSeason: seasonKey,
+        selectedCompetitionId: competitionKey,
+      });
+
+    if (!cachedAggregatedStats) {
+      await cacheRef.set(
+        {
+          aggregatedStats,
+          updatedAt: new Date().toISOString(),
+          statsCacheVersion,
+          teamKey,
+          seasonKey,
+          competitionKey,
+        },
+        { merge: true }
+      );
+    }
 
     return NextResponse.json({
       ownerUid,
       profile,
       mainTeamId,
+      resolvedMainTeamId,
       teams,
       competitions,
       players,

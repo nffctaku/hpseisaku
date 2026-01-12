@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import { auth } from "@/lib/firebase";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
+import { useAuth } from "@/contexts/AuthContext";
 
 type BookletPlayer = {
   id: string;
@@ -234,6 +236,9 @@ export default function TeamBookletPage() {
   const teamId = params.teamId as string;
   const season = (searchParams.get("season") || "").trim();
 
+  const { user } = useAuth();
+  const isPro = user?.plan === "pro";
+
   const [data, setData] = useState<BookletResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -261,6 +266,11 @@ export default function TeamBookletPage() {
   useEffect(() => {
     const run = async () => {
       if (!teamId || !season) return;
+      if (!isPro) {
+        setLoading(false);
+        setError(null);
+        return;
+      }
       setLoading(true);
       setError(null);
 
@@ -322,7 +332,13 @@ export default function TeamBookletPage() {
     };
 
     void run();
-  }, [teamId, season]);
+  }, [teamId, season, isPro]);
+
+  useEffect(() => {
+    if (!data?.players || data.players.length === 0) return;
+    if (selectedPlayerIds.length > 0) return;
+    setSelectedPlayerIds(data.players.slice(0, 15).map((p) => p.id));
+  }, [data, selectedPlayerIds.length]);
 
   // 選択状態が変更されたらlocalStorageに保存
   useEffect(() => {
@@ -463,6 +479,7 @@ export default function TeamBookletPage() {
       <style jsx global>{`
         @media print {
           html, body { background: #fff !important; }
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
           .print-page { break-after: page; }
         }
@@ -476,12 +493,16 @@ export default function TeamBookletPage() {
 
         .booklet-vertical-name {
           writing-mode: vertical-rl;
-          text-orientation: mixed;
-          transform: rotate(180deg);
+          text-orientation: upright;
+        }
+
+        .booklet-color-strip {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
 
         .font-source-han {
-          font-family: "Source Han Sans JP", sans-serif;
+          font-family: "Source Han Sans", "Noto Sans JP", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
         }
       `}</style>
 
@@ -493,12 +514,12 @@ export default function TeamBookletPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* {!isEditMode && (
+          {!isEditMode && (
             <button
               type="button"
               onClick={() => setIsEditMode(true)}
               className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm font-semibold"
-              disabled={loading || !data}
+              disabled={loading || !data || !isPro}
             >
               選手を選択 ({selectedPlayerIds.length}/15)
             </button>
@@ -521,17 +542,32 @@ export default function TeamBookletPage() {
                 キャンセル
               </button>
             </>
-          )} */}
+          )}
           <button
             type="button"
             onClick={() => window.print()}
             className="px-3 py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold"
-            disabled={loading || !data || isEditMode}
+            disabled={loading || !data || isEditMode || !isPro}
           >
             印刷
           </button>
         </div>
       </div>
+
+      {!isPro ? (
+        <div className="no-print rounded-lg border border-white/10 bg-white/5 p-4">
+          <div className="text-sm font-semibold mb-1">Proプラン限定機能です</div>
+          <div className="text-sm text-muted-foreground mb-3">
+            選手名鑑の生成・印刷は Pro プランのみご利用いただけます。
+          </div>
+          <Link
+            href="/admin/plan"
+            className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold"
+          >
+            Proプランを見る
+          </Link>
+        </div>
+      ) : null}
 
       {isEditMode && (
         <div className="no-print mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -639,6 +675,12 @@ export default function TeamBookletPage() {
       {loading && <p className="text-sm text-muted-foreground">読み込み中...</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
+      {!loading && !error && data && data.players.length > 0 && players.length === 0 ? (
+        <div className="no-print text-sm text-muted-foreground">
+          表示する選手が選択されていません。「選手を選択」から15名選択してください。
+        </div>
+      ) : null}
+
       {data && (
         <div className="mx-auto">
           <div className="print-page">
@@ -674,7 +716,7 @@ export default function TeamBookletPage() {
                         ) : null}
                         <div className="grid h-full" style={{ gridTemplateColumns: "6mm 1.1fr 1.2fr" }}>
                           {/* left strip */}
-                          <div className={`${getPositionColor(p.mainPosition || p.position)} text-white flex flex-col items-center justify-start py-2 h-full rounded-l-md`}>
+                          <div className={`booklet-color-strip ${getPositionColor(p.mainPosition || p.position)} text-white flex flex-col items-center justify-start py-2 h-full rounded-l-md`}>
                             <div className="flex flex-col items-center leading-none">
                               <div className="text-base font-black leading-none font-source-han">{p.number ?? "-"}</div>
                               <div className="mt-0.5 text-xs font-black tracking-wide font-source-han">

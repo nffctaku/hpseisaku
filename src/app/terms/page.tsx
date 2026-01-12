@@ -8,7 +8,7 @@ const TermsPage = () => {
         <div className="prose max-w-4xl mx-auto bg-white/80 border border-sky-200 p-6 md:p-8 rounded-lg shadow-sm">
           <h2 className="text-xl font-bold">第1条（適用）</h2>
           <p>
-            本規約は、FHUB（以下「当サービス」）が提供するすべてのサービス利用に関し、ユーザーと運営者の間に適用されます。
+            本規約は、FootChorn（以下「当サービス」）が提供するすべてのサービス利用に関し、ユーザーと運営者の間に適用されます。
           </p>
 
           <h2 className="text-xl font-bold mt-6">第2条（有料プランと決済）</h2>
