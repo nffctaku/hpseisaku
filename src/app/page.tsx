@@ -41,6 +41,22 @@ export default function LandingPage() {
     }
   };
 
+  const handleProtectedViewClub = (e: React.MouseEvent) => {
+    e.preventDefault();
+
+    const okKey = "footchron_pre_release_ok";
+    if (window.sessionStorage.getItem(okKey) === "1") {
+      handleViewClub();
+      return;
+    }
+
+    const entered = window.prompt("パスワードを入力してください");
+    if (entered !== "2026") return;
+
+    window.sessionStorage.setItem(okKey, "1");
+    handleViewClub();
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <header className="w-full bg-white text-gray-900 flex items-center justify-between px-2 sm:px-4 py-2 border-b">
@@ -56,19 +72,8 @@ export default function LandingPage() {
         </div>
         <div className="flex items-center gap-1 sm:gap-3 overflow-x-auto flex-nowrap max-w-full">
           <Link
-            href="#features"
-            className="text-sm px-2 sm:px-3 py-2 rounded-md hover:bg-gray-100 transition-colors whitespace-nowrap"
-          >
-            機能
-          </Link>
-          <Link
-            href="/admin/plan"
-            className="text-sm px-2 sm:px-3 py-2 rounded-md hover:bg-gray-100 transition-colors whitespace-nowrap"
-          >
-            プラン
-          </Link>
-          <Link
             href="/admin/competitions"
+            onClick={handleProtectedViewClub}
             className="inline-flex items-center text-sm px-3 sm:px-4 py-2 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
           >
             始める
@@ -224,6 +229,7 @@ export default function LandingPage() {
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <Link
                     href="/admin/competitions"
+                    onClick={handleProtectedViewClub}
                     className="inline-flex items-center justify-center px-8 py-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 font-semibold text-sm transition-colors"
                   >
                     ログイン
@@ -235,8 +241,8 @@ export default function LandingPage() {
                 </p>
 
                 <div className="mt-3 flex justify-center">
-                  <div className="flex flex-col items-center gap-3 w-full">
-                    <div className="relative w-[92vw] max-w-[560px] aspect-[1/1]">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-5xl">
+                    <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
                       <Image
                         src="/プラン内容Free.png"
                         alt="プラン内容 Free"
@@ -245,7 +251,7 @@ export default function LandingPage() {
                         sizes="(min-width: 640px) 560px, 92vw"
                       />
                     </div>
-                    <div className="relative w-[92vw] max-w-[560px] aspect-[1/1]">
+                    <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
                       <Image
                         src="/プラン内容.png"
                         alt="プラン内容"
@@ -254,7 +260,7 @@ export default function LandingPage() {
                         sizes="(min-width: 640px) 560px, 92vw"
                       />
                     </div>
-                    <div className="relative w-[92vw] max-w-[560px] aspect-[1/1]">
+                    <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
                       <Image
                         src="/プラン内容全開放.png"
                         alt="プラン内容 全開放"
