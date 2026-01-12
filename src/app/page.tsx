@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import * as React from "react";
@@ -12,38 +11,8 @@ export default function LandingPage() {
   const { user } = useAuth();
 
   const slideRefs = React.useRef<Array<HTMLDivElement | null>>([]);
+  const sliderContainerRef = React.useRef<HTMLDivElement | null>(null);
   const [slideIndex, setSlideIndex] = React.useState(0);
-
-  const xEmbedRef = React.useRef<HTMLDivElement | null>(null);
-  const xEmbedInitStartedRef = React.useRef(false);
-
-  const loadXWidgets = React.useCallback(() => {
-    const twttr = (window as any)?.twttr;
-    const container = xEmbedRef.current;
-    if (!container) return;
-    if (xEmbedInitStartedRef.current) return;
-    if (container.querySelector("iframe")) return;
-
-    xEmbedInitStartedRef.current = true;
-
-    if (twttr?.widgets?.createTimeline) {
-      twttr.widgets.createTimeline(
-        {
-          sourceType: "profile",
-          screenName: "footchron_hp",
-        },
-        container,
-        {
-          height: 520,
-        }
-      );
-      return;
-    }
-
-    if (twttr?.widgets?.load) {
-      twttr.widgets.load(container);
-    }
-  }, []);
 
   React.useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -55,19 +24,12 @@ export default function LandingPage() {
 
   React.useEffect(() => {
     const el = slideRefs.current[slideIndex];
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    const container = sliderContainerRef.current;
+    if (!el || !container) return;
+
+    const left = el.offsetLeft - (container.clientWidth - el.clientWidth) / 2;
+    container.scrollTo({ left, behavior: "smooth" });
   }, [slideIndex]);
-
-  React.useEffect(() => {
-    const t = window.setTimeout(() => {
-      loadXWidgets();
-    }, 800);
-
-    return () => {
-      window.clearTimeout(t);
-    };
-  }, [loadXWidgets]);
 
   const handleViewClub = () => {
     const clubId = user?.clubId;
@@ -170,7 +132,7 @@ export default function LandingPage() {
               </div>
 
               <div className="mt-2 sm:mt-3">
-                <div className="mx-auto max-w-5xl overflow-x-auto">
+                <div ref={sliderContainerRef} className="mx-auto max-w-5xl overflow-x-auto">
                   <div className="flex gap-3 px-4 snap-x snap-mandatory">
                     <div
                       ref={(el) => {
@@ -271,15 +233,37 @@ export default function LandingPage() {
                 <p className="mt-2 text-xs text-muted-foreground">
                   ※ ログインしている場合は自分のクラブページへ、未設定の場合はチーム管理画面へ移動します。
                 </p>
-              </div>
 
-              <div className="mt-6 sm:mt-8">
-                <div ref={xEmbedRef} className="mx-auto max-w-2xl">
-                  <Script
-                    src="https://platform.twitter.com/widgets.js"
-                    strategy="afterInteractive"
-                    onLoad={loadXWidgets}
-                  />
+                <div className="mt-3 flex justify-center">
+                  <div className="flex flex-col items-center gap-3 w-full">
+                    <div className="relative w-[92vw] max-w-[560px] aspect-[1/1]">
+                      <Image
+                        src="/プラン内容Free.png"
+                        alt="プラン内容 Free"
+                        fill
+                        className="object-contain"
+                        sizes="(min-width: 640px) 560px, 92vw"
+                      />
+                    </div>
+                    <div className="relative w-[92vw] max-w-[560px] aspect-[1/1]">
+                      <Image
+                        src="/プラン内容.png"
+                        alt="プラン内容"
+                        fill
+                        className="object-contain"
+                        sizes="(min-width: 640px) 560px, 92vw"
+                      />
+                    </div>
+                    <div className="relative w-[92vw] max-w-[560px] aspect-[1/1]">
+                      <Image
+                        src="/プラン内容全開放.png"
+                        alt="プラン内容 全開放"
+                        fill
+                        className="object-contain"
+                        sizes="(min-width: 640px) 560px, 92vw"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
