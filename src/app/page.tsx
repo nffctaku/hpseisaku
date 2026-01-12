@@ -226,11 +226,11 @@ export default function LandingPage() {
                   簡単に記録・公開が可能。
                 </p>
 
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <div className="flex flex-col items-center sm:flex-row sm:items-stretch gap-3 justify-center">
                   <Link
                     href="/admin/competitions"
                     onClick={handleProtectedViewClub}
-                    className="inline-flex items-center justify-center px-8 py-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 font-semibold text-sm transition-colors"
+                    className="inline-flex items-center justify-center w-1/2 max-w-[220px] px-8 py-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 font-semibold text-sm transition-colors"
                   >
                     ログイン
                   </Link>
@@ -239,6 +239,25 @@ export default function LandingPage() {
                 <p className="mt-2 text-xs text-muted-foreground">
                   ※ ログインしている場合は自分のクラブページへ、未設定の場合はチーム管理画面へ移動します。
                 </p>
+
+                <div className="mt-6 flex justify-center">
+                  <div className="w-full max-w-[420px] bg-[#21c45a] rounded-xl px-6 py-6 text-white text-center">
+                    <div className="text-lg font-bold">LINE登録で、最新情報をいちはやくゲット！</div>
+                    <div className="mt-2 text-sm text-white/90">便利な機能とお得な情報をLINEでお届け</div>
+
+                    <a
+                      href="https://lin.ee/0IxYvaa"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-5 inline-flex items-center justify-center gap-2 bg-white text-[#21c45a] font-semibold rounded-full h-12 px-8"
+                    >
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#21c45a] text-white text-[10px] font-bold">
+                        LINE
+                      </span>
+                      <span>LINE登録する</span>
+                    </a>
+                  </div>
+                </div>
 
                 <div className="mt-3 flex justify-center">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-5xl">
@@ -277,19 +296,27 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="p-4 md:p-6 text-center text-muted-foreground text-sm">
-        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs mb-2">
-          <Link href="/terms" className="hover:text-foreground transition-colors whitespace-nowrap">
-            利用規約
-          </Link>
-          <Link href="/privacy" className="hover:text-foreground transition-colors whitespace-nowrap">
-            プライバシーポリシー
-          </Link>
-          <Link href="/tokusho" className="hover:text-foreground transition-colors whitespace-nowrap">
-            特定商取引法に基づく表記
-          </Link>
+      <footer className="bg-zinc-900 text-zinc-100">
+        <div className="mx-auto max-w-5xl px-6 py-10">
+          <div className="text-left">
+            <div className="text-sm font-semibold mb-4">法的事項</div>
+            <div className="flex flex-col gap-3 text-sm text-zinc-200">
+              <Link href="/privacy" className="hover:text-white transition-colors">
+                プライバシーポリシー
+              </Link>
+              <Link href="/terms" className="hover:text-white transition-colors">
+                利用規約（ユーザー）
+              </Link>
+              <Link href="/tokusho" className="hover:text-white transition-colors">
+                特定商取引法に基づく表記
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-10 border-t border-zinc-800 pt-6 text-center text-xs text-zinc-400">
+            &copy; 2024-{new Date().getFullYear()} 株式会社Loco All rights reserved.
+          </div>
         </div>
-        <p>&copy; {new Date().getFullYear()} Your Club Site. All rights reserved.</p>
       </footer>
     </div>
   );
