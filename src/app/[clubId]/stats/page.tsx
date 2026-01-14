@@ -364,6 +364,7 @@ export default function ClubStatsPage() {
   const [sponsors, setSponsors] = useState<any[]>([]);
   const [legalPages, setLegalPages] = useState<any[]>([]);
   const [homeBgColor, setHomeBgColor] = useState<string | null>(null);
+  const [gameTeamUsage, setGameTeamUsage] = useState<boolean>(false);
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
   const [statsData, setStatsData] = useState<StatsDataResponse | null>(null);
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
@@ -403,6 +404,7 @@ export default function ClubStatsPage() {
       setSponsors(Array.isArray((profile as any).sponsors) ? (profile as any).sponsors : []);
       setLegalPages(Array.isArray((profile as any).legalPages) ? (profile as any).legalPages : []);
       setHomeBgColor(typeof (profile as any).homeBgColor === 'string' ? (profile as any).homeBgColor : null);
+      setGameTeamUsage(Boolean((profile as any).gameTeamUsage));
       const rawMainTeamId = typeof (profile as any).mainTeamId === "string" ? (profile as any).mainTeamId : data.mainTeamId;
       const resolved = typeof (data as any)?.resolvedMainTeamId === 'string' ? (data as any).resolvedMainTeamId : null;
       setMainTeamId(resolved || rawMainTeamId);
@@ -515,6 +517,7 @@ export default function ClubStatsPage() {
         sponsors={sponsors}
         snsLinks={snsLinks}
         legalPages={legalPages}
+        gameTeamUsage={Boolean(gameTeamUsage)}
       />
     </main>
   );

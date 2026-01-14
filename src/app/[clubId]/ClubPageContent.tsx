@@ -274,6 +274,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
             <ClubFooter 
               clubId={clubId}
               clubName={clubInfo.profile?.clubName || ""}
+              gameTeamUsage={Boolean((clubInfo as any).profile?.gameTeamUsage)}
               sponsors={clubInfo.profile?.sponsors || []} 
               snsLinks={clubInfo.profile?.snsLinks || {}} 
               legalPages={clubInfo.profile?.legalPages || []}

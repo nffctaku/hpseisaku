@@ -308,7 +308,7 @@ async function getClubMatches(clubId: string): Promise<{ clubName: string; group
       competitionId: compId,
       roundId: 'single',
       competitionName: compName,
-      roundName: data.roundName || '単発',
+      roundName: typeof data.roundName === 'string' ? data.roundName : '',
     } as MatchDetails);
     matchIds.add(doc.id);
   });

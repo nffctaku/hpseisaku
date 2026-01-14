@@ -60,8 +60,9 @@ async function getNewsData(clubId: string, page: number) {
   const sponsors = (Array.isArray((profileData as any).sponsors) ? ((profileData as any).sponsors as any[]) : []) as any;
   const legalPages = (Array.isArray((profileData as any).legalPages) ? ((profileData as any).legalPages as any[]) : []) as any;
   const homeBgColor = (profileData as any).homeBgColor as string | undefined;
+  const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
 
-  return { news, totalNews, clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor };
+  return { news, totalNews, clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage };
 }
 
 function toCloudinaryPadded16x9(url: string, width: number) {
@@ -119,7 +120,7 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
     notFound();
   }
 
-  const { news, totalNews, clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor } = newsData as any;
+  const { news, totalNews, clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage } = newsData as any;
   const totalPages = Math.ceil(totalNews / NEWS_PER_PAGE);
 
   return (
@@ -145,7 +146,14 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
         </div>
       </div>
 
-      <ClubFooter clubId={clubId} clubName={clubName} sponsors={sponsors} snsLinks={snsLinks} legalPages={legalPages} />
+      <ClubFooter
+        clubId={clubId}
+        clubName={clubName}
+        sponsors={sponsors}
+        snsLinks={snsLinks}
+        legalPages={legalPages}
+        gameTeamUsage={Boolean(gameTeamUsage)}
+      />
     </main>
   );
 }

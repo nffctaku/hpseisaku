@@ -31,6 +31,8 @@ export async function POST(request: Request) {
       logoUrl,
       layoutType,
       mainTeamId,
+      realTeamUsage,
+      gameTeamUsage,
       sponsors,
       snsLinks,
       legalPages,
@@ -81,6 +83,14 @@ export async function POST(request: Request) {
 
     if (typeof mainTeamId === 'string' && mainTeamId.length > 0) {
       updateData.mainTeamId = mainTeamId;
+    }
+
+    if (typeof realTeamUsage === 'boolean') {
+      updateData.realTeamUsage = realTeamUsage;
+    }
+
+    if (typeof gameTeamUsage === 'boolean') {
+      updateData.gameTeamUsage = gameTeamUsage;
     }
 
     // スポンサー情報（画像URLとリンク先URLの配列）

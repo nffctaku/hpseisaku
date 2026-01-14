@@ -26,6 +26,7 @@ async function getPlayersData(
   sponsors?: any[];
   snsLinks?: any;
   legalPages?: any[];
+  gameTeamUsage?: boolean;
   players: Player[];
   allSeasons: string[];
   activeSeason: string;
@@ -38,6 +39,7 @@ async function getPlayersData(
   let sponsors: any[] = [];
   let snsLinks: any = {};
   let legalPages: any[] = [];
+  let gameTeamUsage: boolean = false;
 
   try {
     const profilesQuery = db
@@ -55,6 +57,7 @@ async function getPlayersData(
       sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
       snsLinks = (data as any).snsLinks || {};
       legalPages = Array.isArray(data.legalPages) ? data.legalPages : [];
+      gameTeamUsage = Boolean((data as any).gameTeamUsage);
     } else {
       const directSnap = await db.collection("club_profiles").doc(clubId).get();
       if (directSnap.exists) {
@@ -66,6 +69,7 @@ async function getPlayersData(
         sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
         snsLinks = (data as any).snsLinks || {};
         legalPages = Array.isArray(data.legalPages) ? data.legalPages : [];
+        gameTeamUsage = Boolean((data as any).gameTeamUsage);
       }
     }
   } catch (e) {
@@ -128,7 +132,7 @@ async function getPlayersData(
   // 背番号でソート（重複しても一旦そのまま）
   filteredPlayers.sort((a, b) => (a.number || 0) - (b.number || 0));
 
-  return { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, players: filteredPlayers, allSeasons, activeSeason };
+  return { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, gameTeamUsage, players: filteredPlayers, allSeasons, activeSeason };
 }
 
 export default async function PlayersPage({
@@ -155,7 +159,7 @@ export default async function PlayersPage({
     notFound();
   }
 
-  const { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, players, allSeasons, activeSeason } = data;
+  const { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, gameTeamUsage, players, allSeasons, activeSeason } = data;
 
   return (
     <main
@@ -177,6 +181,7 @@ export default async function PlayersPage({
         sponsors={sponsors}
         snsLinks={snsLinks}
         legalPages={legalPages}
+        gameTeamUsage={Boolean(gameTeamUsage)}
       />
     </main>
   );

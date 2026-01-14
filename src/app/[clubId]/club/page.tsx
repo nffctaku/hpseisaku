@@ -82,6 +82,7 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
   const sponsors = (Array.isArray((clubInfo as any).sponsors) ? ((clubInfo as any).sponsors as any[]) : []) as any;
   const legalPages = (Array.isArray((clubInfo as any).legalPages) ? ((clubInfo as any).legalPages as any[]) : []) as any;
   const homeBgColor = (clubInfo as any).homeBgColor as string | undefined;
+  const gameTeamUsage = Boolean((clubInfo as any).gameTeamUsage);
 
   return (
     <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
@@ -209,7 +210,14 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
         </div>
       </div>
 
-      <ClubFooter clubId={clubId} clubName={clubName || ''} sponsors={sponsors} snsLinks={snsLinks} legalPages={legalPages} />
+      <ClubFooter
+        clubId={clubId}
+        clubName={clubName || ''}
+        sponsors={sponsors}
+        snsLinks={snsLinks}
+        legalPages={legalPages}
+        gameTeamUsage={Boolean(gameTeamUsage)}
+      />
     </main>
   );
 }

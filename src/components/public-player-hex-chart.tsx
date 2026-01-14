@@ -50,7 +50,7 @@ export function PublicPlayerHexChart({
   });
 
   return (
-    <svg width="100%" viewBox={`${-pad} ${-pad} ${size + pad * 2} ${size + pad * 2}`} className="max-w-[60px] h-auto">
+    <svg width="100%" viewBox={`${-pad} ${-pad} ${size + pad * 2} ${size + pad * 2}`} className="max-w-[180px] h-auto">
       <polygon points={outerPoints} fill="none" stroke="#E5E7EB" strokeWidth="2" />
       {[0.2, 0.4, 0.6, 0.8].map((k) => (
         <polygon

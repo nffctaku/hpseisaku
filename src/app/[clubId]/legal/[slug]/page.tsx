@@ -42,6 +42,7 @@ async function getLegalPage(clubId: string, rawSlug: string) {
     sponsors: Array.isArray(profileData.sponsors) ? profileData.sponsors : [],
     legalPages,
     homeBgColor: typeof profileData.homeBgColor === "string" ? profileData.homeBgColor : undefined,
+    gameTeamUsage: Boolean((profileData as any).gameTeamUsage),
     title: typeof page.title === "string" ? page.title : "",
     content: typeof page.content === "string" ? page.content : "",
   };
@@ -61,7 +62,7 @@ export default async function LegalTextPage({ params }: PageProps) {
   }
 
   const { clubName, title, content } = data;
-  const { logoUrl, snsLinks, sponsors, legalPages } = data as any;
+  const { logoUrl, snsLinks, sponsors, legalPages, gameTeamUsage } = data as any;
 
   const paragraphs = content
     .split(/\n{2,}/)
@@ -105,6 +106,7 @@ export default async function LegalTextPage({ params }: PageProps) {
         sponsors={sponsors || []}
         snsLinks={snsLinks || {}}
         legalPages={legalPages || []}
+        gameTeamUsage={Boolean(gameTeamUsage)}
       />
     </main>
   );

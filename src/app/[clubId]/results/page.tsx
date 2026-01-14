@@ -41,6 +41,7 @@ async function getMatchesForClub(clubId: string) {
     const sponsors = (Array.isArray((profileData as any).sponsors) ? ((profileData as any).sponsors as any[]) : []) as any;
     const legalPages = (Array.isArray((profileData as any).legalPages) ? ((profileData as any).legalPages as any[]) : []) as any;
     const homeBgColor = (profileData as any).homeBgColor as string | undefined;
+    const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
     const mainTeamId = profileData.mainTeamId as string | undefined;
     if (!ownerUid) {
         return null;
@@ -139,7 +140,7 @@ async function getMatchesForClub(clubId: string) {
             competitionName: compName,
             competitionLogoUrl: matchData.competitionLogoUrl,
             roundId: 'single',
-            roundName: matchData.roundName || '単発',
+            roundName: typeof matchData.roundName === 'string' ? matchData.roundName : '',
             matchDate: matchData.matchDate,
             matchTime: matchData.matchTime,
             homeTeamId: matchData.homeTeam,
@@ -156,7 +157,7 @@ async function getMatchesForClub(clubId: string) {
     // 4. Sort all matches by date
     enrichedMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
 
-    return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor };
+    return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage };
 }
 
 export default async function ResultsPage({
@@ -176,7 +177,7 @@ export default async function ResultsPage({
         notFound();
     }
 
-    const { matches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor } = data as any;
+    const { matches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage } = data as any;
 
     return (
         <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
@@ -189,7 +190,14 @@ export default async function ResultsPage({
               clubName={clubName} 
             />
           </div>
-          <ClubFooter clubId={clubId} clubName={clubName} sponsors={sponsors} snsLinks={snsLinks} legalPages={legalPages} />
+          <ClubFooter
+            clubId={clubId}
+            clubName={clubName}
+            sponsors={sponsors}
+            snsLinks={snsLinks}
+            legalPages={legalPages}
+            gameTeamUsage={Boolean(gameTeamUsage)}
+          />
         </main>
     );
 }

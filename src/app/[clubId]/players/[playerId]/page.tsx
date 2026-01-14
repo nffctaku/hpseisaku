@@ -1087,10 +1087,11 @@ async function getPlayerSeasonSummaries(
 async function getPlayer(
   clubId: string,
   playerId: string
-): Promise<{ clubName: string; player: PlayerData; ownerUid: string; legalPages: LegalPageItem[] } | null> {
+): Promise<{ clubName: string; player: PlayerData; ownerUid: string; legalPages: LegalPageItem[]; gameTeamUsage: boolean } | null> {
   let clubName = clubId;
   let ownerUid: string | null = null;
   let legalPages: LegalPageItem[] = [];
+  let gameTeamUsage = false;
 
   // club_profiles から ownerUid と clubName を取得
   const profilesQuery = db
@@ -1103,6 +1104,7 @@ async function getPlayer(
     const data = doc.data() as any;
     ownerUid = (data.ownerUid as string) || doc.id;
     clubName = data.clubName || clubName;
+    gameTeamUsage = Boolean((data as any).gameTeamUsage);
     if (Array.isArray((data as any).legalPages)) {
       legalPages = (data as any).legalPages
         .map((p: any) => ({
@@ -1117,6 +1119,7 @@ async function getPlayer(
       const data = directSnap.data() as any;
       ownerUid = (data.ownerUid as string) || directSnap.id;
       clubName = data.clubName || clubName;
+      gameTeamUsage = Boolean((data as any).gameTeamUsage);
       if (Array.isArray((data as any).legalPages)) {
         legalPages = (data as any).legalPages
           .map((p: any) => ({
@@ -1159,6 +1162,7 @@ async function getPlayer(
       player: mergedPlayer as PlayerData,
       ownerUid,
       legalPages,
+      gameTeamUsage,
     };
   }
 
@@ -1177,7 +1181,7 @@ export default async function PlayerPage({
   const result = await getPlayer(clubId, playerId);
   if (!result) return notFound();
 
-  const { clubName, player, ownerUid, legalPages } = result;
+  const { clubName, player, ownerUid, legalPages, gameTeamUsage } = result;
   const registeredSeasonIds = await getRegisteredSeasonIds(ownerUid, playerId, (player as any)?.seasons);
 
   const seasonData = (player as any)?.seasonData && typeof (player as any).seasonData === "object" ? ((player as any).seasonData as any) : {};
@@ -1581,7 +1585,7 @@ export default async function PlayerPage({
         </div>
       </div>
 
-      <ClubFooter clubId={clubId} clubName={clubName} legalPages={legalPages} />
+      <ClubFooter clubId={clubId} clubName={clubName} legalPages={legalPages} gameTeamUsage={Boolean(gameTeamUsage)} />
     </div>
   );
 }

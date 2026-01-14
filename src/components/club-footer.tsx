@@ -27,9 +27,17 @@ interface ClubFooterProps {
   sponsors?: SponsorItem[];
   snsLinks?: SnsLinks;
   legalPages?: LegalPageItem[];
+  gameTeamUsage?: boolean;
 }
 
-export function ClubFooter({ clubId, clubName, sponsors = [], snsLinks = {}, legalPages = [] }: ClubFooterProps) {
+export function ClubFooter({
+  clubId,
+  clubName,
+  sponsors = [],
+  snsLinks = {},
+  legalPages = [],
+  gameTeamUsage,
+}: ClubFooterProps) {
   return (
     <footer className="mt-auto" data-debug="club-footer-v2">
       <div className="bg-gray-900 text-gray-300 w-full">
@@ -59,7 +67,17 @@ export function ClubFooter({ clubId, clubName, sponsors = [], snsLinks = {}, leg
                     ))}
                 </div>
               )}
-              <div className="text-sm font-semibold text-white">{clubName || clubId || ""}</div>
+              <div className="text-[10px] font-semibold text-white whitespace-normal break-words leading-snug">
+                {gameTeamUsage ? (
+                  <>
+                    このチームは実在のチームを模した
+                    <br className="sm:hidden" />
+                    ファン活動（パロディ）として利用しています。
+                  </>
+                ) : (
+                  clubName || clubId || ""
+                )}
+              </div>
 
               {!clubId && (
                 <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">

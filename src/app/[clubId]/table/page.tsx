@@ -44,6 +44,7 @@ async function getCompetitionsForClub(clubId: string) {
   const sponsors = (profileData as any).sponsors || [];
   const snsLinks = (profileData as any).snsLinks || {};
   const legalPages = (profileData as any).legalPages || [];
+  const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
 
   if (!ownerUid) {
     return null;
@@ -61,7 +62,7 @@ async function getCompetitionsForClub(clubId: string) {
     };
   });
 
-  return { clubName, competitions, logoUrl, homeBgColor, sponsors, snsLinks, legalPages };
+  return { clubName, competitions, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, gameTeamUsage };
 }
 
 export default async function TablePage({ params: { clubId }, searchParams }: TablePageProps) {
@@ -71,7 +72,7 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
     notFound();
   }
 
-  const { competitions, clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages } = data as any;
+  const { competitions, clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, gameTeamUsage } = data as any;
 
   const eligibleCompetitions = (competitions as any[]).filter((c) => {
     const format = (c as any).format;
@@ -140,6 +141,7 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
         sponsors={sponsors}
         snsLinks={snsLinks}
         legalPages={legalPages}
+        gameTeamUsage={Boolean(gameTeamUsage)}
       />
     </main>
   );

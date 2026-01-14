@@ -125,6 +125,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
   const sponsors = (Array.isArray((profile as any).sponsors) ? ((profile as any).sponsors as any[]) : []) as any;
   const legalPages = (Array.isArray((profile as any).legalPages) ? ((profile as any).legalPages as any[]) : []) as any;
   const homeBgColor = (profile as any).homeBgColor as string | undefined;
+  const gameTeamUsage = Boolean((profile as any).gameTeamUsage);
 
   const teamId = await resolveTeamId(ownerUid, (profile as any).mainTeamId as string | undefined);
   if (!teamId) {
@@ -293,7 +294,14 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
         </div>
       </div>
 
-      <ClubFooter clubId={clubId} clubName={clubName} sponsors={sponsors} snsLinks={snsLinks} legalPages={legalPages} />
+      <ClubFooter
+        clubId={clubId}
+        clubName={clubName}
+        sponsors={sponsors}
+        snsLinks={snsLinks}
+        legalPages={legalPages}
+        gameTeamUsage={Boolean(gameTeamUsage)}
+      />
     </main>
   );
 }

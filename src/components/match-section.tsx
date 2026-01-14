@@ -172,7 +172,9 @@ function NextMatch({ match }: { match: MatchDetails | null }) {
             ) : (
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{match.competitionName || ''}</p>
             )}
-            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{match.roundName || ''}</p>
+            {match.roundId !== 'single' && (match.roundName || '').trim() ? (
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{match.roundName || ''}</p>
+            ) : null}
           </div>
         </div>
         <TeamDisplay logo={match.awayTeamLogo} name={match.awayTeamName} />
