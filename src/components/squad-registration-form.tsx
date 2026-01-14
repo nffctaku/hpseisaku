@@ -228,19 +228,25 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     const redCounts = new Map<string, number>();
 
     events.forEach((ev: any) => {
-      if (ev?.type === 'goal') {
+      const type = typeof ev?.type === 'string' ? ev.type : '';
+
+      if (type === 'goal') {
         if (ev.playerId) {
           goalCounts.set(ev.playerId, (goalCounts.get(ev.playerId) || 0) + 1);
         }
         if (ev.assistPlayerId) {
           assistCounts.set(ev.assistPlayerId, (assistCounts.get(ev.assistPlayerId) || 0) + 1);
         }
+        return;
       }
-      if (ev?.type === 'card' && ev.playerId) {
-        if (ev.cardColor === 'yellow') {
+
+      // card (new format) / yellow|red (legacy format)
+      if ((type === 'card' || type === 'yellow' || type === 'red') && ev.playerId) {
+        const color = type === 'card' ? ev.cardColor : type;
+        if (color === 'yellow') {
           yellowCounts.set(ev.playerId, (yellowCounts.get(ev.playerId) || 0) + 1);
         }
-        if (ev.cardColor === 'red') {
+        if (color === 'red') {
           redCounts.set(ev.playerId, (redCounts.get(ev.playerId) || 0) + 1);
         }
       }
@@ -341,20 +347,25 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       const yellowCounts = new Map<string, number>();
       const redCounts = new Map<string, number>();
 
-      (data.events || []).forEach((ev) => {
-        if (ev.type === 'goal') {
+      (data.events || []).forEach((ev: any) => {
+        const type = typeof ev?.type === 'string' ? ev.type : '';
+
+        if (type === 'goal') {
           if (ev.playerId) {
             goalCounts.set(ev.playerId, (goalCounts.get(ev.playerId) || 0) + 1);
           }
           if (ev.assistPlayerId) {
             assistCounts.set(ev.assistPlayerId, (assistCounts.get(ev.assistPlayerId) || 0) + 1);
           }
+          return;
         }
-        if (ev.type === 'card' && ev.playerId) {
-          if (ev.cardColor === 'yellow') {
+
+        if ((type === 'card' || type === 'yellow' || type === 'red') && ev.playerId) {
+          const color = type === 'card' ? ev.cardColor : type;
+          if (color === 'yellow') {
             yellowCounts.set(ev.playerId, (yellowCounts.get(ev.playerId) || 0) + 1);
           }
-          if (ev.cardColor === 'red') {
+          if (color === 'red') {
             redCounts.set(ev.playerId, (redCounts.get(ev.playerId) || 0) + 1);
           }
         }
@@ -368,11 +379,12 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         }
       });
 
-      const normalizedPlayerStats = data.playerStats.map((ps) => {
+      const normalizedPlayerStats = data.playerStats.map((ps: any) => {
         const playerId = ps.playerId;
+        const role = ps?.role ? ps.role : 'starter';
         return {
-          role: 'role' in ps && ps.role ? ps.role : 'starter',
           ...ps,
+          role,
           goals: goalCounts.get(playerId) ?? 0,
           assists: assistCounts.get(playerId) ?? 0,
           yellowCards: yellowCounts.get(playerId) ?? 0,
