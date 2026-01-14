@@ -75,6 +75,7 @@ export default function MatchesPage() {
   const [loading, setLoading] = useState(true);
   const [initialFocusMatchId, setInitialFocusMatchId] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [visibleCount, setVisibleCount] = useState<number>(200);
 
   const didInitPreferredTeamRef = useRef(false);
   const bootstrapDoneRef = useRef(false);
@@ -82,6 +83,8 @@ export default function MatchesPage() {
   const competitionMetaRef = useRef<Map<string, { name: string; season?: string }>>(new Map());
   const activeFetchIdRef = useRef(0);
   const clubUid = ownerUid || user?.uid;
+  const ENABLE_TREE_FALLBACK = true;
+  const ENABLE_TREE_MERGE = false;
 
   useEffect(() => {
     if (!user || !clubUid) {
@@ -349,11 +352,21 @@ export default function MatchesPage() {
         };
 
         if (isIndexEmpty(indexSnap)) {
+          if (!ENABLE_TREE_FALLBACK) {
+            devLog('public_match_index is empty and tree fallback disabled');
+            setAllMatches([]);
+            setVisibleCount(200);
+            setInitialFocusMatchId(null);
+            toast.error('試合インデックスが未生成です。「試合インデックス生成」に失敗している可能性があります。');
+            return;
+          }
+
           const enrichedMatches = await fetchMatchesFromTree();
           if (fetchId !== activeFetchIdRef.current) return;
 
           devLog('using tree fallback', { count: enrichedMatches.length });
           setAllMatches(enrichedMatches);
+          setVisibleCount(200);
 
           const unsetMatches = enrichedMatches.filter((m) => !m.homeTeamId && !m.awayTeamId);
           devLog('unset matches (tree fallback)', {
@@ -427,17 +440,20 @@ export default function MatchesPage() {
           .filter(Boolean) as EnrichedMatch[];
 
         let enrichedMatches = enrichedMatchesFromIndex;
-        try {
-          const treeMatches = await fetchMatchesFromTree();
-          if (fetchId !== activeFetchIdRef.current) return;
-          const merged = mergeMatches(enrichedMatchesFromIndex, treeMatches);
-          enrichedMatches = merged;
-          devLog('merged index + tree', { index: enrichedMatchesFromIndex.length, tree: treeMatches.length, merged: merged.length });
-        } catch (e) {
-          console.warn('[MatchesPage] Failed to fetch matches from tree (continuing):', e);
+        if (ENABLE_TREE_MERGE) {
+          try {
+            const treeMatches = await fetchMatchesFromTree();
+            if (fetchId !== activeFetchIdRef.current) return;
+            const merged = mergeMatches(enrichedMatchesFromIndex, treeMatches);
+            enrichedMatches = merged;
+            devLog('merged index + tree', { index: enrichedMatchesFromIndex.length, tree: treeMatches.length, merged: merged.length });
+          } catch (e) {
+            console.warn('[MatchesPage] Failed to fetch matches from tree (continuing):', e);
+          }
         }
 
         setAllMatches(enrichedMatches);
+        setVisibleCount(200);
 
         const unsetMatches = enrichedMatches.filter((m) => !m.homeTeamId && !m.awayTeamId);
         devLog('unset matches (merged)', {
@@ -561,6 +577,14 @@ export default function MatchesPage() {
     return acc;
   }, {} as Record<string, EnrichedMatch[]>);
 
+  let remaining = visibleCount;
+  const groupedEntriesLimited = Object.entries(groupedMatches).map(([dateGroup, matches]) => {
+    if (remaining <= 0) return [dateGroup, [] as EnrichedMatch[]] as const;
+    const sliced = matches.slice(0, remaining);
+    remaining -= sliced.length;
+    return [dateGroup, sliced] as const;
+  }).filter(([, matches]) => matches.length > 0);
+
 
   if (loading) {
     return <div className="container mx-auto py-10 flex justify-center items-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -637,7 +661,7 @@ export default function MatchesPage() {
         <div className="text-center py-10 text-muted-foreground">表示する試合がありません。</div>
       ) : (
         <div className="space-y-6">
-          {Object.entries(groupedMatches).map(([dateGroup, matchesInGroup]) => (
+          {groupedEntriesLimited.map(([dateGroup, matchesInGroup]) => (
             <div key={dateGroup}>
               <h2 className="font-semibold text-lg mb-3 text-muted-foreground">{dateGroup}</h2>
               <div className="space-y-3">
@@ -698,6 +722,17 @@ export default function MatchesPage() {
               </div>
             </div>
           ))}
+          {filteredMatches.length > visibleCount ? (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((v) => v + 200)}
+                className="rounded-md border bg-white px-4 py-2 text-sm text-gray-900 shadow-sm hover:bg-gray-50"
+              >
+                もっと表示
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
 

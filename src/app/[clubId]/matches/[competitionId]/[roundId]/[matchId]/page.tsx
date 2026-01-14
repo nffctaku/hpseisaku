@@ -81,6 +81,14 @@ async function getMatchDetail(
         playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl };
       });
 
+      const playerTeamMap: Record<string, string> = {};
+      homePlayersMeta.forEach((p) => {
+        if (p?.id && data.homeTeam) playerTeamMap[p.id] = data.homeTeam;
+      });
+      awayPlayersMeta.forEach((p) => {
+        if (p?.id && data.awayTeam) playerTeamMap[p.id] = data.awayTeam;
+      });
+
       const match: MatchDetails = {
         id: friendlySnap.id,
         competitionId: compId,
@@ -106,6 +114,7 @@ async function getMatchDetail(
       } as any;
 
       (match as any).playerMetaMap = playerMetaMap;
+      (match as any).playerTeamMap = playerTeamMap;
 
       return { clubName, logoUrl, match };
     }
@@ -154,6 +163,14 @@ async function getMatchDetail(
       playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl };
     });
 
+    const playerTeamMap: Record<string, string> = {};
+    homePlayersMeta.forEach((p) => {
+      if (p?.id && data.homeTeam) playerTeamMap[p.id] = data.homeTeam;
+    });
+    awayPlayersMeta.forEach((p) => {
+      if (p?.id && data.awayTeam) playerTeamMap[p.id] = data.awayTeam;
+    });
+
     // 大会名・ラウンド名がマッチドキュメントに無ければ、元のコレクションから補完
     let competitionName = data.competitionName as string | undefined;
     let roundName = data.roundName as string | undefined;
@@ -199,6 +216,7 @@ async function getMatchDetail(
     } as any;
 
     (match as any).playerMetaMap = playerMetaMap;
+    (match as any).playerTeamMap = playerTeamMap;
 
     return { clubName, logoUrl, match };
   }
@@ -247,6 +265,14 @@ async function getMatchDetail(
     playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl };
   });
 
+  const playerTeamMap: Record<string, string> = {};
+  homePlayersMeta.forEach((p) => {
+    if (p?.id && data.homeTeam) playerTeamMap[p.id] = data.homeTeam;
+  });
+  awayPlayersMeta.forEach((p) => {
+    if (p?.id && data.awayTeam) playerTeamMap[p.id] = data.awayTeam;
+  });
+
   // 大会名・ラウンド名の補完
   let competitionName = data.competitionName as string | undefined;
   let roundName = data.roundName as string | undefined;
@@ -290,6 +316,7 @@ async function getMatchDetail(
   } as any;
 
   (match as any).playerMetaMap = playerMetaMap;
+  (match as any).playerTeamMap = playerTeamMap;
 
   return { clubName, logoUrl, match };
 }
@@ -310,6 +337,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
     string,
     { number: number; position?: string; photoUrl?: string }
   >;
+  const playerTeamMap = ((match as any).playerTeamMap || {}) as Record<string, string>;
 
   const venue: string | undefined = (match as any).venue || (match as any).stadium;
 
@@ -356,21 +384,23 @@ export default async function MatchDetailPage({ params }: PageProps) {
     }
   });
 
-  // NOTE:
-  // - 新しいデータ: PlayerStats に teamId が入っているので、teamId でホーム/アウェイを判別
-  // - 既存データ: teamId が無いので、とりあえずホーム側として表示する（非表示にならないようにする）
-  const homeStarters = playerStats.filter(
-    (ps) => (ps.teamId ? ps.teamId === match.homeTeam : true) && (ps.role === "starter" || !ps.role),
-  );
-  const homeSubs = playerStats.filter(
-    (ps) => (ps.teamId ? ps.teamId === match.homeTeam : true) && ps.role && ps.role !== "starter",
-  );
-  const awayStarters = playerStats.filter(
-    (ps) => ps.teamId && ps.teamId === match.awayTeam && (ps.role === "starter" || !ps.role),
-  );
-  const awaySubs = playerStats.filter(
-    (ps) => ps.teamId && ps.teamId === match.awayTeam && ps.role && ps.role !== "starter",
-  );
+  const resolveTeamId = (ps: any): string | null => {
+    const raw = typeof ps?.teamId === 'string' ? ps.teamId : '';
+    if (raw) return raw;
+    const pid = typeof ps?.playerId === 'string' ? ps.playerId : '';
+    if (!pid) return null;
+    const inferred = playerTeamMap[pid];
+    if (typeof inferred === 'string' && inferred.length > 0) return inferred;
+    return null;
+  };
+
+  const isStarter = (ps: any) => ps.role === "starter" || !ps.role;
+  const isSub = (ps: any) => ps.role && ps.role !== "starter";
+
+  const homeStarters = playerStats.filter((ps) => resolveTeamId(ps) === match.homeTeam && isStarter(ps));
+  const homeSubs = playerStats.filter((ps) => resolveTeamId(ps) === match.homeTeam && isSub(ps));
+  const awayStarters = playerStats.filter((ps) => resolveTeamId(ps) === match.awayTeam && isStarter(ps));
+  const awaySubs = playerStats.filter((ps) => resolveTeamId(ps) === match.awayTeam && isSub(ps));
 
   const positionOrder: Record<string, number> = { GK: 0, DF: 1, MF: 2, FW: 3 };
   const getPositionKey = (ps: any) => {

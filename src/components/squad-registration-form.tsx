@@ -24,6 +24,7 @@ const formSchema = z.object({
       playerId: z.string(),
       playerName: z.string(),
       position: z.string(),
+      teamId: z.string().optional(),
       role: z.string().optional(),
       rating: z.coerce.number().min(4.0).max(10.0).step(0.1).optional(),
       minutesPlayed: z.coerce.number().min(0).optional(),
