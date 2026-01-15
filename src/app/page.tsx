@@ -85,7 +85,7 @@ export default function LandingPage() {
         <section className="relative overflow-hidden">
           <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] h-[70vh] min-h-[360px] max-h-[720px] sm:h-[45vw] sm:min-h-[240px] sm:max-h-[560px] bg-white overflow-hidden">
             <Image
-              src="/トップページモバイル２.jpg"
+              src="/トップページモバイル３.jpg"
               alt="FootChorn"
               fill
               className="object-cover object-top sm:hidden"
