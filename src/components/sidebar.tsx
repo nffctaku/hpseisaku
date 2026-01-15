@@ -1,19 +1,68 @@
 "use client";
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
 import { cn } from '@/lib/utils';
-import { Trophy, Shield, Home, Newspaper, Tv, Users, Calendar, Settings, CreditCard, LineChart } from 'lucide-react';
+import { Trophy, Shield, Home, Newspaper, Tv, Users, Calendar, Settings, CreditCard, LineChart, BookOpen } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 
 export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const { clubInfo } = useClub();
   const clubId = clubInfo.id || user?.clubId || null;
+
+  const [mainTeamId, setMainTeamId] = useState<string | null>(null);
+
+  const bookletHref = mainTeamId
+    ? `/admin/teams/${mainTeamId}/season?next=booklet`
+    : '/admin/teams';
+
+  useEffect(() => {
+    const run = async () => {
+      const clubUid = user?.uid;
+      if (!clubUid) {
+        setMainTeamId(null);
+        return;
+      }
+
+      try {
+        // Prefer docId == uid schema
+        const p = await getDoc(doc(db, 'club_profiles', clubUid));
+        if (p.exists()) {
+          const data = p.data() as any;
+          const next = typeof data?.mainTeamId === 'string' ? String(data.mainTeamId).trim() : '';
+          if (next) {
+            setMainTeamId(next);
+            return;
+          }
+        }
+
+        // Fallback: ownerUid == uid schema
+        const qRef = query(collection(db, 'club_profiles'), where('ownerUid', '==', clubUid));
+        const snap = await getDocs(qRef);
+        if (!snap.empty) {
+          const data = snap.docs[0].data() as any;
+          const next = typeof data?.mainTeamId === 'string' ? String(data.mainTeamId).trim() : '';
+          setMainTeamId(next || null);
+          return;
+        }
+
+        setMainTeamId(null);
+      } catch (e) {
+        console.warn('[Sidebar] failed to load mainTeamId', e);
+        setMainTeamId(null);
+      }
+    };
+
+    void run();
+  }, [user?.uid]);
 
   console.log('[Sidebar] club id debug', {
     clubInfo,
@@ -38,6 +87,7 @@ export function Sidebar() {
     { href: `/admin/matches`, label: '試合管理', icon: Calendar },
     { href: `/admin/friendly-matches`, label: '単発試合', icon: Calendar },
     { href: `/admin/players`, label: '選手管理', icon: Users },
+    { href: bookletHref, label: '選手名鑑', icon: BookOpen },
     { href: `/admin/competitions`, label: '大会管理', icon: Trophy },
     { href: '/admin/teams', label: 'チーム登録', icon: Shield },
     { href: `/admin/plan`, label: 'プラン', icon: CreditCard },

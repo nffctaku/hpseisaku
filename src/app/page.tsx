@@ -83,59 +83,27 @@ export default function LandingPage() {
 
       <main className="flex-grow">
         <section className="relative overflow-hidden">
-          <div className="container mx-auto px-4 pt-28 pb-2 sm:pt-40 sm:pb-6">
+          <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] h-[70vh] min-h-[360px] max-h-[720px] sm:h-[45vw] sm:min-h-[240px] sm:max-h-[560px] bg-white overflow-hidden">
+            <Image
+              src="/トップページモバイル２.jpg"
+              alt="FootChorn"
+              fill
+              className="object-cover object-top sm:hidden"
+              sizes="100vw"
+              priority
+            />
+            <Image
+              src="/トップページ３.png"
+              alt="FootChorn"
+              fill
+              className="hidden object-contain object-center sm:block"
+              sizes="100vw"
+              priority
+            />
+          </div>
+
+          <div className="container mx-auto px-4 pt-6 pb-2 sm:pt-8 sm:pb-6">
             <div className="max-w-5xl mx-auto">
-              <div className="text-center space-y-2 sm:space-y-3">
-                <div className="flex justify-center">
-                  <div className="relative w-[360px] sm:w-[520px] h-[68px] sm:h-[96px]">
-                    <Image
-                      src="/サイトロゴ文字.png"
-                      alt="FootChorn"
-                      fill
-                      className="object-contain"
-                      sizes="(min-width: 640px) 520px, 360px"
-                      priority
-                    />
-                  </div>
-                </div>
-                <h1 className="mt-16 sm:mt-24 text-2xl sm:text-4xl font-bold tracking-tight leading-tight mb-1 sm:mb-2">クラブの歴史を、ここに刻め。</h1>
-              </div>
-
-              <div className="mt-10 sm:mt-16 flex justify-center">
-                <div className="grid grid-cols-1 gap-3 items-end w-[92vw] max-w-[420px]">
-                  <div className="relative w-full aspect-[1/1] bg-transparent">
-                    <Image
-                      src="/LP用１０.png"
-                      alt="FootChorn screen 1"
-                      fill
-                      className="object-contain"
-                      sizes="(min-width: 640px) 420px, 92vw"
-                      priority
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-2 sm:mt-3 text-center">
-                <div className="mx-auto max-w-2xl text-sm sm:text-base leading-relaxed text-muted-foreground">
-                  <p className="font-semibold text-foreground">
-                    <span className="block">リアルも、ゲームも。</span>
-                    <span className="block">これ一つで、プロ級のクラブ管理。</span>
-                  </p>
-                  <p className="mt-1 text-[11px] sm:text-xs">
-                    <span className="block sm:inline">リアルなサッカークラブの運営から、</span>{" "}
-                    <span className="block sm:inline">eスポーツ（Footballゲーム）のクラン管理まで。</span>{" "}
-                    <span className="block sm:inline">クラブに関わるすべての情報を、一つの公式記録として集約します。</span>
-                  </p>
-                  <p className="mt-2">
-                    <br />
-                    <span className="block sm:inline">自分のチームを「プロのクラブ」として可視化したい、</span>{" "}
-                    <span className="block sm:inline">すべてのプレイヤー・監督のために。</span>
-                    <br />
-                  </p>
-                </div>
-              </div>
-
               <div className="mt-2 sm:mt-3">
                 <div ref={sliderContainerRef} className="mx-auto max-w-5xl overflow-x-auto">
                   <div className="flex gap-3 px-4 snap-x snap-mandatory">

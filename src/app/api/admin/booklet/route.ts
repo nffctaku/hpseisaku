@@ -333,10 +333,6 @@ export async function GET(request: Request) {
 
     const profileSnap = await db.collection("club_profiles").doc(ownerUid).get();
     const profile = profileSnap.exists ? (profileSnap.data() as any) : null;
-    const plan = typeof profile?.plan === "string" ? String(profile.plan).toLowerCase() : "free";
-    if (plan !== "pro") {
-      return new NextResponse(JSON.stringify({ message: "Proプラン限定機能です。" }), { status: 403 });
-    }
 
     const rosterSnap = await db.collection(`clubs/${ownerUid}/seasons/${seasonId}/roster`).get();
     const prevSeason = getPreviousSeason(seasonId);
