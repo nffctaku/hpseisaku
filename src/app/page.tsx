@@ -76,7 +76,7 @@ export default function LandingPage() {
               <Link
                 href="/admin/competitions"
                 onClick={handleProtectedViewClub}
-                className="inline-flex items-center text-sm px-3 sm:px-4 py-2 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
+                className="hidden sm:inline-flex items-center text-sm px-3 sm:px-4 py-2 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
               >
                 始める
               </Link>
@@ -93,6 +93,16 @@ export default function LandingPage() {
               sizes="100vw"
               priority
             />
+
+            <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20">
+              <Link
+                href="/admin/competitions"
+                onClick={handleProtectedViewClub}
+                className="inline-flex items-center text-sm px-4 py-2 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
+              >
+                始める
+              </Link>
+            </div>
           </div>
 
           <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] hidden h-[65vw] min-h-[420px] max-h-[880px] bg-white overflow-hidden sm:block">
@@ -109,7 +119,20 @@ export default function LandingPage() {
           <div className="sm:hidden pt-0">
             <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
               <Image
-                src="/トップページモバイル情報２.jpg"
+                src="/モバイル情報B.jpg"
+                alt="FootChorn"
+                width={1170}
+                height={2532}
+                className="w-full h-auto"
+                sizes="100vw"
+              />
+            </div>
+          </div>
+
+          <div className="sm:hidden pt-0">
+            <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
+              <Image
+                src="/モバイル情報A.jpg"
                 alt="FootChorn"
                 width={1170}
                 height={2532}
