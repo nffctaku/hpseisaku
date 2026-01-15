@@ -59,47 +59,77 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="w-full bg-white text-gray-900 flex items-center justify-between px-2 sm:px-4 py-2 border-b">
-        <div className="relative w-[40px] sm:w-[250px] h-[40px] sm:h-[48px] flex-shrink-0">
-          <Image
-            src="/サイトロゴのみ.png"
-            alt="FootChorn"
-            fill
-            className="object-contain object-center sm:object-left"
-            sizes="(min-width: 640px) 220px, 40px"
-            priority
-          />
-        </div>
-        <div className="flex items-center gap-1 sm:gap-3 overflow-x-auto flex-nowrap max-w-full">
-          <Link
-            href="/admin/competitions"
-            onClick={handleProtectedViewClub}
-            className="inline-flex items-center text-sm px-3 sm:px-4 py-2 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
-          >
-            始める
-          </Link>
-        </div>
-      </header>
-
       <main className="flex-grow">
         <section className="relative overflow-hidden">
-          <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] h-[70vh] min-h-[360px] max-h-[720px] sm:h-[45vw] sm:min-h-[240px] sm:max-h-[560px] bg-white overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-2 sm:px-4 py-2">
+            <div className="relative w-[64px] sm:w-[320px] h-[64px] sm:h-[64px] flex-shrink-0">
+              <Image
+                src="/ロゴ新.png"
+                alt="FootChorn"
+                fill
+                className="object-contain object-center sm:object-left"
+                sizes="(min-width: 640px) 320px, 64px"
+                priority
+              />
+            </div>
+            <div className="flex items-center gap-1 sm:gap-3 overflow-x-auto flex-nowrap max-w-full">
+              <Link
+                href="/admin/competitions"
+                onClick={handleProtectedViewClub}
+                className="inline-flex items-center text-sm px-3 sm:px-4 py-2 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
+              >
+                始める
+              </Link>
+            </div>
+          </div>
+
+          <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden sm:hidden">
             <Image
               src="/トップページモバイル３.jpg"
               alt="FootChorn"
-              fill
-              className="object-cover object-top sm:hidden"
+              width={576}
+              height={1024}
+              className="w-full h-auto"
               sizes="100vw"
               priority
             />
+          </div>
+
+          <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] hidden h-[65vw] min-h-[420px] max-h-[880px] bg-white overflow-hidden sm:block">
             <Image
-              src="/トップページ３.png"
+              src="/トップページPC２.png"
               alt="FootChorn"
               fill
-              className="hidden object-contain object-center sm:block"
+              className="object-contain object-center"
               sizes="100vw"
               priority
             />
+          </div>
+
+          <div className="sm:hidden pt-0">
+            <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
+              <Image
+                src="/トップページモバイル情報２.jpg"
+                alt="FootChorn"
+                width={1170}
+                height={2532}
+                className="w-full h-auto"
+                sizes="100vw"
+              />
+            </div>
+          </div>
+
+          <div className="hidden sm:block pt-0">
+            <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
+              <Image
+                src="/トップページPC情報２.png"
+                alt="FootChorn"
+                width={1920}
+                height={1080}
+                className="w-full h-auto"
+                sizes="100vw"
+              />
+            </div>
           </div>
 
           <div className="container mx-auto px-4 pt-6 pb-2 sm:pt-8 sm:pb-6">
