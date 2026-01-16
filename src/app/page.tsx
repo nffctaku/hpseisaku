@@ -76,7 +76,7 @@ export default function LandingPage() {
               <Link
                 href="/admin/competitions"
                 onClick={handleProtectedViewClub}
-                className="hidden sm:inline-flex items-center text-sm px-3 sm:px-4 py-2 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
+                className="hidden sm:inline-flex items-center text-base sm:text-lg px-6 sm:px-8 py-4 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
               >
                 始める
               </Link>
@@ -98,7 +98,7 @@ export default function LandingPage() {
               <Link
                 href="/admin/competitions"
                 onClick={handleProtectedViewClub}
-                className="inline-flex items-center text-sm px-4 py-2 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
+                className="inline-flex items-center text-base px-8 py-4 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
               >
                 始める
               </Link>
@@ -119,7 +119,7 @@ export default function LandingPage() {
           <div className="sm:hidden pt-0">
             <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
               <Image
-                src="/モバイル情報B.jpg"
+                src="/モバイル情報最新１.jpg"
                 alt="FootChorn"
                 width={1170}
                 height={2532}
@@ -132,7 +132,7 @@ export default function LandingPage() {
           <div className="sm:hidden pt-0">
             <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
               <Image
-                src="/モバイル情報A.jpg"
+                src="/モバイル情報最新２.jpg"
                 alt="FootChorn"
                 width={1170}
                 height={2532}
@@ -155,7 +155,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="container mx-auto px-4 pt-6 pb-2 sm:pt-8 sm:pb-6">
+          <div className="container mx-auto px-4 pt-6 pb-0 sm:pt-8 sm:pb-6">
             <div className="max-w-5xl mx-auto">
               <div className="mt-2 sm:mt-3">
                 <div ref={sliderContainerRef} className="mx-auto max-w-5xl overflow-x-auto">
@@ -240,74 +240,77 @@ export default function LandingPage() {
                 </ul>
               </div>
 
-              <div className="mt-3 sm:mt-4 text-center space-y-3">
+              <div className="mt-3 sm:mt-4 text-center">
                 <p className="text-lg sm:text-2xl font-bold">
                   試合・選手・順位を
                   <br className="sm:hidden" />
                   簡単に記録・公開が可能。
                 </p>
 
-                <div className="flex flex-col items-center sm:flex-row sm:items-stretch gap-3 justify-center">
-                  <Link
-                    href="/admin/competitions"
-                    onClick={handleProtectedViewClub}
-                    className="inline-flex items-center justify-center w-1/2 max-w-[220px] px-8 py-3 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 font-semibold text-sm transition-colors"
-                  >
-                    ログイン
-                  </Link>
-                </div>
+                <div className="mt-6">
+                  <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-[#21c45a] text-white">
+                    <div className="mx-auto max-w-5xl px-6 py-6 text-center">
+                      <div className="text-lg font-bold">LINE登録で、最新情報をすぐゲット！</div>
+                      <div className="mt-2 text-sm text-white/90">アップデート情報をLINEでお届け</div>
 
-                <p className="mt-2 text-xs text-muted-foreground">
-                  ※ ログインしている場合は自分のクラブページへ、未設定の場合はチーム管理画面へ移動します。
-                </p>
-
-                <div className="mt-6 flex justify-center">
-                  <div className="w-full max-w-[420px] bg-[#21c45a] rounded-xl px-6 py-6 text-white text-center">
-                    <div className="text-lg font-bold">LINE登録で、最新情報をいちはやくゲット！</div>
-                    <div className="mt-2 text-sm text-white/90">便利な機能とお得な情報をLINEでお届け</div>
-
-                    <a
-                      href="https://lin.ee/0IxYvaa"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-5 inline-flex items-center justify-center gap-2 bg-white text-[#21c45a] font-semibold rounded-full h-12 px-8"
-                    >
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#21c45a] text-white text-[10px] font-bold">
-                        LINE
-                      </span>
-                      <span>LINE登録する</span>
-                    </a>
+                      <a
+                        href="https://lin.ee/0IxYvaa"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-5 inline-flex items-center justify-center gap-2 bg-white text-[#21c45a] font-semibold rounded-full h-12 px-8"
+                      >
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#21c45a] text-white text-[10px] font-bold">
+                          LINE
+                        </span>
+                        <span>LINE登録する</span>
+                      </a>
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-3 flex justify-center">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-5xl">
-                    <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
+                <div className="mt-0 flex justify-center">
+                  <div className="sm:hidden w-full">
+                    <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
                       <Image
-                        src="/プラン内容Free.png"
-                        alt="プラン内容 Free"
-                        fill
-                        className="object-contain"
-                        sizes="(min-width: 640px) 560px, 92vw"
+                        src="/最新プラン.jpg"
+                        alt="最新プラン"
+                        width={1170}
+                        height={2532}
+                        className="w-full h-auto"
+                        sizes="100vw"
                       />
                     </div>
-                    <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
-                      <Image
-                        src="/プラン内容.png"
-                        alt="プラン内容"
-                        fill
-                        className="object-contain"
-                        sizes="(min-width: 640px) 560px, 92vw"
-                      />
-                    </div>
-                    <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
-                      <Image
-                        src="/プラン内容全開放.png"
-                        alt="プラン内容 全開放"
-                        fill
-                        className="object-contain"
-                        sizes="(min-width: 640px) 560px, 92vw"
-                      />
+                  </div>
+
+                  <div className="hidden sm:block w-full">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-5xl">
+                      <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
+                        <Image
+                          src="/プラン内容Free.png"
+                          alt="プラン内容 Free"
+                          fill
+                          className="object-contain"
+                          sizes="(min-width: 640px) 560px, 92vw"
+                        />
+                      </div>
+                      <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
+                        <Image
+                          src="/プラン内容.png"
+                          alt="プラン内容"
+                          fill
+                          className="object-contain"
+                          sizes="(min-width: 640px) 560px, 92vw"
+                        />
+                      </div>
+                      <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
+                        <Image
+                          src="/プラン内容全開放.png"
+                          alt="プラン内容 全開放"
+                          fill
+                          className="object-contain"
+                          sizes="(min-width: 640px) 560px, 92vw"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
