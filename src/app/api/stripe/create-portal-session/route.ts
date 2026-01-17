@@ -66,6 +66,51 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const findStripeCustomerIdByEmail = async (emailToTry: string) => {
+      const safe = String(emailToTry || '').trim();
+      if (!safe) return null;
+
+      const customers = await stripe.customers.list({ email: safe, limit: 1 });
+      const first = customers.data?.[0];
+      if (first?.id) {
+        return {
+          id: first.id,
+          lookupCount: Array.isArray(customers.data) ? customers.data.length : 0,
+          searchCount: 0,
+          searchError: null as string | null,
+          restoredFrom: 'email' as const,
+        };
+      }
+
+      let searchCount = 0;
+      let searchError: string | null = null;
+      try {
+        const queryEmail = safe.replace(/'/g, "\\'");
+        const searched = await stripe.customers.search({ query: `email:'${queryEmail}'`, limit: 1 });
+        searchCount = Array.isArray(searched.data) ? searched.data.length : 0;
+        const hit = searched.data?.[0];
+        if (hit?.id) {
+          return {
+            id: hit.id,
+            lookupCount: Array.isArray(customers.data) ? customers.data.length : 0,
+            searchCount,
+            searchError,
+            restoredFrom: 'email_search' as const,
+          };
+        }
+      } catch (e) {
+        searchError = (e as any)?.message || String(e);
+      }
+
+      return {
+        id: null,
+        lookupCount: Array.isArray(customers.data) ? customers.data.length : 0,
+        searchCount,
+        searchError,
+        restoredFrom: null,
+      };
+    };
+
     // Resolve correct club profile document (supports admin users)
     let profileRef = db.collection('club_profiles').doc(requesterUid);
     let profileSnap = await profileRef.get();
@@ -241,28 +286,17 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        const customers = await stripe.customers.list({ email, limit: 1 });
-        let found = customers.data?.[0];
-        debug.customerLookupByEmailCount = Array.isArray(customers.data) ? customers.data.length : 0;
-        debug.customerSearchByEmailCount = 0;
-        debug.customerSearchByEmailError = null;
-
-        // Fallback: Search API tends to be more reliable than list-by-email for some Stripe data shapes.
-        if (!found?.id) {
-          try {
-            const queryEmail = email.replace(/'/g, "\\'");
-            const searched = await stripe.customers.search({ query: `email:'${queryEmail}'`, limit: 1 });
-            debug.customerSearchByEmailCount = Array.isArray(searched.data) ? searched.data.length : 0;
-            found = searched.data?.[0];
-            if (found?.id) {
-              debug.restoredFrom = 'email_search';
-            }
-          } catch (e) {
-            debug.customerSearchByEmailError = (e as any)?.message || String(e);
-          }
+        const byRequesterEmail = await findStripeCustomerIdByEmail(email);
+        debug.customerLookupByEmailCount = byRequesterEmail?.lookupCount ?? 0;
+        debug.customerSearchByEmailCount = byRequesterEmail?.searchCount ?? 0;
+        debug.customerSearchByEmailError = (byRequesterEmail as any)?.searchError ?? null;
+        if (byRequesterEmail?.id) {
+          stripeCustomerId = byRequesterEmail.id;
+          await profileRef.set({ stripeCustomerId }, { merge: true });
+          debug.restoredFrom = byRequesterEmail.restoredFrom;
         }
 
-        if (!found?.id) {
+        if (!stripeCustomerId) {
           // Fallback2: resolve from another club_profiles doc with the same clubId.
           // (This helps when admin users have their own club_profiles doc without billing info.)
           try {
@@ -294,6 +328,55 @@ export async function POST(req: NextRequest) {
             debug.clubIdLookupError = (e as any)?.message || String(e);
           }
 
+          // Fallback3: resolve owner's email from a related club profile and try customer lookup again.
+          if (!stripeCustomerId) {
+            try {
+              // Find a related club profile where requester is an admin.
+              const adminSnap = await db
+                .collection('club_profiles')
+                .where('admins', 'array-contains', requesterUid)
+                .limit(5)
+                .get();
+
+              debug.adminProfilesCount = adminSnap.size;
+
+              let ownerUidToTry = '';
+              if (!adminSnap.empty) {
+                const d = adminSnap.docs[0];
+                const dData = d.data() as any;
+                ownerUidToTry = typeof dData?.ownerUid === 'string' ? dData.ownerUid.trim() : '';
+              }
+
+              debug.ownerUidPresent = Boolean(ownerUidToTry);
+
+              if (ownerUidToTry) {
+                let ownerEmail = '';
+                try {
+                  const ownerUser = await auth.getUser(ownerUidToTry);
+                  ownerEmail = typeof ownerUser?.email === 'string' ? ownerUser.email.trim() : '';
+                } catch (e) {
+                  debug.ownerEmailLookupError = (e as any)?.message || String(e);
+                }
+
+                debug.ownerEmailPresent = Boolean(ownerEmail);
+
+                if (ownerEmail) {
+                  const byOwnerEmail = await findStripeCustomerIdByEmail(ownerEmail);
+                  debug.ownerCustomerLookupByEmailCount = (byOwnerEmail as any)?.lookupCount ?? 0;
+                  debug.ownerCustomerSearchByEmailCount = (byOwnerEmail as any)?.searchCount ?? 0;
+                  debug.ownerCustomerSearchByEmailError = (byOwnerEmail as any)?.searchError ?? null;
+                  if (byOwnerEmail?.id) {
+                    stripeCustomerId = byOwnerEmail.id;
+                    await profileRef.set({ stripeCustomerId }, { merge: true });
+                    debug.restoredFrom = 'owner_email';
+                  }
+                }
+              }
+            } catch (e) {
+              debug.adminOwnerFallbackError = (e as any)?.message || String(e);
+            }
+          }
+
           if (!stripeCustomerId) {
             return NextResponse.json(
               {
@@ -305,12 +388,6 @@ export async function POST(req: NextRequest) {
               { status: 400 }
             );
           }
-        }
-
-        if (!stripeCustomerId) {
-          stripeCustomerId = found.id;
-          await profileRef.set({ stripeCustomerId }, { merge: true });
-          debug.restoredFrom = debug.restoredFrom || 'email';
         }
       }
     }
