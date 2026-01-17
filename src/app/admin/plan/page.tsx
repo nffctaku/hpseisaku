@@ -77,20 +77,15 @@ export default function PlanPage() {
       });
 
       if (!res.ok) {
-        let msg = "請求情報画面の作成に失敗しました。";
-        try {
-          const data = await res.json();
-          if (data?.error) msg = String(data.error);
-          if (data?.diag) {
-            msg += `\n\nDIAG:\n${JSON.stringify(data.diag, null, 2)}`;
+        if (process.env.NODE_ENV !== "production") {
+          try {
+            const data = await res.json();
+            console.error("[create-portal-session] failed", data);
+          } catch {
+            // ignore
           }
-          if (data?.debug && process.env.NODE_ENV !== "production") {
-            msg += `\n\nDEBUG:\n${JSON.stringify(data.debug, null, 2)}`;
-          }
-        } catch {
-          // ignore
         }
-        alert(msg);
+        alert("請求情報の取得に失敗しました。管理者に連絡してください");
         return;
       }
 
