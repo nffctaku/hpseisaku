@@ -53,6 +53,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    let ownerUidHint = '';
+    try {
+      const body = await req.json();
+      ownerUidHint = typeof body?.ownerUid === 'string' ? body.ownerUid.trim() : '';
+    } catch {
+      // ignore (no body)
+    }
+
     const idToken = authHeader.substring('Bearer '.length);
     const decoded = await auth.verifyIdToken(idToken);
     const requesterUid = decoded.uid;
@@ -115,6 +123,33 @@ export async function POST(req: NextRequest) {
     let profileRef = db.collection('club_profiles').doc(requesterUid);
     let profileSnap = await profileRef.get();
     let resolvedBy: 'doc_id' | 'ownerUid' | 'admins' | 'none' = 'doc_id';
+
+    // If the client provides an ownerUid hint, prefer it (after verifying access)
+    if (ownerUidHint && ownerUidHint !== requesterUid) {
+      try {
+        const hintedRef = db.collection('club_profiles').doc(ownerUidHint);
+        const hintedSnap = await hintedRef.get();
+        if (hintedSnap.exists) {
+          const hintedData = hintedSnap.data() as any;
+          const hintedAdmins = Array.isArray(hintedData?.admins) ? hintedData.admins : [];
+          const hintedOwnerUid = typeof hintedData?.ownerUid === 'string' ? hintedData.ownerUid.trim() : '';
+          const allowed = hintedSnap.id === ownerUidHint && (hintedOwnerUid === ownerUidHint || hintedOwnerUid === '')
+            ? hintedAdmins.includes(requesterUid)
+            : hintedAdmins.includes(requesterUid);
+
+          // Owner himself is always allowed
+          const ownerAllowed = ownerUidHint === requesterUid;
+
+          if (ownerAllowed || allowed) {
+            profileRef = hintedRef;
+            profileSnap = hintedSnap;
+            resolvedBy = 'ownerUid';
+          }
+        }
+      } catch (e) {
+        console.warn('[create-portal-session] failed to use ownerUid hint', e);
+      }
+    }
 
     if (!profileSnap.exists) {
       try {
@@ -277,6 +312,7 @@ export async function POST(req: NextRequest) {
       return {
         deploySha: process.env.VERCEL_GIT_COMMIT_SHA || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || undefined,
         requesterUid,
+        ownerUidHint: ownerUidHint || null,
         profileDocId: (profileSnap as any)?.id,
         resolvedBy,
         stripeKeyType,

@@ -73,6 +73,7 @@ export default function PlanPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
+        body: JSON.stringify({ ownerUid: (user as any)?.ownerUid || user?.uid }),
       });
 
       if (!res.ok) {
