@@ -190,9 +190,9 @@ export async function POST(req: NextRequest) {
         hasStripeCustomerIdInProfile: Boolean(stripeCustomerId),
         hasCheckoutSessionCache: Boolean((debug as any).hasCheckoutSessionCache),
         checkoutSessionIdPresent: Boolean((debug as any).checkoutSessionIdPresent),
-        customerLookupByEmailCount: (debug as any).customerLookupByEmailCount ?? undefined,
-        customerSearchByEmailCount: (debug as any).customerSearchByEmailCount ?? undefined,
-        customerSearchByEmailError: (debug as any).customerSearchByEmailError ?? undefined,
+        customerLookupByEmailCount: (debug as any).customerLookupByEmailCount ?? null,
+        customerSearchByEmailCount: (debug as any).customerSearchByEmailCount ?? null,
+        customerSearchByEmailError: (debug as any).customerSearchByEmailError ?? null,
       };
     };
 
@@ -235,6 +235,8 @@ export async function POST(req: NextRequest) {
         const customers = await stripe.customers.list({ email, limit: 1 });
         let found = customers.data?.[0];
         debug.customerLookupByEmailCount = Array.isArray(customers.data) ? customers.data.length : 0;
+        debug.customerSearchByEmailCount = 0;
+        debug.customerSearchByEmailError = null;
 
         // Fallback: Search API tends to be more reliable than list-by-email for some Stripe data shapes.
         if (!found?.id) {
