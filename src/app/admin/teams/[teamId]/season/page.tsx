@@ -7,12 +7,23 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 interface Season {
   id: string;
   isPublic?: boolean;
 }
+
+const generateSeasonOptions = (): string[] => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const start = month >= 7 ? year : year - 1;
+  const out: string[] = [];
+  for (let y = start; y >= start - 20; y -= 1) {
+    out.push(`${y}/${String((y + 1) % 100).padStart(2, "0")}`);
+  }
+  return out;
+};
 
 export default function TeamSeasonSelectPage() {
   const { user } = useAuth();
@@ -28,6 +39,8 @@ export default function TeamSeasonSelectPage() {
   const [selectedSeason, setSelectedSeason] = useState<string>("");
   const [newSeasonId, setNewSeasonId] = useState<string>("");
   const [creating, setCreating] = useState(false);
+
+  const seasonOptions = useMemo(() => generateSeasonOptions(), []);
 
   useEffect(() => {
     if (!clubUid) return;
@@ -98,12 +111,18 @@ export default function TeamSeasonSelectPage() {
         <div className="mt-6 space-y-3">
           <div className="text-sm text-muted-foreground">シーズンが未作成です。まずシーズンを作成してください。</div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Input
-              value={newSeasonId}
-              onChange={(e) => setNewSeasonId(e.target.value)}
-              placeholder="例: 2025/26"
-              className="bg-white text-gray-900"
-            />
+            <Select value={newSeasonId} onValueChange={setNewSeasonId}>
+              <SelectTrigger className="w-full sm:w-[240px] bg-white text-gray-900">
+                <SelectValue placeholder="作成するシーズンを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {seasonOptions.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button type="button" onClick={handleCreateSeason} disabled={!canCreate} className="whitespace-nowrap">
               シーズン作成
             </Button>
