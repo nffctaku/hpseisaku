@@ -162,6 +162,18 @@ export async function POST(req: NextRequest) {
       hasEmail: Boolean(email),
     };
 
+    const publicDiag = () => {
+      return {
+        requesterUid,
+        profileDocId: (profileSnap as any)?.id,
+        resolvedBy,
+        hasStripeCustomerIdInProfile: Boolean(stripeCustomerId),
+        hasCheckoutSessionCache: Boolean((debug as any).hasCheckoutSessionCache),
+        checkoutSessionIdPresent: Boolean((debug as any).checkoutSessionIdPresent),
+        customerLookupByEmailCount: (debug as any).customerLookupByEmailCount ?? undefined,
+      };
+    };
+
     if (!stripeCustomerId) {
       // 1) Most reliable recovery: restore from cached checkout session (if exists)
       try {
@@ -190,6 +202,8 @@ export async function POST(req: NextRequest) {
           return NextResponse.json(
             {
               error: 'Stripe customer information is not available for this user (missing stripeCustomerId and email).',
+              code: 'missing_stripe_customer_and_email',
+              diag: publicDiag(),
               ...(process.env.NODE_ENV !== 'production' ? { debug } : {}),
             },
             { status: 400 }
@@ -203,6 +217,8 @@ export async function POST(req: NextRequest) {
           return NextResponse.json(
             {
               error: 'Stripe customer information is not available for this user.',
+              code: 'missing_stripe_customer',
+              diag: publicDiag(),
               ...(process.env.NODE_ENV !== 'production' ? { debug } : {}),
             },
             { status: 400 }

@@ -80,6 +80,9 @@ export default function PlanPage() {
         try {
           const data = await res.json();
           if (data?.error) msg = String(data.error);
+          if (data?.diag) {
+            msg += `\n\nDIAG:\n${JSON.stringify(data.diag, null, 2)}`;
+          }
           if (data?.debug && process.env.NODE_ENV !== "production") {
             msg += `\n\nDEBUG:\n${JSON.stringify(data.debug, null, 2)}`;
           }
