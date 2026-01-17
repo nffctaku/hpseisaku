@@ -165,6 +165,50 @@ export async function POST(req: NextRequest) {
     };
     let stripeCustomerId = profileData?.stripeCustomerId;
 
+    // If doc_id profile exists but is missing club context, prefer a related profile (admins / owner)
+    // so we can recover billing information from the authoritative club profile.
+    if (
+      profileSnap.exists &&
+      !stripeCustomerId &&
+      (!profileData?.clubId || !profileData?.ownerUid)
+    ) {
+      try {
+        const adminSnap = await db
+          .collection('club_profiles')
+          .where('admins', 'array-contains', requesterUid)
+          .limit(10)
+          .get();
+
+        // Prefer one that already has stripeCustomerId; else prefer one with clubId/ownerUid.
+        let best: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+        for (const d of adminSnap.docs) {
+          const dData = d.data() as any;
+          const hasCid = typeof dData?.stripeCustomerId === 'string' && dData.stripeCustomerId.trim();
+          const hasClub = typeof dData?.clubId === 'string' && dData.clubId.trim();
+          const hasOwner = typeof dData?.ownerUid === 'string' && dData.ownerUid.trim();
+          if (hasCid) {
+            best = d;
+            break;
+          }
+          if (!best && hasClub && hasOwner) {
+            best = d;
+          }
+        }
+
+        if (best) {
+          profileRef = best.ref;
+          profileSnap = best;
+          profileData = best.data() as any;
+          stripeCustomerId = typeof (profileData as any)?.stripeCustomerId === 'string'
+            ? String((profileData as any).stripeCustomerId).trim()
+            : undefined;
+          resolvedBy = 'admins';
+        }
+      } catch (e) {
+        console.warn('[create-portal-session] failed to prefer admins profile over doc_id profile', e);
+      }
+    }
+
     // If the profile we resolved does not have stripeCustomerId, try to find another related profile
     // (e.g. admin user has their own club_profiles doc without billing info, while owner's doc has it).
     if (!stripeCustomerId) {
@@ -246,6 +290,13 @@ export async function POST(req: NextRequest) {
         clubIdPresent: (debug as any).clubIdPresent ?? null,
         clubProfilesByClubIdCount: (debug as any).clubProfilesByClubIdCount ?? null,
         clubIdLookupError: (debug as any).clubIdLookupError ?? null,
+        adminProfilesCount: (debug as any).adminProfilesCount ?? null,
+        ownerUidPresent: (debug as any).ownerUidPresent ?? null,
+        ownerEmailPresent: (debug as any).ownerEmailPresent ?? null,
+        ownerCustomerLookupByEmailCount: (debug as any).ownerCustomerLookupByEmailCount ?? null,
+        ownerCustomerSearchByEmailCount: (debug as any).ownerCustomerSearchByEmailCount ?? null,
+        ownerCustomerSearchByEmailError: (debug as any).ownerCustomerSearchByEmailError ?? null,
+        adminOwnerFallbackError: (debug as any).adminOwnerFallbackError ?? null,
         restoredFrom: (debug as any).restoredFrom ?? null,
       };
     };
