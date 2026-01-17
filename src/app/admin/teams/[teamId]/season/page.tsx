@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, doc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Season {
   id: string;
@@ -25,6 +26,8 @@ export default function TeamSeasonSelectPage() {
 
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>("");
+  const [newSeasonId, setNewSeasonId] = useState<string>("");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     if (!clubUid) return;
@@ -41,7 +44,37 @@ export default function TeamSeasonSelectPage() {
     });
   }, [clubUid]);
 
+  useEffect(() => {
+    if (newSeasonId.trim()) return;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const start = month >= 7 ? year : year - 1;
+    setNewSeasonId(`${start}/${String((start + 1) % 100).padStart(2, "0")}`);
+  }, [newSeasonId]);
+
   const canContinue = useMemo(() => selectedSeason.trim().length > 0, [selectedSeason]);
+  const canCreate = useMemo(() => newSeasonId.trim().length > 0 && !creating, [newSeasonId, creating]);
+
+  const handleCreateSeason = async () => {
+    if (!clubUid) return;
+    const id = newSeasonId.trim();
+    if (!id) return;
+    setCreating(true);
+    try {
+      const ref = doc(db, `clubs/${clubUid}/seasons`, id);
+      await setDoc(ref, { createdAt: serverTimestamp() } as any, { merge: true });
+      const seasonsColRef = collection(db, `clubs/${clubUid}/seasons`);
+      const snapshot = await getDocs(seasonsColRef);
+      const seasonsData = snapshot.docs
+        .map((d) => ({ id: d.id, ...(d.data() as any) } as Season))
+        .sort((a, b) => b.id.localeCompare(a.id));
+      setSeasons(seasonsData);
+      setSelectedSeason(id);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   return (
     <div className="max-w-xl">
@@ -60,6 +93,23 @@ export default function TeamSeasonSelectPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {seasons.length === 0 ? (
+        <div className="mt-6 space-y-3">
+          <div className="text-sm text-muted-foreground">シーズンが未作成です。まずシーズンを作成してください。</div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              value={newSeasonId}
+              onChange={(e) => setNewSeasonId(e.target.value)}
+              placeholder="例: 2025/26"
+              className="bg-white text-gray-900"
+            />
+            <Button type="button" onClick={handleCreateSeason} disabled={!canCreate} className="whitespace-nowrap">
+              シーズン作成
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-6 flex flex-col gap-2 sm:flex-row">
         <Button
