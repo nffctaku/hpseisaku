@@ -112,7 +112,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let profileData = profileSnap.data() as { stripeCustomerId?: string; ownerUid?: string; admins?: string[] };
+    let profileData = profileSnap.data() as {
+      stripeCustomerId?: string;
+      ownerUid?: string;
+      admins?: string[];
+      clubId?: string;
+    };
     let stripeCustomerId = profileData?.stripeCustomerId;
 
     // If the profile we resolved does not have stripeCustomerId, try to find another related profile
@@ -254,20 +259,55 @@ export async function POST(req: NextRequest) {
         }
 
         if (!found?.id) {
-          return NextResponse.json(
-            {
-              error: 'Stripe customer information is not available for this user.',
-              code: 'missing_stripe_customer',
-              diag: publicDiag(),
-              ...(process.env.NODE_ENV !== 'production' ? { debug } : {}),
-            },
-            { status: 400 }
-          );
+          // Fallback2: resolve from another club_profiles doc with the same clubId.
+          // (This helps when admin users have their own club_profiles doc without billing info.)
+          try {
+            const clubId = typeof profileData?.clubId === 'string' ? profileData.clubId.trim() : '';
+            debug.clubIdPresent = Boolean(clubId);
+            if (clubId) {
+              const snap = await db
+                .collection('club_profiles')
+                .where('clubId', '==', clubId)
+                .limit(20)
+                .get();
+              debug.clubProfilesByClubIdCount = snap.size;
+              for (const d of snap.docs) {
+                const dData = d.data() as any;
+                const cid = typeof dData?.stripeCustomerId === 'string' ? dData.stripeCustomerId.trim() : '';
+                if (cid) {
+                  // Switch to this profile as the billing authority.
+                  profileRef = d.ref;
+                  profileSnap = d;
+                  profileData = dData;
+                  stripeCustomerId = cid;
+                  resolvedBy = 'ownerUid';
+                  debug.restoredFrom = 'clubId_profile';
+                  break;
+                }
+              }
+            }
+          } catch (e) {
+            debug.clubIdLookupError = (e as any)?.message || String(e);
+          }
+
+          if (!stripeCustomerId) {
+            return NextResponse.json(
+              {
+                error: 'Stripe customer information is not available for this user.',
+                code: 'missing_stripe_customer',
+                diag: publicDiag(),
+                ...(process.env.NODE_ENV !== 'production' ? { debug } : {}),
+              },
+              { status: 400 }
+            );
+          }
         }
 
-        stripeCustomerId = found.id;
-        await profileRef.set({ stripeCustomerId }, { merge: true });
-        debug.restoredFrom = debug.restoredFrom || 'email';
+        if (!stripeCustomerId) {
+          stripeCustomerId = found.id;
+          await profileRef.set({ stripeCustomerId }, { merge: true });
+          debug.restoredFrom = debug.restoredFrom || 'email';
+        }
       }
     }
 
