@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, deleteField } from "firebase/firestore";
+import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, deleteField, getDocs, where, limit, setDoc, getDoc } from "firebase/firestore";
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from "next/navigation";
@@ -259,7 +259,32 @@ export default function TeamsPage() {
         toast.success("チームを更新しました。");
       } else {
         const teamsColRef = collection(db, `clubs/${clubUid}/teams`);
-        await addDoc(teamsColRef, processedValues);
+        const creatingFirstTeam = teams.length === 0;
+        const created = await addDoc(teamsColRef, processedValues);
+
+        if (creatingFirstTeam) {
+          try {
+            const clubProfileByUidRef = doc(db, 'club_profiles', clubUid);
+            const byUidSnap = await getDoc(clubProfileByUidRef);
+            const hasMainTeamByUid = byUidSnap.exists() ? Boolean((byUidSnap.data() as any)?.mainTeamId) : false;
+
+            const byOwnerQuery = query(collection(db, 'club_profiles'), where('ownerUid', '==', clubUid), limit(1));
+            const ownerSnap = await getDocs(byOwnerQuery);
+            const ownerDocRef = ownerSnap.empty ? null : ownerSnap.docs[0].ref;
+            const hasMainTeamByOwner = ownerSnap.empty ? false : Boolean((ownerSnap.docs[0].data() as any)?.mainTeamId);
+
+            if (!hasMainTeamByUid && !hasMainTeamByOwner) {
+              const payload = { ownerUid: clubUid, mainTeamId: created.id };
+              await setDoc(clubProfileByUidRef, payload, { merge: true });
+              if (ownerDocRef && ownerDocRef.id !== clubUid) {
+                await setDoc(ownerDocRef, payload, { merge: true });
+              }
+            }
+          } catch (e) {
+            console.warn('[AdminTeamsPage] failed to auto-set mainTeamId', e);
+          }
+        }
+
         toast.success("新しいチームを追加しました。");
       }
       setIsDialogOpen(false);
