@@ -7,6 +7,7 @@ export function SlotButton({
   active,
   label,
   player,
+  positionColorClass,
   options,
   onClick,
   onAssign,
@@ -15,6 +16,7 @@ export function SlotButton({
   active: boolean;
   label: string;
   player: BookletPlayer | null;
+  positionColorClass: string;
   options: BookletPlayer[];
   onClick: () => void;
   onAssign: (playerId: string | null) => void;
@@ -64,7 +66,7 @@ export function SlotButton({
             <option value="">未選択</option>
             {options.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name}
+                {(p.number != null ? String(p.number) : "-") + " " + p.name}
               </option>
             ))}
           </select>
@@ -74,7 +76,7 @@ export function SlotButton({
       {player ? (
         <div className="mt-6 pointer-events-none">
           <div className="origin-top-left scale-[0.78]">
-            <BookletPlayerCard player={player} positionColorClass="bg-blue-300" />
+            <BookletPlayerCard player={player} positionColorClass={positionColorClass} />
           </div>
         </div>
       ) : (

@@ -11,6 +11,7 @@ import { BookletGlobalStyles } from "../../components/BookletGlobalStyles";
 import { ProPlanNotice } from "../../components/ProPlanNotice";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { PrintPageLayout } from "./components/PrintPageLayout";
+import { formations } from "@/lib/formations";
 
 type StatRow = {
   season: string;
@@ -43,6 +44,14 @@ type LayoutState = {
   extras: string[];
   leagueCompetitionName: string | null;
   cups: CupRow[];
+  formationName: string | null;
+  starters: Record<string, string | null>;
+  positionColors: {
+    GK: string;
+    DF: string;
+    MF: string;
+    FW: string;
+  };
 };
 
 function createEmptyLayout(): LayoutState {
@@ -54,6 +63,14 @@ function createEmptyLayout(): LayoutState {
     extras: [],
     leagueCompetitionName: null,
     cups: Array.from({ length: 2 }).map(() => ({ tournament: "", result: "" })),
+    formationName: "4-4-2",
+    starters: {},
+    positionColors: {
+      GK: "bg-rose-300",
+      DF: "bg-blue-300",
+      MF: "bg-green-300",
+      FW: "bg-orange-300",
+    },
   };
 }
 
@@ -89,10 +106,19 @@ function isLayoutEmpty(layout: LayoutState): boolean {
     !Array.isArray(layout.cups) ||
     layout.cups.length === 0 ||
     layout.cups.every((c) => !String(c?.tournament || "").trim() && !String(c?.result || "").trim());
-  return slotsEmpty && extrasEmpty && leagueEmpty && cupsEmpty;
+  const startersEmpty =
+    !layout.starters ||
+    typeof layout.starters !== "object" ||
+    Object.values(layout.starters).every((v) => !String(v || "").trim());
+  const defaultFormation = createEmptyLayout().formationName;
+  const formationEmpty = !String(layout.formationName || "").trim() || String(layout.formationName || "").trim() === defaultFormation;
+  return slotsEmpty && extrasEmpty && leagueEmpty && cupsEmpty && startersEmpty && formationEmpty;
 }
 
-function createDefaultLayout(playerIds: string[], seed?: Pick<LayoutState, "extras" | "leagueCompetitionName" | "cups">): LayoutState {
+function createDefaultLayout(
+  playerIds: string[],
+  seed?: Pick<LayoutState, "extras" | "leagueCompetitionName" | "cups" | "positionColors">
+): LayoutState {
   const base = createEmptyLayout();
   for (let i = 0; i < 15; i++) base.slots[`r${i}` as SlotKey] = playerIds[i] ?? null;
   for (let i = 0; i < 9; i++) base.slots[`l${i}` as SlotKey] = playerIds[15 + i] ?? null;
@@ -100,6 +126,7 @@ function createDefaultLayout(playerIds: string[], seed?: Pick<LayoutState, "extr
     base.extras = Array.isArray(seed.extras) ? seed.extras.slice(0, 5) : [];
     base.leagueCompetitionName = seed.leagueCompetitionName || null;
     base.cups = Array.isArray(seed.cups) ? seed.cups.slice(0, base.cups.length) : base.cups;
+    base.positionColors = seed.positionColors || base.positionColors;
   }
   return base;
 }
@@ -224,6 +251,25 @@ export default function TeamBookletA3PrintPage() {
           while (mapped.length < defaults.length) mapped.push({ tournament: "", result: "" });
           return mapped;
         })(),
+        formationName:
+          typeof (parsed as any).formationName === "string" && String((parsed as any).formationName).trim().length > 0
+            ? String((parsed as any).formationName).trim()
+            : createEmptyLayout().formationName,
+        starters: (() => {
+          const raw = (parsed as any).starters;
+          return raw && typeof raw === "object" ? (raw as any) : {};
+        })(),
+        positionColors: (() => {
+          const d = (createEmptyLayout() as any).positionColors;
+          const raw = (parsed as any).positionColors;
+          if (!raw || typeof raw !== "object") return d;
+          return {
+            GK: typeof raw.GK === "string" ? raw.GK : d.GK,
+            DF: typeof raw.DF === "string" ? raw.DF : d.DF,
+            MF: typeof raw.MF === "string" ? raw.MF : d.MF,
+            FW: typeof raw.FW === "string" ? raw.FW : d.FW,
+          };
+        })(),
       });
       setLayoutSource("saved");
     } catch {
@@ -238,8 +284,84 @@ export default function TeamBookletA3PrintPage() {
       extras: layout.extras,
       leagueCompetitionName: layout.leagueCompetitionName,
       cups: layout.cups,
+      positionColors: layout.positionColors,
     });
   }, [layout, layoutSource, players]);
+
+  const getPositionColor = (position: string) => {
+    const pos = (position || "").toUpperCase();
+    const pc = (resolvedLayout as any).positionColors || (createEmptyLayout() as any).positionColors;
+    if (pos.includes("GK") || pos.includes("ゴールキーパー") || pos.includes("キーパー")) return pc.GK;
+    if (
+      pos.includes("DF") ||
+      pos.includes("ディフェンダー") ||
+      pos.includes("ディフェンス") ||
+      pos.includes("CB") ||
+      pos.includes("LB") ||
+      pos.includes("RB") ||
+      pos.includes("SB") ||
+      pos.includes("センターバック") ||
+      pos.includes("レフトバック") ||
+      pos.includes("ライトバック")
+    )
+      return pc.DF;
+    if (
+      pos.includes("MF") ||
+      pos.includes("ミッドフィルダー") ||
+      pos.includes("ミッドフィールド") ||
+      pos.includes("CM") ||
+      pos.includes("DM") ||
+      pos.includes("AM") ||
+      pos.includes("LM") ||
+      pos.includes("RM") ||
+      pos.includes("センターミッドフィルダー") ||
+      pos.includes("ディフェンシブミッドフィルダー") ||
+      pos.includes("アタッキングミッドフィルダー") ||
+      pos.includes("サイドミッドフィルダー")
+    )
+      return pc.MF;
+    if (
+      pos.includes("FW") ||
+      pos.includes("フォワード") ||
+      pos.includes("ストライカー") ||
+      pos.includes("ST") ||
+      pos.includes("CF") ||
+      pos.includes("LW") ||
+      pos.includes("RW") ||
+      pos.includes("センターフォワード") ||
+      pos.includes("ウインガー")
+    )
+      return pc.FW;
+    return "bg-gray-300";
+  };
+
+  const formation = useMemo(() => {
+    const name = String(resolvedLayout.formationName || "").trim();
+    return formations.find((f) => f.name === name) || formations[0];
+  }, [resolvedLayout.formationName]);
+
+  const formationStartersByPosition = useMemo(() => {
+    const out: Record<string, { id: string; number: string; name: string; photoUrl?: string } | null> = {};
+    for (const pos of formation.positions) {
+      const pid = (resolvedLayout.starters || {})[pos.id] || null;
+      if (!pid) {
+        out[pos.id] = null;
+        continue;
+      }
+      const p = playersById.get(pid) || null;
+      if (!p) {
+        out[pos.id] = null;
+        continue;
+      }
+      out[pos.id] = {
+        id: p.id,
+        number: p.number != null ? String(p.number) : "-",
+        name: p.name,
+        ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}),
+      };
+    }
+    return out;
+  }, [formation.positions, playersById, resolvedLayout.starters]);
 
   const rightCards = useMemo(() => {
     return Array.from({ length: 15 }).map((_, i) => {
@@ -389,10 +511,18 @@ export default function TeamBookletA3PrintPage() {
           teamBio={teamBio}
           formationPlayers={[...rightCards, ...leftCards]
             .filter((p): p is BookletResponse["players"][number] => !!p)
-            .map((p) => ({ name: p.name, photoUrl: p.photoUrl }))}
+            .map((p) => ({
+              id: p.id,
+              number: p.number != null ? String(p.number) : "-",
+              name: p.name,
+              ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}),
+            }))}
+          formationName={formation.name}
+          formationStartersByPosition={formationStartersByPosition}
           leftCards={leftCards}
           rightCards={rightCards}
           additionalPlayers={additionalPlayers}
+          getPositionColor={getPositionColor}
           stats={stats}
           cups={cups}
           transfers={transfers}

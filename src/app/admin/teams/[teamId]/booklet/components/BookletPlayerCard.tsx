@@ -34,13 +34,20 @@ export function BookletPlayerCard({
               {((player.position || "").toUpperCase().match(/^(FW|MF|DF|GK)$/)?.[1] as any) || ""}
             </div>
           </div>
-          <div
-            className={`${
-              isAlphabetName(player.name) ? "booklet-vertical-name-mixed" : "booklet-vertical-name"
-            } text-[10px] font-black tracking-wide leading-none mt-auto font-source-han`}
-          >
-            {player.name}
-          </div>
+          {isAlphabetName(player.name) ? (
+            <div className="relative mt-auto w-full flex-1 overflow-visible">
+              <span
+                className="text-[10px] font-black tracking-wide leading-none font-source-han"
+                style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%) rotate(-90deg)", transformOrigin: "center", whiteSpace: "nowrap", zIndex: 10 }}
+              >
+                {player.name}
+              </span>
+            </div>
+          ) : (
+            <div className="booklet-vertical-name text-[10px] font-black tracking-wide leading-none mt-auto font-source-han">
+              {player.name}
+            </div>
+          )}
         </div>
 
         <div className="relative bg-gray-200 h-full">

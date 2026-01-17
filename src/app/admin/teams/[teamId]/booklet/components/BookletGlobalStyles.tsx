@@ -28,8 +28,10 @@ export function BookletGlobalStyles({ paper }: { paper: "a4" | "a3_landscape" })
       }
 
       .booklet-vertical-name-mixed {
-        writing-mode: vertical-rl;
-        text-orientation: mixed;
+        writing-mode: horizontal-tb;
+        transform: rotate(-90deg) translateX(-2px);
+        transform-origin: left center;
+        white-space: nowrap;
       }
 
       .booklet-color-strip {

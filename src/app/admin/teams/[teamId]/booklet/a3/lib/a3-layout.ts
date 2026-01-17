@@ -12,6 +12,14 @@ type LayoutState = {
   extras: string[];
   leagueCompetitionName: string | null;
   cups: CupRow[];
+  formationName: string | null;
+  starters: Record<string, string | null>;
+  positionColors: {
+    GK: string;
+    DF: string;
+    MF: string;
+    FW: string;
+  };
 };
 
 export function createEmptyLayout(): LayoutState {
@@ -23,6 +31,14 @@ export function createEmptyLayout(): LayoutState {
     extras: [],
     leagueCompetitionName: null,
     cups: Array.from({ length: 2 }).map(() => ({ tournament: "", result: "" })),
+    formationName: "4-4-2",
+    starters: {},
+    positionColors: {
+      GK: "bg-rose-300",
+      DF: "bg-blue-300",
+      MF: "bg-green-300",
+      FW: "bg-orange-300",
+    },
   };
 }
 

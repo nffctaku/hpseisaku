@@ -12,6 +12,7 @@ import { PreviewPanel } from "./components/PreviewPanel";
 import { createEmptyLayout, last5Seasons } from "./lib/a3-layout";
 import { useLeagueCompetitions } from "./hooks/useLeagueCompetitions";
 import { useLeagueStats } from "./hooks/useLeagueStats";
+import { formations } from "@/lib/formations";
 
 type SlotKey = `l${number}` | `r${number}`;
 
@@ -22,6 +23,14 @@ type LayoutState = {
   extras: string[];
   leagueCompetitionName: string | null;
   cups: CupRow[];
+  formationName: string | null;
+  starters: Record<string, string | null>;
+  positionColors: {
+    GK: string;
+    DF: string;
+    MF: string;
+    FW: string;
+  };
 };
 
 type StatRow = {
@@ -65,20 +74,33 @@ export default function TeamBookletA3EditorPage() {
     return `booklet_a3_layout_${teamId}_${season}`;
   }, [teamId, season]);
 
+  const activeFormationPosStorageKey = useMemo(() => {
+    if (!teamId || !season) return "";
+    return `booklet_a3_active_pos_${teamId}_${season}`;
+  }, [teamId, season]);
+
   const [layout, setLayout] = useState<LayoutState>(() => createEmptyLayout());
   const [activeSlot, setActiveSlot] = useState<ActiveKey>("r0");
+  const [activeFormationPosId, setActiveFormationPosId] = useState<string | null>(null);
+  const [hasLoadedLayout, setHasLoadedLayout] = useState(false);
+  const [layoutSource, setLayoutSource] = useState<"saved" | "empty">("empty");
+  const [didAutoFillSlots, setDidAutoFillSlots] = useState(false);
 
   useEffect(() => {
     if (!storageKey) return;
     const saved = localStorage.getItem(storageKey);
     if (!saved) {
       setLayout(createEmptyLayout());
+      setLayoutSource("empty");
+      setHasLoadedLayout(true);
       return;
     }
     try {
       const parsed = JSON.parse(saved) as LayoutState;
       if (!parsed || typeof parsed !== "object" || !parsed.slots || typeof parsed.slots !== "object") {
         setLayout(createEmptyLayout());
+        setLayoutSource("empty");
+        setHasLoadedLayout(true);
         return;
       }
       const normalizedCups = (() => {
@@ -107,16 +129,40 @@ export default function TeamBookletA3EditorPage() {
             ? String((parsed as any).leagueCompetitionName).trim()
             : null,
         cups: normalizedCups,
+        formationName:
+          typeof (parsed as any).formationName === "string" && String((parsed as any).formationName).trim().length > 0
+            ? String((parsed as any).formationName).trim()
+            : createEmptyLayout().formationName,
+        starters: (() => {
+          const raw = (parsed as any).starters;
+          return raw && typeof raw === "object" ? (raw as any) : {};
+        })(),
+        positionColors: (() => {
+          const d = (createEmptyLayout() as any).positionColors;
+          const raw = (parsed as any).positionColors;
+          if (!raw || typeof raw !== "object") return d;
+          return {
+            GK: typeof raw.GK === "string" ? raw.GK : d.GK,
+            DF: typeof raw.DF === "string" ? raw.DF : d.DF,
+            MF: typeof raw.MF === "string" ? raw.MF : d.MF,
+            FW: typeof raw.FW === "string" ? raw.FW : d.FW,
+          };
+        })(),
       });
+      setLayoutSource("saved");
+      setHasLoadedLayout(true);
     } catch {
       setLayout(createEmptyLayout());
+      setLayoutSource("empty");
+      setHasLoadedLayout(true);
     }
   }, [storageKey]);
 
   useEffect(() => {
     if (!storageKey) return;
+    if (!hasLoadedLayout) return;
     localStorage.setItem(storageKey, JSON.stringify(layout));
-  }, [layout, storageKey]);
+  }, [hasLoadedLayout, layout, storageKey]);
 
   useEffect(() => {
     const run = async () => {
@@ -169,6 +215,34 @@ export default function TeamBookletA3EditorPage() {
     });
   }, [data]);
 
+  useEffect(() => {
+    if (!hasLoadedLayout) return;
+    if (layoutSource !== "empty") return;
+    if (didAutoFillSlots) return;
+    if (!data) return;
+
+    const slotValues = Object.values(layout.slots || {});
+    const slotsAlreadyFilled = slotValues.some((v) => !!String(v || "").trim());
+    if (slotsAlreadyFilled) {
+      setDidAutoFillSlots(true);
+      return;
+    }
+
+    const ids = players.map((p) => p.id);
+    if (ids.length === 0) return;
+
+    setLayout((prev) => {
+      const nextSlots: Record<SlotKey, string | null> = { ...(prev.slots as any) };
+      for (let i = 0; i < 15; i++) nextSlots[`r${i}` as SlotKey] = ids[i] ?? null;
+      for (let i = 0; i < 9; i++) nextSlots[`l${i}` as SlotKey] = ids[15 + i] ?? null;
+      return {
+        ...prev,
+        slots: nextSlots,
+      };
+    });
+    setDidAutoFillSlots(true);
+  }, [data, didAutoFillSlots, hasLoadedLayout, layout.slots, layoutSource, players]);
+
   const playersById = useMemo(() => {
     const m = new Map<string, BookletPlayer>();
     for (const p of players) m.set(p.id, p);
@@ -183,11 +257,124 @@ export default function TeamBookletA3EditorPage() {
     layout.extras.forEach((id) => {
       if (id) selected.add(id);
     });
+    Object.values(layout.starters || {}).forEach((id) => {
+      if (id) selected.add(id);
+    });
     return selected;
   }, [layout.extras, layout.slots]);
 
+  const formation = useMemo(() => {
+    const name = String(layout.formationName || "").trim();
+    return formations.find((f) => f.name === name) || formations[0];
+  }, [layout.formationName]);
+
+  const padPitchCoord = useMemo(() => {
+    const pad = 7;
+    return (v: number) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 50;
+      const clamped = Math.max(0, Math.min(100, n));
+      return pad + ((100 - 2 * pad) * clamped) / 100;
+    };
+  }, []);
+
+  useEffect(() => {
+    const ids = formation.positions.map((p) => p.id);
+    if (ids.length === 0) {
+      setActiveFormationPosId(null);
+      return;
+    }
+    setActiveFormationPosId((prev) => (prev && ids.includes(prev) ? prev : ids[0]));
+  }, [formation.positions]);
+
+  useEffect(() => {
+    if (!activeFormationPosStorageKey) return;
+    if (!hasLoadedLayout) return;
+    const saved = localStorage.getItem(activeFormationPosStorageKey);
+    const s = String(saved || "").trim();
+    if (!s) return;
+    if (formation.positions.some((p) => p.id === s)) {
+      setActiveFormationPosId(s);
+    }
+  }, [activeFormationPosStorageKey, formation.positions, hasLoadedLayout]);
+
+  useEffect(() => {
+    if (!activeFormationPosStorageKey) return;
+    if (!hasLoadedLayout) return;
+    if (!activeFormationPosId) return;
+    localStorage.setItem(activeFormationPosStorageKey, activeFormationPosId);
+  }, [activeFormationPosId, activeFormationPosStorageKey, hasLoadedLayout]);
+
+  const getAvailableStarters = (currentId: string | null) => {
+    const inStarters = new Set<string>();
+    Object.values(layout.starters || {}).forEach((id) => {
+      if (id) inStarters.add(id);
+    });
+    return players.filter((p) => !inStarters.has(p.id) || p.id === currentId);
+  };
+
   const getAvailablePlayers = (currentId: string | null) => {
     return players.filter((p) => !usedPlayerIds.has(p.id) || p.id === currentId);
+  };
+
+  const colorOptions = useMemo(() => {
+    return [
+      { name: "赤", value: "bg-rose-300" },
+      { name: "青", value: "bg-blue-300" },
+      { name: "緑", value: "bg-green-300" },
+      { name: "オレンジ", value: "bg-orange-300" },
+      { name: "紫", value: "bg-purple-300" },
+      { name: "黄色", value: "bg-yellow-300" },
+      { name: "灰色", value: "bg-gray-300" },
+      { name: "ピンク", value: "bg-pink-300" },
+    ];
+  }, []);
+
+  const getPositionColor = (position: string) => {
+    const pos = (position || "").toUpperCase();
+    const pc = (layout as any).positionColors || (createEmptyLayout() as any).positionColors;
+    if (pos.includes("GK") || pos.includes("ゴールキーパー") || pos.includes("キーパー")) return pc.GK;
+    if (
+      pos.includes("DF") ||
+      pos.includes("ディフェンダー") ||
+      pos.includes("ディフェンス") ||
+      pos.includes("CB") ||
+      pos.includes("LB") ||
+      pos.includes("RB") ||
+      pos.includes("SB") ||
+      pos.includes("センターバック") ||
+      pos.includes("レフトバック") ||
+      pos.includes("ライトバック")
+    )
+      return pc.DF;
+    if (
+      pos.includes("MF") ||
+      pos.includes("ミッドフィルダー") ||
+      pos.includes("ミッドフィールド") ||
+      pos.includes("CM") ||
+      pos.includes("DM") ||
+      pos.includes("AM") ||
+      pos.includes("LM") ||
+      pos.includes("RM") ||
+      pos.includes("センターミッドフィルダー") ||
+      pos.includes("ディフェンシブミッドフィルダー") ||
+      pos.includes("アタッキングミッドフィルダー") ||
+      pos.includes("サイドミッドフィルダー")
+    )
+      return pc.MF;
+    if (
+      pos.includes("FW") ||
+      pos.includes("フォワード") ||
+      pos.includes("ストライカー") ||
+      pos.includes("ST") ||
+      pos.includes("CF") ||
+      pos.includes("LW") ||
+      pos.includes("RW") ||
+      pos.includes("センターフォワード") ||
+      pos.includes("ウインガー")
+    )
+      return pc.FW;
+    return "bg-gray-300";
   };
 
 
@@ -326,6 +513,187 @@ export default function TeamBookletA3EditorPage() {
         <div className="grid grid-cols-1 gap-6">
           <div className="border rounded-lg bg-white p-4">
             <div className="text-sm font-semibold mb-3">配置（A3横・概略）</div>
+
+            <div className="mb-4 rounded-md border bg-white p-3">
+              <div className="text-sm font-semibold text-gray-900 mb-2">フォーメーション</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="space-y-3">
+                  <label className="text-xs text-gray-700 block">
+                    <div className="font-semibold mb-1">フォーメーション選択</div>
+                    <select
+                      className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                      value={formation.name}
+                      onChange={(e) =>
+                        setLayout((prev) => ({
+                          ...prev,
+                          formationName: e.target.value,
+                        }))
+                      }
+                    >
+                      {formations.map((f) => (
+                        <option key={f.name} value={f.name}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="text-xs text-gray-600">
+                    <div className="font-semibold mb-1">ポジション選択（〇をクリック）</div>
+                    <div className="relative w-full aspect-[16/10] rounded-md overflow-hidden bg-emerald-700 border border-emerald-800">
+                      <svg viewBox="0 0 100 60" className="absolute inset-0 w-full h-full">
+                        <rect x="2" y="2" width="96" height="56" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
+                        <line x1="2" y1="30" x2="98" y2="30" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
+                        <circle cx="50" cy="30" r="6" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
+                        <rect x="38" y="2" width="24" height="10" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
+                        <rect x="42" y="2" width="16" height="5" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
+                        <rect x="38" y="48" width="24" height="10" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
+                        <rect x="42" y="53" width="16" height="5" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
+                      </svg>
+
+                      {formation.positions.map((pos) => {
+                        const isActive = activeFormationPosId === pos.id;
+                        const x = padPitchCoord(pos.coordinates.x);
+                        const y = padPitchCoord(pos.coordinates.y);
+                        return (
+                          <button
+                            key={pos.id}
+                            type="button"
+                            onClick={() => setActiveFormationPosId(pos.id)}
+                            className={
+                              "absolute -translate-x-1/2 -translate-y-1/2 rounded-full border text-[10px] font-semibold px-2 py-1 transition-all " +
+                              (isActive
+                                ? "bg-amber-300 text-emerald-950 border-amber-200 shadow-lg ring-4 ring-white/80 scale-110"
+                                : "bg-white/90 text-emerald-900 border-white/80 shadow-sm hover:scale-105")
+                            }
+                            style={{ left: `${100 - x}%`, top: `${100 - y}%` }}
+                          >
+                            {pos.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2 text-[11px] text-gray-500">
+                      選択中: {formation.positions.find((p) => p.id === activeFormationPosId)?.label || "-"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border bg-white p-3">
+                    <div className="text-xs font-semibold text-gray-700 mb-2">帯の色（ポジション別）</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        ["GK", (layout as any).positionColors?.GK],
+                        ["DF", (layout as any).positionColors?.DF],
+                        ["MF", (layout as any).positionColors?.MF],
+                        ["FW", (layout as any).positionColors?.FW],
+                      ] as Array<["GK" | "DF" | "MF" | "FW", string]>).map(([k, v]) => (
+                        <label key={k} className="flex items-center gap-2">
+                          <span className="w-10 text-[11px] font-semibold text-gray-700">{k}</span>
+                          <select
+                            className="flex-1 border border-gray-300 rounded-md px-2 py-1 text-[11px]"
+                            value={v || (createEmptyLayout() as any).positionColors[k]}
+                            onChange={(e) =>
+                              setLayout((prev) => ({
+                                ...prev,
+                                positionColors: {
+                                  ...(prev as any).positionColors,
+                                  [k]: e.target.value,
+                                },
+                              }))
+                            }
+                          >
+                            {colorOptions.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.name}
+                              </option>
+                            ))}
+                          </select>
+                          <div className={`w-5 h-5 rounded ${v || (createEmptyLayout() as any).positionColors[k]}`} />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2 text-xs text-gray-600">
+                  <div className="font-semibold mb-1">先発11人（選択中ポジションに割当）</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {formation.positions.map((pos) => {
+                      const currentId = (layout.starters || {})[pos.id] || null;
+                      const player = currentId ? playersById.get(currentId) || null : null;
+                      const isActive = activeFormationPosId === pos.id;
+                      return (
+                        <button
+                          key={pos.id}
+                          type="button"
+                          onClick={() => setActiveFormationPosId(pos.id)}
+                          className={
+                            "flex items-center justify-between gap-2 rounded-md border px-2 py-2 text-left transition-colors " +
+                            (isActive ? "border-amber-500 bg-amber-50 ring-2 ring-amber-200" : "border-gray-200 bg-white hover:bg-gray-50")
+                          }
+                        >
+                          <span className="w-10 text-[11px] font-semibold text-gray-700">{pos.label}</span>
+                          <span className="flex-1 text-[11px] text-gray-700 truncate">
+                            {player ? `${player.number != null ? String(player.number) : "-"} ${player.name}` : "未設定"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-3 rounded-md border bg-white p-3">
+                    <div className="text-xs font-semibold text-gray-700 mb-2">割当（選択中）</div>
+                    {(() => {
+                      const pos = formation.positions.find((p) => p.id === activeFormationPosId) || null;
+                      if (!pos) return <div className="text-[11px] text-gray-500">ポジションがありません</div>;
+                      const currentId = (layout.starters || {})[pos.id] || null;
+                      return (
+                        <label className="flex items-center gap-2">
+                          <span className="w-10 text-[11px] font-semibold text-gray-700">{pos.label}</span>
+                          <select
+                            className="flex-1 border border-gray-300 rounded-md px-2 py-1 text-[11px]"
+                            value={currentId || ""}
+                            onChange={(e) => {
+                              const v = String(e.target.value || "").trim();
+                              setLayout((prev) => ({
+                                ...prev,
+                                starters: {
+                                  ...(prev.starters || {}),
+                                  [pos.id]: v || null,
+                                },
+                              }));
+                            }}
+                          >
+                            <option value="">未設定</option>
+                            {getAvailableStarters(currentId).map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {(p.number != null ? String(p.number) : "-") + " " + p.name}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="px-2 py-1 rounded-md border border-gray-300 text-[11px] font-semibold text-gray-700"
+                            onClick={() =>
+                              setLayout((prev) => ({
+                                ...prev,
+                                starters: {
+                                  ...(prev.starters || {}),
+                                  [pos.id]: null,
+                                },
+                              }))
+                            }
+                          >
+                            クリア
+                          </button>
+                        </label>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="relative rounded-md border bg-gray-50 p-3 min-h-[360px] md:min-h-[520px]">
                 <div className="text-xs font-semibold text-gray-600 mb-2">左側（下から3×3 / 9枚）</div>
@@ -335,12 +703,14 @@ export default function TeamBookletA3EditorPage() {
                       const key = `l${i}` as SlotKey;
                       const pid = layout.slots[key];
                       const player = pid ? playersById.get(pid) || null : null;
+                      const pos = player?.mainPosition || player?.position || "";
                       return (
                         <SlotButton
                           key={key}
                           active={activeSlot === key}
                           label={`L${i + 1}`}
                           player={player}
+                          positionColorClass={getPositionColor(pos)}
                           options={getAvailablePlayers(pid || null)}
                           onClick={() => setActiveSlot(key)}
                           onAssign={(playerId) => handleAssignTo(key, playerId)}
@@ -360,12 +730,14 @@ export default function TeamBookletA3EditorPage() {
                       const key = `r${i}` as SlotKey;
                       const pid = layout.slots[key];
                       const player = pid ? playersById.get(pid) || null : null;
+                      const pos = player?.mainPosition || player?.position || "";
                       return (
                         <SlotButton
                           key={key}
                           active={activeSlot === key}
                           label={`R${i + 1}`}
                           player={player}
+                          positionColorClass={getPositionColor(pos)}
                           options={getAvailablePlayers(pid || null)}
                           onClick={() => setActiveSlot(key)}
                           onAssign={(playerId) => handleAssignTo(key, playerId)}
@@ -381,13 +753,15 @@ export default function TeamBookletA3EditorPage() {
                       {Array.from({ length: 5 }).map((_, i) => {
                         const pid = layout.extras[i] || null;
                         const player = pid ? playersById.get(pid) || null : null;
-                        const key = `e${i}`;
+                        const key = `e${i}` as ActiveKey;
+                        const pos = player?.mainPosition || player?.position || "";
                         return (
                           <SlotButton
                             key={key}
                             active={activeSlot === key}
                             label={`E${i + 1}`}
                             player={player}
+                            positionColorClass={getPositionColor(pos)}
                             options={getAvailablePlayers(pid)}
                             onClick={() => setActiveSlot(key)}
                             onAssign={(playerId) => setExtraAt(i, playerId)}

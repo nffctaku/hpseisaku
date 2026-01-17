@@ -24,9 +24,9 @@ export function contractEndLabel(contractEndDate?: string): string {
 export function isAlphabetName(name: string): boolean {
   const s = String(name || "").trim();
   if (!s) return false;
-  // Allow basic latin letters/numbers and common separators.
-  // If it contains any non-ascii letter/number/separator, treat as non-alphabet (keep upright).
-  return /^[A-Za-z0-9 .,'\-]+$/.test(s);
+  // Allow Latin script letters (incl. accented), numbers and common separators.
+  // If it contains non-Latin letters (e.g. Japanese), treat as non-alphabet.
+  return /^[\p{Script=Latin}0-9 .,'\-]+$/u.test(s);
 }
 
 export function getPositionOrder(position: string): number {

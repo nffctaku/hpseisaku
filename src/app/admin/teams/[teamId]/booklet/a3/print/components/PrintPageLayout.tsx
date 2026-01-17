@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import Image from "next/image";
 import type { BookletResponse } from "../../../types";
 import { BookletPlayerCard } from "../../../components/BookletPlayerCard";
+import { formations } from "@/lib/formations";
 
 type StatRow = {
   season: string;
@@ -38,59 +39,97 @@ function NoImageCard() {
 }
 
 function FormationPitch({
-  players,
+  formationName,
+  startersByPosition,
+  fallbackPlayers,
 }: {
-  players: Array<{ name: string; photoUrl?: string }>;
+  formationName: string | null;
+  startersByPosition: Record<string, { id: string; number: string; name: string; photoUrl?: string } | null>;
+  fallbackPlayers: Array<{ id: string; number: string; name: string; photoUrl?: string }>;
 }) {
-  const slots = useMemo(() => {
-    const list = players.slice(0, 11);
-    while (list.length < 11) list.push({ name: "-" });
-    return list;
-  }, [players]);
+  const formation = useMemo(() => {
+    const name = String(formationName || "").trim();
+    return formations.find((f) => f.name === name) || formations[0];
+  }, [formationName]);
 
-  const pos = [
-    { x: 50, y: 88 },
-    { x: 18, y: 70 },
-    { x: 40, y: 70 },
-    { x: 60, y: 70 },
-    { x: 82, y: 70 },
-    { x: 25, y: 50 },
-    { x: 50, y: 50 },
-    { x: 75, y: 50 },
-    { x: 30, y: 28 },
-    { x: 50, y: 22 },
-    { x: 70, y: 28 },
-  ];
+  const padPitchCoord = useMemo(() => {
+    const pad = 7;
+    return (v: number) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 50;
+      const clamped = Math.max(0, Math.min(100, n));
+      return pad + ((100 - 2 * pad) * clamped) / 100;
+    };
+  }, []);
+
+  const slotsByPositionId = useMemo(() => {
+    const out: Record<string, { id: string; number: string; name: string; photoUrl?: string }> = {};
+
+    const used = new Set<string>();
+    for (const pos of formation.positions) {
+      const p = startersByPosition?.[pos.id] || null;
+      if (p) {
+        out[pos.id] = p;
+        used.add(p.id);
+      }
+    }
+
+    const pool = Array.isArray(fallbackPlayers) ? fallbackPlayers : [];
+    let poolIndex = 0;
+    for (const pos of formation.positions) {
+      if (out[pos.id]) continue;
+      while (poolIndex < pool.length && used.has(pool[poolIndex].id)) poolIndex++;
+      if (poolIndex < pool.length) {
+        out[pos.id] = pool[poolIndex];
+        used.add(pool[poolIndex].id);
+        poolIndex++;
+      } else {
+        out[pos.id] = { id: `empty_${pos.id}`, number: "-", name: "-" };
+      }
+    }
+
+    return out;
+  }, [fallbackPlayers, formation.positions, startersByPosition]);
 
   return (
     <div className="rounded-md border bg-white p-3">
       <div className="text-sm font-semibold text-gray-900 mb-2">フォーメーション</div>
       <div className="relative w-full aspect-[16/10] rounded-md overflow-hidden bg-emerald-700">
         <svg viewBox="0 0 100 60" className="absolute inset-0 w-full h-full">
-          <rect x="2" y="2" width="96" height="56" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-          <line x1="50" y1="2" x2="50" y2="58" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-          <circle cx="50" cy="30" r="6" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-          <rect x="38" y="2" width="24" height="10" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-          <rect x="42" y="2" width="16" height="5" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-          <rect x="38" y="48" width="24" height="10" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-          <rect x="42" y="53" width="16" height="5" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
+          <rect x="2" y="2" width="96" height="56" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="0.7" />
+          <line x1="2" y1="30" x2="98" y2="30" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
+          <circle cx="50" cy="30" r="6" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
+          <rect x="38" y="2" width="24" height="10" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
+          <rect x="42" y="2" width="16" height="5" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
+          <rect x="38" y="48" width="24" height="10" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
+          <rect x="42" y="53" width="16" height="5" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
         </svg>
 
-        {slots.map((p, i) => (
+        {formation.positions.map((pos) => {
+          const p = slotsByPositionId[pos.id];
+          const x = padPitchCoord(pos.coordinates.x);
+          const y = padPitchCoord(pos.coordinates.y);
+          return (
           <div
-            key={i}
+            key={pos.id}
             className="absolute -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${pos[i].x}%`, top: `${pos[i].y}%` }}
+            style={{ left: `${100 - x}%`, top: `${100 - y}%` }}
           >
-            <div className="w-10 h-10 rounded-full bg-white/90 border border-white shadow-sm overflow-hidden flex items-center justify-center">
-              {p.photoUrl ? (
-                <Image src={p.photoUrl} alt={p.name} width={40} height={40} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-xs font-bold text-emerald-900">{p.name.slice(0, 1)}</span>
-              )}
+            <div className="flex flex-col items-center">
+              <div className="w-14 h-14 rounded-full bg-white/90 border-2 border-white shadow-md overflow-hidden flex items-center justify-center">
+                {p.photoUrl ? (
+                  <Image src={p.photoUrl} alt={p.name} width={56} height={56} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-sm font-bold text-emerald-900">{p.name.slice(0, 1)}</span>
+                )}
+              </div>
+              <div className="mt-1 px-2 py-1 rounded-full bg-white/90 text-[10px] leading-none font-bold text-gray-900 whitespace-nowrap shadow-sm">
+                {p.number} {p.name}
+              </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -102,9 +141,12 @@ export function PrintPageLayout({
   logoUrl,
   teamBio,
   formationPlayers,
+  formationName,
+  formationStartersByPosition,
   leftCards,
   rightCards,
   additionalPlayers,
+  getPositionColor,
   stats,
   cups,
   transfers,
@@ -114,10 +156,13 @@ export function PrintPageLayout({
   season: string;
   logoUrl: string | null;
   teamBio: string;
-  formationPlayers: Array<{ name: string; photoUrl?: string }>;
+  formationPlayers: Array<{ id: string; number: string; name: string; photoUrl?: string }>;
+  formationName: string | null;
+  formationStartersByPosition: Record<string, { id: string; number: string; name: string; photoUrl?: string } | null>;
   leftCards: Array<BookletResponse["players"][number] | null>;
   rightCards: Array<BookletResponse["players"][number] | null>;
   additionalPlayers: Array<BookletResponse["players"][number] | null>;
+  getPositionColor: (position: string) => string;
   stats: StatRow[];
   cups: CupRow[];
   transfers: TransferRow[];
@@ -147,13 +192,21 @@ export function PrintPageLayout({
                   <div className="text-[12px] leading-relaxed text-gray-700">{teamBio}</div>
                 </div>
 
-                <FormationPitch players={formationPlayers} />
+                <FormationPitch
+                  formationName={formationName}
+                  startersByPosition={formationStartersByPosition}
+                  fallbackPlayers={formationPlayers}
+                />
               </div>
 
               <div className="mt-auto grid grid-cols-3 gap-[1.5mm]">
                 {leftCards.map((p, idx) =>
                   p ? (
-                    <BookletPlayerCard key={`l_${p.id}_${idx}`} player={p} positionColorClass="bg-blue-300" />
+                    <BookletPlayerCard
+                      key={`l_${p.id}_${idx}`}
+                      player={p}
+                      positionColorClass={getPositionColor(p.mainPosition || p.position)}
+                    />
                   ) : (
                     <NoImageCard key={`l_no_${idx}`} />
                   )
@@ -166,7 +219,11 @@ export function PrintPageLayout({
                 <div className="grid grid-cols-3 gap-[1.5mm]">
                   {rightCards.map((p, idx) =>
                     p ? (
-                      <BookletPlayerCard key={`r_${p.id}_${idx}`} player={p} positionColorClass="bg-blue-300" />
+                      <BookletPlayerCard
+                        key={`r_${p.id}_${idx}`}
+                        player={p}
+                        positionColorClass={getPositionColor(p.mainPosition || p.position)}
+                      />
                     ) : (
                       <NoImageCard key={`r_no_${idx}`} />
                     )
