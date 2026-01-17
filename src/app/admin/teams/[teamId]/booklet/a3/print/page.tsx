@@ -10,7 +10,7 @@ import type { BookletResponse } from "../../types";
 import { BookletGlobalStyles } from "../../components/BookletGlobalStyles";
 import { ProPlanNotice } from "../../components/ProPlanNotice";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import { PrintPageLayout } from "./components/PrintPageLayout";
+import { PrintPageLayout, type TransferRow } from "./components/PrintPageLayout";
 import { formations } from "@/lib/formations";
 
 type StatRow = {
@@ -19,11 +19,15 @@ type StatRow = {
   rank: string;
 };
 
-type TransferRow = {
-  date: string;
-  playerName: string;
-  type: string;
-  fromTo: string;
+type TransferDoc = {
+  id: string;
+  season?: string;
+  direction?: "in" | "out";
+  kind?: string;
+  position?: string;
+  playerName?: string;
+  counterparty?: string;
+  createdAt?: any;
 };
 
 type CupRow = {
@@ -37,12 +41,24 @@ type CoachInfo = {
   bio: string;
 };
 
+type StaffDoc = {
+  id: string;
+  name?: string;
+  profile?: string;
+  photoUrl?: string;
+  position?: string;
+  seasons?: string[];
+  isPublished?: boolean;
+};
+
 type SlotKey = `l${number}` | `r${number}`;
 
 type LayoutState = {
   slots: Record<SlotKey, string | null>;
   extras: string[];
   leagueCompetitionName: string | null;
+  bioTitle: string;
+  bioBody: string;
   cups: CupRow[];
   formationName: string | null;
   starters: Record<string, string | null>;
@@ -52,17 +68,20 @@ type LayoutState = {
     MF: string;
     FW: string;
   };
+  coachStaffId: string | null;
 };
 
 function createEmptyLayout(): LayoutState {
   const slots: Record<string, string | null> = {};
-  for (let i = 0; i < 9; i++) slots[`l${i}`] = null;
-  for (let i = 0; i < 15; i++) slots[`r${i}`] = null;
+  for (let i = 0; i < 12; i++) slots[`l${i}`] = null;
+  for (let i = 0; i < 12; i++) slots[`r${i}`] = null;
   return {
     slots: slots as LayoutState["slots"],
     extras: [],
     leagueCompetitionName: null,
-    cups: Array.from({ length: 2 }).map(() => ({ tournament: "", result: "" })),
+    bioTitle: "",
+    bioBody: "",
+    cups: Array.from({ length: 8 }).map(() => ({ tournament: "", result: "" })),
     formationName: "4-4-2",
     starters: {},
     positionColors: {
@@ -71,6 +90,7 @@ function createEmptyLayout(): LayoutState {
       MF: "bg-green-300",
       FW: "bg-orange-300",
     },
+    coachStaffId: null,
   };
 }
 
@@ -117,14 +137,16 @@ function isLayoutEmpty(layout: LayoutState): boolean {
 
 function createDefaultLayout(
   playerIds: string[],
-  seed?: Pick<LayoutState, "extras" | "leagueCompetitionName" | "cups" | "positionColors">
+  seed?: Pick<LayoutState, "extras" | "leagueCompetitionName" | "bioTitle" | "bioBody" | "cups" | "positionColors">
 ): LayoutState {
   const base = createEmptyLayout();
-  for (let i = 0; i < 15; i++) base.slots[`r${i}` as SlotKey] = playerIds[i] ?? null;
-  for (let i = 0; i < 9; i++) base.slots[`l${i}` as SlotKey] = playerIds[15 + i] ?? null;
+  for (let i = 0; i < 12; i++) base.slots[`r${i}` as SlotKey] = playerIds[i] ?? null;
+  for (let i = 0; i < 12; i++) base.slots[`l${i}` as SlotKey] = playerIds[12 + i] ?? null;
   if (seed) {
     base.extras = Array.isArray(seed.extras) ? seed.extras.slice(0, 5) : [];
     base.leagueCompetitionName = seed.leagueCompetitionName || null;
+    base.bioTitle = typeof seed.bioTitle === "string" ? seed.bioTitle : "";
+    base.bioBody = typeof seed.bioBody === "string" ? seed.bioBody : "";
     base.cups = Array.isArray(seed.cups) ? seed.cups.slice(0, base.cups.length) : base.cups;
     base.positionColors = seed.positionColors || base.positionColors;
   }
@@ -238,6 +260,8 @@ export default function TeamBookletA3PrintPage() {
           typeof (parsed as any).leagueCompetitionName === "string" && String((parsed as any).leagueCompetitionName).trim().length > 0
             ? String((parsed as any).leagueCompetitionName).trim()
             : null,
+        bioTitle: typeof (parsed as any).bioTitle === "string" ? String((parsed as any).bioTitle) : "",
+        bioBody: typeof (parsed as any).bioBody === "string" ? String((parsed as any).bioBody) : "",
         cups: (() => {
           const defaults = createEmptyLayout().cups;
           const raw = (parsed as any).cups;
@@ -270,6 +294,10 @@ export default function TeamBookletA3PrintPage() {
             FW: typeof raw.FW === "string" ? raw.FW : d.FW,
           };
         })(),
+        coachStaffId: (() => {
+          const raw = (parsed as any).coachStaffId;
+          return typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : null;
+        })(),
       });
       setLayoutSource("saved");
     } catch {
@@ -283,6 +311,8 @@ export default function TeamBookletA3PrintPage() {
     return createDefaultLayout(players.map((p) => p.id), {
       extras: layout.extras,
       leagueCompetitionName: layout.leagueCompetitionName,
+      bioTitle: layout.bioTitle,
+      bioBody: layout.bioBody,
       cups: layout.cups,
       positionColors: layout.positionColors,
     });
@@ -364,7 +394,7 @@ export default function TeamBookletA3PrintPage() {
   }, [formation.positions, playersById, resolvedLayout.starters]);
 
   const rightCards = useMemo(() => {
-    return Array.from({ length: 15 }).map((_, i) => {
+    return Array.from({ length: 12 }).map((_, i) => {
       const pid = resolvedLayout.slots[`r${i}` as SlotKey];
       if (!pid) return null;
       return playersById.get(pid) || null;
@@ -372,7 +402,7 @@ export default function TeamBookletA3PrintPage() {
   }, [playersById, resolvedLayout]);
 
   const leftCards = useMemo(() => {
-    return Array.from({ length: 9 }).map((_, i) => {
+    return Array.from({ length: 12 }).map((_, i) => {
       const pid = resolvedLayout.slots[`l${i}` as SlotKey];
       if (!pid) return null;
       return playersById.get(pid) || null;
@@ -389,7 +419,134 @@ export default function TeamBookletA3PrintPage() {
   }, [playersById, resolvedLayout.extras]);
 
   const clubUid = (user as any)?.ownerUid || user?.uid || null;
+  const [coachFromStaff, setCoachFromStaff] = useState<CoachInfo | null>(null);
+  const [transfersInFromDb, setTransfersInFromDb] = useState<TransferRow[]>([]);
+  const [transfersOutFromDb, setTransfersOutFromDb] = useState<TransferRow[]>([]);
+  const [previewScale, setPreviewScale] = useState(0.7);
   const [leagueStats, setLeagueStats] = useState<StatRow[]>([]);
+
+  useEffect(() => {
+    const run = async () => {
+      if (!clubUid || !teamId) {
+        setCoachFromStaff(null);
+        return;
+      }
+      try {
+        const snap = await getDocs(collection(db, `clubs/${clubUid}/teams/${teamId}/staff`));
+        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as StaffDoc));
+
+        const seasonRaw = String(season || "").trim();
+        const seasonLabel = toCompetitionSeasonLabel(seasonRaw) || seasonRaw;
+        const inSeason = (s: StaffDoc) => {
+          const arr = Array.isArray(s.seasons) ? s.seasons : [];
+          return !seasonLabel ? true : arr.includes(seasonLabel) || arr.includes(seasonRaw);
+        };
+        const published = (s: StaffDoc) => s.isPublished !== false;
+        const pos = (s: StaffDoc) => String(s.position || "").trim();
+
+        const byId = (id: string) => list.find((s) => s.id === id) || null;
+
+        const pick =
+          (resolvedLayout.coachStaffId ? byId(resolvedLayout.coachStaffId) : null) ||
+          list.find((s) => published(s) && inSeason(s) && pos(s) === "監督") ||
+          list.find((s) => published(s) && pos(s) === "監督") ||
+          list.find((s) => inSeason(s) && pos(s) === "監督") ||
+          list.find((s) => pos(s) === "監督") ||
+          null;
+
+        if (!pick) {
+          setCoachFromStaff(null);
+          return;
+        }
+
+        setCoachFromStaff({
+          name: String(pick.name || "").trim() || "監督",
+          photoUrl: typeof pick.photoUrl === "string" && pick.photoUrl.trim() ? pick.photoUrl.trim() : null,
+          bio: String(pick.profile || "").trim() || "監督の紹介文",
+        });
+      } catch (e) {
+        console.warn("[A3Print] failed to load staff coach", e);
+        setCoachFromStaff(null);
+      }
+    };
+    void run();
+  }, [clubUid, season, teamId]);
+
+  useEffect(() => {
+    const run = async () => {
+      if (!clubUid || !teamId) {
+        setTransfersInFromDb([]);
+        setTransfersOutFromDb([]);
+        return;
+      }
+      try {
+        const seasonRaw = String(season || "").trim();
+        const seasonLabel = toCompetitionSeasonLabel(seasonRaw) || seasonRaw;
+
+        const snap = await getDocs(collection(db, `clubs/${clubUid}/teams/${teamId}/transfers`));
+        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as TransferDoc));
+
+        const filtered = list.filter((t) => {
+          const s = String(t.season || "").trim();
+          if (!seasonLabel) return true;
+          return s === seasonLabel || s === seasonRaw;
+        });
+
+        const toMillis = (v: any): number => {
+          if (!v) return 0;
+          if (typeof v?.toMillis === "function") return v.toMillis();
+          if (typeof v?.toDate === "function") return v.toDate().getTime();
+          if (typeof v?.seconds === "number") return v.seconds * 1000;
+          return 0;
+        };
+
+        const sorted = filtered.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+
+        const toRow = (t: TransferDoc): TransferRow => {
+          const kind = String(t.kind || "").trim() || "完全";
+          const position = String(t.position || "").trim() || "-";
+          const playerName = String(t.playerName || "").trim() || "-";
+          const counterparty = String(t.counterparty || "").trim() || "-";
+          return {
+            position,
+            playerName,
+            type: kind,
+            fromTo: counterparty,
+          };
+        };
+
+        const inRows = sorted.filter((t) => (t.direction || "in") === "in").map(toRow);
+        const outRows = sorted.filter((t) => t.direction === "out").map(toRow);
+
+        setTransfersInFromDb(inRows);
+        setTransfersOutFromDb(outRows);
+      } catch (e) {
+        console.warn("[A3Print] failed to load transfers", e);
+        setTransfersInFromDb([]);
+        setTransfersOutFromDb([]);
+      }
+    };
+    void run();
+  }, [clubUid, season, teamId]);
+
+  const previewScaleStorageKey = useMemo(() => {
+    if (!clubUid || !teamId) return "";
+    return `a3_print_preview_scale_${clubUid}_${teamId}`;
+  }, [clubUid, teamId]);
+
+  useEffect(() => {
+    if (!previewScaleStorageKey) return;
+    const raw = localStorage.getItem(previewScaleStorageKey);
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0.3 && n <= 1) {
+      setPreviewScale(n);
+    }
+  }, [previewScaleStorageKey]);
+
+  useEffect(() => {
+    if (!previewScaleStorageKey) return;
+    localStorage.setItem(previewScaleStorageKey, String(previewScale));
+  }, [previewScale, previewScaleStorageKey]);
 
   useEffect(() => {
     const run = async () => {
@@ -432,24 +589,39 @@ export default function TeamBookletA3PrintPage() {
     };
     void run();
   }, [clubUid, resolvedLayout.leagueCompetitionName, season, teamId]);
-
-  const teamBio = "チームの特徴や今季の目標、監督コメントなどを掲載するスペースです。";
-
   const stats: StatRow[] = leagueStats.length > 0 ? leagueStats : last5Seasons(season).map((s) => ({ season: s, league: "-", rank: "-" }));
 
   const cups: CupRow[] = Array.isArray(resolvedLayout.cups) ? resolvedLayout.cups : createEmptyLayout().cups;
 
-  const transfers: TransferRow[] = [
-    { date: "-", playerName: "-", type: "加入", fromTo: "-" },
-    { date: "-", playerName: "-", type: "退団", fromTo: "-" },
-    { date: "-", playerName: "-", type: "レンタル", fromTo: "-" },
-  ];
+  const cups8 = useMemo(() => {
+    const slice = cups.slice(0, 8);
+    const padded = slice.concat(Array.from({ length: Math.max(0, 8 - slice.length) }).map(() => ({ tournament: "", result: "" })));
+    return padded;
+  }, [cups]);
 
-  const coach: CoachInfo = {
-    name: "監督名",
-    photoUrl: null,
-    bio: "監督の紹介文（モックアップ）。後でFirestoreから流し込めるように差し替え予定。",
-  };
+  const transfersIn12 = useMemo(() => {
+    const slice = transfersInFromDb.slice(0, 12);
+    const padded = slice.concat(
+      Array.from({ length: Math.max(0, 12 - slice.length) }).map(() => ({ position: "", playerName: "", type: "", fromTo: "" }))
+    );
+    return padded;
+  }, [transfersInFromDb]);
+
+  const transfersOut12 = useMemo(() => {
+    const slice = transfersOutFromDb.slice(0, 12);
+    const padded = slice.concat(
+      Array.from({ length: Math.max(0, 12 - slice.length) }).map(() => ({ position: "", playerName: "", type: "", fromTo: "" }))
+    );
+    return padded;
+  }, [transfersOutFromDb]);
+
+  const coach: CoachInfo =
+    coachFromStaff ||
+    ({
+      name: "監督名",
+      photoUrl: null,
+      bio: "監督の紹介文",
+    } satisfies CoachInfo);
 
   if (!isPro) {
     return <ProPlanNotice />;
@@ -500,34 +672,63 @@ export default function TeamBookletA3PrintPage() {
         </div>
       </div>
 
+      <div className="no-print mb-4 rounded-md border bg-white p-3 text-sm text-gray-900">
+        <div className="grid grid-cols-1 gap-3">
+          <label className="flex items-center gap-2">
+            <input
+              type="range"
+              min={30}
+              max={100}
+              step={5}
+              value={Math.round(previewScale * 100)}
+              onChange={(e) => setPreviewScale(Math.max(0.3, Math.min(1, Number(e.target.value) / 100)))}
+              className="flex-1"
+            />
+            <span className="w-12 text-right text-xs tabular-nums text-gray-700">{Math.round(previewScale * 100)}%</span>
+          </label>
+        </div>
+      </div>
+
       {loading && <div className="no-print text-sm text-muted-foreground">読み込み中...</div>}
       {error && <div className="no-print text-sm text-red-600">{error}</div>}
 
       {data ? (
-        <PrintPageLayout
-          teamName={data.teamName}
-          season={season}
-          logoUrl={data.club.logoUrl}
-          teamBio={teamBio}
-          formationPlayers={[...rightCards, ...leftCards]
-            .filter((p): p is BookletResponse["players"][number] => !!p)
-            .map((p) => ({
-              id: p.id,
-              number: p.number != null ? String(p.number) : "-",
-              name: p.name,
-              ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}),
-            }))}
-          formationName={formation.name}
-          formationStartersByPosition={formationStartersByPosition}
-          leftCards={leftCards}
-          rightCards={rightCards}
-          additionalPlayers={additionalPlayers}
-          getPositionColor={getPositionColor}
-          stats={stats}
-          cups={cups}
-          transfers={transfers}
-          coach={coach}
-        />
+        <div className="overflow-x-auto">
+          <div
+            className="a3-preview-scale inline-block"
+            style={{
+              transform: `scale(${previewScale})`,
+              transformOrigin: "top left",
+            }}
+          >
+            <PrintPageLayout
+              teamName={data.teamName}
+              season={season}
+              logoUrl={data.club.logoUrl}
+              bioTitle={String((resolvedLayout as any).bioTitle || "")}
+              bioBody={String((resolvedLayout as any).bioBody || "")}
+              formationPlayers={[...rightCards, ...leftCards]
+                .filter((p): p is NonNullable<typeof p> => !!p)
+                .map((p) => ({
+                  id: p.id,
+                  number: String((p as any).number ?? "-") || "-",
+                  name: p.name || "-",
+                  ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}),
+                }))}
+              formationName={formation.name}
+              formationStartersByPosition={formationStartersByPosition}
+              leftCards={leftCards}
+              rightCards={rightCards}
+              additionalPlayers={additionalPlayers}
+              getPositionColor={getPositionColor}
+              stats={stats}
+              cups={cups8}
+              transfersIn={transfersIn12}
+              transfersOut={transfersOut12}
+              coach={coach}
+            />
+          </div>
+        </div>
       ) : null}
     </div>
   );

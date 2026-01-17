@@ -48,6 +48,12 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
 
   const staffFormKey = editingStaff ? editingStaff.id : `new-${selectedSeason || ""}`;
 
+  const staffDraftStorageKey = useMemo(() => {
+    if (!clubUid || !teamId) return "";
+    const sid = editingStaff?.id ? `edit_${editingStaff.id}` : `new_${selectedSeason || ""}`;
+    return `staff_draft_${clubUid}_${teamId}_${sid}`;
+  }, [clubUid, editingStaff?.id, selectedSeason, teamId]);
+
   const filteredStaff = useMemo(() => {
     if (!selectedSeason) return staff;
     return staff.filter((p) => (p.seasons || []).includes(selectedSeason));
@@ -121,6 +127,10 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
         toast.success("スタッフを追加しました。");
       }
 
+      if (staffDraftStorageKey) {
+        localStorage.removeItem(staffDraftStorageKey);
+      }
+
       setIsDialogOpen(false);
       setEditingStaff(null);
     } catch (error) {
@@ -179,6 +189,7 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
                 onSubmit={handleFormSubmit}
                 defaultValues={editingStaff || undefined}
                 defaultSeason={selectedSeason}
+                draftStorageKey={staffDraftStorageKey}
               />
             </DialogContent>
           </Dialog>

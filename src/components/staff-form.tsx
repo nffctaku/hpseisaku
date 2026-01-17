@@ -37,9 +37,10 @@ interface StaffFormProps {
   onSubmit: (values: StaffFormValues) => Promise<void>;
   defaultValues?: Partial<StaffFormValues>;
   defaultSeason?: string;
+  draftStorageKey?: string;
 }
 
-export function StaffForm({ onSubmit, defaultValues, defaultSeason }: StaffFormProps) {
+export function StaffForm({ onSubmit, defaultValues, defaultSeason, draftStorageKey }: StaffFormProps) {
   const [loading, setLoading] = useState(false);
 
   const form = useForm<StaffFormValues>({
@@ -70,6 +71,41 @@ export function StaffForm({ onSubmit, defaultValues, defaultSeason }: StaffFormP
       ...defaultValues,
     });
   }, [defaultValues, form]);
+
+  useEffect(() => {
+    if (!draftStorageKey) return;
+    const saved = localStorage.getItem(draftStorageKey);
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved) as Partial<StaffFormValues>;
+      form.reset({
+        name: "",
+        age: undefined,
+        nationality: "",
+        position: "",
+        profile: "",
+        photoUrl: "",
+        seasons: defaultSeason ? [defaultSeason] : [],
+        isPublished: true,
+        ...(defaultValues || {}),
+        ...(parsed || {}),
+      });
+    } catch {
+      // ignore
+    }
+  }, [defaultSeason, defaultValues, draftStorageKey, form]);
+
+  useEffect(() => {
+    if (!draftStorageKey) return;
+    const sub = form.watch((values) => {
+      try {
+        localStorage.setItem(draftStorageKey, JSON.stringify(values));
+      } catch {
+        // ignore
+      }
+    });
+    return () => sub.unsubscribe();
+  }, [draftStorageKey, form]);
 
   const handleSubmit: SubmitHandler<StaffFormValues> = async (values) => {
     setLoading(true);
@@ -135,6 +171,7 @@ export function StaffForm({ onSubmit, defaultValues, defaultSeason }: StaffFormP
                   type="number"
                   placeholder="30"
                   {...field}
+                  value={field.value ?? ""}
                   onChange={(e) =>
                     field.onChange(e.target.value === "" ? undefined : Number(e.target.value))
                   }
@@ -152,7 +189,48 @@ export function StaffForm({ onSubmit, defaultValues, defaultSeason }: StaffFormP
             <FormItem>
               <FormLabel>ポジション</FormLabel>
               <FormControl>
-                <Input placeholder="例: 監督 / コーチ / トレーナー" {...field} />
+                <div className="space-y-2">
+                  <select
+                    className="w-full rounded border border-gray-200 bg-white px-2 py-2 text-sm"
+                    value={(() => {
+                      const v = String(field.value || "").trim();
+                      if (v === "監督" || v === "コーチ" || v === "メディカル") return v;
+                      if (!v) return "";
+                      return "__custom__";
+                    })()}
+                    onChange={(e) => {
+                      const v = String(e.target.value || "");
+                      if (!v) {
+                        field.onChange("");
+                        return;
+                      }
+                      if (v === "__custom__") {
+                        field.onChange("");
+                        return;
+                      }
+                      field.onChange(v);
+                    }}
+                  >
+                    <option value="">未選択</option>
+                    <option value="監督">監督</option>
+                    <option value="コーチ">コーチ</option>
+                    <option value="メディカル">メディカル</option>
+                    <option value="__custom__">自由記述</option>
+                  </select>
+
+                  {(() => {
+                    const v = String(field.value || "").trim();
+                    const show = v.length === 0 || (v !== "監督" && v !== "コーチ" && v !== "メディカル");
+                    if (!show) return null;
+                    return (
+                      <Input
+                        placeholder="自由記述（例: トレーナー / マネージャー など）"
+                        value={v}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    );
+                  })()}
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>

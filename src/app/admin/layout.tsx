@@ -91,7 +91,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen w-screen bg-gray-900 text-white">
+    <div className="flex min-h-screen w-full bg-gray-900 text-white">
       <Dialog open={tosOpen} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-lg" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader>
@@ -151,7 +151,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
         <Sidebar />
       </div>
 
-      <div className="flex flex-col flex-1 w-full">
+      <div className="flex flex-col flex-1 w-full min-w-0">
         <Header 
           logoUrl={clubInfo.logoUrl || user?.logoUrl}
           clubName={clubInfo.clubName || user?.clubName}

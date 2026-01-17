@@ -11,6 +11,8 @@ type LayoutState = {
   slots: Record<SlotKey, string | null>;
   extras: string[];
   leagueCompetitionName: string | null;
+  bioTitle: string;
+  bioBody: string;
   cups: CupRow[];
   formationName: string | null;
   starters: Record<string, string | null>;
@@ -20,17 +22,20 @@ type LayoutState = {
     MF: string;
     FW: string;
   };
+  coachStaffId: string | null;
 };
 
 export function createEmptyLayout(): LayoutState {
   const slots: Record<string, string | null> = {};
-  for (let i = 0; i < 9; i++) slots[`l${i}`] = null;
-  for (let i = 0; i < 15; i++) slots[`r${i}`] = null;
+  for (let i = 0; i < 12; i++) slots[`l${i}`] = null;
+  for (let i = 0; i < 12; i++) slots[`r${i}`] = null;
   return {
     slots: slots as LayoutState["slots"],
     extras: [],
     leagueCompetitionName: null,
-    cups: Array.from({ length: 2 }).map(() => ({ tournament: "", result: "" })),
+    bioTitle: "",
+    bioBody: "",
+    cups: Array.from({ length: 8 }).map(() => ({ tournament: "", result: "" })),
     formationName: "4-4-2",
     starters: {},
     positionColors: {
@@ -39,6 +44,7 @@ export function createEmptyLayout(): LayoutState {
       MF: "bg-green-300",
       FW: "bg-orange-300",
     },
+    coachStaffId: null,
   };
 }
 

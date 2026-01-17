@@ -48,15 +48,7 @@ export function PreviewPanel({
     <details className="rounded-md border bg-white" open>
       <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-gray-700">右下（プレビュー）</summary>
       <div className="p-3">
-        <div className="border border-gray-300">
-          <div className="bg-gray-50 px-2 py-1 text-[9px] font-semibold whitespace-nowrap">監督</div>
-          <div className="p-2">
-            <div className="text-[10px] font-semibold leading-tight">{coach.name}</div>
-            <div className="text-[9px] text-gray-700 leading-snug mt-1">{coach.bio}</div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mt-3">
+        <div className="grid grid-cols-2 gap-3">
           <div className="border border-gray-300">
             <div className="bg-gray-50 px-2 py-1 text-[9px] font-semibold whitespace-nowrap">リーグ成績（過去5シーズン）</div>
             <div className="p-2 border-b border-gray-200">

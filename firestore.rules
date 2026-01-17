@@ -3,12 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // TEMPORARY DEBUG: Allow all reads to identify the exact issue
-    match /{document=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-
     // CLUB PROFILES - Allow read for authenticated users, write for owners
     match /club_profiles/{userId} {
       allow read: if request.auth != null;
@@ -32,6 +26,12 @@ service cloud.firestore {
       
       // Club metadata - write only for club owners
       allow write: if request.auth != null && request.auth.uid == clubId;
+
+      // Team categories
+      match /team_categories/{categoryId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == clubId;
+      }
       
       // Competitions
       match /competitions/{competitionId} {
@@ -62,6 +62,18 @@ service cloud.firestore {
         allow write: if request.auth != null && request.auth.uid == clubId;
         
         match /players/{playerId} {
+          allow read: if request.auth != null;
+          allow write: if request.auth != null && request.auth.uid == clubId;
+        }
+
+        // Transfers
+        match /transfers/{transferId} {
+          allow read: if request.auth != null;
+          allow write: if request.auth != null && request.auth.uid == clubId;
+        }
+
+        // Staff
+        match /staff/{staffId} {
           allow read: if request.auth != null;
           allow write: if request.auth != null && request.auth.uid == clubId;
         }

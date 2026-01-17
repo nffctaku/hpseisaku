@@ -4,15 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import type { BookletPlayer, BookletResponse } from "../types";
 import { ProPlanNotice } from "../components/ProPlanNotice";
 import { SlotButton } from "./components/SlotButton";
 import { PreviewPanel } from "./components/PreviewPanel";
-import { createEmptyLayout, last5Seasons } from "./lib/a3-layout";
+import { createEmptyLayout, last5Seasons, toCompetitionSeasonLabel } from "./lib/a3-layout";
 import { useLeagueCompetitions } from "./hooks/useLeagueCompetitions";
 import { useLeagueStats } from "./hooks/useLeagueStats";
 import { formations } from "@/lib/formations";
+import { collection, getDocs } from "firebase/firestore";
 
 type SlotKey = `l${number}` | `r${number}`;
 
@@ -22,6 +24,8 @@ type LayoutState = {
   slots: Record<SlotKey, string | null>;
   extras: string[];
   leagueCompetitionName: string | null;
+  bioTitle: string;
+  bioBody: string;
   cups: CupRow[];
   formationName: string | null;
   starters: Record<string, string | null>;
@@ -31,6 +35,15 @@ type LayoutState = {
     MF: string;
     FW: string;
   };
+  coachStaffId: string | null;
+};
+
+type StaffDoc = {
+  id: string;
+  name?: string;
+  position?: string;
+  seasons?: string[];
+  isPublished?: boolean;
 };
 
 type StatRow = {
@@ -128,6 +141,8 @@ export default function TeamBookletA3EditorPage() {
           typeof (parsed as any).leagueCompetitionName === "string" && String((parsed as any).leagueCompetitionName).trim().length > 0
             ? String((parsed as any).leagueCompetitionName).trim()
             : null,
+        bioTitle: typeof (parsed as any).bioTitle === "string" ? String((parsed as any).bioTitle) : "",
+        bioBody: typeof (parsed as any).bioBody === "string" ? String((parsed as any).bioBody) : "",
         cups: normalizedCups,
         formationName:
           typeof (parsed as any).formationName === "string" && String((parsed as any).formationName).trim().length > 0
@@ -147,6 +162,10 @@ export default function TeamBookletA3EditorPage() {
             MF: typeof raw.MF === "string" ? raw.MF : d.MF,
             FW: typeof raw.FW === "string" ? raw.FW : d.FW,
           };
+        })(),
+        coachStaffId: (() => {
+          const raw = (parsed as any).coachStaffId;
+          return typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : null;
         })(),
       });
       setLayoutSource("saved");
@@ -233,8 +252,8 @@ export default function TeamBookletA3EditorPage() {
 
     setLayout((prev) => {
       const nextSlots: Record<SlotKey, string | null> = { ...(prev.slots as any) };
-      for (let i = 0; i < 15; i++) nextSlots[`r${i}` as SlotKey] = ids[i] ?? null;
-      for (let i = 0; i < 9; i++) nextSlots[`l${i}` as SlotKey] = ids[15 + i] ?? null;
+      for (let i = 0; i < 12; i++) nextSlots[`r${i}` as SlotKey] = ids[i] ?? null;
+      for (let i = 0; i < 12; i++) nextSlots[`l${i}` as SlotKey] = ids[12 + i] ?? null;
       return {
         ...prev,
         slots: nextSlots,
@@ -249,15 +268,12 @@ export default function TeamBookletA3EditorPage() {
     return m;
   }, [players]);
 
-  const usedPlayerIds = useMemo(() => {
+  const usedCardPlayerIds = useMemo(() => {
     const selected = new Set<string>();
     Object.values(layout.slots).forEach((id) => {
       if (id) selected.add(id);
     });
     layout.extras.forEach((id) => {
-      if (id) selected.add(id);
-    });
-    Object.values(layout.starters || {}).forEach((id) => {
       if (id) selected.add(id);
     });
     return selected;
@@ -314,7 +330,7 @@ export default function TeamBookletA3EditorPage() {
   };
 
   const getAvailablePlayers = (currentId: string | null) => {
-    return players.filter((p) => !usedPlayerIds.has(p.id) || p.id === currentId);
+    return players.filter((p) => !usedCardPlayerIds.has(p.id) || p.id === currentId);
   };
 
   const colorOptions = useMemo(() => {
@@ -380,17 +396,43 @@ export default function TeamBookletA3EditorPage() {
 
   const clubUid = (user as any)?.ownerUid || user?.uid || null;
 
+  const [staffList, setStaffList] = useState<StaffDoc[]>([]);
+
+  useEffect(() => {
+    const run = async () => {
+      if (!clubUid || !teamId) {
+        setStaffList([]);
+        return;
+      }
+      try {
+        const snap = await getDocs(collection(db, `clubs/${clubUid}/teams/${teamId}/staff`));
+        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as StaffDoc));
+        setStaffList(list);
+      } catch (e) {
+        console.warn("[A3Editor] failed to load staff list", e);
+        setStaffList([]);
+      }
+    };
+    void run();
+  }, [clubUid, teamId]);
+
   const { competitionNames } = useLeagueCompetitions(clubUid);
 
   const lastSeasonForCups = useMemo(() => {
     const s = String(season || "").trim();
-    const m = s.match(/^(\d{4})[-/](\d{2})$/);
+    const m = s.match(/^(\d{4})([-/])(\d{2}|\d{4})$/);
     if (!m) return null;
     const start = Number(m[1]);
+    const delim = m[2];
+    const endRaw = m[3];
     if (!Number.isFinite(start)) return null;
     const prevStart = start - 1;
+    if (endRaw.length === 4) {
+      const prevEnd4 = String(prevStart + 1);
+      return `${prevStart}${delim}${prevEnd4}`;
+    }
     const prevEnd2 = String((prevStart + 1) % 100).padStart(2, "0");
-    return `${prevStart}/${prevEnd2}`;
+    return `${prevStart}${delim}${prevEnd2}`;
   }, [season]);
 
   const { competitionNames: cupCompetitionNames } = useLeagueCompetitions(clubUid, {
@@ -512,6 +554,40 @@ export default function TeamBookletA3EditorPage() {
       {!loading && !error && data ? (
         <div className="grid grid-cols-1 gap-6">
           <div className="border rounded-lg bg-white p-4">
+            <div className="text-sm font-semibold mb-3">紹介文</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <label className="text-xs text-gray-700 block">
+                <div className="font-semibold mb-1">タイトル</div>
+                <input
+                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                  value={layout.bioTitle || ""}
+                  onChange={(e) =>
+                    setLayout((prev) => ({
+                      ...prev,
+                      bioTitle: String(e.target.value || ""),
+                    }))
+                  }
+                  placeholder="例：今季の目標"
+                />
+              </label>
+              <label className="text-xs text-gray-700 block">
+                <div className="font-semibold mb-1">本文</div>
+                <textarea
+                  className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm min-h-[92px]"
+                  value={layout.bioBody || ""}
+                  onChange={(e) =>
+                    setLayout((prev) => ({
+                      ...prev,
+                      bioBody: String(e.target.value || ""),
+                    }))
+                  }
+                  placeholder="チームの特徴や今季の目標など"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="border rounded-lg bg-white p-4">
             <div className="text-sm font-semibold mb-3">配置（A3横・概略）</div>
 
             <div className="mb-4 rounded-md border bg-white p-3">
@@ -523,12 +599,56 @@ export default function TeamBookletA3EditorPage() {
                     <select
                       className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
                       value={formation.name}
-                      onChange={(e) =>
-                        setLayout((prev) => ({
-                          ...prev,
-                          formationName: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => {
+                        const nextFormationName = String(e.target.value || "").trim();
+                        const nextFormation = formations.find((f) => f.name === nextFormationName) || formations[0];
+
+                        setLayout((prev) => {
+                          const prevStarters = prev.starters || {};
+
+                          // keep selected players, but remap them to the new formation's position ids
+                          const selectedIds = Object.values(prevStarters)
+                            .map((v) => String(v || "").trim())
+                            .filter((v) => !!v);
+
+                          const uniqSelected: string[] = [];
+                          for (const id of selectedIds) {
+                            if (!uniqSelected.includes(id)) uniqSelected.push(id);
+                          }
+
+                          const nextStarters: Record<string, string | null> = {};
+                          const used = new Set<string>();
+
+                          // If some position ids are shared across formations, keep those assignments first
+                          for (const pos of nextFormation.positions) {
+                            const existing = String(prevStarters[pos.id] || "").trim();
+                            if (existing && !used.has(existing)) {
+                              nextStarters[pos.id] = existing;
+                              used.add(existing);
+                            }
+                          }
+
+                          // Fill remaining positions with the remaining selected players
+                          let poolIndex = 0;
+                          for (const pos of nextFormation.positions) {
+                            if (nextStarters[pos.id]) continue;
+                            while (poolIndex < uniqSelected.length && used.has(uniqSelected[poolIndex])) poolIndex++;
+                            if (poolIndex < uniqSelected.length) {
+                              nextStarters[pos.id] = uniqSelected[poolIndex];
+                              used.add(uniqSelected[poolIndex]);
+                              poolIndex++;
+                            } else {
+                              nextStarters[pos.id] = null;
+                            }
+                          }
+
+                          return {
+                            ...prev,
+                            formationName: nextFormationName,
+                            starters: nextStarters,
+                          };
+                        });
+                      }}
                     >
                       {formations.map((f) => (
                         <option key={f.name} value={f.name}>
@@ -696,10 +816,10 @@ export default function TeamBookletA3EditorPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="relative rounded-md border bg-gray-50 p-3 min-h-[360px] md:min-h-[520px]">
-                <div className="text-xs font-semibold text-gray-600 mb-2">左側（下から3×3 / 9枚）</div>
+                <div className="text-xs font-semibold text-gray-600 mb-2">左側（下から3×4 / 12枚）</div>
                 <div className="absolute left-3 right-3 bottom-3">
                   <div className="grid grid-cols-3 gap-2">
-                    {Array.from({ length: 9 }).map((_, i) => {
+                    {Array.from({ length: 12 }).map((_, i) => {
                       const key = `l${i}` as SlotKey;
                       const pid = layout.slots[key];
                       const player = pid ? playersById.get(pid) || null : null;
@@ -723,10 +843,10 @@ export default function TeamBookletA3EditorPage() {
               </div>
 
               <div className="relative rounded-md border bg-gray-50 p-3 min-h-[360px] md:min-h-[520px]">
-                <div className="text-xs font-semibold text-gray-600 mb-2">右側（上から3×5 / 15枠）</div>
+                <div className="text-xs font-semibold text-gray-600 mb-2">右側（上から3×4 / 12枠）</div>
                 <div className="space-y-3">
                   <div className="grid grid-cols-3 gap-2">
-                    {Array.from({ length: 15 }).map((_, i) => {
+                    {Array.from({ length: 12 }).map((_, i) => {
                       const key = `r${i}` as SlotKey;
                       const pid = layout.slots[key];
                       const player = pid ? playersById.get(pid) || null : null;
@@ -770,6 +890,47 @@ export default function TeamBookletA3EditorPage() {
                         );
                       })}
                     </div>
+                  </div>
+
+                  <div className="rounded-md border bg-white p-3">
+                    <div className="text-xs font-semibold text-gray-700 mb-2">監督（スタッフから選択）</div>
+                    <select
+                      className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
+                      value={layout.coachStaffId || ""}
+                      onChange={(e) => {
+                        const v = String(e.target.value || "").trim();
+                        setLayout((prev) => ({
+                          ...prev,
+                          coachStaffId: v ? v : null,
+                        }));
+                      }}
+                    >
+                      <option value="">自動（position=監督を優先）</option>
+                      {(() => {
+                        const seasonRaw = String(season || "").trim();
+                        const seasonLabel = toCompetitionSeasonLabel(seasonRaw) || seasonRaw;
+                        const published = (s: StaffDoc) => s.isPublished !== false;
+                        const inSeason = (s: StaffDoc) => {
+                          const arr = Array.isArray(s.seasons) ? s.seasons : [];
+                          if (!seasonLabel) return true;
+                          return arr.includes(seasonLabel) || arr.includes(seasonRaw);
+                        };
+                        const list = staffList
+                          .filter((s) => published(s))
+                          .sort((a, b) => {
+                            const as = inSeason(a) ? 0 : 1;
+                            const bs = inSeason(b) ? 0 : 1;
+                            if (as !== bs) return as - bs;
+                            return String(a.name || "").localeCompare(String(b.name || ""));
+                          });
+                        return list.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {String(s.name || "-")}
+                            {String(s.position || "").trim() ? `（${String(s.position || "").trim()}）` : ""}
+                          </option>
+                        ));
+                      })()}
+                    </select>
                   </div>
 
                   <PreviewPanel

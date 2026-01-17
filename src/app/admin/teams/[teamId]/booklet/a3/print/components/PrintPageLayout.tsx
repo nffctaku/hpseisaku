@@ -12,8 +12,8 @@ type StatRow = {
   rank: string;
 };
 
-type TransferRow = {
-  date: string;
+export type TransferRow = {
+  position: string;
   playerName: string;
   type: string;
   fromTo: string;
@@ -139,7 +139,8 @@ export function PrintPageLayout({
   teamName,
   season,
   logoUrl,
-  teamBio,
+  bioTitle,
+  bioBody,
   formationPlayers,
   formationName,
   formationStartersByPosition,
@@ -149,13 +150,15 @@ export function PrintPageLayout({
   getPositionColor,
   stats,
   cups,
-  transfers,
+  transfersIn,
+  transfersOut,
   coach,
 }: {
   teamName: string;
   season: string;
   logoUrl: string | null;
-  teamBio: string;
+  bioTitle: string;
+  bioBody: string;
   formationPlayers: Array<{ id: string; number: string; name: string; photoUrl?: string }>;
   formationName: string | null;
   formationStartersByPosition: Record<string, { id: string; number: string; name: string; photoUrl?: string } | null>;
@@ -165,7 +168,8 @@ export function PrintPageLayout({
   getPositionColor: (position: string) => string;
   stats: StatRow[];
   cups: CupRow[];
-  transfers: TransferRow[];
+  transfersIn: TransferRow[];
+  transfersOut: TransferRow[];
   coach: CoachInfo;
 }) {
   return (
@@ -188,8 +192,10 @@ export function PrintPageLayout({
                 </div>
 
                 <div className="rounded-md border bg-white p-3">
-                  <div className="text-sm font-semibold text-gray-900 mb-2">紹介文</div>
-                  <div className="text-[12px] leading-relaxed text-gray-700">{teamBio}</div>
+                  <div className="text-sm font-semibold text-gray-900 mb-2">{String(bioTitle || "").trim() ? bioTitle : "\u00A0"}</div>
+                  <div className="text-[12px] leading-relaxed text-gray-700">
+                    {String(bioBody || "").trim() ? <div>{bioBody}</div> : <div>\u00A0</div>}
+                  </div>
                 </div>
 
                 <FormationPitch
@@ -298,8 +304,8 @@ export function PrintPageLayout({
                         <tbody>
                           {cups.map((c, idx) => (
                             <tr key={idx}>
-                              <td className="border border-gray-300 px-2 py-1">{c.tournament}</td>
-                              <td className="border border-gray-300 px-2 py-1">{c.result}</td>
+                              <td className="border border-gray-300 px-2 py-1">{c.tournament || "\u00A0"}</td>
+                              <td className="border border-gray-300 px-2 py-1">{c.result || "\u00A0"}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -311,30 +317,72 @@ export function PrintPageLayout({
                 <div className="border border-gray-300">
                   <div className="bg-gray-50 px-3 py-2 text-sm font-semibold">監督</div>
                   <div className="p-2 flex items-start gap-3">
-                    <div className="relative w-[30mm] h-[22mm] bg-gray-100 border border-gray-200 flex-shrink-0 overflow-hidden">
+                    <div className="relative w-[26mm] h-[22mm] bg-white border border-gray-200 flex-shrink-0 overflow-hidden">
                       {coach.photoUrl ? (
-                        <Image src={coach.photoUrl} alt={coach.name} fill className="object-cover" sizes="160px" />
-                      ) : null}
+                        <Image src={coach.photoUrl} alt={coach.name} fill className="object-contain p-1" sizes="160px" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-gray-400">
+                          NoImage
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-semibold">{coach.name}</div>
-                      <div className="text-xs text-gray-700 leading-relaxed">{coach.bio}</div>
+                      <div
+                        className="text-xs text-gray-700 leading-relaxed overflow-hidden"
+                        style={{ display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}
+                      >
+                        {coach.bio}
+                      </div>
                     </div>
                   </div>
 
                   <div className="border-t border-gray-200">
                     <div className="bg-gray-50 px-3 py-2 text-sm font-semibold">移籍情報</div>
                     <div className="p-2">
-                      <ul className="text-xs space-y-1">
-                        {transfers.map((t, idx) => (
-                          <li key={idx} className="border-b border-gray-200 pb-1">
-                            <span className="font-semibold">{t.date}</span>
-                            <span className="mx-2">{t.playerName}</span>
-                            <span className="mx-2">{t.type}</span>
-                            <span className="text-gray-600">{t.fromTo}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="text-[9px] font-semibold mb-1">IN</div>
+                      <table className="w-full text-[9px] table-fixed">
+                        <thead>
+                          <tr className="bg-white">
+                            <th className="border border-gray-300 px-1 py-[1px] text-left w-[20%] whitespace-nowrap">種別</th>
+                            <th className="border border-gray-300 px-1 py-[1px] text-left w-[10%] whitespace-nowrap">POS</th>
+                            <th className="border border-gray-300 px-1 py-[1px] text-left w-[34%] whitespace-nowrap">選手名</th>
+                            <th className="border border-gray-300 px-1 py-[1px] text-left w-[36%] whitespace-nowrap">移籍元</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {transfersIn.map((t, idx) => (
+                            <tr key={`in_${idx}`}>
+                              <td className="border border-gray-300 px-1 py-[1px] whitespace-nowrap">{t.type || "\u00A0"}</td>
+                              <td className="border border-gray-300 px-1 py-[1px] whitespace-nowrap">{t.position || "\u00A0"}</td>
+                              <td className="border border-gray-300 px-1 py-[1px] whitespace-nowrap overflow-hidden text-ellipsis">{t.playerName || "\u00A0"}</td>
+                              <td className="border border-gray-300 px-1 py-[1px] whitespace-nowrap overflow-hidden text-ellipsis">{t.fromTo || "\u00A0"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+
+                      <div className="text-[9px] font-semibold mt-2 mb-1">OUT</div>
+                      <table className="w-full text-[9px] table-fixed">
+                        <thead>
+                          <tr className="bg-white">
+                            <th className="border border-gray-300 px-1 py-[1px] text-left w-[20%] whitespace-nowrap">種別</th>
+                            <th className="border border-gray-300 px-1 py-[1px] text-left w-[10%] whitespace-nowrap">POS</th>
+                            <th className="border border-gray-300 px-1 py-[1px] text-left w-[34%] whitespace-nowrap">選手名</th>
+                            <th className="border border-gray-300 px-1 py-[1px] text-left w-[36%] whitespace-nowrap">移籍先</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {transfersOut.map((t, idx) => (
+                            <tr key={`out_${idx}`}>
+                              <td className="border border-gray-300 px-1 py-[1px] whitespace-nowrap">{t.type || "\u00A0"}</td>
+                              <td className="border border-gray-300 px-1 py-[1px] whitespace-nowrap">{t.position || "\u00A0"}</td>
+                              <td className="border border-gray-300 px-1 py-[1px] whitespace-nowrap overflow-hidden text-ellipsis">{t.playerName || "\u00A0"}</td>
+                              <td className="border border-gray-300 px-1 py-[1px] whitespace-nowrap overflow-hidden text-ellipsis">{t.fromTo || "\u00A0"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
