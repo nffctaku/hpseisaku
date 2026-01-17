@@ -10,7 +10,7 @@ import { Trophy, Shield, Home, Newspaper, Tv, Users, Calendar, Settings, CreditC
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, limit, setDoc } from 'firebase/firestore';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -33,10 +33,12 @@ export function Sidebar() {
       }
 
       try {
+        const clubProfileByUidRef = doc(db, 'club_profiles', clubUid);
+
         // Prefer docId == uid schema
-        const p = await getDoc(doc(db, 'club_profiles', clubUid));
-        if (p.exists()) {
-          const data = p.data() as any;
+        const byUidSnap = await getDoc(clubProfileByUidRef);
+        if (byUidSnap.exists()) {
+          const data = byUidSnap.data() as any;
           const next = typeof data?.mainTeamId === 'string' ? String(data.mainTeamId).trim() : '';
           if (next) {
             setMainTeamId(next);
@@ -45,12 +47,37 @@ export function Sidebar() {
         }
 
         // Fallback: ownerUid == uid schema
-        const qRef = query(collection(db, 'club_profiles'), where('ownerUid', '==', clubUid));
-        const snap = await getDocs(qRef);
-        if (!snap.empty) {
-          const data = snap.docs[0].data() as any;
+        const ownerQuery = query(collection(db, 'club_profiles'), where('ownerUid', '==', clubUid), limit(1));
+        const ownerSnap = await getDocs(ownerQuery);
+        if (!ownerSnap.empty) {
+          const data = ownerSnap.docs[0].data() as any;
           const next = typeof data?.mainTeamId === 'string' ? String(data.mainTeamId).trim() : '';
-          setMainTeamId(next || null);
+          if (next) {
+            setMainTeamId(next);
+            return;
+          }
+        }
+
+        // Final fallback: if exactly one team exists, treat it as main team
+        const teamsSnap = await getDocs(query(collection(db, `clubs/${clubUid}/teams`), limit(2)));
+        if (teamsSnap.size === 1) {
+          const onlyTeamId = teamsSnap.docs[0].id;
+          setMainTeamId(onlyTeamId);
+
+          // Persist to club_profiles for stability
+          try {
+            const payload = { ownerUid: clubUid, mainTeamId: onlyTeamId };
+            await setDoc(clubProfileByUidRef, payload, { merge: true });
+            if (!ownerSnap.empty) {
+              const ownerDocRef = ownerSnap.docs[0].ref;
+              if (ownerDocRef.id !== clubUid) {
+                await setDoc(ownerDocRef, payload, { merge: true });
+              }
+            }
+          } catch (e) {
+            console.warn('[Sidebar] failed to persist auto mainTeamId', e);
+          }
+
           return;
         }
 
