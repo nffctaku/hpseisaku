@@ -198,6 +198,10 @@ export async function POST(req: NextRequest) {
         customerLookupByEmailCount: (debug as any).customerLookupByEmailCount ?? null,
         customerSearchByEmailCount: (debug as any).customerSearchByEmailCount ?? null,
         customerSearchByEmailError: (debug as any).customerSearchByEmailError ?? null,
+        clubIdPresent: (debug as any).clubIdPresent ?? null,
+        clubProfilesByClubIdCount: (debug as any).clubProfilesByClubIdCount ?? null,
+        clubIdLookupError: (debug as any).clubIdLookupError ?? null,
+        restoredFrom: (debug as any).restoredFrom ?? null,
       };
     };
 
