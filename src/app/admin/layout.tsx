@@ -118,14 +118,6 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
                 <span>に同意します。</span>
               </p>
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-              <Link href="/terms" className="underline text-sky-700 hover:text-sky-800" target="_blank" rel="noreferrer">
-                利用規約の詳細
-              </Link>
-              <Link href="/cancel-policy" className="underline text-sky-700 hover:text-sky-800" target="_blank" rel="noreferrer">
-                キャンセルポリシーの詳細
-              </Link>
-            </div>
             <Button
               type="button"
               className="w-full"
