@@ -181,6 +181,7 @@ export async function POST(req: NextRequest) {
 
     const publicDiag = () => {
       return {
+        deploySha: process.env.VERCEL_GIT_COMMIT_SHA || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || undefined,
         requesterUid,
         profileDocId: (profileSnap as any)?.id,
         resolvedBy,
@@ -190,6 +191,8 @@ export async function POST(req: NextRequest) {
         hasCheckoutSessionCache: Boolean((debug as any).hasCheckoutSessionCache),
         checkoutSessionIdPresent: Boolean((debug as any).checkoutSessionIdPresent),
         customerLookupByEmailCount: (debug as any).customerLookupByEmailCount ?? undefined,
+        customerSearchByEmailCount: (debug as any).customerSearchByEmailCount ?? undefined,
+        customerSearchByEmailError: (debug as any).customerSearchByEmailError ?? undefined,
       };
     };
 
