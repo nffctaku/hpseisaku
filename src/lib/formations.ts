@@ -59,6 +59,22 @@ export const formations: Formation[] = [
     ],
   },
   {
+    name: '4-4-2（ダイヤ）',
+    positions: [
+      { id: 'GK', label: 'GK', coordinates: { x: 50, y: 5 } },
+      { id: 'RB', label: 'RB', coordinates: { x: 85, y: 25 } },
+      { id: 'RCB', label: 'CB', coordinates: { x: 65, y: 25 } },
+      { id: 'LCB', label: 'CB', coordinates: { x: 35, y: 25 } },
+      { id: 'LB', label: 'LB', coordinates: { x: 15, y: 25 } },
+      { id: 'DM', label: 'DM', coordinates: { x: 50, y: 42 } },
+      { id: 'RCM', label: 'CM', coordinates: { x: 65, y: 58 } },
+      { id: 'LCM', label: 'CM', coordinates: { x: 35, y: 58 } },
+      { id: 'CAM', label: 'AM', coordinates: { x: 50, y: 72 } },
+      { id: 'RST', label: 'ST', coordinates: { x: 60, y: 85 } },
+      { id: 'LST', label: 'ST', coordinates: { x: 40, y: 85 } },
+    ],
+  },
+  {
     name: '3-4-2-1',
     positions: [
       { id: 'GK', label: 'GK', coordinates: { x: 50, y: 5 } },

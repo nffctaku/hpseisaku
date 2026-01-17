@@ -699,69 +699,6 @@ export default function TeamBookletA3EditorPage() {
                   </div>
 
                   <div className="rounded-md border bg-white p-3">
-                    <div className="text-xs font-semibold text-gray-700 mb-2">帯の色（ポジション別）</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {([
-                        ["GK", (layout as any).positionColors?.GK],
-                        ["DF", (layout as any).positionColors?.DF],
-                        ["MF", (layout as any).positionColors?.MF],
-                        ["FW", (layout as any).positionColors?.FW],
-                      ] as Array<["GK" | "DF" | "MF" | "FW", string]>).map(([k, v]) => (
-                        <label key={k} className="flex items-center gap-2">
-                          <span className="w-10 text-[11px] font-semibold text-gray-700">{k}</span>
-                          <select
-                            className="flex-1 border border-gray-300 rounded-md px-2 py-1 text-[11px]"
-                            value={v || (createEmptyLayout() as any).positionColors[k]}
-                            onChange={(e) =>
-                              setLayout((prev) => ({
-                                ...prev,
-                                positionColors: {
-                                  ...(prev as any).positionColors,
-                                  [k]: e.target.value,
-                                },
-                              }))
-                            }
-                          >
-                            {colorOptions.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.name}
-                              </option>
-                            ))}
-                          </select>
-                          <div className={`w-5 h-5 rounded ${v || (createEmptyLayout() as any).positionColors[k]}`} />
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="md:col-span-2 text-xs text-gray-600">
-                  <div className="font-semibold mb-1">先発11人（選択中ポジションに割当）</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {formation.positions.map((pos) => {
-                      const currentId = (layout.starters || {})[pos.id] || null;
-                      const player = currentId ? playersById.get(currentId) || null : null;
-                      const isActive = activeFormationPosId === pos.id;
-                      return (
-                        <button
-                          key={pos.id}
-                          type="button"
-                          onClick={() => setActiveFormationPosId(pos.id)}
-                          className={
-                            "flex items-center justify-between gap-2 rounded-md border px-2 py-2 text-left transition-colors " +
-                            (isActive ? "border-amber-500 bg-amber-50 ring-2 ring-amber-200" : "border-gray-200 bg-white hover:bg-gray-50")
-                          }
-                        >
-                          <span className="w-10 text-[11px] font-semibold text-gray-700">{pos.label}</span>
-                          <span className="flex-1 text-[11px] text-gray-700 truncate">
-                            {player ? `${player.number != null ? String(player.number) : "-"} ${player.name}` : "未設定"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div className="mt-3 rounded-md border bg-white p-3">
                     <div className="text-xs font-semibold text-gray-700 mb-2">割当（選択中）</div>
                     {(() => {
                       const pos = formation.positions.find((p) => p.id === activeFormationPosId) || null;
@@ -811,13 +748,76 @@ export default function TeamBookletA3EditorPage() {
                     })()}
                   </div>
                 </div>
+
+                <div className="md:col-span-2 text-xs text-gray-600">
+                  <div className="font-semibold mb-1">先発11人（選択中ポジションに割当）</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {formation.positions.map((pos) => {
+                      const currentId = (layout.starters || {})[pos.id] || null;
+                      const player = currentId ? playersById.get(currentId) || null : null;
+                      const isActive = activeFormationPosId === pos.id;
+                      return (
+                        <button
+                          key={pos.id}
+                          type="button"
+                          onClick={() => setActiveFormationPosId(pos.id)}
+                          className={
+                            "flex items-center justify-between gap-2 rounded-md border px-2 py-2 text-left transition-colors " +
+                            (isActive ? "border-amber-500 bg-amber-50 ring-2 ring-amber-200" : "border-gray-200 bg-white hover:bg-gray-50")
+                          }
+                        >
+                          <span className="w-10 text-[11px] font-semibold text-gray-700">{pos.label}</span>
+                          <span className="flex-1 text-[11px] text-gray-700 truncate">
+                            {player ? `${player.number != null ? String(player.number) : "-"} ${player.name}` : "未設定"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-md border bg-white p-3 mt-4">
+              <div className="text-xs font-semibold text-gray-700 mb-2">帯の色（ポジション別）</div>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ["GK", (layout as any).positionColors?.GK],
+                  ["DF", (layout as any).positionColors?.DF],
+                  ["MF", (layout as any).positionColors?.MF],
+                  ["FW", (layout as any).positionColors?.FW],
+                ] as Array<["GK" | "DF" | "MF" | "FW", string]>).map(([k, v]) => (
+                  <label key={k} className="flex items-center gap-2">
+                    <span className="w-10 text-[11px] font-semibold text-gray-700">{k}</span>
+                    <select
+                      className="flex-1 border border-gray-300 rounded-md px-2 py-1 text-[11px]"
+                      value={v || (createEmptyLayout() as any).positionColors[k]}
+                      onChange={(e) =>
+                        setLayout((prev) => ({
+                          ...prev,
+                          positionColors: {
+                            ...(prev as any).positionColors,
+                            [k]: e.target.value,
+                          },
+                        }))
+                      }
+                    >
+                      {colorOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className={`w-5 h-5 rounded ${v || (createEmptyLayout() as any).positionColors[k]}`} />
+                  </label>
+                ))}
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="relative rounded-md border bg-gray-50 p-3 min-h-[360px] md:min-h-[520px]">
                 <div className="text-xs font-semibold text-gray-600 mb-2">左側（下から3×4 / 12枚）</div>
-                <div className="absolute left-3 right-3 bottom-3">
+                <div className="mt-3 md:absolute md:left-3 md:right-3 md:bottom-3">
                   <div className="grid grid-cols-3 gap-2">
                     {Array.from({ length: 12 }).map((_, i) => {
                       const key = `l${i}` as SlotKey;
