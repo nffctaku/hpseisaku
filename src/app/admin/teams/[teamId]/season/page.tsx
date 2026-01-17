@@ -18,10 +18,20 @@ const generateSeasonOptions = (): string[] => {
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const start = month >= 7 ? year : year - 1;
+  const maxStartYear = 2059;
   const out: string[] = [];
-  for (let y = start; y >= start - 20; y -= 1) {
+
+  // Future seasons up to 2059/60
+  for (let y = Math.min(start, maxStartYear); y <= maxStartYear; y += 1) {
     out.push(`${y}/${String((y + 1) % 100).padStart(2, "0")}`);
   }
+
+  // Past seasons (keep existing behavior: last 20 seasons)
+  for (let y = start - 1; y >= start - 20; y -= 1) {
+    out.push(`${y}/${String((y + 1) % 100).padStart(2, "0")}`);
+  }
+
+  out.sort((a, b) => b.localeCompare(a));
   return out;
 };
 
