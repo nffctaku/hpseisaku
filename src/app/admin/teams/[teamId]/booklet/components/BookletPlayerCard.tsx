@@ -55,9 +55,7 @@ export function BookletPlayerCard({
             <Image src={player.photoUrl} alt={player.name} fill className="object-cover" sizes="360px" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-10 h-10 rounded-full bg-white/70 flex items-center justify-center text-gray-600 font-black">
-                {(String(player.name || "").trim() || "-").slice(0, 1)}
-              </div>
+              <div className="text-sm font-semibold text-gray-500">NoImage</div>
             </div>
           )}
         </div>

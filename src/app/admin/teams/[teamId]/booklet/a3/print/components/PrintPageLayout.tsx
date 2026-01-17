@@ -120,7 +120,7 @@ function FormationPitch({
                 {p.photoUrl ? (
                   <Image src={p.photoUrl} alt={p.name} width={56} height={56} className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-sm font-bold text-emerald-900">{p.name.slice(0, 1)}</span>
+                  <span className="text-[10px] font-semibold text-gray-500">NoImage</span>
                 )}
               </div>
               <div className="mt-1 px-2 py-1 rounded-full bg-white/90 text-[10px] leading-none font-bold text-gray-900 whitespace-nowrap shadow-sm">
