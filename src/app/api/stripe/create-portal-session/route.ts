@@ -230,8 +230,24 @@ export async function POST(req: NextRequest) {
         }
 
         const customers = await stripe.customers.list({ email, limit: 1 });
-        const found = customers.data?.[0];
+        let found = customers.data?.[0];
         debug.customerLookupByEmailCount = Array.isArray(customers.data) ? customers.data.length : 0;
+
+        // Fallback: Search API tends to be more reliable than list-by-email for some Stripe data shapes.
+        if (!found?.id) {
+          try {
+            const queryEmail = email.replace(/'/g, "\\'");
+            const searched = await stripe.customers.search({ query: `email:'${queryEmail}'`, limit: 1 });
+            debug.customerSearchByEmailCount = Array.isArray(searched.data) ? searched.data.length : 0;
+            found = searched.data?.[0];
+            if (found?.id) {
+              debug.restoredFrom = 'email_search';
+            }
+          } catch (e) {
+            debug.customerSearchByEmailError = (e as any)?.message || String(e);
+          }
+        }
+
         if (!found?.id) {
           return NextResponse.json(
             {
@@ -246,7 +262,7 @@ export async function POST(req: NextRequest) {
 
         stripeCustomerId = found.id;
         await profileRef.set({ stripeCustomerId }, { merge: true });
-        debug.restoredFrom = 'email';
+        debug.restoredFrom = debug.restoredFrom || 'email';
       }
     }
 
