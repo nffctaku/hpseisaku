@@ -13,6 +13,8 @@ const stripe = stripeSecretKey
   ? new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' })
   : null;
 
+let stripeAccountIdCache: string | null = null;
+
 export async function POST(req: NextRequest) {
   try {
     if (!stripe) {
@@ -20,6 +22,21 @@ export async function POST(req: NextRequest) {
         { error: 'Stripe is not correctly configured on the server.' },
         { status: 500 }
       );
+    }
+
+    const stripeKeyType = stripeSecretKey?.startsWith('sk_live_')
+      ? 'live'
+      : stripeSecretKey?.startsWith('sk_test_')
+        ? 'test'
+        : 'unknown';
+
+    if (!stripeAccountIdCache) {
+      try {
+        const acct = await stripe.accounts.retrieve();
+        stripeAccountIdCache = typeof (acct as any)?.id === 'string' ? (acct as any).id : 'unknown';
+      } catch {
+        stripeAccountIdCache = 'unknown';
+      }
     }
 
     const requestOrigin = req.nextUrl?.origin;
@@ -167,6 +184,8 @@ export async function POST(req: NextRequest) {
         requesterUid,
         profileDocId: (profileSnap as any)?.id,
         resolvedBy,
+        stripeKeyType,
+        stripeAccountId: stripeAccountIdCache,
         hasStripeCustomerIdInProfile: Boolean(stripeCustomerId),
         hasCheckoutSessionCache: Boolean((debug as any).hasCheckoutSessionCache),
         checkoutSessionIdPresent: Boolean((debug as any).checkoutSessionIdPresent),
