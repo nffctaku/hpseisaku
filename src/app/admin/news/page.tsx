@@ -8,6 +8,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { format } from 'date-fns';
+import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,7 +71,8 @@ export default function NewsAdminPage() {
   const [pageLoading, setPageLoading] = useState(true);
   const [heroLimit, setHeroLimit] = useState<number>(3);
 
-  const MAX_NEWS_FREE = 5;
+  const planTier = getPlanTier(user?.plan);
+  const maxNews = getPlanLimit("news_per_club", planTier);
 
   const form = useForm<NewsFormValues>({
     resolver: zodResolver(newsSchema),
@@ -159,8 +161,8 @@ export default function NewsAdminPage() {
   };
 
   const handleOpenDialog = (article: NewsArticle | null) => {
-    if (!isPro && !article && news.length >= MAX_NEWS_FREE) {
-      toast.info("無料プランではニュースは5件まで登録できます。既存のニュースを編集するか、不要なニュースを削除してください。");
+    if (!isPro && !article && news.length >= maxNews) {
+      toast.info(`無料プランではニュースは${maxNews}件まで登録できます。既存のニュースを編集するか、不要なニュースを削除してください。`);
       return;
     }
     setEditingArticle(article);

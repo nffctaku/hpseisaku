@@ -228,10 +228,6 @@ export default function TeamsPage() {
     const canUseLogo = isPro || isEditingPrimary || isCreatingFirstTeam;
 
     try {
-      if (!isPro && !editingTeam && teams.length >= 24) {
-        toast.error("無料プランではチームは最大24チームまで登録できます。");
-        return;
-      }
       if (selectedFile && canUseLogo) {
         const formData = new FormData();
         formData.append('file', selectedFile);
@@ -297,11 +293,6 @@ export default function TeamsPage() {
           <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
             先にカテゴリを作成して、チームを分類できます。
           </p>
-          {!isPro && (
-            <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-              無料プランでは最大24チームまで登録できます。
-            </p>
-          )}
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Button
@@ -314,7 +305,6 @@ export default function TeamsPage() {
           </Button>
           <Button
             onClick={() => handleOpenDialog(null)}
-            disabled={!isPro && teams.length >= 24}
             className="w-full sm:w-auto bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:hover:bg-emerald-600"
           >
             新規チームを追加

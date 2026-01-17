@@ -32,13 +32,7 @@ export default function LandingPage() {
   }, [slideIndex]);
 
   const handleViewClub = () => {
-    const clubId = user?.clubId;
-    if (clubId) {
-      router.push(`/${clubId}`);
-    } else {
-      // まだクラブプロフィールがないユーザーは、管理画面（チーム/クラブ設定）からスタート
-      router.push("/admin/competitions");
-    }
+    router.push("/admin/competitions");
   };
 
   const handleProtectedViewClub = (e: React.MouseEvent) => {
@@ -248,7 +242,26 @@ export default function LandingPage() {
                 </p>
 
                 <div className="mt-6">
-                  <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-[#21c45a] text-white">
+                  <div className="sm:hidden relative w-screen left-1/2 -ml-[50vw] bg-[#21c45a] text-white">
+                    <div className="mx-auto max-w-5xl px-6 py-6 text-center">
+                      <div className="text-lg font-bold">LINE登録で、最新情報をすぐゲット！</div>
+                      <div className="mt-2 text-sm text-white/90">アップデート情報をLINEでお届け</div>
+
+                      <a
+                        href="https://lin.ee/0IxYvaa"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-5 inline-flex items-center justify-center gap-2 bg-white text-[#21c45a] font-semibold rounded-full h-12 px-8"
+                      >
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#21c45a] text-white text-[10px] font-bold">
+                          LINE
+                        </span>
+                        <span>LINE登録する</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:block relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-[#21c45a] text-white">
                     <div className="mx-auto max-w-5xl px-6 py-6 text-center">
                       <div className="text-lg font-bold">LINE登録で、最新情報をすぐゲット！</div>
                       <div className="mt-2 text-sm text-white/90">アップデート情報をLINEでお届け</div>
@@ -283,34 +296,15 @@ export default function LandingPage() {
                   </div>
 
                   <div className="hidden sm:block w-full">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-5xl">
-                      <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
-                        <Image
-                          src="/プラン内容Free.png"
-                          alt="プラン内容 Free"
-                          fill
-                          className="object-contain"
-                          sizes="(min-width: 640px) 560px, 92vw"
-                        />
-                      </div>
-                      <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
-                        <Image
-                          src="/プラン内容.png"
-                          alt="プラン内容"
-                          fill
-                          className="object-contain"
-                          sizes="(min-width: 640px) 560px, 92vw"
-                        />
-                      </div>
-                      <div className="relative w-[92vw] max-w-[560px] sm:w-full sm:max-w-none aspect-[1/1]">
-                        <Image
-                          src="/プラン内容全開放.png"
-                          alt="プラン内容 全開放"
-                          fill
-                          className="object-contain"
-                          sizes="(min-width: 640px) 560px, 92vw"
-                        />
-                      </div>
+                    <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
+                      <Image
+                        src="/プラン画像PC.png"
+                        alt="プラン内容"
+                        width={1024}
+                        height={512}
+                        className="w-full h-auto"
+                        sizes="100vw"
+                      />
                     </div>
                   </div>
                 </div>

@@ -15,9 +15,18 @@ const stripe = stripeSecretKey
 
 export async function POST(req: NextRequest) {
   try {
-    if (!stripe || !appBaseUrl) {
+    if (!stripe) {
       return NextResponse.json(
         { error: 'Stripe is not correctly configured on the server.' },
+        { status: 500 }
+      );
+    }
+
+    const requestOrigin = req.nextUrl?.origin;
+    const baseUrl = requestOrigin || appBaseUrl;
+    if (!baseUrl) {
+      return NextResponse.json(
+        { error: 'App URL is not correctly configured on the server.' },
         { status: 500 }
       );
     }
@@ -29,11 +38,55 @@ export async function POST(req: NextRequest) {
 
     const idToken = authHeader.substring('Bearer '.length);
     const decoded = await auth.verifyIdToken(idToken);
-    const ownerUid = decoded.uid;
+    const requesterUid = decoded.uid;
+    let email = typeof (decoded as any)?.email === 'string' ? String((decoded as any).email).trim() : '';
+    if (!email) {
+      try {
+        const userRecord = await auth.getUser(requesterUid);
+        email = typeof userRecord?.email === 'string' ? userRecord.email.trim() : '';
+      } catch (e) {
+        console.warn('[create-portal-session] failed to load user email via admin auth.getUser', e);
+      }
+    }
 
-    // Fetch stripeCustomerId from Firestore
-    const profileRef = db.collection('club_profiles').doc(ownerUid);
-    const profileSnap = await profileRef.get();
+    // Resolve correct club profile document (supports admin users)
+    let profileRef = db.collection('club_profiles').doc(requesterUid);
+    let profileSnap = await profileRef.get();
+    let resolvedBy: 'doc_id' | 'ownerUid' | 'admins' | 'none' = 'doc_id';
+
+    if (!profileSnap.exists) {
+      try {
+        const ownerSnap = await db
+          .collection('club_profiles')
+          .where('ownerUid', '==', requesterUid)
+          .limit(1)
+          .get();
+        if (!ownerSnap.empty) {
+          profileRef = ownerSnap.docs[0].ref;
+          profileSnap = ownerSnap.docs[0];
+          resolvedBy = 'ownerUid';
+        }
+      } catch (e) {
+        console.warn('[create-portal-session] failed to resolve profile by ownerUid', e);
+      }
+    }
+
+    if (!profileSnap.exists) {
+      try {
+        const adminSnap = await db
+          .collection('club_profiles')
+          .where('admins', 'array-contains', requesterUid)
+          .limit(1)
+          .get();
+        if (!adminSnap.empty) {
+          profileRef = adminSnap.docs[0].ref;
+          profileSnap = adminSnap.docs[0];
+          resolvedBy = 'admins';
+        }
+      } catch (e) {
+        console.warn('[create-portal-session] failed to resolve profile by admins', e);
+      }
+    }
 
     if (!profileSnap.exists) {
       return NextResponse.json(
@@ -42,19 +95,129 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const profileData = profileSnap.data() as { stripeCustomerId?: string };
-    const stripeCustomerId = profileData?.stripeCustomerId;
+    let profileData = profileSnap.data() as { stripeCustomerId?: string; ownerUid?: string; admins?: string[] };
+    let stripeCustomerId = profileData?.stripeCustomerId;
+
+    // If the profile we resolved does not have stripeCustomerId, try to find another related profile
+    // (e.g. admin user has their own club_profiles doc without billing info, while owner's doc has it).
+    if (!stripeCustomerId) {
+      const candidateDocIds: string[] = [];
+      const ownerUidFromProfile = typeof profileData?.ownerUid === 'string' ? profileData.ownerUid.trim() : '';
+      if (ownerUidFromProfile && ownerUidFromProfile !== (profileSnap as any)?.id) {
+        candidateDocIds.push(ownerUidFromProfile);
+      }
+
+      for (const docId of candidateDocIds) {
+        try {
+          const altRef = db.collection('club_profiles').doc(docId);
+          const altSnap = await altRef.get();
+          if (altSnap.exists) {
+            const altData = altSnap.data() as any;
+            const altCustomerId = typeof altData?.stripeCustomerId === 'string' ? altData.stripeCustomerId.trim() : '';
+            if (altCustomerId) {
+              profileRef = altRef;
+              profileSnap = altSnap;
+              profileData = altData;
+              stripeCustomerId = altCustomerId;
+              resolvedBy = 'ownerUid';
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn('[create-portal-session] failed to resolve alternate profile doc', e);
+        }
+      }
+
+      if (!stripeCustomerId) {
+        try {
+          const adminSnap = await db
+            .collection('club_profiles')
+            .where('admins', 'array-contains', requesterUid)
+            .limit(5)
+            .get();
+          for (const d of adminSnap.docs) {
+            const altData = d.data() as any;
+            const altCustomerId = typeof altData?.stripeCustomerId === 'string' ? altData.stripeCustomerId.trim() : '';
+            if (altCustomerId) {
+              profileRef = d.ref;
+              profileSnap = d;
+              profileData = altData;
+              stripeCustomerId = altCustomerId;
+              resolvedBy = 'admins';
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn('[create-portal-session] failed to search alternate profiles by admins', e);
+        }
+      }
+    }
+
+    const debug: Record<string, unknown> = {
+      requesterUid,
+      profileDocId: (profileSnap as any)?.id,
+      resolvedBy,
+      hasProfile: true,
+      hasStripeCustomerIdInProfile: Boolean(stripeCustomerId),
+      hasEmail: Boolean(email),
+    };
 
     if (!stripeCustomerId) {
-      return NextResponse.json(
-        { error: 'Stripe customer information is not available for this user.' },
-        { status: 400 }
-      );
+      // 1) Most reliable recovery: restore from cached checkout session (if exists)
+      try {
+        const cacheRef = db.collection('stripe_checkout_sessions').doc((profileSnap as any)?.id || requesterUid);
+        const cacheSnap = await cacheRef.get();
+        const sessionId = cacheSnap.exists ? (cacheSnap.data() as any)?.sessionId : undefined;
+        debug.hasCheckoutSessionCache = cacheSnap.exists;
+        debug.checkoutSessionIdPresent = typeof sessionId === 'string' && sessionId.trim().length > 0;
+        if (typeof sessionId === 'string' && sessionId.trim()) {
+          const session = await stripe.checkout.sessions.retrieve(sessionId.trim());
+          const customer = session?.customer;
+          debug.checkoutSessionCustomerType = typeof customer;
+          if (typeof customer === 'string' && customer.trim()) {
+            stripeCustomerId = customer.trim();
+            await profileRef.set({ stripeCustomerId }, { merge: true });
+            debug.restoredFrom = 'checkout_session';
+          }
+        }
+      } catch (e) {
+        console.warn('[create-portal-session] failed to restore stripeCustomerId from checkout session cache', e);
+        debug.checkoutSessionRestoreError = (e as any)?.message || String(e);
+      }
+
+      if (!stripeCustomerId) {
+        if (!email) {
+          return NextResponse.json(
+            {
+              error: 'Stripe customer information is not available for this user (missing stripeCustomerId and email).',
+              ...(process.env.NODE_ENV !== 'production' ? { debug } : {}),
+            },
+            { status: 400 }
+          );
+        }
+
+        const customers = await stripe.customers.list({ email, limit: 1 });
+        const found = customers.data?.[0];
+        debug.customerLookupByEmailCount = Array.isArray(customers.data) ? customers.data.length : 0;
+        if (!found?.id) {
+          return NextResponse.json(
+            {
+              error: 'Stripe customer information is not available for this user.',
+              ...(process.env.NODE_ENV !== 'production' ? { debug } : {}),
+            },
+            { status: 400 }
+          );
+        }
+
+        stripeCustomerId = found.id;
+        await profileRef.set({ stripeCustomerId }, { merge: true });
+        debug.restoredFrom = 'email';
+      }
     }
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
-      return_url: `${appBaseUrl}/admin/plan`,
+      return_url: `${baseUrl}/admin/plan`,
     });
 
     return NextResponse.json({ url: portalSession.url }, { status: 200 });

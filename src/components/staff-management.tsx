@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,9 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [deletingStaff, setDeletingStaff] = useState<Staff | null>(null);
+
+  const planTier = getPlanTier(user?.plan);
+  const maxStaff = getPlanLimit("staff_per_season", planTier);
 
   const staffFormKey = editingStaff ? editingStaff.id : `new-${selectedSeason || ""}`;
 
@@ -109,8 +113,8 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
         await updateDoc(staffDocRef, resolvedValues);
         toast.success("スタッフを更新しました。");
       } else {
-        if (!isPro && filteredStaff.length >= 26) {
-          toast.error("無料プランでは1シーズンあたりスタッフは最大26人まで登録できます。");
+        if (Number.isFinite(maxStaff) && filteredStaff.length >= maxStaff) {
+          toast.error(`現在のプランでは1シーズンあたりスタッフは最大${maxStaff}人まで登録できます。`);
           return;
         }
         await addDoc(staffColRef, resolvedValues);
@@ -144,8 +148,8 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
   };
 
   const openAddDialog = () => {
-    if (!isPro && filteredStaff.length >= 26) {
-      toast.error("無料プランでは1シーズンあたりスタッフは最大26人まで登録できます。");
+    if (Number.isFinite(maxStaff) && filteredStaff.length >= maxStaff) {
+      toast.error(`現在のプランでは1シーズンあたりスタッフは最大${maxStaff}人まで登録できます。`);
       return;
     }
     setEditingStaff(null);

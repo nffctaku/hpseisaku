@@ -7,6 +7,7 @@ import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, array
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +25,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PlayerForm, PlayerFormValues } from "./player-form";
+import { PlayerForm } from "./player-form";
+import type { PlayerFormValues } from "./player-form.schema";
 import { Player, PlayerSeasonData } from "@/types/player";
 import { columns } from "./players-columns";
 import { PlayersDataTable } from "./players-data-table";
@@ -64,6 +66,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<Player | null>(null);
+
+  const planTier = getPlanTier(user?.plan);
+  const maxPlayers = getPlanLimit("players_per_team", planTier);
+  const maxPlayerPhotos = getPlanLimit("player_photos_per_team", planTier);
 
   const invalidatePlayerStatsCache = async (playerId: string) => {
     if (!user) return;
@@ -227,28 +233,18 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     const nextPhotoUrl = (values as any)?.photoUrl as string | undefined;
     const isNewPhoto = Boolean(nextPhotoUrl && String(nextPhotoUrl).trim().length > 0 && (!prevPhotoUrl || String(prevPhotoUrl).trim().length === 0));
 
-    if (!isPro && isNewPhoto) {
+    if (isNewPhoto) {
       try {
-        const teamsSnap = await getDocs(collection(db, `clubs/${clubUid}/teams`));
-        const teamIds = teamsSnap.docs.map((d) => d.id);
+        const playersSnap = await getDocs(collection(db, `clubs/${clubUid}/teams/${teamId}/players`));
         let count = 0;
-        await Promise.all(
-          teamIds.map(async (tid) => {
-            try {
-              const playersSnap = await getDocs(collection(db, `clubs/${clubUid}/teams/${tid}/players`));
-              playersSnap.forEach((d) => {
-                const p = d.data() as any;
-                const url = typeof p?.photoUrl === 'string' ? p.photoUrl.trim() : '';
-                if (url) count += 1;
-              });
-            } catch {
-              // ignore
-            }
-          })
-        );
+        playersSnap.forEach((d) => {
+          const p = d.data() as any;
+          const url = typeof p?.photoUrl === 'string' ? p.photoUrl.trim() : '';
+          if (url) count += 1;
+        });
 
-        if (count >= 20) {
-          toast.error('無料プランでは選手画像は最大20枚まで登録できます。');
+        if (Number.isFinite(maxPlayerPhotos) && count >= maxPlayerPhotos) {
+          toast.error(`現在のプランでは選手画像は1チームあたり最大${maxPlayerPhotos}枚まで登録できます。`);
           return;
         }
       } catch {
@@ -467,8 +463,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   };
 
   const openAddDialog = () => {
-    if (!isPro && filteredPlayers.length >= 26) {
-      toast.error("無料プランでは1チームあたり選手は最大26人まで登録できます。");
+    if (Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers) {
+      toast.error(`現在のプランでは1チームあたり選手は最大${maxPlayers}人まで登録できます。`);
       return;
     }
     setEditingPlayer(null);
@@ -483,7 +479,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             <DialogTrigger asChild>
               <Button
                 onClick={openAddDialog}
-                disabled={!isPro && filteredPlayers.length >= 26}
+                disabled={Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers}
                 className="bg-white text-gray-900 hover:bg-gray-100 border border-border"
               >
                 選手を追加

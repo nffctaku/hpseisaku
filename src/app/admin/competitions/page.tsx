@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, query, onSnapshot, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { z } from "zod";
+import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
 
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,8 +40,6 @@ interface Competition {
   showOnTable?: boolean;
 }
 
-const MAX_COMPETITIONS_FREE = 1;
-
 export default function CompetitionsPage() {
   const { user, ownerUid } = useAuth();
   const isPro = user?.plan === "pro";
@@ -49,6 +48,10 @@ export default function CompetitionsPage() {
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
   const [deletingCompetition, setDeletingCompetition] = useState<Competition | null>(null);
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
+  const [limitDialogType, setLimitDialogType] = useState<"free" | "pro">("free");
+
+  const planTier = getPlanTier(user?.plan);
+  const maxCompetitions = getPlanLimit("competitions_per_club", planTier);
 
   const clubUid = ownerUid || user?.uid;
 
@@ -118,7 +121,8 @@ export default function CompetitionsPage() {
   };
 
   const handleCreateCompetition = () => {
-    if (!isPro && competitions.length >= MAX_COMPETITIONS_FREE) {
+    if (Number.isFinite(maxCompetitions) && competitions.length >= maxCompetitions) {
+      setLimitDialogType(isPro ? "pro" : "free");
       setLimitDialogOpen(true);
       return;
     }
@@ -248,9 +252,11 @@ export default function CompetitionsPage() {
       <AlertDialog open={limitDialogOpen} onOpenChange={setLimitDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>無料プランの上限に達しました</AlertDialogTitle>
+            <AlertDialogTitle>{limitDialogType === "free" ? "無料プランの上限に達しました" : "Proプランの上限に達しました"}</AlertDialogTitle>
             <AlertDialogDescription>
-              無料プランでは大会は1つまで作成できます。既存の大会を編集するか、不要な大会を削除してください。
+              {Number.isFinite(maxCompetitions)
+                ? `${limitDialogType === "free" ? "無料" : "Pro"}プランでは大会は${maxCompetitions}つまで作成できます。既存の大会を編集するか、不要な大会を削除してください。`
+                : "現在のプランでは大会数の上限はありません。"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -14,6 +14,7 @@ import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Loader2, Trash2, Edit } from 'lucide-react';
 import { toast } from 'sonner';
+import { getPlanLimit, getPlanTier } from '@/lib/plan-limits';
 
 const videoSchema = z.object({
   title: z.string().min(1, 'タイトルは必須です。'),
@@ -52,7 +53,8 @@ export default function TvAdminPage() {
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
 
-  const MAX_VIDEOS_FREE = 5;
+  const planTier = getPlanTier(user?.plan);
+  const maxVideos = getPlanLimit("videos_per_club", planTier);
 
   const form = useForm<z.infer<typeof videoSchema>>({
     resolver: zodResolver(videoSchema),
@@ -86,8 +88,8 @@ export default function TvAdminPage() {
   }, [user]);
 
   const handleAddNew = () => {
-    if (!isPro && videos.length >= MAX_VIDEOS_FREE) {
-      toast.info('無料プランでは動画は5件まで登録できます。既存の動画を編集するか、不要な動画を削除してください。');
+    if (!isPro && videos.length >= maxVideos) {
+      toast.info(`無料プランでは動画は${maxVideos}件まで登録できます。既存の動画を編集するか、不要な動画を削除してください。`);
       return;
     }
     setEditingVideo(null);
@@ -111,8 +113,8 @@ export default function TvAdminPage() {
         await updateDoc(videoDocRef, values);
         toast.success('動画を更新しました。');
       } else {
-        if (!isPro && videos.length >= MAX_VIDEOS_FREE) {
-          toast.info('無料プランでは動画は5件まで登録できます。既存の動画を編集するか、不要な動画を削除してください。');
+        if (!isPro && videos.length >= maxVideos) {
+          toast.info(`無料プランでは動画は${maxVideos}件まで登録できます。既存の動画を編集するか、不要な動画を削除してください。`);
           return;
         }
         await addDoc(collection(db, `clubs/${user.uid}/videos`), {
@@ -151,12 +153,12 @@ export default function TvAdminPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">動画管理</h1>
         <div className="flex flex-col items-end gap-1">
-          <Button onClick={handleAddNew} disabled={!isPro && videos.length >= MAX_VIDEOS_FREE}>
+          <Button onClick={handleAddNew} disabled={!isPro && videos.length >= maxVideos}>
             新規追加
           </Button>
           {!isPro && (
             <p className="text-xs text-muted-foreground">
-              無料プランでは動画は最大5件まで登録できます。
+              無料プランでは動画は最大{maxVideos}件まで登録できます。
             </p>
           )}
         </div>
