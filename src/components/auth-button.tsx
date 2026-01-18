@@ -101,5 +101,12 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       </button>
     );
   }
-  return <Button onClick={handleSignIn}>Login</Button>;
+  return (
+    <Button
+      onClick={handleSignIn}
+      className="bg-blue-600 text-white hover:bg-blue-700"
+    >
+      Login
+    </Button>
+  );
 }
