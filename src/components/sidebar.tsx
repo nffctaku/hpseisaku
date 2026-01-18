@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
 import { cn } from '@/lib/utils';
-import { Trophy, Shield, Home, Newspaper, Tv, Users, Calendar, Settings, CreditCard, LineChart, BookOpen } from 'lucide-react';
+import { Trophy, Shield, Home, Newspaper, Tv, Users, Calendar, Settings, CreditCard, LineChart, BookOpen, Mail } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
@@ -106,7 +106,7 @@ export function Sidebar() {
     }
   };
 
-  const navItems = [
+  const navItems: Array<{ href: string; label: string; icon: any; external?: boolean }> = [
     { href: `/admin/club/info`, label: 'クラブ情報', icon: Settings },
     { href: `/admin/news`, label: 'ニュース管理', icon: Newspaper },
     { href: `/admin/tv`, label: 'TV管理', icon: Tv },
@@ -117,6 +117,7 @@ export function Sidebar() {
     { href: bookletHref, label: '選手名鑑', icon: BookOpen },
     { href: `/admin/competitions`, label: '大会管理', icon: Trophy },
     { href: '/admin/teams', label: 'チーム登録', icon: Shield },
+    { href: 'https://forms.gle/YkvqAt14GivwrurBA', label: '問合せ', icon: Mail, external: true },
     { href: `/admin/plan`, label: 'プラン', icon: CreditCard },
   ];
 
@@ -138,20 +139,37 @@ export function Sidebar() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const href = item.href;
+          const isExternal = Boolean((item as any).external);
 
           return (
-            <Link
-              key={item.label}
-              href={href}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-gray-300 transition-all',
-                'hover:bg-gray-700 hover:text-white', // Style for enabled link
-                pathname.startsWith(item.href) && 'bg-gray-900 text-white' // Style for active link
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </Link>
+            isExternal ? (
+              <a
+                key={item.label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-gray-300 transition-all',
+                  'hover:bg-gray-700 hover:text-white'
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </a>
+            ) : (
+              <Link
+                key={item.label}
+                href={href}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-gray-300 transition-all',
+                  'hover:bg-gray-700 hover:text-white',
+                  pathname.startsWith(item.href) && 'bg-gray-900 text-white'
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            )
           );
         })}
       </nav>
