@@ -53,6 +53,10 @@ export default function TeamSeasonSelectPage() {
   const [creating, setCreating] = useState(false);
 
   const seasonOptions = useMemo(() => generateSeasonOptions(), []);
+  const availableSeasonOptions = useMemo(() => {
+    const existing = new Set(seasons.map((s) => s.id));
+    return seasonOptions.filter((s) => !existing.has(s));
+  }, [seasons, seasonOptions]);
 
   useEffect(() => {
     if (!clubUid) return;
@@ -70,16 +74,17 @@ export default function TeamSeasonSelectPage() {
   }, [clubUid]);
 
   useEffect(() => {
-    if (newSeasonId.trim()) return;
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-    const start = month >= 7 ? year : year - 1;
-    setNewSeasonId(`${start}/${String((start + 1) % 100).padStart(2, "0")}`);
-  }, [newSeasonId]);
+    if (!newSeasonId.trim()) return;
+    if (availableSeasonOptions.includes(newSeasonId)) return;
+    if (availableSeasonOptions.length === 0) return;
+    setNewSeasonId(availableSeasonOptions[0]);
+  }, [availableSeasonOptions, newSeasonId]);
 
   const canContinue = useMemo(() => selectedSeason.trim().length > 0, [selectedSeason]);
-  const canCreate = useMemo(() => Boolean(clubUid) && newSeasonId.trim().length > 0 && !creating, [clubUid, newSeasonId, creating]);
+  const canCreate = useMemo(
+    () => Boolean(clubUid) && newSeasonId.trim().length > 0 && availableSeasonOptions.length > 0 && !creating,
+    [clubUid, newSeasonId, availableSeasonOptions.length, creating]
+  );
 
   const handleCreateSeason = async () => {
     if (!clubUid) {
@@ -137,29 +142,6 @@ export default function TeamSeasonSelectPage() {
         </Select>
       </div>
 
-      {seasons.length === 0 ? (
-        <div className="mt-6 space-y-3">
-          <div className="text-sm text-muted-foreground">シーズンが未作成です。まずシーズンを作成してください。</div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Select value={newSeasonId} onValueChange={setNewSeasonId}>
-              <SelectTrigger className="w-full sm:w-[240px] bg-white text-gray-900">
-                <SelectValue placeholder="作成するシーズンを選択" />
-              </SelectTrigger>
-              <SelectContent>
-                {seasonOptions.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button type="button" onClick={handleCreateSeason} disabled={!canCreate} className="whitespace-nowrap">
-              シーズン作成
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
       <div className="mt-6 flex flex-col gap-2 sm:flex-row">
         <Button
           type="button"
@@ -184,6 +166,36 @@ export default function TeamSeasonSelectPage() {
         >
           戻る
         </Button>
+      </div>
+
+      <div className="mt-8 space-y-3">
+        {seasons.length === 0 ? (
+          <div className="text-sm text-muted-foreground">シーズンが未作成です。まずシーズンを作成してください。</div>
+        ) : (
+          <div className="text-sm text-muted-foreground">今シーズンを追加できます。</div>
+        )}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Select value={newSeasonId} onValueChange={setNewSeasonId}>
+            <SelectTrigger className="w-full sm:w-[240px] bg-white text-gray-900">
+              <SelectValue placeholder="ー" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableSeasonOptions.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            onClick={handleCreateSeason}
+            disabled={!canCreate}
+            className="whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600"
+          >
+            {seasons.length === 0 ? "シーズン作成" : "シーズン追加"}
+          </Button>
+        </div>
       </div>
     </div>
   );
