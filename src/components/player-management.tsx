@@ -60,10 +60,11 @@ interface PlayerManagementProps {
 }
 
 export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementProps) {
-  const { user } = useAuth();
-  const clubUid = (user as any)?.ownerUid || user?.uid;
+  const { user, ownerUid } = useAuth();
+  const clubUid = ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [players, setPlayers] = useState<Player[]>([]);
+  const [legacyPlayers, setLegacyPlayers] = useState<Player[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<Player | null>(null);
@@ -93,14 +94,35 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
   const playerFormKey = editingPlayer ? editingPlayer.id : `new-${selectedSeason || ""}`;
 
+  const mergedPlayers = useMemo(() => {
+    const map = new Map<string, Player>();
+    for (const p of legacyPlayers) map.set(p.id, p);
+    for (const p of players) map.set(p.id, p);
+    return Array.from(map.values());
+  }, [legacyPlayers, players]);
+
   const filteredPlayers = useMemo(() => {
-    if (!selectedSeason) return players as any[];
+    if (!selectedSeason) return mergedPlayers as any[];
+
+    const selectedSeasonDash = toDashSeason(selectedSeason);
 
     const positionOrder: Record<string, number> = {
       GK: 0,
       DF: 1,
       MF: 2,
       FW: 3,
+    };
+
+    const hasSelectedSeason = (p: any): boolean => {
+      const seasons = Array.isArray(p?.seasons) ? (p.seasons as string[]) : null;
+      if (seasons && seasons.includes(selectedSeason)) return true;
+
+      const seasonData = p?.seasonData && typeof p.seasonData === "object" ? p.seasonData : null;
+      if (seasonData && (seasonData[selectedSeason] || seasonData[selectedSeasonDash])) return true;
+
+      // Legacy: players created before seasons/seasonData were introduced
+      if (!seasons || seasons.length === 0) return true;
+      return false;
     };
 
     const normalizeNumber = (n: unknown): number => {
@@ -117,10 +139,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       return p.trim().toUpperCase();
     };
 
-    const mergedList = players
-      .filter((p) => (p.seasons || []).includes(selectedSeason))
+    const mergedList = mergedPlayers
+      .filter((p) => hasSelectedSeason(p as any))
       .map((p) => {
-        const season = (p.seasonData || {})[selectedSeason] as PlayerSeasonData | undefined;
+        const season = ((p.seasonData || {})[selectedSeason] || (p.seasonData || {})[selectedSeasonDash]) as
+          | PlayerSeasonData
+          | undefined;
         const merged: Player = {
           ...p,
           number: (season?.number ?? p.number) as any,
@@ -163,11 +187,14 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const nameB = typeof b?.name === "string" ? b.name : "";
         return nameA.localeCompare(nameB, "ja");
       });
-  }, [players, selectedSeason]);
+  }, [mergedPlayers, selectedSeason]);
 
   const seasonDefaults = useMemo(() => {
     if (!selectedSeason || !editingPlayer) return undefined;
-    const season = (editingPlayer.seasonData || {})[selectedSeason] as PlayerSeasonData | undefined;
+    const selectedSeasonDash = toDashSeason(selectedSeason);
+    const season = ((editingPlayer.seasonData || {})[selectedSeason] || (editingPlayer.seasonData || {})[selectedSeasonDash]) as
+      | PlayerSeasonData
+      | undefined;
     if (!season) {
       return editingPlayer;
     }
@@ -223,12 +250,45 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     return () => unsubscribe();
   }, [clubUid, teamId]);
 
+  useEffect(() => {
+    const legacyClubUid = user?.uid;
+    if (!legacyClubUid || !clubUid || legacyClubUid === clubUid) {
+      setLegacyPlayers([]);
+      return;
+    }
+    if (!teamId) return;
+
+    const playersColRef = collection(db, `clubs/${legacyClubUid}/teams/${teamId}/players`);
+    const q = query(playersColRef);
+
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const playersData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Player));
+        setLegacyPlayers(playersData);
+      },
+      (error) => {
+        console.error("[PlayerManagement] legacy players onSnapshot error", {
+          code: (error as any)?.code,
+          message: (error as any)?.message,
+          path: `clubs/${legacyClubUid}/teams/${teamId}/players`,
+          uid: legacyClubUid,
+          teamId,
+        });
+      }
+    );
+
+    return () => unsubscribe();
+  }, [clubUid, teamId, user?.uid]);
+
   const handleFormSubmit = async (values: PlayerFormValues) => {
     if (!clubUid || !teamId) return;
     if (!selectedSeason) {
       toast.error("シーズンが選択されていません。");
       return;
     }
+
+    const selectedSeasonDash = toDashSeason(selectedSeason);
 
     const prevPhotoUrl = ((seasonDefaults as any)?.photoUrl ?? (editingPlayer as any)?.photoUrl ?? '') as string;
     const nextPhotoUrl = (values as any)?.photoUrl as string | undefined;
@@ -338,7 +398,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           photoUrl: values.photoUrl,
           tenureYears: (values as any).tenureYears,
           seasons: nextSeasons,
-          [`seasonData.${selectedSeason}`]: seasonPayloadClean,
+          [`seasonData.${selectedSeasonDash}`]: seasonPayloadClean,
         });
         console.log("[PlayerManagement] write players", {
           path: `clubs/${clubUid}/teams/${teamId}/players/${editingPlayer.id}`,
@@ -353,7 +413,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           teamId,
           seasons: nextSeasons,
           seasonData: {
-            [selectedSeason]: seasonPayloadClean,
+            [selectedSeasonDash]: seasonPayloadClean,
           },
           number: values.number as any,
           position: values.position as any,
@@ -376,7 +436,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           ...values,
           seasons: [selectedSeason],
           seasonData: {
-            [selectedSeason]: seasonPayloadClean,
+            [selectedSeasonDash]: seasonPayloadClean,
           },
         });
         const created = await addDoc(playersColRef, (createPayload || {}) as any);
@@ -394,7 +454,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             teamId,
             seasons: [selectedSeason],
             seasonData: {
-              [selectedSeason]: seasonPayloadClean,
+              [selectedSeasonDash]: seasonPayloadClean,
             },
             number: values.number as any,
             position: values.position as any,
@@ -440,6 +500,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       toast.error("シーズンが選択されていません。");
       return;
     }
+    const selectedSeasonDash = toDashSeason(selectedSeason);
     try {
       const playerDocRef = doc(db, `clubs/${clubUid}/teams/${teamId}/players`, deletingPlayer.id);
       const seasons = Array.isArray((deletingPlayer as any)?.seasons) ? ((deletingPlayer as any).seasons as string[]) : [];
@@ -449,7 +510,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       } else {
         await updateDoc(playerDocRef, {
           seasons: arrayRemove(selectedSeason),
-          [`seasonData.${selectedSeason}`]: deleteField(),
+          [`seasonData.${selectedSeasonDash}`]: deleteField(),
         } as any);
       }
       setDeletingPlayer(null);

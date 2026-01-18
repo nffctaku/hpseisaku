@@ -10,7 +10,7 @@ import Image from "next/image";
 
 export default function PlanPage() {
   const [loading, setLoading] = useState(false);
-  const { user, refreshUserProfile } = useAuth();
+  const { user, ownerUid, refreshUserProfile } = useAuth();
   const planTier = getPlanTier(user?.plan);
   const isPro = planTier === "pro";
   const isTm = planTier === "tm";
@@ -73,7 +73,7 @@ export default function PlanPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ ownerUid: (user as any)?.ownerUid || user?.uid }),
+        body: JSON.stringify({ ownerUid: ownerUid || user?.uid }),
       });
 
       if (!res.ok) {

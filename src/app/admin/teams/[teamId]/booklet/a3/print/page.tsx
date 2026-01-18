@@ -418,7 +418,7 @@ export default function TeamBookletA3PrintPage() {
     });
   }, [playersById, resolvedLayout.extras]);
 
-  const clubUid = (user as any)?.ownerUid || user?.uid || null;
+  const clubUid = ownerUid || user?.uid || null;
   const [coachFromStaff, setCoachFromStaff] = useState<CoachInfo | null>(null);
   const [transfersInFromDb, setTransfersInFromDb] = useState<TransferRow[]>([]);
   const [transfersOutFromDb, setTransfersOutFromDb] = useState<TransferRow[]>([]);

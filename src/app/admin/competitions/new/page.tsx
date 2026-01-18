@@ -107,7 +107,7 @@ interface CompetitionTemplate {
 }
 
 export default function NewCompetitionPage() {
-  const { user } = useAuth();
+  const { user, ownerUid } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
@@ -118,7 +118,7 @@ export default function NewCompetitionPage() {
   const [selectedCompetitionName, setSelectedCompetitionName] = useState<string>('__new__');
   const [templateByName, setTemplateByName] = useState<Record<string, CompetitionTemplate>>({});
 
-  const clubUid = (user as any)?.ownerUid || user?.uid;
+  const clubUid = ownerUid || user?.uid;
 
   const getTeamInitial = (name: string) => {
     const s = (name || '').trim();

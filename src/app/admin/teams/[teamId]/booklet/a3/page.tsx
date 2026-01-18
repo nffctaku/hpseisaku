@@ -75,7 +75,7 @@ export default function TeamBookletA3EditorPage() {
   const teamId = params.teamId as string;
   const season = (searchParams.get("season") || "").trim();
 
-  const { user } = useAuth();
+  const { user, ownerUid } = useAuth();
   const isPro = user?.plan === "pro";
 
   const [data, setData] = useState<BookletResponse | null>(null);
@@ -394,7 +394,7 @@ export default function TeamBookletA3EditorPage() {
   };
 
 
-  const clubUid = (user as any)?.ownerUid || user?.uid || null;
+  const clubUid = ownerUid || user?.uid || null;
 
   const [staffList, setStaffList] = useState<StaffDoc[]>([]);
 

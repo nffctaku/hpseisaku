@@ -22,8 +22,8 @@ interface TeamOption {
 }
 
 export function PlayerStatsView() {
-  const { user } = useAuth();
-  const ownerUid = (user as any)?.ownerUid || user?.uid || null;
+  const { user, ownerUid: ownerUidFromContext } = useAuth();
+  const ownerUid = ownerUidFromContext || user?.uid || null;
   const [seasons, setSeasons] = useState<string[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>('all');
   const [competitions, setCompetitions] = useState<{ id: string, name: string }[]>([]);

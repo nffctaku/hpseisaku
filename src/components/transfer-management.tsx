@@ -51,8 +51,8 @@ interface TransferManagementProps {
 }
 
 export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSeason }: TransferManagementProps) {
-  const { user } = useAuth();
-  const clubUid = (user as any)?.ownerUid || user?.uid;
+  const { user, ownerUid } = useAuth();
+  const clubUid = ownerUid || user?.uid;
 
   const [direction, setDirection] = useState<TransferDirection>("in");
   const [items, setItems] = useState<TransferLog[]>([]);

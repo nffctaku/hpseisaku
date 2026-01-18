@@ -68,8 +68,8 @@ interface SquadRegistrationFormProps {
 export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId, competitionId, matchDocPath, view = 'both' }: SquadRegistrationFormProps) {
   console.log('SquadForm: Received homePlayers', homePlayers);
   console.log('SquadForm: Received awayPlayers', awayPlayers);
-  const { user } = useAuth();
-  const ownerUid = (user as any)?.ownerUid || user?.uid;
+  const { user, ownerUid: ownerUidFromContext } = useAuth();
+  const ownerUid = ownerUidFromContext || user?.uid;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settingDefault, setSettingDefault] = useState(false);

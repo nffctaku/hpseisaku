@@ -61,8 +61,8 @@ interface NewsArticle extends z.infer<typeof newsSchema> {
 type NewsFormValues = z.infer<typeof newsSchema>;
 
 export default function NewsAdminPage() {
-  const { user } = useAuth();
-  const clubUid = (user as any)?.ownerUid || user?.uid;
+  const { user, ownerUid } = useAuth();
+  const clubUid = ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [editingArticle, setEditingArticle] = useState<NewsArticle | null>(null);

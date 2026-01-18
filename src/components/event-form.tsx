@@ -44,8 +44,8 @@ interface EventFormProps {
 }
 
 export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: EventFormProps) {
-  const { user } = useAuth();
-  const ownerUid = (user as any)?.ownerUid || user?.uid;
+  const { user, ownerUid: ownerUidFromContext } = useAuth();
+  const ownerUid = ownerUidFromContext || user?.uid;
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<EventFormValues>({

@@ -165,7 +165,7 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
 
   useEffect(() => {
     form.reset(normalizedDefaults);
-  }, [defaultValues, defaultSeason]);
+  }, [form, normalizedDefaults]);
 
   useEffect(() => {
     if (!ownerUid) return;
@@ -305,27 +305,33 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
 
   const handleSubmit: SubmitHandler<PlayerFormValues> = async (values) => {
     setLoading(true);
-    const cleaned: PlayerFormValues = {
-      ...values,
-      mainPosition: values.mainPosition,
-      subPositions: Array.isArray(values.subPositions) ? values.subPositions.slice(0, 3) : [],
-      manualCompetitionStats: Array.isArray(values.manualCompetitionStats)
-        ? values.manualCompetitionStats
-            .filter((r) => typeof r?.competitionId === "string" && r.competitionId.trim().length > 0)
-            .map((r) => ({
-              competitionId: r.competitionId,
-              matches: r.matches,
-              minutes: r.minutes,
-              goals: r.goals,
-              assists: r.assists,
-              yellowCards: r.yellowCards,
-              redCards: r.redCards,
-              avgRating: r.avgRating,
-            }))
-        : [],
-    };
-    await onSubmit(cleaned);
-    setLoading(false);
+    try {
+      const cleaned: PlayerFormValues = {
+        ...values,
+        mainPosition: values.mainPosition,
+        subPositions: Array.isArray(values.subPositions) ? values.subPositions.slice(0, 3) : [],
+        manualCompetitionStats: Array.isArray(values.manualCompetitionStats)
+          ? values.manualCompetitionStats
+              .filter((r) => typeof r?.competitionId === "string" && r.competitionId.trim().length > 0)
+              .map((r) => ({
+                competitionId: r.competitionId,
+                matches: r.matches,
+                minutes: r.minutes,
+                goals: r.goals,
+                assists: r.assists,
+                yellowCards: r.yellowCards,
+                redCards: r.redCards,
+                avgRating: r.avgRating,
+              }))
+          : [],
+      };
+      await onSubmit(cleaned);
+    } catch (e) {
+      console.error("[PlayerForm] submit failed", e);
+      throw e;
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

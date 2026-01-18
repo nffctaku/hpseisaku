@@ -44,8 +44,8 @@ const extractYouTubeId = (url: string) => {
 };
 
 export default function TvAdminPage() {
-  const { user } = useAuth();
-  const clubUid = (user as any)?.ownerUid || user?.uid;
+  const { user, ownerUid } = useAuth();
+  const clubUid = ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [videos, setVideos] = useState<Video[]>([]);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
@@ -87,9 +87,11 @@ export default function TvAdminPage() {
         setPageLoading(false);
       },
       (error) => {
-        console.error('[TvAdminPage] onSnapshot error', {
+        console.error('[TvAdminPage] onSnapshot error (raw)', error);
+        console.error('[TvAdminPage] onSnapshot error (meta)', {
           code: (error as any)?.code,
           message: (error as any)?.message,
+          errorString: String(error),
           path: `clubs/${clubUid}/videos`,
         });
         toast.error(

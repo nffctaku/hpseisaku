@@ -35,8 +35,8 @@ interface StaffManagementProps {
 }
 
 export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps) {
-  const { user } = useAuth();
-  const clubUid = (user as any)?.ownerUid || user?.uid;
+  const { user, ownerUid } = useAuth();
+  const clubUid = ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [staff, setStaff] = useState<Staff[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);

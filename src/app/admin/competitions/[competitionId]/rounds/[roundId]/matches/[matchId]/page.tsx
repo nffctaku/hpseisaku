@@ -15,11 +15,11 @@ import { SquadRegistrationForm } from '@/components/squad-registration-form';
 import { MatchEventsPreview } from '@/components/match-events-preview';
 
 export default function MatchAdminPage() {
-  const { user } = useAuth();
+  const { user, ownerUid: ownerUidFromContext } = useAuth();
   const params = useParams();
   const { competitionId, roundId, matchId } = params;
 
-  const ownerUid = (user as any)?.ownerUid || user?.uid;
+  const ownerUid = ownerUidFromContext || user?.uid;
 
   const [match, setMatch] = useState<MatchDetails | null>(null);
   const [loading, setLoading] = useState(true);

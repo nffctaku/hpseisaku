@@ -35,12 +35,12 @@ interface Season {
 }
 
 export default function TeamPlayersPage() {
-  const { user } = useAuth();
+  const { user, ownerUid } = useAuth();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const teamId = params.teamId as string;
-  const clubUid = (user as any)?.ownerUid || user?.uid;
+  const clubUid = ownerUid || user?.uid;
   const isPro = user?.plan === 'pro';
   const [seasons, setSeasons] = useState<Season[]>([]);
   const seasonFromQuery = (searchParams.get('season') || '').trim();
@@ -97,6 +97,8 @@ export default function TeamPlayersPage() {
       return;
     }
 
+    const selectedSeasonDash = toDashSeason(selectedSeason);
+
     if (copySourceSeason === selectedSeason) {
       toast.error('コピー元とコピー先のシーズンが同じです。');
       return;
@@ -141,7 +143,7 @@ export default function TeamPlayersPage() {
 
         batch.update(pDoc.ref, {
           seasons: arrayUnion(selectedSeason),
-          [`seasonData.${selectedSeason}`]: seasonPayload,
+          [`seasonData.${selectedSeasonDash}`]: seasonPayload,
         } as any);
         copiedCount++;
       });

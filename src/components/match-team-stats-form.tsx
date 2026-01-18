@@ -55,8 +55,8 @@ const defaultStats: Omit<TeamStat, 'homeValue' | 'awayValue'>[] = [
 ];
 
 export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matchDocPath }: MatchTeamStatsFormProps) {
-  const { user } = useAuth();
-  const ownerUid = (user as any)?.ownerUid || userId;
+  const { user, ownerUid: ownerUidFromContext } = useAuth();
+  const ownerUid = ownerUidFromContext || userId;
   const [isSaving, setIsSaving] = useState(false);
   const [isTemplateLoading, setIsTemplateLoading] = useState(false);
   const [isTemplateSaving, setIsTemplateSaving] = useState(false);

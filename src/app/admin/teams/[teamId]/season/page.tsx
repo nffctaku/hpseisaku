@@ -38,12 +38,12 @@ const generateSeasonOptions = (): string[] => {
 };
 
 export default function TeamSeasonSelectPage() {
-  const { user } = useAuth();
+  const { user, ownerUid } = useAuth();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const teamId = params.teamId as string;
-  const clubUid = (user as any)?.ownerUid || user?.uid;
+  const clubUid = ownerUid || user?.uid;
 
   const next = (searchParams.get("next") || "").trim();
 

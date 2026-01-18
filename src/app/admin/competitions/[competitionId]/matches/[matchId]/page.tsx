@@ -20,11 +20,11 @@ interface LocalMatchEvent extends MatchEvent {
 }
 
 export default function MatchAdminPage() {
-  const { user } = useAuth();
+  const { user, ownerUid: ownerUidFromContext } = useAuth();
   const params = useParams();
   const { competitionId, matchId } = params;
 
-  const ownerUid = (user as any)?.ownerUid || user?.uid;
+  const ownerUid = ownerUidFromContext || user?.uid;
 
   const [match, setMatch] = useState<MatchDetails | null>(null);
   const [events, setEvents] = useState<LocalMatchEvent[]>([]);
