@@ -41,7 +41,7 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
     try {
       console.log('[AuthButton] handleSignIn start');
       if (shouldUseRedirect()) {
-        await signInWithRedirect(auth, provider);
+        window.alert('LINE/Instagram等のアプリ内ブラウザではGoogleログインがブロックされます。Safari/Chromeでこのページを開いてからログインしてください。');
         return;
       }
       await signInWithPopup(auth, provider);
