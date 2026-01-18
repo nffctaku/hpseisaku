@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import * as React from "react";
 
 export default function LandingPage() {
-  const router = useRouter();
   const { user } = useAuth();
 
   const slideRefs = React.useRef<Array<HTMLDivElement | null>>([]);
@@ -31,26 +29,6 @@ export default function LandingPage() {
     container.scrollTo({ left, behavior: "smooth" });
   }, [slideIndex]);
 
-  const handleViewClub = () => {
-    router.push("/admin/competitions");
-  };
-
-  const handleProtectedViewClub = (e: React.MouseEvent) => {
-    e.preventDefault();
-
-    const okKey = "footchron_pre_release_ok";
-    if (window.sessionStorage.getItem(okKey) === "1") {
-      handleViewClub();
-      return;
-    }
-
-    const entered = window.prompt("パスワードを入力してください");
-    if (entered !== "2026") return;
-
-    window.sessionStorage.setItem(okKey, "1");
-    handleViewClub();
-  };
-
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <main className="flex-grow">
@@ -69,7 +47,6 @@ export default function LandingPage() {
             <div className="flex items-center gap-1 sm:gap-3 overflow-x-auto flex-nowrap max-w-full">
               <Link
                 href="/admin/competitions"
-                onClick={handleProtectedViewClub}
                 className="hidden sm:inline-flex items-center text-base sm:text-lg px-6 sm:px-8 py-4 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
               >
                 始める
@@ -91,7 +68,6 @@ export default function LandingPage() {
             <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20">
               <Link
                 href="/admin/competitions"
-                onClick={handleProtectedViewClub}
                 className="inline-flex items-center text-base px-8 py-4 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
               >
                 始める
