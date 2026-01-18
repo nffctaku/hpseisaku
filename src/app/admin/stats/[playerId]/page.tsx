@@ -5,6 +5,7 @@ import { useParams, notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, collectionGroup, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
+import { toDashSeason } from '@/lib/season';
 import { MatchDetails, Player } from '@/types/match';
 import { Button } from '@/components/ui/button';
 import {
@@ -46,7 +47,7 @@ export default function PlayerStatsPage() {
     const seasonsSnap = await getDocs(seasonsRef);
     let pInfo: Player | null = null;
     for (const seasonDoc of seasonsSnap.docs) {
-      const playerDocRef = doc(db, `clubs/${ownerUid}/seasons/${seasonDoc.id}/roster/${playerId}`);
+      const playerDocRef = doc(db, `clubs/${ownerUid}/seasons/${toDashSeason(seasonDoc.id)}/roster/${playerId}`);
       const playerDocSnap = await getDoc(playerDocRef);
       if (playerDocSnap.exists()) {
         pInfo = { id: playerDocSnap.id, ...playerDocSnap.data() } as Player;

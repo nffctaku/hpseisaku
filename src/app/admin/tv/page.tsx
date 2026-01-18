@@ -45,6 +45,7 @@ const extractYouTubeId = (url: string) => {
 
 export default function TvAdminPage() {
   const { user } = useAuth();
+  const clubUid = (user as any)?.ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [videos, setVideos] = useState<Video[]>([]);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
@@ -62,30 +63,46 @@ export default function TvAdminPage() {
   });
 
   useEffect(() => {
-    if (!user) {
+    if (!clubUid) {
       setPageLoading(false);
       return;
     }
-    const videosColRef = collection(db, `clubs/${user.uid}/videos`);
+    const videosColRef = collection(db, `clubs/${clubUid}/videos`);
     const q = query(videosColRef);
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const videosData = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        const publishedAtTimestamp = data.publishedAt as Timestamp;
-        return {
-          id: doc.id,
-          ...data,
-          publishedAt: publishedAtTimestamp ? publishedAtTimestamp.toDate() : new Date(),
-        } as Video;
-      });
-      videosData.sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
-      setVideos(videosData);
-      setPageLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const videosData = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          const publishedAtTimestamp = data.publishedAt as Timestamp;
+          return {
+            id: doc.id,
+            ...data,
+            publishedAt: publishedAtTimestamp ? publishedAtTimestamp.toDate() : new Date(),
+          } as Video;
+        });
+        videosData.sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
+        setVideos(videosData);
+        setPageLoading(false);
+      },
+      (error) => {
+        console.error('[TvAdminPage] onSnapshot error', {
+          code: (error as any)?.code,
+          message: (error as any)?.message,
+          path: `clubs/${clubUid}/videos`,
+        });
+        toast.error(
+          (error as any)?.code === 'permission-denied'
+            ? '動画の取得に失敗しました（permission-denied）。権限設定をご確認ください。'
+            : '動画の取得に失敗しました。'
+        );
+        setPageLoading(false);
+      }
+    );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [clubUid]);
 
   const handleAddNew = () => {
     if (!isPro && videos.length >= maxVideos) {
@@ -104,12 +121,12 @@ export default function TvAdminPage() {
   };
 
   const onSubmit = async (values: z.infer<typeof videoSchema>) => {
-    if (!user) return;
+    if (!clubUid) return;
     setLoading(true);
 
     try {
       if (editingVideo) {
-        const videoDocRef = doc(db, `clubs/${user.uid}/videos`, editingVideo.id);
+        const videoDocRef = doc(db, `clubs/${clubUid}/videos`, editingVideo.id);
         await updateDoc(videoDocRef, values);
         toast.success('動画を更新しました。');
       } else {
@@ -117,7 +134,7 @@ export default function TvAdminPage() {
           toast.info(`無料プランでは動画は${maxVideos}件まで登録できます。既存の動画を編集するか、不要な動画を削除してください。`);
           return;
         }
-        await addDoc(collection(db, `clubs/${user.uid}/videos`), {
+        await addDoc(collection(db, `clubs/${clubUid}/videos`), {
           ...values,
           publishedAt: serverTimestamp(),
         });
@@ -133,9 +150,9 @@ export default function TvAdminPage() {
   };
 
   const handleDeleteConfirm = async () => {
-    if (!user || !deletingVideo) return;
+    if (!clubUid || !deletingVideo) return;
     try {
-      await deleteDoc(doc(db, `clubs/${user.uid}/videos`, deletingVideo.id));
+      await deleteDoc(doc(db, `clubs/${clubUid}/videos`, deletingVideo.id));
       toast.success('動画を削除しました。');
     } catch (error) {
       console.error('Error deleting video:', error);

@@ -5,8 +5,10 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { collection, doc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface Season {
   id: string;
@@ -58,7 +60,7 @@ export default function TeamSeasonSelectPage() {
     const seasonsColRef = collection(db, `clubs/${clubUid}/seasons`);
     getDocs(seasonsColRef).then((snapshot) => {
       const seasonsData = snapshot.docs
-        .map((d) => ({ id: d.id, ...(d.data() as any) } as Season))
+        .map((d) => ({ id: toSlashSeason(d.id), ...(d.data() as any) } as Season))
         .sort((a, b) => b.id.localeCompare(a.id));
       setSeasons(seasonsData);
       if (seasonsData.length > 0) {
@@ -77,23 +79,41 @@ export default function TeamSeasonSelectPage() {
   }, [newSeasonId]);
 
   const canContinue = useMemo(() => selectedSeason.trim().length > 0, [selectedSeason]);
-  const canCreate = useMemo(() => newSeasonId.trim().length > 0 && !creating, [newSeasonId, creating]);
+  const canCreate = useMemo(() => Boolean(clubUid) && newSeasonId.trim().length > 0 && !creating, [clubUid, newSeasonId, creating]);
 
   const handleCreateSeason = async () => {
-    if (!clubUid) return;
+    if (!clubUid) {
+      toast.error('クラブ情報が未確定のため、シーズンを作成できません。ログイン状態を確認してください。');
+      return;
+    }
     const id = newSeasonId.trim();
     if (!id) return;
+    const docId = toDashSeason(id);
     setCreating(true);
     try {
-      const ref = doc(db, `clubs/${clubUid}/seasons`, id);
+      const ref = doc(db, `clubs/${clubUid}/seasons`, docId);
       await setDoc(ref, { createdAt: serverTimestamp() } as any, { merge: true });
       const seasonsColRef = collection(db, `clubs/${clubUid}/seasons`);
       const snapshot = await getDocs(seasonsColRef);
       const seasonsData = snapshot.docs
-        .map((d) => ({ id: d.id, ...(d.data() as any) } as Season))
+        .map((d) => ({ id: toSlashSeason(d.id), ...(d.data() as any) } as Season))
         .sort((a, b) => b.id.localeCompare(a.id));
       setSeasons(seasonsData);
       setSelectedSeason(id);
+      toast.success(`シーズン ${id} を作成しました。`);
+    } catch (e) {
+      console.error('[TeamSeasonSelectPage] failed to create season', {
+        clubUid,
+        seasonId: id,
+        seasonDocId: docId,
+        error: e,
+      });
+      const code = (e as any)?.code;
+      const message = (e as any)?.message;
+      toast.error(`シーズン作成に失敗しました${code ? ` (${code})` : ''}`);
+      if (message) {
+        toast.error(message, { id: 'season-create-error-detail' });
+      }
     } finally {
       setCreating(false);
     }

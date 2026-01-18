@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, collection, getDocs, setDoc, writeBatch, updateDoc, query, where, arrayUnion } from 'firebase/firestore';
+import { toDashSeason, toSlashSeason } from '@/lib/season';
 import { toast } from 'sonner';
 import { PlayerManagement } from '@/components/player-management';
 import { StaffManagement } from '@/components/staff-management';
@@ -56,7 +57,9 @@ export default function TeamPlayersPage() {
     if (!clubUid) return;
     const seasonsColRef = collection(db, `clubs/${clubUid}/seasons`);
     getDocs(seasonsColRef).then(snapshot => {
-      const seasonsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Season)).sort((a, b) => b.id.localeCompare(a.id));
+      const seasonsData = snapshot.docs
+        .map((d) => ({ id: toSlashSeason(d.id), ...(d.data() as any) } as Season))
+        .sort((a, b) => b.id.localeCompare(a.id));
       setSeasons(seasonsData);
       if (seasonsData.length > 0) {
         const hasQuery = Boolean(seasonFromQuery);
@@ -79,7 +82,7 @@ export default function TeamPlayersPage() {
 
   const handleTogglePublic = async (seasonId: string, isPublic: boolean) => {
     if (!clubUid) return;
-    const seasonDocRef = doc(db, `clubs/${clubUid}/seasons`, seasonId);
+    const seasonDocRef = doc(db, `clubs/${clubUid}/seasons`, toDashSeason(seasonId));
     await updateDoc(seasonDocRef, { isPublic });
     setSeasons(seasons.map(s => s.id === seasonId ? { ...s, isPublic } : s));
     toast.success(`シーズン ${seasonId} を ${isPublic ? '公開' : '非公開'}にしました。`);

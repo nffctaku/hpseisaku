@@ -62,6 +62,7 @@ type NewsFormValues = z.infer<typeof newsSchema>;
 
 export default function NewsAdminPage() {
   const { user } = useAuth();
+  const clubUid = (user as any)?.ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [editingArticle, setEditingArticle] = useState<NewsArticle | null>(null);
@@ -80,29 +81,45 @@ export default function NewsAdminPage() {
   });
 
   useEffect(() => {
-    if (!user) {
-        setPageLoading(false);
-        return;
+    if (!clubUid) {
+      setPageLoading(false);
+      return;
     }
 
-    const newsColRef = collection(db, `clubs/${user.uid}/news`);
+    const newsColRef = collection(db, `clubs/${clubUid}/news`);
     const q = query(newsColRef);
 
-    const unsubscribeNews = onSnapshot(q, (querySnapshot) => {
-      const articlesData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        publishedAt: (doc.data().publishedAt as Timestamp).toDate(),
-      } as NewsArticle));
-      articlesData.sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
-      setNews(articlesData);
-      setPageLoading(false);
-    });
+    const unsubscribeNews = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const articlesData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          publishedAt: (doc.data().publishedAt as Timestamp).toDate(),
+        } as NewsArticle));
+        articlesData.sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
+        setNews(articlesData);
+        setPageLoading(false);
+      },
+      (error) => {
+        console.error('[NewsAdminPage] onSnapshot error', {
+          code: (error as any)?.code,
+          message: (error as any)?.message,
+          path: `clubs/${clubUid}/news`,
+        });
+        toast.error(
+          (error as any)?.code === 'permission-denied'
+            ? 'ニュースの取得に失敗しました（permission-denied）。権限設定をご確認ください。'
+            : 'ニュースの取得に失敗しました。'
+        );
+        setPageLoading(false);
+      }
+    );
 
     // Fetch hero news limit from club profile
     const fetchHeroLimit = async () => {
       try {
-        const clubDocRef = doc(db, "clubs", user.uid);
+        const clubDocRef = doc(db, "clubs", clubUid);
         const snap = await getDoc(clubDocRef);
         if (snap.exists()) {
           const data = snap.data() as any;
@@ -120,12 +137,12 @@ export default function NewsAdminPage() {
     return () => {
       unsubscribeNews();
     };
-  }, [user]);
+  }, [clubUid]);
 
   const handleHeroLimitChange = async (value: number) => {
-    if (!user) return;
+    if (!clubUid) return;
     try {
-      const clubDocRef = doc(db, "clubs", user.uid);
+      const clubDocRef = doc(db, "clubs", clubUid);
       const snap = await getDoc(clubDocRef);
       if (snap.exists()) {
         await updateDoc(clubDocRef, { heroNewsLimit: value });
@@ -145,14 +162,14 @@ export default function NewsAdminPage() {
   };
 
   const handleToggleFeatured = async (article: NewsArticle, next: boolean) => {
-    if (!user) return;
+    if (!clubUid) return;
     const currentFeaturedCount = news.filter(n => n.featuredInHero).length;
     if (next && !article.featuredInHero && currentFeaturedCount >= heroLimit) {
       toast.info(`スライドに設定できるニュースは最大${heroLimit}件までです。`);
       return;
     }
     try {
-      const articleDocRef = doc(db, `clubs/${user.uid}/news`, article.id);
+      const articleDocRef = doc(db, `clubs/${clubUid}/news`, article.id);
       await updateDoc(articleDocRef, { featuredInHero: next });
     } catch (e) {
       console.error("Failed to update featuredInHero", e);
@@ -175,7 +192,7 @@ export default function NewsAdminPage() {
   };
 
   const handleFormSubmit = async (values: NewsFormValues) => {
-    if (!user) return;
+    if (!clubUid) return;
     setLoading(true);
 
     try {
@@ -188,11 +205,11 @@ export default function NewsAdminPage() {
       };
 
       if (editingArticle) {
-        const articleDocRef = doc(db, `clubs/${user.uid}/news`, editingArticle.id);
+        const articleDocRef = doc(db, `clubs/${clubUid}/news`, editingArticle.id);
         await updateDoc(articleDocRef, processedValues);
         toast.success("ニュースを更新しました。");
       } else {
-        const newsColRef = collection(db, `clubs/${user.uid}/news`);
+        const newsColRef = collection(db, `clubs/${clubUid}/news`);
         await addDoc(newsColRef, { ...processedValues, createdAt: serverTimestamp() });
         toast.success("新しいニュースを追加しました。");
       }
@@ -206,9 +223,9 @@ export default function NewsAdminPage() {
   };
 
   const handleDelete = async () => {
-    if (!user || !deletingArticle) return;
+    if (!clubUid || !deletingArticle) return;
     try {
-      const articleDocRef = doc(db, `clubs/${user.uid}/news`, deletingArticle.id);
+      const articleDocRef = doc(db, `clubs/${clubUid}/news`, deletingArticle.id);
       await deleteDoc(articleDocRef);
       toast.success("ニュースを削除しました。");
       setDeletingArticle(null);

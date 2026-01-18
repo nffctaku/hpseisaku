@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
+import { toDashSeason } from "@/lib/season";
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc, getDocs } from "firebase/firestore";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
@@ -346,7 +347,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         await updateDoc(playerDocRef, (updatePayload || {}) as any);
         savedPlayerId = editingPlayer.id;
 
-        const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeason}/roster`, editingPlayer.id);
+        const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster`, editingPlayer.id);
         const rosterPayload = stripUndefinedDeep({
           name: values.name,
           teamId,
@@ -381,9 +382,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const created = await addDoc(playersColRef, (createPayload || {}) as any);
         savedPlayerId = created.id;
 
-        const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeason}/roster`, created.id);
+        const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster`, created.id);
         console.log("[PlayerManagement] write roster (create)", {
-          path: `clubs/${clubUid}/seasons/${selectedSeason}/roster/${created.id}`,
+          path: `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster/${created.id}`,
           photoUrl: values.photoUrl,
         });
         await setDoc(

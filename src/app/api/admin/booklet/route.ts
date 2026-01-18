@@ -334,7 +334,8 @@ export async function GET(request: Request) {
     const profileSnap = await db.collection("club_profiles").doc(ownerUid).get();
     const profile = profileSnap.exists ? (profileSnap.data() as any) : null;
 
-    const rosterSnap = await db.collection(`clubs/${ownerUid}/seasons/${seasonId}/roster`).get();
+    const rosterSeasonDocId = toDashSeason(seasonId);
+    const rosterSnap = await db.collection(`clubs/${ownerUid}/seasons/${rosterSeasonDocId}/roster`).get();
     const prevSeason = getPreviousSeason(seasonId);
     const prevSeasonSlash = toSlashSeason(prevSeason);
 
