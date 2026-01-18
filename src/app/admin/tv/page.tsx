@@ -63,6 +63,12 @@ export default function TvAdminPage() {
   });
 
   useEffect(() => {
+    console.log('[TvAdminPage] uid check', {
+      userUid: user?.uid,
+      ownerUid,
+      clubUid,
+    });
+
     if (!clubUid) {
       setPageLoading(false);
       return;

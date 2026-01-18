@@ -16,7 +16,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const { clubInfo } = useClub();
-  const clubId = clubInfo.id || user?.clubId || null;
+  const clubId = clubInfo.id || user?.clubId || user?.uid || null;
 
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
 

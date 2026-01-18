@@ -7,13 +7,15 @@ async function getClubData(clubId: string) {
   const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
   const profilesSnap = await profilesQuery.get();
 
-  if (profilesSnap.empty) {
+  const clubProfileDoc = !profilesSnap.empty ? profilesSnap.docs[0] : null;
+  const directSnap = clubProfileDoc ? null : await db.collection('club_profiles').doc(clubId).get();
+
+  if (!clubProfileDoc && !directSnap?.exists) {
     throw new Error('Club not found');
   }
 
-  const clubProfileDoc = profilesSnap.docs[0];
-  const profileData = clubProfileDoc.data()!;
-  const ownerUid = (profileData as any).ownerUid || clubProfileDoc.id;
+  const profileData = (clubProfileDoc ? clubProfileDoc.data() : (directSnap!.data() as any))!;
+  const ownerUid = (profileData as any).ownerUid || (clubProfileDoc ? clubProfileDoc.id : directSnap!.id);
 
   if (!ownerUid) {
     throw new Error('Club owner UID not found');
