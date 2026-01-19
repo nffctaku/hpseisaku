@@ -38,6 +38,12 @@ service cloud.firestore {
         allow read: if request.auth != null;
         allow write: if request.auth != null && request.auth.uid == clubId;
 
+        // Competition settings (templates etc.)
+        match /settings/{settingId} {
+          allow read: if request.auth != null;
+          allow write: if request.auth != null && request.auth.uid == clubId;
+        }
+
         // Standings
         match /standings/{teamId} {
           allow read: if request.auth != null;
@@ -52,6 +58,12 @@ service cloud.firestore {
           match /matches/{matchId} {
             allow read: if request.auth != null;
             allow write: if request.auth != null && request.auth.uid == clubId;
+
+            // Match events
+            match /events/{eventId} {
+              allow read: if request.auth != null;
+              allow write: if request.auth != null && request.auth.uid == clubId;
+            }
           }
         }
       }
@@ -107,9 +119,31 @@ service cloud.firestore {
         allow read: if request.auth != null;
         allow write: if request.auth != null && request.auth.uid == clubId;
       }
+
+      // Public match index (for fast match listing/search)
+      match /public_match_index/{indexId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == clubId;
+      }
+
+      // Legacy matches collection
+      match /matches/{matchId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == clubId;
+
+        match /events/{eventId} {
+          allow read: if request.auth != null;
+          allow write: if request.auth != null && request.auth.uid == clubId;
+        }
+      }
       
       // Public player stats cache
       match /public_player_stats_cache/{playerId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == clubId;
+      }
+
+      match /{document=**} {
         allow read: if request.auth != null;
         allow write: if request.auth != null && request.auth.uid == clubId;
       }
