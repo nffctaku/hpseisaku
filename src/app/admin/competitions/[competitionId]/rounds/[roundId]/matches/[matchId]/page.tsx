@@ -159,6 +159,14 @@ export default function MatchAdminPage() {
 
   return (
     <div className="container mx-auto max-w-4xl py-6 sm:py-10">
+      <div className="mb-4">
+        <Link
+          href="/admin/matches"
+          className="inline-flex items-center text-sm text-gray-300 hover:text-white"
+        >
+          ← 試合管理へ戻る
+        </Link>
+      </div>
       <div className="bg-card border rounded-lg p-6">
         <div className="flex flex-col sm:flex-row sm:justify-center sm:items-center gap-6 mb-6">
           <div className="flex items-center justify-between sm:justify-center sm:w-1/3">

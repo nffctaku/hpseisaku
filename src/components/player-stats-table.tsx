@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, type ReactNode } from 'react';
 import { useFormContext, useFieldArray } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -29,6 +30,7 @@ const starterMinutesOptions = (() => {
   return [...above, ...center, ...below, '0'];
 })();
 const benchMinutesOptions = Array.from({ length: 146 }, (_, i) => i.toString());
+const NONE_SELECT_VALUE = "__none__";
 
 export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPlayers: Player[] }) {
   console.log(`PlayerStatsTable (${teamId}): Received allPlayers`, allPlayers);
@@ -36,6 +38,15 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
   const { fields, append, prepend, remove } = useFieldArray({
     control,
     name: 'playerStats',
+  });
+
+  const sortedAllPlayers = [...allPlayers].sort((a, b) => {
+    const an = typeof (a as any)?.number === 'number' && Number.isFinite((a as any).number) ? (a as any).number : Number.POSITIVE_INFINITY;
+    const bn = typeof (b as any)?.number === 'number' && Number.isFinite((b as any).number) ? (b as any).number : Number.POSITIVE_INFINITY;
+    if (an !== bn) return an - bn;
+    const aname = String((a as any)?.name || '');
+    const bname = String((b as any)?.name || '');
+    return aname.localeCompare(bname, 'ja');
   });
 
   const customStatHeaders = watch('customStatHeaders') || [];
@@ -49,10 +60,35 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
   );
 
   const teamPlayerIdsInStats = teamPlayerFields.map(f => (f as any).playerId);
-  const availablePlayers = allPlayers.filter(p => !teamPlayerIdsInStats.includes(p.id));
+  const availablePlayers = sortedAllPlayers.filter(p => !teamPlayerIdsInStats.includes(p.id));
 
   const starters = teamPlayerFields.filter(f => ((f as any).role ?? 'starter') === 'starter');
   const bench = teamPlayerFields.filter(f => (f as any).role === 'sub');
+
+  // Ensure starters have stable slot indices (0-10)
+  useEffect(() => {
+    const teamStarters = starters.slice();
+    const used = new Set<number>();
+    teamStarters.forEach((f) => {
+      const slot = (f as any).starterSlot;
+      if (typeof slot === 'number' && Number.isInteger(slot) && slot >= 0 && slot <= 10) {
+        used.add(slot);
+      }
+    });
+
+    let next = 0;
+    teamStarters.forEach((f) => {
+      const slot = (f as any).starterSlot;
+      if (typeof slot === 'number' && Number.isInteger(slot) && slot >= 0 && slot <= 10) return;
+      while (used.has(next) && next <= 10) next += 1;
+      if (next > 10) return;
+      const globalIndex = fields.findIndex((ff) => ff.id === (f as any).id);
+      if (globalIndex === -1) return;
+      setValue(`playerStats.${globalIndex}.starterSlot` as any, next, { shouldDirty: false });
+      used.add(next);
+      next += 1;
+    });
+  }, [fields, starters, setValue]);
 
   const handleAddPlayer = (playerId: string, role: 'starter' | 'sub') => {
     const player = allPlayers.find(p => p.id === playerId);
@@ -70,8 +106,8 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
       toast.warning('スタメンは最大11人までです。');
       return;
     }
-    if (role === 'sub' && currentBenchCount >= 15) {
-      toast.warning('ベンチは最大15人までです。');
+    if (role === 'sub' && currentBenchCount >= 12) {
+      toast.warning('ベンチは最大12人までです。');
       return;
     }
 
@@ -93,7 +129,59 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     });
   };
 
-  const renderPlayerRow = (field: any) => {
+  const setStarterSlotPlayer = (slot: number, playerId: string) => {
+    const nextPlayerId = playerId === NONE_SELECT_VALUE ? '' : playerId;
+    const existingInSlot = starters.find((f) => (f as any).starterSlot === slot);
+    const existingInSlotIndex = existingInSlot ? fields.findIndex((ff) => ff.id === (existingInSlot as any).id) : -1;
+
+    if (!nextPlayerId) {
+      if (existingInSlotIndex !== -1) {
+        remove(existingInSlotIndex);
+      }
+      return;
+    }
+
+    if (teamPlayerIdsInStats.includes(nextPlayerId) && (existingInSlot as any)?.playerId !== nextPlayerId) {
+      toast.warning('同じ選手を複数枠に登録することはできません。');
+      return;
+    }
+
+    const player = allPlayers.find((p) => p.id === nextPlayerId);
+    if (!player) return;
+
+    const base = {
+      playerId: player.id,
+      playerName: player.name,
+      position: player.position || 'N/A',
+      teamId,
+      role: 'starter',
+      starterSlot: slot,
+      rating: undefined,
+      minutesPlayed: 90,
+      goals: 0,
+      assists: 0,
+      yellowCards: 0,
+      redCards: 0,
+      customStats: customStatHeaders.map((h: any) => ({ id: h.id, name: h.name, value: '' })),
+    };
+
+    if (existingInSlotIndex !== -1) {
+      // preserve existing stats when swapping player
+      const cur = watch(`playerStats.${existingInSlotIndex}` as any) as any;
+      setValue(`playerStats.${existingInSlotIndex}` as any, { ...cur, ...base }, { shouldDirty: true });
+      return;
+    }
+
+    append(base as any);
+  };
+
+  const renderPlayerRow = (
+    field: any,
+    opts?: {
+      header?: ReactNode;
+      showTrash?: boolean;
+    }
+  ) => {
     const globalIndex = fields.findIndex(f => f.id === field.id);
     if (globalIndex === -1) return null;
 
@@ -119,15 +207,19 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
       <div key={field.id} className="space-y-1">
         <div className="rounded-md border bg-white px-3 py-2 text-gray-900">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
-                {field.position}
-              </span>
-              <span className="font-medium text-sm truncate">{field.playerName}</span>
-            </div>
+            {opts?.header ? (
+              opts.header
+            ) : (
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
+                  {field.position}
+                </span>
+                <span className="font-medium text-sm truncate">{field.playerName}</span>
+              </div>
+            )}
 
-            <div className="flex flex-col gap-2 text-xs min-w-0 max-w-full md:flex-row md:flex-wrap md:items-end md:justify-end">
-              <div className="flex flex-wrap items-end gap-2 justify-start md:justify-end">
+            <div className="flex items-end gap-2 overflow-x-auto text-xs min-w-0 max-w-full md:justify-end">
+              <div className="flex items-end gap-2 justify-start md:justify-end shrink-0">
                 <div className="flex flex-col items-center">
                   <span className="text-[10px] text-gray-500">評価</span>
                   <Select value={ratingValue} onValueChange={(val) => setValue(ratingFieldName, parseFloat(val))}>
@@ -164,7 +256,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-end gap-2 justify-start md:justify-end">
+              <div className="flex items-end gap-2 justify-start md:justify-end shrink-0">
                 <div className="flex flex-col items-center">
                   <span className="text-[10px] text-gray-500">G</span>
                   <Input
@@ -213,9 +305,11 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                   />
                 </div>
 
-                <Button variant="ghost" size="icon" onClick={() => remove(globalIndex)} className="shrink-0">
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                {(opts?.showTrash ?? true) ? (
+                  <Button variant="ghost" size="icon" onClick={() => remove(globalIndex)} className="shrink-0">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                ) : null}
               </div>
             </div>
           </div>
@@ -249,26 +343,70 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
       <div className="space-y-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h4 className="text-sm font-semibold text-gray-300">スタメン（最大11人）</h4>
-          <Select onValueChange={(val) => handleAddPlayer(val, 'starter')} value="">
-            <SelectTrigger className="bg-white text-gray-900 w-full sm:w-52 h-8 text-xs">
-              <SelectValue placeholder="スタメンに選手を追加..." />
-            </SelectTrigger>
-            <SelectContent>
-              {availablePlayers.map(p => (
-                <SelectItem key={p.id} value={p.id}>
-                  {`#${p.number} ${p.name}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
-        {starters.map(field => renderPlayerRow(field as any))}
+        <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+          {Array.from({ length: 11 }).map((_, slot) => {
+            const slotField = starters.find((f) => (f as any).starterSlot === slot);
+            const currentPlayerId = (slotField as any)?.playerId || '';
+            const options = sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
+
+            if (!slotField) {
+              return (
+                <div key={`starter-slot-${slot}`} className="space-y-1">
+                  <div className="rounded-md border bg-white px-3 py-2 text-gray-900">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
+                        -
+                      </span>
+                      <Select value={""} onValueChange={(val) => setStarterSlotPlayer(slot, val)}>
+                        <SelectTrigger className="h-8 flex-1 text-xs bg-white text-gray-900">
+                          <SelectValue placeholder={`スタメン ${slot + 1} を選択...`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {options.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {`#${p.number} ${p.name}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return renderPlayerRow(slotField as any, {
+              showTrash: false,
+              header: (
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
+                    {(slotField as any).position}
+                  </span>
+                  <Select value={currentPlayerId} onValueChange={(val) => setStarterSlotPlayer(slot, val)}>
+                    <SelectTrigger className="h-8 w-44 text-xs bg-white text-gray-900">
+                      <SelectValue placeholder="選手を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE_SELECT_VALUE}>未選択</SelectItem>
+                      {options.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {`#${p.number} ${p.name}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ),
+            });
+          })}
+        </div>
       </div>
 
       {/* Bench */}
       <div className="mt-6 space-y-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h4 className="text-sm font-semibold text-gray-300">ベンチ（最大15人）</h4>
+          <h4 className="text-sm font-semibold text-gray-300">ベンチ（最大12人）</h4>
           <Select onValueChange={(val) => handleAddPlayer(val, 'sub')} value="">
             <SelectTrigger className="bg-white text-gray-900 w-full sm:w-52 h-8 text-xs">
               <SelectValue placeholder="ベンチに選手を追加..." />
@@ -282,7 +420,9 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
             </SelectContent>
           </Select>
         </div>
-        {bench.map(field => renderPlayerRow(field as any))}
+        <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+          {bench.map(field => renderPlayerRow(field as any))}
+        </div>
       </div>
     </div>
   );

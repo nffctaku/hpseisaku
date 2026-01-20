@@ -26,6 +26,7 @@ const formSchema = z.object({
       position: z.string(),
       teamId: z.string().optional(),
       role: z.string().optional(),
+      starterSlot: z.coerce.number().int().min(0).max(10).optional(),
       rating: z.coerce.number().min(4.0).max(10.0).step(0.1).optional(),
       minutesPlayed: z.coerce.number().min(0).optional(),
       goals: z.coerce.number().min(0).optional(),
@@ -379,7 +380,9 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         }
       });
 
-      const normalizedPlayerStats = data.playerStats.map((ps: any) => {
+      const normalizedPlayerStats = (data.playerStats || [])
+        .filter((ps: any) => Boolean(ps?.playerId))
+        .map((ps: any) => {
         const playerId = ps.playerId;
         const role = ps?.role ? ps.role : 'starter';
         return {
@@ -495,12 +498,12 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       await batch.commit();
       
       // デフォルトスタメン・サブ設定を保存
-      saveDefaultSquad(data.playerStats || []);
+      saveDefaultSquad((data.playerStats || []).filter((ps: any) => Boolean(ps?.playerId)));
       
       toast.success('出場選手・スタッツ・イベントを更新しました。');
     } catch (error) {
       console.error("Error saving squad data:", error);
-      const code = typeof (error as any)?.code === 'string' ? (error as any).code : '';
+      const code = typeof (error as any)?.code === 'string' ? (error as any)?.code : '';
       toast.error(`更新に失敗しました。${code ? ` (${code})` : ''}`);
     } finally {
       setSaving(false);
