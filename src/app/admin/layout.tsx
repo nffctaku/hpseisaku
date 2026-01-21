@@ -158,6 +158,16 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
             allowHorizontalScroll ? 'overflow-x-auto' : 'overflow-x-hidden'
           }`}
         >
+          {pathname !== '/admin' && (
+            <div className="mb-4">
+              <Link
+                href="/admin"
+                className="inline-flex items-center rounded-md bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/15"
+              >
+                ← 管理TOP
+              </Link>
+            </div>
+          )}
           {children}
         </main>
         <footer className="border-t border-gray-800 px-4 sm:px-6 md:px-8 py-4 text-xs text-gray-400">
