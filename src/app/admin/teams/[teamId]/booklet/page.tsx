@@ -660,7 +660,17 @@ export default function TeamBookletPage() {
         </>
       )}
 
-      {loading && <p className="text-sm text-muted-foreground">読み込み中...</p>}
+      {loading ? (
+        <div className="no-print mb-4 rounded-md border bg-white px-4 py-3 text-sm text-gray-700">
+          <div className="flex items-center gap-3">
+            <div
+              className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-gray-600"
+              aria-label="loading"
+            />
+            <div>プレビューを読み込み中...</div>
+          </div>
+        </div>
+      ) : null}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {!loading && !error && data && data.players.length > 0 && format === "a4" && players.length === 0 ? (

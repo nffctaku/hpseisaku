@@ -151,7 +151,16 @@ export async function GET(request: Request) {
         }
 
         const seasonData = (p as any)?.seasonData && typeof (p as any).seasonData === "object" ? ((p as any).seasonData as any) : {};
-        const sd = seasonData?.[seasonId] && typeof seasonData?.[seasonId] === "object" ? (seasonData?.[seasonId] as any) : {};
+        const seasonKeys = [seasonId, toSlashSeason(seasonId), toDashSeason(seasonId)].filter(
+          (s, i, arr) => typeof s === "string" && s.trim().length > 0 && arr.indexOf(s) === i
+        );
+        const sd = (() => {
+          for (const k of seasonKeys) {
+            const v = seasonData?.[k];
+            if (v && typeof v === "object") return v as any;
+          }
+          return {} as any;
+        })();
 
         const seasonsArr: string[] = Array.isArray((p as any)?.seasons)
           ? (((p as any).seasons as any[]) || []).filter((s) => typeof s === "string")

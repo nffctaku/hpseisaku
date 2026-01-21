@@ -130,8 +130,12 @@ function pickPreferredFoot(...values: unknown[]): string {
 }
 
 function clamp99(n: unknown): number {
-  if (typeof n !== "number" || !Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(99, n));
+  if (typeof n === "number" && Number.isFinite(n)) return Math.max(0, Math.min(99, n));
+  if (typeof n === "string") {
+    const v = Number(n);
+    if (Number.isFinite(v)) return Math.max(0, Math.min(99, v));
+  }
+  return 0;
 }
 
 function normalizeParams(params: any): { overall: number; items: Array<{ label: string; value: number }> } | null {
