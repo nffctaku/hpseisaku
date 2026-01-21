@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Loader2, Menu } from "lucide-react";
+import { Loader2, Menu, Share2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
+import { toast } from "sonner";
 
 interface ClubHeaderProps {
   clubId: string;
@@ -28,6 +29,40 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
 
   const navLinkClass = (active: boolean, disabled: boolean) =>
     `${active ? "text-primary" : ""} ${disabled ? "opacity-60 pointer-events-none" : ""} hover:text-primary transition-colors inline-flex items-center gap-1.5`;
+
+  const handleShare = async () => {
+    try {
+      const url = typeof window !== "undefined" ? window.location.href : "";
+      if (!url) return;
+
+      const title = clubName || "クラブ";
+      const text = `${title}のHP`;
+
+      if (typeof (navigator as any)?.share === "function") {
+        await (navigator as any).share({ title, text, url });
+        return;
+      }
+
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        toast.success("URLをコピーしました");
+        return;
+      }
+
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      toast.success("URLをコピーしました");
+    } catch {
+      toast.error("共有に失敗しました");
+    }
+  };
 
   return (
     <header className="w-full border-b border-border/60 bg-background/80 backdrop-blur relative z-20">
@@ -54,6 +89,15 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
           </div>
         </div>
         <div className="flex items-center gap-2 text-[11px] sm:text-xs md:text-sm">
+          <button
+            type="button"
+            className="p-2 flex items-center justify-center hover:opacity-80"
+            onClick={handleShare}
+            aria-label="共有"
+          >
+            <Share2 className="w-5 h-5" strokeWidth={2.2} />
+          </button>
+
           {/* Mobile hamburger */}
           <button
             type="button"
