@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
+import { TransfersBalancePie } from "@/components/transfers-balance-pie";
 
 import type { TransferLog } from "@/types/transfer";
 import { formatMoneyWithSymbol } from "@/lib/money";
@@ -47,17 +48,6 @@ const formatFeesSummary = (fees: Record<string, number>): string => {
     .sort(([a], [b]) => a.localeCompare(b));
   if (entries.length === 0) return "-";
   return entries.map(([c, v]) => formatCurrencyAmount(c, v)).join(" / ");
-};
-
-const getSummaryTone = (fees: Record<string, number>): "neutral" | "positive" | "negative" => {
-  const values = Object.values(fees).filter((v) => Number.isFinite(v) && v !== 0);
-  if (values.length === 0) return "neutral";
-  const allNonNegative = values.every((v) => v >= 0);
-  const allNonPositive = values.every((v) => v <= 0);
-  if (allNonNegative) return "positive";
-  if (allNonPositive) return "negative";
-  // Mixed currencies/signs: prefer negative to avoid misleading green
-  return values.some((v) => v < 0) ? "negative" : "positive";
 };
 
 async function resolveClubProfile(clubId: string): Promise<any | null> {
@@ -114,6 +104,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
     notFound();
   }
 
+  const transfersPublic = (profile as any).transfersPublic as boolean | undefined;
   const ownerUid = (profile as any).ownerUid as string | undefined;
   if (!ownerUid) {
     notFound();
@@ -126,6 +117,37 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
   const legalPages = (Array.isArray((profile as any).legalPages) ? ((profile as any).legalPages as any[]) : []) as any;
   const homeBgColor = (profile as any).homeBgColor as string | undefined;
   const gameTeamUsage = Boolean((profile as any).gameTeamUsage);
+
+  if (transfersPublic === false) {
+    return (
+      <main className="min-h-screen flex flex-col bg-white">
+        <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+
+        <div className="flex-1 w-full">
+          <div className="container mx-auto px-4 sm:px-6 py-12 sm:py-16">
+            <a href={`/${clubId}/club`} className="text-sm text-muted-foreground hover:underline">
+              &larr; {clubName || clubId}のCLUBに戻る
+            </a>
+            <div className="mt-6 rounded-lg border bg-white p-6">
+              <h1 className="text-xl font-bold">移籍情報は公開されていません</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                このクラブの移籍履歴は現在非公開設定になっています。
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <ClubFooter
+          clubId={clubId}
+          clubName={clubName}
+          sponsors={sponsors}
+          snsLinks={snsLinks}
+          legalPages={legalPages}
+          gameTeamUsage={Boolean(gameTeamUsage)}
+        />
+      </main>
+    );
+  }
 
   const teamId = await resolveTeamId(ownerUid, (profile as any).mainTeamId as string | undefined);
   if (!teamId) {
@@ -159,20 +181,23 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
 
   const inTotals = sumFeesByCurrency(inTransfers);
   const outTotals = sumFeesByCurrency(outTransfers);
-  const balanceTotals = Object.fromEntries(
-    Array.from(new Set([...Object.keys(inTotals), ...Object.keys(outTotals)])).map((c) => [
-      c,
-      (outTotals[c] || 0) - (inTotals[c] || 0),
-    ])
-  );
+
+  const availableCurrencies = Array.from(
+    new Set([...Object.keys(inTotals), ...Object.keys(outTotals)].filter((c) => c && c.length > 0))
+  ).sort((a, b) => a.localeCompare(b));
+  const activeCurrency = availableCurrencies.includes("JPY") ? "JPY" : availableCurrencies[0] || "JPY";
+
+  const inTotal = (inTotals[activeCurrency] || 0) as number;
+  const outTotal = (outTotals[activeCurrency] || 0) as number;
+  const balanceTotal = ((outTotals[activeCurrency] || 0) - (inTotals[activeCurrency] || 0)) as number;
 
   const TransferTable = ({ rows, directionLabel }: { rows: TransferLog[]; directionLabel: string }) => {
     const counterpartyHeader = directionLabel === "IN" ? "移籍元" : "移籍先";
     const feeClass = directionLabel === "IN" ? "text-red-600" : "text-emerald-600";
 
     return (
-      <div className="overflow-hidden rounded-lg border-2 border-sky-600 bg-white">
-        <div className="px-4 py-3 border-b border-sky-500">
+      <div className="overflow-hidden rounded-lg bg-white shadow-md">
+        <div className="px-4 py-3 border-b">
           <h2 className="text-lg font-semibold">{directionLabel}</h2>
         </div>
         {rows.length === 0 ? (
@@ -237,51 +262,30 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
               <h1 className="text-3xl font-bold">移籍履歴</h1>
 
               {seasons.length > 0 && (
-                <form className="flex items-center gap-2 text-sm" action="" method="get">
-                  <label className="text-muted-foreground" htmlFor="season-select">
-                    シーズン
-                  </label>
-                  <select
-                    id="season-select"
-                    name="season"
-                    defaultValue={activeSeason}
-                    className="border rounded-md px-2 py-1 bg-background text-foreground text-sm"
-                  >
-                    {seasons.map((s) => (
-                      <option key={s} value={s}>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">シーズン</span>
+                  {seasons.map((s) => {
+                    const isActive = s === activeSeason;
+                    return (
+                      <a
+                        key={s}
+                        href={`?season=${encodeURIComponent(s)}`}
+                        className={
+                          isActive
+                            ? "rounded-md bg-sky-600 px-3 py-1 text-white"
+                            : "rounded-md border border-sky-600 px-3 py-1 text-sky-700 hover:bg-sky-50"
+                        }
+                      >
                         {s}
-                      </option>
-                    ))}
-                  </select>
-                </form>
+                      </a>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <div className="rounded-lg border-2 border-sky-600 bg-white px-4 py-3">
-              <div className="text-xs text-muted-foreground">IN 合計</div>
-              <div className="text-sm font-semibold text-red-600">{formatFeesSummary(inTotals)}</div>
-            </div>
-            <div className="rounded-lg border-2 border-sky-600 bg-white px-4 py-3">
-              <div className="text-xs text-muted-foreground">OUT 合計</div>
-              <div className="text-sm font-semibold text-emerald-600">{formatFeesSummary(outTotals)}</div>
-            </div>
-            <div className="rounded-lg border-2 border-sky-600 bg-white px-4 py-3">
-              <div className="text-xs text-muted-foreground">収支</div>
-              <div
-                className={`text-sm font-semibold ${
-                  getSummaryTone(balanceTotals) === "negative"
-                    ? "text-red-600"
-                    : getSummaryTone(balanceTotals) === "positive"
-                      ? "text-emerald-600"
-                      : ""
-                }`}
-              >
-                {formatFeesSummary(balanceTotals)}
-              </div>
-            </div>
-          </div>
+          <TransfersBalancePie inTotal={inTotal} outTotal={outTotal} balanceTotal={balanceTotal} currencyLabel={activeCurrency} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <TransferTable rows={inTransfers} directionLabel="IN" />

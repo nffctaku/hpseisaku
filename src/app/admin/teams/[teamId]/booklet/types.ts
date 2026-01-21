@@ -21,12 +21,21 @@ export type BookletPlayer = {
   isNew?: boolean;
 };
 
+export type BookletTransferRow = {
+  type: string;
+  position: string;
+  playerName: string;
+  fromTo: string;
+};
+
 export type BookletResponse = {
   seasonId: string;
   teamId: string;
   teamName: string;
   club: { clubName: string; logoUrl: string | null };
   players: BookletPlayer[];
+  transfersIn?: BookletTransferRow[];
+  transfersOut?: BookletTransferRow[];
 };
 
 export type PositionColors = {

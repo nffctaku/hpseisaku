@@ -473,61 +473,22 @@ export default function TeamBookletA3PrintPage() {
   }, [clubUid, season, teamId]);
 
   useEffect(() => {
-    const run = async () => {
-      if (!clubUid || !teamId) {
-        setTransfersInFromDb([]);
-        setTransfersOutFromDb([]);
-        return;
-      }
-      try {
-        const seasonRaw = String(season || "").trim();
-        const seasonLabel = toCompetitionSeasonLabel(seasonRaw) || seasonRaw;
+    const listIn = (data as any)?.transfersIn;
+    const listOut = (data as any)?.transfersOut;
 
-        const snap = await getDocs(collection(db, `clubs/${clubUid}/teams/${teamId}/transfers`));
-        const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as TransferDoc));
+    const safeIn = Array.isArray(listIn) ? (listIn as any[]) : [];
+    const safeOut = Array.isArray(listOut) ? (listOut as any[]) : [];
 
-        const filtered = list.filter((t) => {
-          const s = String(t.season || "").trim();
-          if (!seasonLabel) return true;
-          return s === seasonLabel || s === seasonRaw;
-        });
+    const toRow = (t: any): TransferRow => ({
+      position: String(t?.position || "").trim() || "-",
+      playerName: String(t?.playerName || "").trim() || "-",
+      type: String(t?.type || "").trim() || "完全",
+      fromTo: String(t?.fromTo || "").trim() || "-",
+    });
 
-        const toMillis = (v: any): number => {
-          if (!v) return 0;
-          if (typeof v?.toMillis === "function") return v.toMillis();
-          if (typeof v?.toDate === "function") return v.toDate().getTime();
-          if (typeof v?.seconds === "number") return v.seconds * 1000;
-          return 0;
-        };
-
-        const sorted = filtered.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
-
-        const toRow = (t: TransferDoc): TransferRow => {
-          const kind = String(t.kind || "").trim() || "完全";
-          const position = String(t.position || "").trim() || "-";
-          const playerName = String(t.playerName || "").trim() || "-";
-          const counterparty = String(t.counterparty || "").trim() || "-";
-          return {
-            position,
-            playerName,
-            type: kind,
-            fromTo: counterparty,
-          };
-        };
-
-        const inRows = sorted.filter((t) => (t.direction || "in") === "in").map(toRow);
-        const outRows = sorted.filter((t) => t.direction === "out").map(toRow);
-
-        setTransfersInFromDb(inRows);
-        setTransfersOutFromDb(outRows);
-      } catch (e) {
-        console.warn("[A3Print] failed to load transfers", e);
-        setTransfersInFromDb([]);
-        setTransfersOutFromDb([]);
-      }
-    };
-    void run();
-  }, [clubUid, season, teamId]);
+    setTransfersInFromDb(safeIn.map(toRow));
+    setTransfersOutFromDb(safeOut.map(toRow));
+  }, [data]);
 
   const previewScaleStorageKey = useMemo(() => {
     if (!clubUid || !teamId) return "";

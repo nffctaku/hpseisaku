@@ -55,9 +55,10 @@ interface TransferFormProps {
   season: string;
   direction: TransferDirection;
   players: Player[];
+  fixedCurrency?: "JPY" | "EUR" | "GBP";
 }
 
-export function TransferForm({ onSubmit, defaultValues, season, direction, players }: TransferFormProps) {
+export function TransferForm({ onSubmit, defaultValues, season, direction, players, fixedCurrency }: TransferFormProps) {
   const [loading, setLoading] = useState(false);
 
   const playerOptions = useMemo(() => {
@@ -88,12 +89,17 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
     form.setValue("season", season);
     form.setValue("direction", direction);
 
+    if (fixedCurrency) {
+      form.setValue("feeCurrency", fixedCurrency as any);
+      form.setValue("annualSalaryCurrency", fixedCurrency as any);
+    }
+
     if (direction === "out") {
       form.setValue("annualSalary", undefined);
-      form.setValue("annualSalaryCurrency", "JPY" as any);
+      form.setValue("annualSalaryCurrency", (fixedCurrency || "JPY") as any);
       form.setValue("contractYears", undefined);
     }
-  }, [season, direction, form]);
+  }, [season, direction, form, fixedCurrency]);
 
   const label = direction === "in" ? "移籍元" : "移籍先";
 
@@ -244,16 +250,28 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
                     control={form.control}
                     name="feeCurrency"
                     render={({ field: currencyField }) => (
-                      <Select value={(currencyField.value || "JPY") as any} onValueChange={currencyField.onChange as any}>
+                      <Select
+                        value={(fixedCurrency || currencyField.value || "JPY") as any}
+                        onValueChange={currencyField.onChange as any}
+                        disabled={Boolean(fixedCurrency)}
+                      >
                         <FormControl>
-                          <SelectTrigger className="w-24">
+                          <SelectTrigger className="w-24" disabled={Boolean(fixedCurrency)}>
                             <SelectValue placeholder="通貨" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="JPY">￥</SelectItem>
-                          <SelectItem value="GBP">￡</SelectItem>
-                          <SelectItem value="EUR">€</SelectItem>
+                          {fixedCurrency ? (
+                            <SelectItem value={fixedCurrency as any}>
+                              {fixedCurrency === "JPY" ? "JPY(￥)" : fixedCurrency === "GBP" ? "GBP(￡)" : "EUR(€)"}
+                            </SelectItem>
+                          ) : (
+                            <>
+                              <SelectItem value="JPY">JPY(￥)</SelectItem>
+                              <SelectItem value="EUR">EUR(€)</SelectItem>
+                              <SelectItem value="GBP">GBP(￡)</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     )}
@@ -286,16 +304,28 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
                         control={form.control}
                         name="annualSalaryCurrency"
                         render={({ field: currencyField }) => (
-                          <Select value={(currencyField.value || "JPY") as any} onValueChange={currencyField.onChange as any}>
+                          <Select
+                            value={(fixedCurrency || currencyField.value || "JPY") as any}
+                            onValueChange={currencyField.onChange as any}
+                            disabled={Boolean(fixedCurrency)}
+                          >
                             <FormControl>
-                              <SelectTrigger className="w-24">
+                              <SelectTrigger className="w-24" disabled={Boolean(fixedCurrency)}>
                                 <SelectValue placeholder="通貨" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="JPY">￥</SelectItem>
-                              <SelectItem value="GBP">￡</SelectItem>
-                              <SelectItem value="EUR">€</SelectItem>
+                              {fixedCurrency ? (
+                                <SelectItem value={fixedCurrency as any}>
+                                  {fixedCurrency === "JPY" ? "JPY(￥)" : fixedCurrency === "GBP" ? "GBP(￡)" : "EUR(€)"}
+                                </SelectItem>
+                              ) : (
+                                <>
+                                  <SelectItem value="JPY">JPY(￥)</SelectItem>
+                                  <SelectItem value="EUR">EUR(€)</SelectItem>
+                                  <SelectItem value="GBP">GBP(￡)</SelectItem>
+                                </>
+                              )}
                             </SelectContent>
                           </Select>
                         )}
@@ -336,7 +366,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
           </>
         ) : null}
 
-        <Button type="submit" disabled={loading} className="w-full">
+        <Button type="submit" disabled={loading} className="w-full bg-emerald-600 text-white hover:bg-emerald-700">
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           保存する
         </Button>

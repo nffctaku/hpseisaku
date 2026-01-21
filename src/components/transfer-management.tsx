@@ -49,6 +49,11 @@ interface TransferManagementProps {
   seasons: string[];
   selectedSeason: string;
   onChangeSeason: (seasonId: string) => void;
+
+  currency?: "JPY" | "EUR" | "GBP";
+  onChangeCurrency?: (currency: "JPY" | "EUR" | "GBP") => void;
+  hideSeasonSelect?: boolean;
+  hideCurrencySelect?: boolean;
 }
 
 export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSeason }: TransferManagementProps) {
@@ -56,6 +61,8 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
   const clubUid = ownerUid || user?.uid;
 
   const normalizedSelectedSeason = useMemo(() => toSlashSeason(selectedSeason), [selectedSeason]);
+
+  const [internalCurrency, setInternalCurrency] = useState<"JPY" | "EUR" | "GBP">("JPY");
 
   const [direction, setDirection] = useState<TransferDirection>("in");
   const [items, setItems] = useState<TransferLog[]>([]);
@@ -65,7 +72,12 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
   const [editing, setEditing] = useState<TransferLog | null>(null);
   const [deleting, setDeleting] = useState<TransferLog | null>(null);
 
-  const transferFormKey = editing ? editing.id : `new-${selectedSeason}-${direction}`;
+  const currency = (arguments[0] as any)?.currency ?? internalCurrency;
+  const setCurrency = ((arguments[0] as any)?.onChangeCurrency ?? setInternalCurrency) as (c: "JPY" | "EUR" | "GBP") => void;
+  const hideSeasonSelect = Boolean((arguments[0] as any)?.hideSeasonSelect);
+  const hideCurrencySelect = Boolean((arguments[0] as any)?.hideCurrencySelect);
+
+  const transferFormKey = editing ? `${editing.id}-${currency}` : `new-${selectedSeason}-${direction}-${currency}`;
 
   useEffect(() => {
     if (!clubUid || !teamId) return;
@@ -118,18 +130,70 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
 
   const filteredPlayers = useMemo(() => {
     if (!selectedSeason) return players;
+
     const target = normalizedSelectedSeason;
-    return players
-      .filter((p) => (p.seasons || []).some((s) => toSlashSeason(s) === target))
-      .map((p) => {
-        const season = (p.seasonData || {})[target] as any;
-        return {
-          ...p,
-          age: season?.age ?? (p as any).age,
-          position: season?.position ?? (p as any).position,
-        } as Player;
-      });
-  }, [players, selectedSeason, normalizedSelectedSeason]);
+    const m = String(target).match(/^\s*(\d{4})\/(\d{2})\s*$/);
+    const prevSeason = m
+      ? `${String(Number(m[1]) - 1)}/${String((Number(m[2]) - 1 + 100) % 100).padStart(2, "0")}`
+      : null;
+
+    const targetSeasons = direction === "out" && prevSeason ? [target, prevSeason] : [target];
+
+    const pickSeasonForPlayer = (p: Player): string | null => {
+      const ps = Array.isArray(p.seasons) ? p.seasons : [];
+      const normalized = ps.map((s) => toSlashSeason(s));
+      for (const s of targetSeasons) {
+        if (normalized.includes(s)) return s;
+      }
+      return null;
+    };
+
+    const seen = new Set<string>();
+    const out: Player[] = [];
+
+    // Prefer players belonging to the current season first, then previous season (OUT only).
+    const orderedCandidates = targetSeasons
+      .map((s) =>
+        players
+          .filter((p) => (Array.isArray(p.seasons) ? p.seasons : []).some((ps) => toSlashSeason(ps) === s))
+          .map((p) => ({ p, season: s }))
+      )
+      .flat();
+
+    for (const { p, season } of orderedCandidates) {
+      const key = (p.name || "").trim();
+      if (!key) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const seasonData = (p.seasonData || {})[season] as any;
+      out.push({
+        ...p,
+        age: seasonData?.age ?? (p as any).age,
+        position: seasonData?.position ?? (p as any).position,
+      } as Player);
+    }
+
+    // Fallback: if nothing matched, keep current behavior
+    if (out.length === 0) {
+      return players
+        .filter((p) => {
+          const s = pickSeasonForPlayer(p);
+          return Boolean(s);
+        })
+        .map((p) => {
+          const s = pickSeasonForPlayer(p);
+          const seasonData = s ? ((p.seasonData || {})[s] as any) : undefined;
+          return {
+            ...p,
+            age: seasonData?.age ?? (p as any).age,
+            position: seasonData?.position ?? (p as any).position,
+          } as Player;
+        });
+    }
+
+    return out;
+  }, [players, selectedSeason, normalizedSelectedSeason, direction]);
 
   const filteredItems = useMemo(() => {
     const target = normalizedSelectedSeason;
@@ -172,13 +236,13 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
     }
     if (values.fee != null) {
       payload.fee = values.fee;
-      payload.feeCurrency = values.feeCurrency || "JPY";
+      payload.feeCurrency = currency;
     }
 
     if (values.direction === "in") {
       if (values.annualSalary != null) {
         payload.annualSalary = values.annualSalary;
-        payload.annualSalaryCurrency = values.annualSalaryCurrency || "JPY";
+        payload.annualSalaryCurrency = currency;
       }
       if (values.contractYears != null) {
         payload.contractYears = values.contractYears;
@@ -222,43 +286,59 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">シーズン</span>
-              <Select value={selectedSeason} onValueChange={onChangeSeason}>
-                <SelectTrigger className="w-40 bg-white text-gray-900">
-                  <SelectValue placeholder="シーズン" />
-                </SelectTrigger>
-                <SelectContent>
-                  {seasons.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {!hideSeasonSelect && (
+                <>
+                  <span className="text-sm text-muted-foreground">シーズン</span>
+                  <Select value={selectedSeason} onValueChange={onChangeSeason}>
+                    <SelectTrigger className="w-40 bg-white text-gray-900">
+                      <SelectValue placeholder="シーズン" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {seasons.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+
+              {!hideCurrencySelect && (
+                <>
+                  <span className="ml-2 text-sm text-muted-foreground">通貨</span>
+                  <Select value={currency} onValueChange={(v) => setCurrency(v as any)}>
+                    <SelectTrigger className="w-28 bg-white text-gray-900">
+                      <SelectValue placeholder="通貨" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="JPY">JPY(￥)</SelectItem>
+                      <SelectItem value="EUR">EUR(€)</SelectItem>
+                      <SelectItem value="GBP">GBP(￡)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex w-full overflow-hidden rounded-md border border-border">
               <Button
                 type="button"
-                variant={direction === "in" ? "default" : "outline"}
+                variant="ghost"
                 onClick={() => setDirection("in")}
-                className={
-                  direction === "in"
-                    ? "bg-green-600 text-white hover:bg-green-700"
-                    : "bg-white text-gray-900 border border-border hover:bg-gray-100"
-                }
+                className={`flex-1 rounded-none border-r border-border ${
+                  direction === "in" ? "bg-green-600 text-white hover:bg-green-700" : "bg-white text-gray-900 hover:bg-gray-100"
+                }`}
               >
                 IN
               </Button>
               <Button
                 type="button"
-                variant={direction === "out" ? "default" : "outline"}
+                variant="ghost"
                 onClick={() => setDirection("out")}
-                className={
-                  direction === "out"
-                    ? "bg-red-600 text-white hover:bg-red-700"
-                    : "bg-white text-gray-900 border border-border hover:bg-gray-100"
-                }
+                className={`flex-1 rounded-none ${
+                  direction === "out" ? "bg-red-600 text-white hover:bg-red-700" : "bg-white text-gray-900 hover:bg-gray-100"
+                }`}
               >
                 OUT
               </Button>
@@ -267,8 +347,8 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openAddDialog} className="bg-white text-gray-900 hover:bg-gray-100 border border-border">
-                追加
+              <Button onClick={openAddDialog} className="bg-sky-600 text-white hover:bg-sky-700">
+                選手の移籍を記録する
               </Button>
             </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh]">
@@ -278,7 +358,19 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
               <TransferForm
                 key={transferFormKey}
                 onSubmit={handleFormSubmit}
-                defaultValues={editing || undefined}
+                defaultValues={
+                  editing
+                    ? ({
+                        ...(editing as any),
+                        feeCurrency: currency,
+                        annualSalaryCurrency: currency,
+                      } as any)
+                    : ({
+                        feeCurrency: currency,
+                        annualSalaryCurrency: currency,
+                      } as any)
+                }
+                fixedCurrency={currency}
                 season={selectedSeason}
                 direction={direction}
                 players={filteredPlayers}

@@ -31,6 +31,9 @@ export function SettingsTab(props: {
   gameTeamUsage: boolean;
   setGameTeamUsage: (v: boolean) => void;
 
+  transfersPublic: boolean;
+  setTransfersPublic: (v: boolean) => void;
+
   logoUrl: string;
 
   foundedYear: string;
@@ -51,7 +54,7 @@ export function SettingsTab(props: {
 
   isPro: boolean;
   loading: boolean;
-  onUpdate: () => void;
+  onUpdate: () => void | Promise<void>;
 }) {
   const {
     teams,
@@ -62,6 +65,8 @@ export function SettingsTab(props: {
     setRealTeamUsage,
     gameTeamUsage,
     setGameTeamUsage,
+    transfersPublic,
+    setTransfersPublic,
     logoUrl,
     foundedYear,
     setFoundedYear,
@@ -165,6 +170,22 @@ export function SettingsTab(props: {
             </div>
           </label>
         </div>
+      </div>
+
+      <div className="space-y-2 pt-4 border-t">
+        <Label>公開設定</Label>
+        <label className="flex items-start gap-3 rounded-md border bg-white/60 p-3">
+          <Checkbox
+            checked={transfersPublic}
+            onCheckedChange={(checked) => {
+              setTransfersPublic(checked === true);
+            }}
+          />
+          <div className="space-y-1">
+            <div className="text-sm font-medium text-gray-900">移籍情報を公開する</div>
+            <div className="text-xs text-muted-foreground">OFFにすると、クラブページの移籍履歴が表示されなくなります。</div>
+          </div>
+        </label>
       </div>
 
       <div className="space-y-2 pt-4 border-t">

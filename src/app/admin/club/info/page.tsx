@@ -93,6 +93,7 @@ export default function ClubInfoPage() {
   const [legalPages, setLegalPages] = useState<LegalPageItem[]>([]);
   const [realTeamUsage, setRealTeamUsage] = useState<boolean>(false);
   const [gameTeamUsage, setGameTeamUsage] = useState<boolean>(false);
+  const [transfersPublic, setTransfersPublic] = useState<boolean>(true);
 
   useEffect(() => {
     if (user) {
@@ -123,6 +124,9 @@ export default function ClubInfoPage() {
           }
           if (typeof data.gameTeamUsage === 'boolean') {
             setGameTeamUsage(Boolean(data.gameTeamUsage));
+          }
+          if (typeof data.transfersPublic === 'boolean') {
+            setTransfersPublic(Boolean(data.transfersPublic));
           }
           if (Array.isArray(data.sponsors)) {
             setSponsors(
@@ -261,6 +265,7 @@ export default function ClubInfoPage() {
           mainTeamId: selectedTeamId,
           realTeamUsage,
           gameTeamUsage,
+          transfersPublic,
           sponsors,
           snsLinks,
           legalPages,
@@ -343,6 +348,8 @@ export default function ClubInfoPage() {
                 setRealTeamUsage={setRealTeamUsage}
                 gameTeamUsage={gameTeamUsage}
                 setGameTeamUsage={setGameTeamUsage}
+                transfersPublic={transfersPublic}
+                setTransfersPublic={setTransfersPublic}
                 logoUrl={logoUrl}
                 foundedYear={foundedYear}
                 setFoundedYear={setFoundedYear}

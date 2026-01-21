@@ -33,6 +33,7 @@ export async function POST(request: Request) {
       mainTeamId,
       realTeamUsage,
       gameTeamUsage,
+      transfersPublic,
       sponsors,
       snsLinks,
       legalPages,
@@ -91,6 +92,10 @@ export async function POST(request: Request) {
 
     if (typeof gameTeamUsage === 'boolean') {
       updateData.gameTeamUsage = gameTeamUsage;
+    }
+
+    if (typeof transfersPublic === 'boolean') {
+      updateData.transfersPublic = transfersPublic;
     }
 
     // スポンサー情報（画像URLとリンク先URLの配列）

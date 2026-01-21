@@ -135,18 +135,20 @@ export function PreviewPanel({
               </tbody>
             </table>
 
-            <div className="mt-2 border-t border-gray-200">
-              <div className="bg-gray-50 px-2 py-1 text-[9px] font-semibold whitespace-nowrap">移籍情報</div>
-              <ul className="p-2 text-[10px] space-y-1">
-                {transfers.map((t, idx) => (
-                  <li key={idx} className="border-b border-gray-200 pb-1">
-                    <span className="font-semibold">{t.type}</span>
-                    <span className="mx-2">{t.playerName}</span>
-                    <span className="text-gray-600">{t.fromTo}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {Array.isArray(transfers) && transfers.length > 0 && (
+              <div className="mt-2 border-t border-gray-200">
+                <div className="bg-gray-50 px-2 py-1 text-[9px] font-semibold whitespace-nowrap">移籍情報</div>
+                <ul className="p-2 text-[10px] space-y-1">
+                  {transfers.map((t, idx) => (
+                    <li key={idx} className="border-b border-gray-200 pb-1">
+                      <span className="font-semibold">{t.type}</span>
+                      <span className="mx-2">{t.playerName}</span>
+                      <span className="text-gray-600">{t.fromTo}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       </div>

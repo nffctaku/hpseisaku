@@ -472,11 +472,7 @@ export default function TeamBookletA3EditorPage() {
 
   const stats: StatRow[] = leagueStats.length > 0 ? leagueStats : last5Seasons(season).map((s) => ({ season: s, league: "-", rank: "-" }));
 
-  const transfers: TransferRow[] = [
-    { date: "-", playerName: "-", type: "IN", fromTo: "-" },
-    { date: "-", playerName: "-", type: "OUT", fromTo: "-" },
-    { date: "-", playerName: "-", type: "レンタル", fromTo: "-" },
-  ];
+  const transfers: TransferRow[] = [];
 
   const coach: CoachInfo = {
     name: "監督名",

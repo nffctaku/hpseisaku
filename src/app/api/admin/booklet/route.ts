@@ -83,6 +83,19 @@ function seasonEquals(a: string, b: string): boolean {
   return a === b || toSlashSeason(a) === toSlashSeason(b);
 }
 
+function toMillis(v: any): number {
+  if (!v) return 0;
+  if (typeof v?.toMillis === "function") return v.toMillis();
+  if (typeof v?.toDate === "function") return v.toDate().getTime();
+  if (typeof v?.seconds === "number") return v.seconds * 1000;
+  return 0;
+}
+
+function normalizeDirection(v: unknown): "in" | "out" {
+  const s = typeof v === "string" ? v.trim().toLowerCase() : "";
+  return s === "out" ? "out" : "in";
+}
+
 function contractEndMonthFromDate(contractEndDate: unknown): number | null {
   if (typeof contractEndDate !== "string") return null;
   const s = contractEndDate.trim();
@@ -339,6 +352,33 @@ export async function GET(request: Request) {
     const prevSeason = getPreviousSeason(seasonId);
     const prevSeasonSlash = toSlashSeason(prevSeason);
 
+    const transfersSnap = await db.collection(`clubs/${ownerUid}/teams/${teamId}/transfers`).get();
+    const transfers = transfersSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as any));
+    const seasonTransfers = transfers
+      .filter((t) => {
+        const s = safeString((t as any)?.season).trim();
+        return !seasonId ? true : seasonEquals(s, seasonId);
+      })
+      .sort((a, b) => toMillis((b as any)?.createdAt) - toMillis((a as any)?.createdAt));
+
+    const transfersIn = seasonTransfers
+      .filter((t) => normalizeDirection((t as any)?.direction) === "in")
+      .map((t) => ({
+        type: safeString((t as any)?.kind) || "完全",
+        position: safeString((t as any)?.position) || "-",
+        playerName: safeString((t as any)?.playerName) || "-",
+        fromTo: safeString((t as any)?.counterparty) || "-",
+      }));
+
+    const transfersOut = seasonTransfers
+      .filter((t) => normalizeDirection((t as any)?.direction) === "out")
+      .map((t) => ({
+        type: safeString((t as any)?.kind) || "完全",
+        position: safeString((t as any)?.position) || "-",
+        playerName: safeString((t as any)?.playerName) || "-",
+        fromTo: safeString((t as any)?.counterparty) || "-",
+      }));
+
     // まず指定シーズンの選手を取得
     const seasonRosterPlayers = rosterSnap.docs
       .map((d) => ({ id: d.id, ...(d.data() as any) }))
@@ -489,6 +529,8 @@ export async function GET(request: Request) {
           logoUrl: profile?.logoUrl || null,
         },
         players,
+        transfersIn,
+        transfersOut,
       }),
       { status: 200 }
     );
