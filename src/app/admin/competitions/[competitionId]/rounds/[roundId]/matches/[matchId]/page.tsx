@@ -251,8 +251,8 @@ export default function MatchAdminPage() {
       <Tabs defaultValue="match-stats" className="mt-8">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="match-stats" className="px-2 text-xs sm:px-3 sm:text-sm">試合スタッツ</TabsTrigger>
-          <TabsTrigger value="match-events" className="px-2 text-xs sm:px-3 sm:text-sm">試合イベント</TabsTrigger>
           <TabsTrigger value="player-stats" className="px-2 text-xs sm:px-3 sm:text-sm">選手スタッツ</TabsTrigger>
+          <TabsTrigger value="match-events" className="px-2 text-xs sm:px-3 sm:text-sm">試合イベント</TabsTrigger>
         </TabsList>
         <TabsContent value="match-stats">
           <MatchTeamStatsForm 
@@ -261,17 +261,6 @@ export default function MatchAdminPage() {
             competitionId={competitionId as string}
             roundId={roundId as string}
             matchDocPath={resolvedMatchDocPath ?? undefined}
-          />
-        </TabsContent>
-        <TabsContent value="match-events">
-          <SquadRegistrationForm 
-            match={match} 
-            homePlayers={homePlayers} 
-            awayPlayers={awayPlayers} 
-            roundId={roundId as string} 
-            competitionId={competitionId as string} 
-            matchDocPath={resolvedMatchDocPath ?? undefined}
-            view="events"
           />
         </TabsContent>
         <TabsContent value="player-stats">
@@ -283,6 +272,17 @@ export default function MatchAdminPage() {
             competitionId={competitionId as string} 
             matchDocPath={resolvedMatchDocPath ?? undefined}
             view="player"
+          />
+        </TabsContent>
+        <TabsContent value="match-events">
+          <SquadRegistrationForm 
+            match={match} 
+            homePlayers={homePlayers} 
+            awayPlayers={awayPlayers} 
+            roundId={roundId as string} 
+            competitionId={competitionId as string} 
+            matchDocPath={resolvedMatchDocPath ?? undefined}
+            view="events"
           />
         </TabsContent>
       </Tabs>

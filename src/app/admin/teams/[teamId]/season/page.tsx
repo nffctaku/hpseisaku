@@ -153,6 +153,10 @@ export default function TeamSeasonSelectPage() {
               router.push(`/admin/teams/${teamId}/booklet?season=${encodeURIComponent(selectedSeason)}`);
               return;
             }
+            if (next === "transfers") {
+              router.push(`/admin/teams/${teamId}/transfers?season=${encodeURIComponent(selectedSeason)}`);
+              return;
+            }
             router.push(`/admin/teams/${teamId}?season=${encodeURIComponent(selectedSeason)}`);
           }}
         >

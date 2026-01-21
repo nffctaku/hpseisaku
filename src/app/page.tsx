@@ -46,7 +46,7 @@ export default function LandingPage() {
             </div>
             <div className="flex items-center gap-1 sm:gap-3 overflow-x-auto flex-nowrap max-w-full">
               <Link
-                href="/admin/competitions"
+                href="/admin"
                 className="hidden sm:inline-flex items-center text-base sm:text-lg px-6 sm:px-8 py-4 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
               >
                 始める
@@ -67,7 +67,7 @@ export default function LandingPage() {
 
             <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20">
               <Link
-                href="/admin/competitions"
+                href="/admin"
                 className="inline-flex items-center text-base px-8 py-4 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
               >
                 始める

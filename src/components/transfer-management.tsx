@@ -42,6 +42,7 @@ import type { TransferDirection, TransferLog } from "@/types/transfer";
 import { TransferForm, TransferFormValues } from "@/components/transfer-form";
 import { PlayersDataTable } from "@/components/players-data-table";
 import { transferColumns } from "@/components/transfers-columns";
+import { toSlashSeason } from "@/lib/season";
 
 interface TransferManagementProps {
   teamId: string;
@@ -53,6 +54,8 @@ interface TransferManagementProps {
 export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSeason }: TransferManagementProps) {
   const { user, ownerUid } = useAuth();
   const clubUid = ownerUid || user?.uid;
+
+  const normalizedSelectedSeason = useMemo(() => toSlashSeason(selectedSeason), [selectedSeason]);
 
   const [direction, setDirection] = useState<TransferDirection>("in");
   const [items, setItems] = useState<TransferLog[]>([]);
@@ -115,24 +118,26 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
 
   const filteredPlayers = useMemo(() => {
     if (!selectedSeason) return players;
+    const target = normalizedSelectedSeason;
     return players
-      .filter((p) => (p.seasons || []).includes(selectedSeason))
+      .filter((p) => (p.seasons || []).some((s) => toSlashSeason(s) === target))
       .map((p) => {
-        const season = (p.seasonData || {})[selectedSeason] as any;
+        const season = (p.seasonData || {})[target] as any;
         return {
           ...p,
           age: season?.age ?? (p as any).age,
           position: season?.position ?? (p as any).position,
         } as Player;
       });
-  }, [players, selectedSeason]);
+  }, [players, selectedSeason, normalizedSelectedSeason]);
 
   const filteredItems = useMemo(() => {
+    const target = normalizedSelectedSeason;
     return items
-      .filter((t) => t.season === selectedSeason)
+      .filter((t) => toSlashSeason(t.season) === target)
       .filter((t) => t.direction === direction)
       .sort((a, b) => (a.playerName || "").localeCompare(b.playerName || ""));
-  }, [items, selectedSeason, direction]);
+  }, [items, normalizedSelectedSeason, direction]);
 
   const openAddDialog = () => {
     setEditing(null);

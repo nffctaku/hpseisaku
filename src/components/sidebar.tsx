@@ -6,7 +6,21 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
 import { cn } from '@/lib/utils';
-import { Trophy, Shield, Home, Newspaper, Tv, Users, Calendar, Settings, CreditCard, LineChart, BookOpen, Mail } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  Trophy,
+  Shield,
+  Home,
+  Newspaper,
+  Tv,
+  Users,
+  Calendar,
+  Settings,
+  CreditCard,
+  LineChart,
+  BookOpen,
+  Mail,
+} from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
@@ -22,6 +36,10 @@ export function Sidebar() {
 
   const bookletHref = mainTeamId
     ? `/admin/teams/${mainTeamId}/season?next=booklet`
+    : '/admin/teams';
+
+  const transfersHref = mainTeamId
+    ? `/admin/teams/${mainTeamId}/transfers`
     : '/admin/teams';
 
   useEffect(() => {
@@ -106,11 +124,18 @@ export function Sidebar() {
     }
   };
 
+  const TransfersIcon = ({ className }: { className?: string }) => {
+    return (
+      <ArrowLeftRight className={className} />
+    );
+  };
+
   const navItems: Array<{ href: string; label: string; icon: any; external?: boolean }> = [
     { href: `/admin/club/info`, label: 'クラブ情報', icon: Settings },
     { href: `/admin/news`, label: 'ニュース管理', icon: Newspaper },
     { href: `/admin/tv`, label: 'TV管理', icon: Tv },
     { href: `/admin/analysis`, label: '分析管理', icon: LineChart },
+    { href: transfersHref, label: '移籍管理', icon: TransfersIcon },
     { href: `/admin/matches`, label: '試合管理', icon: Calendar },
     { href: `/admin/friendly-matches`, label: '単発試合', icon: Calendar },
     { href: `/admin/players`, label: '選手管理', icon: Users },
