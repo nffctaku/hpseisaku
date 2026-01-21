@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Analytics } from "@vercel/analytics/react";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -21,6 +22,7 @@ export default function RootLayout({
       <body className="antialiased notranslate" translate="no">
         <AuthProvider>
           {children}
+          <Toaster richColors position="top-right" />
           <Analytics />
         </AuthProvider>
       </body>

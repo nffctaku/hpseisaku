@@ -97,6 +97,7 @@ export default function TeamPlayersPage() {
     }
 
     const selectedSeasonDash = toDashSeason(selectedSeason);
+    const copySourceSeasonDash = toDashSeason(copySourceSeason);
 
     if (copySourceSeason === selectedSeason) {
       toast.error('コピー元とコピー先のシーズンが同じです。');
@@ -108,8 +109,19 @@ export default function TeamPlayersPage() {
     try {
       // teams/{teamId}/players の中で「指定シーズン所属」の選手に、選択中シーズンを追加する（実質コピー）
       const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
-      const q = query(playersColRef, where('seasons', 'array-contains', copySourceSeason));
-      const prevPlayersSnap = await getDocs(q);
+      const queries = [
+        query(playersColRef, where('seasons', 'array-contains', copySourceSeason)),
+        copySourceSeasonDash !== copySourceSeason
+          ? query(playersColRef, where('seasons', 'array-contains', copySourceSeasonDash))
+          : null,
+      ].filter(Boolean) as Array<ReturnType<typeof query>>;
+
+      const snaps = await Promise.all(queries.map((qq) => getDocs(qq)));
+      const prevPlayerDocs = snaps.flatMap((s) => s.docs);
+      const prevPlayersSnap = {
+        empty: prevPlayerDocs.length === 0,
+        docs: prevPlayerDocs,
+      } as const;
 
       if (prevPlayersSnap.empty) {
         toast.info(`${copySourceSeason} シーズンに所属している選手がいません。`);
@@ -124,7 +136,9 @@ export default function TeamPlayersPage() {
         const seasons: string[] = Array.isArray(data?.seasons) ? data.seasons : [];
         if (seasons.includes(selectedSeason)) return;
 
-        const sourceSeasonData = (data?.seasonData && typeof data.seasonData === "object") ? data.seasonData[copySourceSeason] : undefined;
+        const sourceSeasonData = (data?.seasonData && typeof data.seasonData === "object")
+          ? (data.seasonData[copySourceSeason] || data.seasonData[copySourceSeasonDash])
+          : undefined;
         const seasonPayload = sourceSeasonData
           ? sourceSeasonData
           : {
@@ -243,6 +257,7 @@ export default function TeamPlayersPage() {
                     選択したシーズンのロスターから未登録の選手だけを{selectedSeason}シーズンに追加します。
                   </div>
                   <Button 
+                    type="button"
                     onClick={handleCopyFromSeason}
                     disabled={!copySourceSeason}
                     className="w-full"
