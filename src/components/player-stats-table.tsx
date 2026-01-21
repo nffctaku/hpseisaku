@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from 'react';
-import { useFormContext, useFieldArray } from 'react-hook-form';
+import { useFormContext, useFieldArray, useWatch } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,8 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     name: 'playerStats',
   });
 
+  const watchedPlayerStats = useWatch({ control, name: 'playerStats' });
+
   const sortedAllPlayers = [...allPlayers].sort((a, b) => {
     const an = typeof (a as any)?.number === 'number' && Number.isFinite((a as any).number) ? (a as any).number : Number.POSITIVE_INFINITY;
     const bn = typeof (b as any)?.number === 'number' && Number.isFinite((b as any).number) ? (b as any).number : Number.POSITIVE_INFINITY;
@@ -67,28 +69,37 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
 
   // Ensure starters have stable slot indices (0-10)
   useEffect(() => {
-    const teamStarters = starters.slice();
+    const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
+    const teamStarters = stats.filter((ps) => {
+      if (!ps) return false;
+      if (ps.teamId !== teamId) return false;
+      return (ps.role ?? 'starter') === 'starter';
+    });
+
     const used = new Set<number>();
-    teamStarters.forEach((f) => {
-      const slot = (f as any).starterSlot;
+    teamStarters.forEach((ps) => {
+      const slot = ps?.starterSlot;
       if (typeof slot === 'number' && Number.isInteger(slot) && slot >= 0 && slot <= 10) {
         used.add(slot);
       }
     });
 
     let next = 0;
-    teamStarters.forEach((f) => {
-      const slot = (f as any).starterSlot;
+    teamStarters.forEach((ps) => {
+      const slot = ps?.starterSlot;
       if (typeof slot === 'number' && Number.isInteger(slot) && slot >= 0 && slot <= 10) return;
       while (used.has(next) && next <= 10) next += 1;
       if (next > 10) return;
-      const globalIndex = fields.findIndex((ff) => ff.id === (f as any).id);
+
+      const playerId = ps?.playerId;
+      if (!playerId) return;
+      const globalIndex = stats.findIndex((row) => row?.playerId === playerId);
       if (globalIndex === -1) return;
       setValue(`playerStats.${globalIndex}.starterSlot` as any, next, { shouldDirty: false });
       used.add(next);
       next += 1;
     });
-  }, [fields, starters, setValue]);
+  }, [teamId, watchedPlayerStats, setValue]);
 
   const handleAddPlayer = (playerId: string, role: 'starter' | 'sub') => {
     const player = allPlayers.find(p => p.id === playerId);
