@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PlayerList } from "./player-list";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
+import { toDashSeason, toSlashSeason } from "@/lib/season";
 
 export const revalidate = 300;
 
@@ -89,12 +90,14 @@ async function getPlayersData(
       const data = doc.data() as any;
       return data?.isPublic !== false;
     })
-    .map((doc) => doc.id)
+    .map((doc) => toSlashSeason(doc.id))
     .sort((a, b) => b.localeCompare(a));
 
+  const seasonNormalized = typeof season === "string" ? toSlashSeason(season) : undefined;
+
   const activeSeason = allSeasons.length
-    ? season && allSeasons.includes(season)
-      ? season
+    ? seasonNormalized && allSeasons.includes(seasonNormalized)
+      ? seasonNormalized
       : allSeasons[0]
     : "";
 
@@ -119,10 +122,20 @@ async function getPlayersData(
   players.push(...playersByTeam.flat());
 
   // シーズンでフィルタ（seasons 未設定 or 空配列は全シーズン所属として扱う）
+  // seasons/seasonData のキー表記は slash/dash が混在するので両方許容する
+  const activeSeasonDash = activeSeason ? toDashSeason(activeSeason) : "";
+  const activeSeasonSlash = activeSeason ? toSlashSeason(activeSeason) : "";
   let filteredPlayers = activeSeason
-    ? players.filter((p) => {
-        if (!p.seasons || p.seasons.length === 0) return true;
-        return p.seasons.includes(activeSeason);
+    ? players.filter((p: any) => {
+        const seasons = Array.isArray(p?.seasons) ? (p.seasons as string[]) : [];
+        const seasonData = p?.seasonData && typeof p.seasonData === "object" ? (p.seasonData as any) : null;
+        if (seasons.length === 0 && !seasonData) return true;
+
+        if (seasons.length === 0 && seasonData) {
+          return Boolean(seasonData[activeSeasonDash] || seasonData[activeSeasonSlash]);
+        }
+
+        return seasons.includes(activeSeason) || seasons.includes(activeSeasonSlash) || seasons.includes(activeSeasonDash);
       })
     : players;
 
