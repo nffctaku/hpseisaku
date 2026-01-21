@@ -158,6 +158,7 @@ export default function TeamBookletA3PrintPage() {
   const searchParams = useSearchParams();
   const teamId = params.teamId as string;
   const season = (searchParams.get("season") || "").trim();
+  const embed = (searchParams.get("embed") || "").trim() === "1";
 
   const { user, ownerUid } = useAuth();
   const isPro = user?.plan === "pro";
@@ -592,71 +593,75 @@ export default function TeamBookletA3PrintPage() {
     <div className="text-gray-900">
       <BookletGlobalStyles paper="a3_landscape" />
 
-      <div className="no-print mb-4 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold truncate">選手名鑑（A3）</h1>
-          <p className="text-sm text-muted-foreground truncate">
-            {data?.club?.clubName || ""} / {data?.teamName || ""} / {season}
-          </p>
-          <p className="text-xs text-muted-foreground truncate">
-            配置: {layoutSource === "saved" && !isLayoutEmpty(layout) ? "保存済み" : "未保存（自動配置）"}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Link
-            href={`/admin/teams/${encodeURIComponent(teamId)}/booklet/a3?season=${encodeURIComponent(season)}`}
-            className="px-3 py-2 rounded-md bg-gray-700 text-white text-sm font-semibold"
-          >
-            配置編集へ戻る
-          </Link>
-          <Link
-            href={`/admin/teams/${encodeURIComponent(teamId)}/booklet?season=${encodeURIComponent(season)}`}
-            className="px-3 py-2 rounded-md bg-gray-700 text-white text-sm font-semibold"
-          >
-            名鑑へ戻る
-          </Link>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="px-3 py-2 rounded-md bg-slate-700 text-white text-sm font-semibold"
-          >
-            最新を読み込み
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="px-3 py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold"
-            disabled={loading || !data}
-          >
-            印刷
-          </button>
-        </div>
-      </div>
+      {!embed ? (
+        <>
+          <div className="no-print mb-4 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold truncate">選手名鑑（A3）</h1>
+              <p className="text-sm text-muted-foreground truncate">
+                {data?.club?.clubName || ""} / {data?.teamName || ""} / {season}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                配置: {layoutSource === "saved" && !isLayoutEmpty(layout) ? "保存済み" : "未保存（自動配置）"}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Link
+                href={`/admin/teams/${encodeURIComponent(teamId)}/booklet/a3?season=${encodeURIComponent(season)}`}
+                className="px-3 py-2 rounded-md bg-gray-700 text-white text-sm font-semibold"
+              >
+                配置編集へ戻る
+              </Link>
+              <Link
+                href={`/admin/teams/${encodeURIComponent(teamId)}/booklet?season=${encodeURIComponent(season)}`}
+                className="px-3 py-2 rounded-md bg-gray-700 text-white text-sm font-semibold"
+              >
+                名鑑へ戻る
+              </Link>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-3 py-2 rounded-md bg-slate-700 text-white text-sm font-semibold"
+              >
+                最新を読み込み
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3 py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold"
+                disabled={loading || !data}
+              >
+                印刷
+              </button>
+            </div>
+          </div>
 
-      <div className="no-print mb-4 rounded-md border bg-white p-3 text-sm text-gray-900">
-        <div className="grid grid-cols-1 gap-3">
-          <label className="flex items-center gap-2">
-            <input
-              type="range"
-              min={30}
-              max={100}
-              step={5}
-              value={Math.round(previewScale * 100)}
-              onChange={(e) => setPreviewScale(Math.max(0.3, Math.min(1, Number(e.target.value) / 100)))}
-              className="flex-1"
-            />
-            <span className="w-12 text-right text-xs tabular-nums text-gray-700">{Math.round(previewScale * 100)}%</span>
-          </label>
-        </div>
-      </div>
+          <div className="no-print mb-4 rounded-md border bg-white p-3 text-sm text-gray-900">
+            <div className="grid grid-cols-1 gap-3">
+              <label className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min={30}
+                  max={100}
+                  step={5}
+                  value={Math.round(previewScale * 100)}
+                  onChange={(e) => setPreviewScale(Math.max(0.3, Math.min(1, Number(e.target.value) / 100)))}
+                  className="flex-1"
+                />
+                <span className="w-12 text-right text-xs tabular-nums text-gray-700">{Math.round(previewScale * 100)}%</span>
+              </label>
+            </div>
+          </div>
+        </>
+      ) : null}
 
       {loading && <div className="no-print text-sm text-muted-foreground">読み込み中...</div>}
       {error && <div className="no-print text-sm text-red-600">{error}</div>}
 
       {data ? (
-        <div className="overflow-x-auto">
+        <div className={embed ? "" : "overflow-x-auto"}>
           <div
-            className="a3-preview-scale inline-block"
+            className={embed ? "inline-block" : "a3-preview-scale inline-block"}
             style={{
               transform: `scale(${previewScale})`,
               transformOrigin: "top left",

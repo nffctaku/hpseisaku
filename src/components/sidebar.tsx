@@ -35,7 +35,7 @@ export function Sidebar() {
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
 
   const bookletHref = mainTeamId
-    ? `/admin/teams/${mainTeamId}/season?next=booklet`
+    ? `/admin/teams/${mainTeamId}/booklet`
     : '/admin/teams';
 
   const transfersHref = mainTeamId

@@ -95,7 +95,7 @@ export default function AdminHomePage() {
   }, [user?.uid]);
 
   const bookletHref = useMemo(() => {
-    return mainTeamId ? `/admin/teams/${mainTeamId}/season?next=booklet` : "/admin/teams";
+    return mainTeamId ? `/admin/teams/${mainTeamId}/booklet` : "/admin/teams";
   }, [mainTeamId]);
 
   const transfersHref = useMemo(() => {
