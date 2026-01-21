@@ -25,11 +25,19 @@ import {
   NotebookPen,
   CheckCircle2,
   Circle,
+  Copy,
   Loader2,
   Share2,
 } from "lucide-react";
 import { collection, doc, getDoc, getDocs, limit, query, setDoc, where } from "firebase/firestore";
 import { toast } from "sonner";
+import { FaXTwitter } from "react-icons/fa6";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function AdminHomePage() {
   const { user } = useAuth();
@@ -103,9 +111,29 @@ export default function AdminHomePage() {
         setMainTeamId(null);
       }
     };
-
     void run();
   }, [user?.uid]);
+
+  const getHpUrl = () => {
+    if (!clubId) return "";
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    return origin ? `${origin}/${clubId}` : `/${clubId}`;
+  };
+
+  const handleShareHpOnX = () => {
+    try {
+      if (!clubId) return;
+      const url = getHpUrl();
+      if (!url) return;
+
+      const title = clubInfo?.clubName || "クラブ";
+      const text = `${title}のHP`;
+      const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+      window.open(intent, "_blank", "noopener,noreferrer");
+    } catch {
+      toast.error("共有に失敗しました");
+    }
+  };
 
   useEffect(() => {
     const clubUid = user?.uid;
@@ -207,8 +235,8 @@ export default function AdminHomePage() {
   const handleShareHp = async () => {
     try {
       if (!clubId) return;
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const url = origin ? `${origin}/${clubId}` : `/${clubId}`;
+      const url = getHpUrl();
+      if (!url) return;
 
       const title = clubInfo?.clubName || "クラブ";
       const text = `${title}のHP`;
@@ -292,14 +320,44 @@ export default function AdminHomePage() {
             >
               HPを見る
             </a>
-            <button
-              type="button"
-              onClick={handleShareHp}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4 py-3 text-sm font-semibold text-gray-900 border border-gray-200 hover:bg-gray-50"
-            >
-              <Share2 className="h-4 w-4" />
-              HPをシェア
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4 py-3 text-sm font-semibold text-gray-900 border border-gray-200 hover:bg-gray-50"
+                >
+                  <Share2 className="h-4 w-4" />
+                  HPをシェア
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-48 bg-white text-gray-900 border border-gray-200 shadow-lg"
+              >
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    handleShareHpOnX();
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <FaXTwitter className="h-4 w-4" />
+                    <span className="text-sm">Xでシェア</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={async (e) => {
+                    e.preventDefault();
+                    await handleShareHp();
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Copy className="h-4 w-4" />
+                    <span className="text-sm">URLをコピー</span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
 
