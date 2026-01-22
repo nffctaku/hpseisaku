@@ -14,7 +14,7 @@ export async function generateMetadata({
 
   const title = "FootChronでチームHPを公開しました";
   const description = "FootChronでチームHPを公開しました";
-  const imageUrl = "/OGP.png";
+  const imageUrl = "/OGP.png?v=20260122";
 
   return {
     title,
