@@ -45,6 +45,7 @@ interface Standing {
 
 interface LeagueTableProps {
   competitions: Competition[];
+  clubId?: string;
   variant?: 'home' | 'table';
 }
 
@@ -55,12 +56,31 @@ function isLeagueRoundName(name: unknown): boolean {
   return /^第\s*\d+\s*節$/.test(s);
 }
 
-export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps) {
+export function LeagueTable({ competitions, clubId, variant = 'home' }: LeagueTableProps) {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompetition, setSelectedCompetition] = useState<{ name: string; logoUrl?: string } | null>(null);
   const [rankLabels, setRankLabels] = useState<RankLabelRule[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const fetchStandingsViaPublicApi = async (clubIdArg: string, competitionId: string) => {
+    const res = await fetch(
+      `/api/public/club/${encodeURIComponent(clubIdArg)}/standings?competitionId=${encodeURIComponent(competitionId)}`,
+      { method: "GET" }
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `Public standings API failed (${res.status})`);
+    }
+    const json = (await res.json()) as any;
+    if (json?.selectedCompetition) setSelectedCompetition(json.selectedCompetition);
+    if (Array.isArray(json?.rankLabels)) setRankLabels(json.rankLabels);
+    if (typeof json?.errorMessage === "string" && json.errorMessage) {
+      setErrorMessage(String(json.errorMessage));
+    }
+    const rows = Array.isArray(json?.standings) ? (json.standings as Standing[]) : [];
+    setStandings(rows);
+  };
 
   const formatGoalDifference = (value: number) => {
     if (value > 0) return `+${value}`;
@@ -248,11 +268,32 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
         setStandings(rankedStandings);
       } catch (error) {
         console.error("Error calculating standings: ", error);
-        setStandings([]);
-        const msg =
+        const rawMsg =
           typeof (error as any)?.message === 'string' && (error as any).message
             ? String((error as any).message)
-            : "順位表の取得に失敗しました";
+            : "";
+
+        const isPermissionDenied =
+          /permission/i.test(rawMsg) ||
+          /insufficient\s+permissions/i.test(rawMsg) ||
+          /missing\s+or\s+insufficient\s+permissions/i.test(rawMsg);
+
+        // Public pages (unauthenticated) can hit permission-denied. Fallback to server API.
+        const selectedComp =
+          (competitions.find((c) => (c as any).showOnHome) as Competition | undefined) ||
+          competitions[0];
+
+        if (isPermissionDenied && clubId && selectedComp?.id) {
+          try {
+            await fetchStandingsViaPublicApi(clubId, selectedComp.id);
+            return;
+          } catch (apiErr) {
+            console.error("Public standings API fallback failed:", apiErr);
+          }
+        }
+
+        setStandings([]);
+        const msg = rawMsg || "順位表の取得に失敗しました";
         setErrorMessage(msg);
       } finally {
         setLoading(false);
@@ -260,7 +301,7 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
     };
 
     fetchStandings();
-  }, [competitions]);
+  }, [competitions, clubId]);
 
   if (!competitions || competitions.length === 0) {
     return (

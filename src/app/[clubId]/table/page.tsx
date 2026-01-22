@@ -130,7 +130,7 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
                   {comp.season ? <span className="text-sm text-muted-foreground ml-2">({comp.season})</span> : null}
                 </div>
               </div>
-              <LeagueTable competitions={[comp]} variant="table" />
+              <LeagueTable clubId={clubId} competitions={[comp]} variant="table" />
             </div>
           ))}
         </div>
