@@ -18,10 +18,13 @@ export async function generateMetadata({
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "https";
-  const fallbackSiteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-  const baseUrl = host ? `${proto}://${host}` : fallbackSiteUrl;
+  const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const fallbackSiteUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
+
+  // Prefer a canonical, stable domain if provided (prevents Vercel preview domains from leaking into og:image).
+  const baseUrl = envSiteUrl || (host ? `${proto}://${host}` : fallbackSiteUrl);
   const imageUrl = new URL("/OGP.png?v=20260122", baseUrl).toString();
 
   return {
