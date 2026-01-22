@@ -60,6 +60,7 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
   const [loading, setLoading] = useState(true);
   const [selectedCompetition, setSelectedCompetition] = useState<{ name: string; logoUrl?: string } | null>(null);
   const [rankLabels, setRankLabels] = useState<RankLabelRule[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const formatGoalDifference = (value: number) => {
     if (value > 0) return `+${value}`;
@@ -69,11 +70,13 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
   useEffect(() => {
     if (!competitions || competitions.length === 0) {
       setLoading(false);
+      setErrorMessage(null);
       return;
     }
 
     const fetchStandings = async () => {
       setLoading(true);
+      setErrorMessage(null);
       try {
         const selectedComp =
           (competitions.find((c) => (c as any).showOnHome) as Competition | undefined) ||
@@ -122,11 +125,10 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
           logoUrl: competitionData ? (competitionData as any).logoUrl : undefined,
         });
 
-        if (!competitionData || !competitionData.teams) {
-            console.log("No teams in this competition");
-            setStandings([]);
-            setLoading(false);
-            return;
+        if (!competitionData || !Array.isArray((competitionData as any).teams) || (competitionData as any).teams.length === 0) {
+          setStandings([]);
+          setErrorMessage("大会に参加チームが設定されていません");
+          return;
         }
 
         // Prefer manually saved standings if present
@@ -247,6 +249,11 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
       } catch (error) {
         console.error("Error calculating standings: ", error);
         setStandings([]);
+        const msg =
+          typeof (error as any)?.message === 'string' && (error as any).message
+            ? String((error as any).message)
+            : "順位表の取得に失敗しました";
+        setErrorMessage(msg);
       } finally {
         setLoading(false);
       }
@@ -284,6 +291,10 @@ export function LeagueTable({ competitions, variant = 'home' }: LeagueTableProps
       {loading ? (
         <div className="flex justify-center items-center h-48">
           <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      ) : errorMessage ? (
+        <div className="text-center py-10 border-2 border-dashed border-border rounded-lg">
+          <p className="text-muted-foreground">{errorMessage}</p>
         </div>
       ) : standings.length > 0 ? (
         <div className={variant === 'table' ? 'overflow-x-auto' : 'overflow-x-hidden sm:overflow-x-auto'}>
