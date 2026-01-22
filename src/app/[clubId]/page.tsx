@@ -1,24 +1,8 @@
 import type { Metadata } from "next";
 import ClubPageContent from "./ClubPageContent";
-import { db } from "@/lib/firebase/admin";
 
 interface ClubPageProps {
   params: Promise<{ clubId: string }>;
-}
-
-async function getClubOgMeta(clubId: string): Promise<{ clubName: string; logoUrl: string | null } | null> {
-  try {
-    const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
-    const profileSnap = await profilesQuery.get();
-    if (profileSnap.empty) return null;
-
-    const data = profileSnap.docs[0].data() as any;
-    const clubName = typeof data?.clubName === "string" && data.clubName.trim() ? data.clubName.trim() : clubId;
-    const logoUrl = typeof data?.logoUrl === "string" && data.logoUrl.trim() ? data.logoUrl.trim() : null;
-    return { clubName, logoUrl };
-  } catch {
-    return null;
-  }
 }
 
 export async function generateMetadata({
@@ -27,10 +11,9 @@ export async function generateMetadata({
   params: { clubId: string };
 }): Promise<Metadata> {
   const clubId = params.clubId;
-  const meta = await getClubOgMeta(clubId);
 
-  const title = meta?.clubName ? `${meta.clubName} | Footballtop` : `${clubId} | Footballtop`;
-  const description = meta?.clubName ? `${meta.clubName} の公式サイト` : "クラブの公式サイト";
+  const title = "FootChronでチームHPを公開しました";
+  const description = "FootChronでチームHPを公開しました";
   const imageUrl = "/OGP.png";
 
   return {
@@ -40,7 +23,7 @@ export async function generateMetadata({
       title,
       description,
       url: `/${encodeURIComponent(clubId)}`,
-      siteName: "Footballtop",
+      siteName: "FootChron",
       images: [{ url: imageUrl, width: 1200, height: 630 }],
       type: "website",
     },
