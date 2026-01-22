@@ -31,7 +31,7 @@ export async function generateMetadata({
 
   const title = meta?.clubName ? `${meta.clubName} | Footballtop` : `${clubId} | Footballtop`;
   const description = meta?.clubName ? `${meta.clubName} の公式サイト` : "クラブの公式サイト";
-  const imageUrl = `/${encodeURIComponent(clubId)}/opengraph-image`;
+  const imageUrl = "/OGP.png";
 
   return {
     title,
