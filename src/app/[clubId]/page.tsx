@@ -31,7 +31,7 @@ export async function generateMetadata({
 
   const title = meta?.clubName ? `${meta.clubName} | Footballtop` : `${clubId} | Footballtop`;
   const description = meta?.clubName ? `${meta.clubName} の公式サイト` : "クラブの公式サイト";
-  const imageUrl = meta?.logoUrl || "/favicon.png";
+  const imageUrl = `/${encodeURIComponent(clubId)}/opengraph-image`;
 
   return {
     title,
@@ -41,7 +41,7 @@ export async function generateMetadata({
       description,
       url: `/${encodeURIComponent(clubId)}`,
       siteName: "Footballtop",
-      images: [{ url: imageUrl }],
+      images: [{ url: imageUrl, width: 1200, height: 630 }],
       type: "website",
     },
     twitter: {
