@@ -54,6 +54,9 @@ export default function AdminHomePage() {
   const [hasCompetition, setHasCompetition] = useState(false);
   const [hasMatch, setHasMatch] = useState(false);
 
+  const OGP_CACHE_BUSTER = "20260122";
+  const SHARE_TEXT = "FootChronでチームHPを公開しました";
+
   useEffect(() => {
     const run = async () => {
       const clubUid = user?.uid;
@@ -117,7 +120,8 @@ export default function AdminHomePage() {
   const getHpUrl = () => {
     if (!clubId) return "";
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    return origin ? `${origin}/${clubId}` : `/${clubId}`;
+    const base = origin ? `${origin}/${clubId}` : `/${clubId}`;
+    return `${base}?v=${encodeURIComponent(OGP_CACHE_BUSTER)}`;
   };
 
   const handleShareHpOnX = () => {
@@ -126,9 +130,7 @@ export default function AdminHomePage() {
       const url = getHpUrl();
       if (!url) return;
 
-      const title = clubInfo?.clubName || "クラブ";
-      const text = `${title}のHP`;
-      const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+      const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}&url=${encodeURIComponent(url)}`;
       window.open(intent, "_blank", "noopener,noreferrer");
     } catch {
       toast.error("共有に失敗しました");
@@ -238,8 +240,8 @@ export default function AdminHomePage() {
       const url = getHpUrl();
       if (!url) return;
 
-      const title = clubInfo?.clubName || "クラブ";
-      const text = `${title}のHP`;
+      const title = "FootChron";
+      const text = SHARE_TEXT;
 
       if (typeof (navigator as any)?.share === "function") {
         await (navigator as any).share({ title, text, url });
