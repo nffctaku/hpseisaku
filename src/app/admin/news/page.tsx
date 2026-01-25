@@ -333,6 +333,9 @@ export default function NewsAdminPage() {
                   <FormControl>
                     <ImageUploader value={field.value || ''} onChange={field.onChange} />
                   </FormControl>
+                  <div className="text-xs text-muted-foreground">
+                    推奨: 16:9（例: 1600×900px以上）。表示時に16:9へ調整されます。
+                  </div>
                   <FormMessage />
                 </FormItem>
               )} />

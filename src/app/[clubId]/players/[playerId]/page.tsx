@@ -1,5 +1,5 @@
 import { db } from "@/lib/firebase/admin";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
@@ -1087,11 +1087,19 @@ async function getPlayerSeasonSummaries(
 async function getPlayer(
   clubId: string,
   playerId: string
-): Promise<{ clubName: string; player: PlayerData; ownerUid: string; legalPages: LegalPageItem[]; gameTeamUsage: boolean } | null> {
+): Promise<{
+  clubName: string;
+  player: PlayerData;
+  ownerUid: string;
+  legalPages: LegalPageItem[];
+  gameTeamUsage: boolean;
+  displaySettings: { playerProfileLatest?: boolean };
+} | null> {
   let clubName = clubId;
   let ownerUid: string | null = null;
   let legalPages: LegalPageItem[] = [];
   let gameTeamUsage = false;
+  let displaySettings: { playerProfileLatest?: boolean } = {};
 
   // club_profiles から ownerUid と clubName を取得
   const profilesQuery = db
@@ -1105,6 +1113,11 @@ async function getPlayer(
     ownerUid = (data.ownerUid as string) || doc.id;
     clubName = data.clubName || clubName;
     gameTeamUsage = Boolean((data as any).gameTeamUsage);
+    if ((data as any).displaySettings && typeof (data as any).displaySettings === "object") {
+      displaySettings = {
+        playerProfileLatest: typeof (data as any).displaySettings.playerProfileLatest === "boolean" ? (data as any).displaySettings.playerProfileLatest : undefined,
+      };
+    }
     if (Array.isArray((data as any).legalPages)) {
       legalPages = (data as any).legalPages
         .map((p: any) => ({
@@ -1120,6 +1133,11 @@ async function getPlayer(
       ownerUid = (data.ownerUid as string) || directSnap.id;
       clubName = data.clubName || clubName;
       gameTeamUsage = Boolean((data as any).gameTeamUsage);
+      if ((data as any).displaySettings && typeof (data as any).displaySettings === "object") {
+        displaySettings = {
+          playerProfileLatest: typeof (data as any).displaySettings.playerProfileLatest === "boolean" ? (data as any).displaySettings.playerProfileLatest : undefined,
+        };
+      }
       if (Array.isArray((data as any).legalPages)) {
         legalPages = (data as any).legalPages
           .map((p: any) => ({
@@ -1163,6 +1181,7 @@ async function getPlayer(
       ownerUid,
       legalPages,
       gameTeamUsage,
+      displaySettings,
     };
   }
 
@@ -1174,14 +1193,23 @@ export default async function PlayerPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string; playerId: string }>;
-  searchParams: Promise<{ season?: string }>;
+  searchParams: Promise<{ season?: string; legacy?: string }>; 
 }) {
   const { clubId, playerId } = await params;
-  const { season: urlSeason } = await searchParams;
+  const { season: urlSeason, legacy } = await searchParams;
   const result = await getPlayer(clubId, playerId);
   if (!result) return notFound();
 
-  const { clubName, player, ownerUid, legalPages, gameTeamUsage } = result;
+  const { clubName, player, ownerUid, legalPages, gameTeamUsage, displaySettings } = result;
+
+  if (legacy !== "1" && displaySettings?.playerProfileLatest === true) {
+    const qs = new URLSearchParams();
+    qs.set("design", "new");
+    if (typeof urlSeason === "string" && urlSeason.trim().length > 0) {
+      qs.set("season", urlSeason);
+    }
+    redirect(`/${clubId}/players/${playerId}/design-test?${qs.toString()}`);
+  }
   const registeredSeasonIds = await getRegisteredSeasonIds(ownerUid, playerId, (player as any)?.seasons);
 
   const seasonData = (player as any)?.seasonData && typeof (player as any).seasonData === "object" ? ((player as any).seasonData as any) : {};

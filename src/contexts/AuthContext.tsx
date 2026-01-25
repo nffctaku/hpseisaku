@@ -14,6 +14,9 @@ export interface UserProfile extends User {
   layoutType?: string;
   plan?: string;
   ownerUid?: string;
+  displaySettings?: {
+    playerProfileLatest?: boolean;
+  };
 }
 
 interface AuthContextType {

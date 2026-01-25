@@ -9,17 +9,26 @@ export function PublicPlayerHexChart({
   labels,
   values,
   overall,
+  theme,
 }: {
   labels: string[];
   values: number[];
   overall: number;
+  theme?: "light" | "dark";
 }) {
+  const isDark = theme === "dark";
   const size = 120;
-  const pad = 24;
+  const pad = 36;
   const c = size / 2;
   const r = 45;
   const max = 99;
   const angles = Array.from({ length: 6 }, (_, i) => -Math.PI / 2 + (i * (Math.PI * 2)) / 6);
+
+  const gridStroke = isDark ? "rgba(255,255,255,0.18)" : "#F3F4F6";
+  const outerStroke = isDark ? "rgba(255,255,255,0.30)" : "#E5E7EB";
+  const labelFill = isDark ? "rgba(255,255,255,0.92)" : "#111827";
+  const valueFill = isDark ? "rgba(255,255,255,0.92)" : "#111827";
+  const overallLabelFill = isDark ? "rgba(255,255,255,0.72)" : "#6B7280";
 
   const outerPoints = angles.map((a) => `${c + r * Math.cos(a)},${c + r * Math.sin(a)}`).join(" ");
 
@@ -50,8 +59,8 @@ export function PublicPlayerHexChart({
   });
 
   return (
-    <svg width="100%" viewBox={`${-pad} ${-pad} ${size + pad * 2} ${size + pad * 2}`} className="max-w-[180px] h-auto">
-      <polygon points={outerPoints} fill="none" stroke="#E5E7EB" strokeWidth="2" />
+    <svg width="100%" viewBox={`${-pad} ${-pad} ${size + pad * 2} ${size + pad * 2}`} className="mx-auto block max-w-[180px] h-auto">
+      <polygon points={outerPoints} fill="none" stroke={outerStroke} strokeWidth="2" />
       {[0.2, 0.4, 0.6, 0.8].map((k) => (
         <polygon
           key={k}
@@ -62,18 +71,18 @@ export function PublicPlayerHexChart({
             })
             .join(" ")}
           fill="none"
-          stroke="#F3F4F6"
+          stroke={gridStroke}
           strokeWidth="2"
         />
       ))}
       {angles.map((a, idx) => (
-        <line key={idx} x1={c} y1={c} x2={c + r * Math.cos(a)} y2={c + r * Math.sin(a)} stroke="#F3F4F6" strokeWidth="2" />
+        <line key={idx} x1={c} y1={c} x2={c + r * Math.cos(a)} y2={c + r * Math.sin(a)} stroke={gridStroke} strokeWidth="2" />
       ))}
       <polygon points={valuePoints} fill="rgba(37,99,235,0.25)" stroke="#2563EB" strokeWidth="2" />
-      <text x={c} y={c - 4} textAnchor="middle" fontSize="10" fill="#6B7280">
+      <text x={c} y={c - 4} textAnchor="middle" fontSize="10" fill={overallLabelFill}>
         総合
       </text>
-      <text x={c} y={c + 18} textAnchor="middle" fontSize="18" fontWeight="700" fill="#111827">
+      <text x={c} y={c + 18} textAnchor="middle" fontSize="18" fontWeight="700" fill={valueFill}>
         {clamp99(overall)}
       </text>
 
@@ -86,7 +95,7 @@ export function PublicPlayerHexChart({
           dominantBaseline="middle"
           fontSize="11"
           fontWeight={600}
-          fill="#111827"
+          fill={labelFill}
         >
           {(labels[i] || "").slice(0, 8) || `項目${i + 1}`}
         </text>
@@ -101,7 +110,7 @@ export function PublicPlayerHexChart({
           dominantBaseline="middle"
           fontSize="10"
           fontWeight={700}
-          fill="#111827">
+          fill={valueFill}>
           {clamp99(values[i] ?? 0)}
         </text>
       ))}

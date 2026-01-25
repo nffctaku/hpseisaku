@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       realTeamUsage,
       gameTeamUsage,
       transfersPublic,
+      displaySettings,
       sponsors,
       snsLinks,
       legalPages,
@@ -96,6 +97,16 @@ export async function POST(request: Request) {
 
     if (typeof transfersPublic === 'boolean') {
       updateData.transfersPublic = transfersPublic;
+    }
+
+    if (displaySettings && typeof displaySettings === 'object') {
+      const next: Record<string, any> = {};
+      if (typeof (displaySettings as any).playerProfileLatest === 'boolean') {
+        next.playerProfileLatest = (displaySettings as any).playerProfileLatest;
+      }
+      if (Object.keys(next).length > 0) {
+        updateData.displaySettings = next;
+      }
     }
 
     // スポンサー情報（画像URLとリンク先URLの配列）

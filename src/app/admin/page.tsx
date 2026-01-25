@@ -225,7 +225,8 @@ export default function AdminHomePage() {
     { href: "/admin/news", label: "ニュース管理", icon: Newspaper },
 
     { href: "/admin/tv", label: "TV管理", icon: Tv },
-    { href: "/admin/club/info", label: "クラブ情報", icon: Settings },
+    { href: "/admin/club/info", label: "クラブ情報", icon: Home },
+    { href: "/admin/settings", label: "設定", icon: Settings },
 
     { href: "/admin/plan", label: "プラン", icon: CreditCard },
     { href: "/admin/club", label: "管理者情報", icon: LayoutGrid },
