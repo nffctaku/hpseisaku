@@ -1,8 +1,21 @@
 import { db } from '@/lib/firebase/admin';
 import { NewsArticle } from '@/types/news';
+import type { Metadata } from 'next';
+import Image from 'next/image';
+import { headers } from 'next/headers';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { format } from 'date-fns';
+import { ja } from 'date-fns/locale';
+import NewsActions from './NewsActions';
 
 export const revalidate = 0;
+
+function toCloudinaryPadded16x9(url: string, width: number) {
+  if (!url) return url;
+  if (!url.includes('/image/upload/')) return url;
+  return url.replace('/image/upload/', `/image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_auto/`);
+}
 
 async function getArticle(clubId: string, newsId: string): Promise<NewsArticle | null> {
   const profileQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
@@ -33,8 +46,57 @@ async function getArticle(clubId: string, newsId: string): Promise<NewsArticle |
     id: docSnap.id,
     title: data.title,
     content: data.content,
+    noteUrl: data.noteUrl,
+    imageUrl: data.imageUrl,
+    likeCount: typeof data.likeCount === 'number' ? data.likeCount : 0,
     publishedAt: data.publishedAt,
   } as NewsArticle;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { clubId: string; newsId: string };
+}): Promise<Metadata> {
+  const { clubId, newsId } = params;
+  const article = await getArticle(clubId, newsId);
+  if (!article) {
+    return {};
+  }
+
+  const title = article.title || 'NEWS';
+  const description = (article.content || '').replace(/\s+/g, ' ').trim().slice(0, 120) || title;
+
+  const h = await headers();
+  const host = h.get('x-forwarded-host') ?? h.get('host');
+  const proto = h.get('x-forwarded-proto') ?? 'https';
+  const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const fallbackSiteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+  const baseUrl = envSiteUrl || (host ? `${proto}://${host}` : fallbackSiteUrl);
+
+  const url = new URL(`/${encodeURIComponent(clubId)}/news/${encodeURIComponent(newsId)}`, baseUrl).toString();
+  const ogImage = article.imageUrl
+    ? toCloudinaryPadded16x9(article.imageUrl, 1200)
+    : new URL('/OGP.png?v=20260122', baseUrl).toString();
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: 'FootChron',
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+      type: 'article',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImage],
+    },
+  };
 }
 
 export default async function NewsArticlePage({ params }: { params: { clubId: string, newsId: string } }) {
@@ -44,14 +106,58 @@ export default async function NewsArticlePage({ params }: { params: { clubId: st
     notFound();
   }
 
+  const publishedDate = article.publishedAt?.toDate ? article.publishedAt.toDate() : null;
+
   return (
     <div className="bg-gray-900 text-white min-h-screen">
       <div className="container mx-auto px-4 py-8 max-w-3xl">
-        <h1 className="text-4xl font-bold mb-4">{article.title}</h1>
-        <hr className="border-gray-700 my-8" />
-        <div className="whitespace-pre-wrap text-lg">
-          {article.content}
+        <div className="mb-4">
+          <Link href={`/${params.clubId}/news`} className="text-sm text-gray-300 hover:underline">
+            ← NEWS一覧へ戻る
+          </Link>
         </div>
+
+        {article.imageUrl && (
+          <div className="relative w-full aspect-video bg-gray-800 rounded-lg overflow-hidden mb-6">
+            <Image
+              src={toCloudinaryPadded16x9(article.imageUrl, 1600)}
+              alt={article.title}
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+        )}
+
+        <h1 className="text-3xl sm:text-4xl font-bold mb-3">{article.title}</h1>
+
+        <div className="flex items-center justify-between gap-3 flex-wrap text-sm text-gray-300 mb-6">
+          <div>
+            {publishedDate ? format(publishedDate, 'yyyy年M月d日 HH:mm', { locale: ja }) : ''}
+          </div>
+          <NewsActions
+            clubId={params.clubId}
+            newsId={params.newsId}
+            title={article.title}
+            initialLikeCount={typeof article.likeCount === 'number' ? article.likeCount : 0}
+          />
+        </div>
+
+        {article.noteUrl && (
+          <div className="mb-6">
+            <Link
+              href={article.noteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-gray-300 hover:underline"
+            >
+              記事リンクを開く
+            </Link>
+          </div>
+        )}
+
+        <hr className="border-gray-700 my-8" />
+        <div className="whitespace-pre-wrap text-lg">{article.content}</div>
       </div>
     </div>
   );

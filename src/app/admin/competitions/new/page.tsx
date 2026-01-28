@@ -8,6 +8,7 @@ import { collection, addDoc, writeBatch, doc, getDocs, query } from "firebase/fi
 import { useForm, useFieldArray, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,8 +118,12 @@ export default function NewCompetitionPage() {
   const [competitionNameMode, setCompetitionNameMode] = useState<'existing' | 'new'>('new');
   const [selectedCompetitionName, setSelectedCompetitionName] = useState<string>('__new__');
   const [templateByName, setTemplateByName] = useState<Record<string, CompetitionTemplate>>({});
+  const [competitionCountBySeason, setCompetitionCountBySeason] = useState<Record<string, number>>({});
 
   const clubUid = ownerUid || user?.uid;
+
+  const planTier = getPlanTier(user?.plan);
+  const maxCompetitions = getPlanLimit("competitions_per_club", planTier);
 
   const getTeamInitial = (name: string) => {
     const s = (name || '').trim();
@@ -202,6 +207,7 @@ export default function NewCompetitionPage() {
       const snap = await getDocs(q);
       const set = new Set<string>();
       const bestByName: Record<string, CompetitionTemplate> = {};
+      const countBySeason: Record<string, number> = {};
       for (const d of snap.docs) {
         const data = d.data() as any;
         const name = typeof data?.name === 'string' ? String(data.name).trim() : '';
@@ -209,6 +215,9 @@ export default function NewCompetitionPage() {
         set.add(name);
 
         const season = typeof data?.season === 'string' ? String(data.season).trim() : '';
+        if (season) {
+          countBySeason[season] = (countBySeason[season] ?? 0) + 1;
+        }
         const prev = bestByName[name];
         const shouldReplace = !prev || String(season).localeCompare(String(prev.season || ''), 'ja') > 0;
         if (shouldReplace) {
@@ -227,6 +236,7 @@ export default function NewCompetitionPage() {
       list.sort((a, b) => a.localeCompare(b, 'ja'));
       setCompetitionNameSuggestions(list);
       setTemplateByName(bestByName);
+      setCompetitionCountBySeason(countBySeason);
     };
     const fetchCategories = async () => {
       const categoriesColRef = collection(db, `clubs/${clubUid}/team_categories`);
@@ -293,6 +303,16 @@ export default function NewCompetitionPage() {
       return;
     }
     if (!clubUid) return;
+
+    if (Number.isFinite(maxCompetitions)) {
+      const seasonKey = typeof data?.season === "string" ? data.season.trim() : "";
+      const currentCount = seasonKey ? (competitionCountBySeason[seasonKey] ?? 0) : 0;
+      if (seasonKey && currentCount >= maxCompetitions) {
+        toast.error(`このシーズンでは大会は${maxCompetitions}つまで作成できます。`);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const compRef = await addDoc(collection(db, `clubs/${clubUid}/competitions`), {

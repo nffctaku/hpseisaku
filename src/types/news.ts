@@ -7,6 +7,7 @@ export interface NewsArticle {
   // note 記事への外部リンク（任意）
   noteUrl?: string;
   imageUrl?: string;
+  likeCount?: number;
   category?: string;
   // トップのスライドに表示するかどうか
   featuredInHero?: boolean;

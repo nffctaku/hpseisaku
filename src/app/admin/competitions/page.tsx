@@ -121,7 +121,7 @@ export default function CompetitionsPage() {
   };
 
   const handleCreateCompetition = () => {
-    if (Number.isFinite(maxCompetitions) && competitions.length >= maxCompetitions) {
+    if (selectedSeason !== "all" && Number.isFinite(maxCompetitions) && filteredCompetitions.length >= maxCompetitions) {
       setLimitDialogType(isPro ? "pro" : "free");
       setLimitDialogOpen(true);
       return;
@@ -255,7 +255,7 @@ export default function CompetitionsPage() {
             <AlertDialogTitle>{limitDialogType === "free" ? "無料プランの上限に達しました" : "Proプランの上限に達しました"}</AlertDialogTitle>
             <AlertDialogDescription>
               {Number.isFinite(maxCompetitions)
-                ? `${limitDialogType === "free" ? "無料" : "Pro"}プランでは大会は${maxCompetitions}つまで作成できます。既存の大会を編集するか、不要な大会を削除してください。`
+                ? `${limitDialogType === "free" ? "無料" : "Pro"}プランでは1シーズンあたり大会は${maxCompetitions}つまで作成できます。既存の大会を編集するか、不要な大会を削除してください。`
                 : "現在のプランでは大会数の上限はありません。"}
             </AlertDialogDescription>
           </AlertDialogHeader>
