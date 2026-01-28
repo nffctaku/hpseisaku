@@ -53,6 +53,66 @@ async function getArticle(clubId: string, newsId: string): Promise<NewsArticle |
   } as NewsArticle;
 }
 
+ async function getOtherNews(clubId: string, currentNewsId: string, limit: number): Promise<NewsArticle[]> {
+   const profileQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
+   const profileSnapshot = await profileQuery.get();
+
+   if (profileSnapshot.empty) {
+     return [];
+   }
+
+   const ownerUid = profileSnapshot.docs[0].data().ownerUid;
+   if (!ownerUid) {
+     return [];
+   }
+
+   const newsRef = db.collection(`clubs/${ownerUid}/news`);
+   const snap = await newsRef.orderBy('publishedAt', 'desc').limit(limit + 3).get();
+   const items = snap.docs
+     .filter((d) => d.id !== currentNewsId)
+     .slice(0, limit)
+     .map((d) => {
+       const data = d.data() as any;
+       return {
+         id: d.id,
+         title: data.title,
+         imageUrl: data.imageUrl,
+         publishedAt: data.publishedAt,
+       } as NewsArticle;
+     });
+
+   return items;
+ }
+
+ function OtherNewsCard({ article, clubId }: { article: NewsArticle; clubId: string }) {
+   const publishedDate = article.publishedAt?.toDate ? article.publishedAt.toDate() : null;
+
+   return (
+     <Link href={`/${clubId}/news/${article.id}`} className="block group">
+       <div className="bg-white text-gray-900 rounded-lg overflow-hidden shadow-md h-full flex flex-col border">
+         {article.imageUrl && (
+           <div className="relative w-full aspect-video bg-muted">
+             <Image
+               src={toCloudinaryPadded16x9(article.imageUrl, 1200)}
+               alt={article.title}
+               fill
+               className="object-contain"
+             />
+           </div>
+         )}
+         <div className="p-4 flex-grow flex flex-col">
+           <div className="flex items-center text-xs text-muted-foreground mb-2">
+             {publishedDate ? format(publishedDate, 'yyyy年M月d日', { locale: ja }) : ''}
+           </div>
+           <h3 className="text-card-foreground font-bold text-base leading-tight flex-grow group-hover:underline">
+             {article.title}
+           </h3>
+         </div>
+       </div>
+     </Link>
+   );
+ }
+
 export async function generateMetadata({
   params,
 }: {
@@ -107,6 +167,7 @@ export default async function NewsArticlePage({ params }: { params: { clubId: st
   }
 
   const publishedDate = article.publishedAt?.toDate ? article.publishedAt.toDate() : null;
+  const otherNews = await getOtherNews(params.clubId, params.newsId, 3);
 
   return (
     <div className="bg-gray-900 text-white min-h-screen">
@@ -158,6 +219,19 @@ export default async function NewsArticlePage({ params }: { params: { clubId: st
 
         <hr className="border-gray-700 my-8" />
         <div className="whitespace-pre-wrap text-lg">{article.content}</div>
+
+        {otherNews.length > 0 && (
+          <div className="mt-10">
+            <div className="flex items-center border-b border-gray-700 pb-2 mb-6">
+              <h2 className="text-xl font-bold">OTHER NEWS</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {otherNews.map((n) => (
+                <OtherNewsCard key={n.id} article={n} clubId={params.clubId} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
