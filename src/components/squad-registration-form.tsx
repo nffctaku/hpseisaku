@@ -63,10 +63,11 @@ interface SquadRegistrationFormProps {
   roundId: string;
   competitionId: string;
   matchDocPath?: string;
+  seasonId?: string;
   view?: 'player' | 'events' | 'both';
 }
 
-export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId, competitionId, matchDocPath, view = 'both' }: SquadRegistrationFormProps) {
+export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId, competitionId, matchDocPath, seasonId, view = 'both' }: SquadRegistrationFormProps) {
   console.log('SquadForm: Received homePlayers', homePlayers);
   console.log('SquadForm: Received awayPlayers', awayPlayers);
   const { user, ownerUid: ownerUidFromContext } = useAuth();
@@ -76,11 +77,14 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   const [settingDefault, setSettingDefault] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
 
+  const normalizedSeasonId = typeof seasonId === 'string' ? seasonId.trim() : '';
+  const seasonStorageKey = normalizedSeasonId ? `default_squad_${ownerUid}_${normalizedSeasonId}` : `default_squad_${ownerUid}`;
+  const legacyStorageKey = `default_squad_${ownerUid}`;
+
   // localStorageからデフォルトスタメン・サブ設定を読み込む
   const loadDefaultSquad = (teamPlayers: Player[]) => {
-    const storageKey = `default_squad_${ownerUid}`;
     try {
-      const saved = localStorage.getItem(storageKey);
+      const saved = localStorage.getItem(seasonStorageKey) ?? localStorage.getItem(legacyStorageKey);
       if (saved) {
         const data = JSON.parse(saved);
         // チームIDを特定（最初の選手のteamId、またはmatch.homeTeam）
@@ -146,9 +150,8 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
 
   // デフォルトスタメン・サブ設定を保存
   const saveDefaultSquad = (playerStats: any[]) => {
-    const storageKey = `default_squad_${ownerUid}`;
     try {
-      const existingData = localStorage.getItem(storageKey);
+      const existingData = localStorage.getItem(seasonStorageKey);
       const data = existingData ? JSON.parse(existingData) : {};
       
       // チームごとにスタメンとサブを分類
@@ -175,7 +178,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         data[teamId] = teamGroups[teamId];
       });
       
-      localStorage.setItem(storageKey, JSON.stringify(data));
+      localStorage.setItem(seasonStorageKey, JSON.stringify(data));
     } catch (error) {
       console.error('Error saving default squad:', error);
     }
@@ -296,27 +299,15 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         const matchDoc = await getDoc(matchDocRef);
         if (matchDoc.exists()) {
           const data = matchDoc.data();
-          let playerStats = data.playerStats || [];
-          
-          // 既存の選手データがない場合はデフォルト設定を適用
-          if (playerStats.length === 0) {
-            const homeDefault = loadDefaultSquad(homePlayers);
-            const awayDefault = loadDefaultSquad(awayPlayers);
-            playerStats = [...homeDefault, ...awayDefault];
-          }
-          
           methods.reset({
             customStatHeaders: data.customStatHeaders || [],
-            playerStats,
+            playerStats: data.playerStats || [],
             events: data.events || [],
           });
         } else {
-          // 試合データが存在しない場合もデフォルト設定を適用
-          const homeDefault = loadDefaultSquad(homePlayers);
-          const awayDefault = loadDefaultSquad(awayPlayers);
           methods.reset({
             customStatHeaders: [],
-            playerStats: [...homeDefault, ...awayDefault],
+            playerStats: [],
             events: [],
           });
         }
@@ -329,6 +320,17 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     };
     fetchMatchData();
   }, [match.id, roundId, competitionId, user, ownerUid, methods, matchDocPath]);
+
+  const applyDefaultSquad = () => {
+    const homeDefault = loadDefaultSquad(homePlayers);
+    const awayDefault = loadDefaultSquad(awayPlayers);
+    const current = methods.getValues();
+    methods.reset({
+      customStatHeaders: current.customStatHeaders || [],
+      playerStats: [...homeDefault, ...awayDefault],
+      events: current.events || [],
+    });
+  };
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     if (!user || !ownerUid || !roundId || !competitionId) {
@@ -496,10 +498,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       });
 
       await batch.commit();
-      
-      // デフォルトスタメン・サブ設定を保存
-      saveDefaultSquad((data.playerStats || []).filter((ps: any) => Boolean(ps?.playerId)));
-      
+
       toast.success('出場選手・スタッツ・イベントを更新しました。');
     } catch (error) {
       console.error("Error saving squad data:", error);
@@ -534,8 +533,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
 
   // デフォルトスタメン・サブ設定をリセット
   const resetDefaultSquad = () => {
-    const storageKey = `default_squad_${ownerUid}`;
-    localStorage.removeItem(storageKey);
+    localStorage.removeItem(seasonStorageKey);
     toast.success('デフォルトスタメン・サブ設定をリセットしました');
   };
 
@@ -580,7 +578,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
               </div>
             ) : null}
             {(view === 'player' || view === 'both') ? (
-            <div className="mt-8 flex justify-between">
+            <div className="mt-8 flex flex-wrap items-center justify-between gap-2">
               <Button
                 type="button"
                 size="sm"
@@ -588,7 +586,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                   setAsDefaultSquad();
                 }}
                 disabled={settingDefault}
-                className="bg-blue-600 text-white hover:bg-blue-700 px-3 py-1 text-sm"
+                className="bg-blue-600 text-white hover:bg-blue-700 h-8 px-2 py-1 text-xs"
               >
                 {settingDefault ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
                 <div className="flex flex-col items-center">
@@ -597,9 +595,19 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                 </div>
               </Button>
               <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  applyDefaultSquad();
+                }}
+                className="bg-white text-gray-900 hover:bg-gray-100 border border-border h-8 px-2 py-1 text-xs"
+              >
+                デフォルトを反映
+              </Button>
+              <Button
                 type="submit"
                 disabled={saving}
-                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                className="bg-emerald-600 text-white hover:bg-emerald-700 h-8 px-3 text-xs"
               >
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 保存

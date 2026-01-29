@@ -26,6 +26,27 @@ export default function MatchAdminPage() {
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
   const [resolvedMatchDocPath, setResolvedMatchDocPath] = useState<string | null>(null);
+  const [seasonId, setSeasonId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user || !ownerUid || typeof competitionId !== 'string') return;
+    let cancelled = false;
+    const fetchSeason = async () => {
+      try {
+        const compSnap = await getDoc(doc(db, `clubs/${ownerUid}/competitions/${competitionId}`));
+        if (cancelled) return;
+        const s = compSnap.exists() ? (compSnap.data() as any)?.season : undefined;
+        setSeasonId(typeof s === 'string' ? s : null);
+      } catch {
+        if (cancelled) return;
+        setSeasonId(null);
+      }
+    };
+    fetchSeason();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, ownerUid, competitionId]);
 
   useEffect(() => {
     if (!user || !ownerUid || typeof matchId !== 'string' || typeof competitionId !== 'string' || typeof roundId !== 'string') {
@@ -65,10 +86,18 @@ export default function MatchAdminPage() {
         };
 
         const fetchPlayers = async (teamId: string): Promise<Player[]> => {
-          if (!teamId || !user) return [];
-          const playersRef = collection(db, `clubs/${ownerUid}/teams/${teamId}/players`);
-          const querySnapshot = await getDocs(playersRef);
-          return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
+          if (!teamId || !user || !ownerUid) return [];
+          const primaryRef = collection(db, `clubs/${ownerUid}/teams/${teamId}/players`);
+          const primarySnap = await getDocs(primaryRef);
+          if (!primarySnap.empty) {
+            return primarySnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
+          }
+
+          const legacyUid = user.uid;
+          if (!legacyUid || legacyUid === ownerUid) return [];
+          const fallbackRef = collection(db, `clubs/${legacyUid}/teams/${teamId}/players`);
+          const fallbackSnap = await getDocs(fallbackRef);
+          return fallbackSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
         };
 
         unsubscribe = onSnapshot(
@@ -161,8 +190,11 @@ export default function MatchAdminPage() {
     <div className="container mx-auto max-w-4xl py-6 sm:py-10">
       <div className="mb-4">
         <Link
-          href="/admin/matches"
-          className="inline-flex items-center text-sm text-gray-300 hover:text-white"
+          href={(() => {
+            const s = typeof seasonId === "string" ? seasonId.trim() : "";
+            return s ? `/admin/matches?season=${encodeURIComponent(s)}` : "/admin/matches";
+          })()}
+          className="inline-flex items-center rounded-md border bg-white px-3 py-2 text-xs text-gray-900 shadow-sm hover:bg-gray-50"
         >
           ← 試合管理へ戻る
         </Link>
@@ -271,6 +303,7 @@ export default function MatchAdminPage() {
             roundId={roundId as string} 
             competitionId={competitionId as string} 
             matchDocPath={resolvedMatchDocPath ?? undefined}
+            seasonId={seasonId ?? undefined}
             view="player"
           />
         </TabsContent>
@@ -282,6 +315,7 @@ export default function MatchAdminPage() {
             roundId={roundId as string} 
             competitionId={competitionId as string} 
             matchDocPath={resolvedMatchDocPath ?? undefined}
+            seasonId={seasonId ?? undefined}
             view="events"
           />
         </TabsContent>

@@ -181,6 +181,7 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
 
   const fetchMatchesFromTree = useCallback(
     async (clubUidInner: string, competitionMeta: Map<string, { name: string; season?: string }>): Promise<EnrichedMatch[]> => {
+      // Heavy fallback path only. Prefer public_match_index for performance.
       const teamsMap = teamsMapRef.current;
       const result: EnrichedMatch[] = [];
 
@@ -231,134 +232,10 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
         }
       }
 
-      try {
-        const friendlySnap = await getDocs(query(collection(db, `clubs/${clubUidInner}/friendly_matches`)));
-        for (const matchDoc of friendlySnap.docs) {
-          const m = matchDoc.data() as any;
-          const matchId = matchDoc.id;
-          const matchDate = typeof m?.matchDate === "string" ? m.matchDate : "";
-          if (!matchId || !matchDate) continue;
-
-          const compId = typeof m?.competitionId === "string" && m.competitionId ? m.competitionId : "friendly";
-          const compName = typeof m?.competitionName === "string" ? m.competitionName : compId;
-
-          const homeTeamId = typeof m?.homeTeam === "string" ? m.homeTeam : "";
-          const awayTeamId = typeof m?.awayTeam === "string" ? m.awayTeam : "";
-          const homeTeamInfo = homeTeamId ? teamsMap.get(homeTeamId) : undefined;
-          const awayTeamInfo = awayTeamId ? teamsMap.get(awayTeamId) : undefined;
-
-          result.push({
-            id: matchId,
-            competitionId: compId,
-            competitionName: compName,
-            competitionSeason: typeof m?.competitionSeason === "string" ? m.competitionSeason : undefined,
-            roundId: "single",
-            roundName: typeof m?.roundName === "string" ? m.roundName : "単発",
-            matchDate,
-            matchTime: typeof m?.matchTime === "string" ? m.matchTime : undefined,
-            homeTeamId,
-            awayTeamId,
-            homeTeamName: homeTeamInfo?.name || (typeof m?.homeTeamName === "string" ? m.homeTeamName : "不明なチーム"),
-            awayTeamName: awayTeamInfo?.name || (typeof m?.awayTeamName === "string" ? m.awayTeamName : "不明なチーム"),
-            homeTeamLogo: homeTeamInfo?.logoUrl || (typeof m?.homeTeamLogo === "string" ? m.homeTeamLogo : undefined),
-            awayTeamLogo: awayTeamInfo?.logoUrl || (typeof m?.awayTeamLogo === "string" ? m.awayTeamLogo : undefined),
-            scoreHome: typeof m?.scoreHome === "number" ? m.scoreHome : (m?.scoreHome ?? null),
-            scoreAway: typeof m?.scoreAway === "number" ? m.scoreAway : (m?.scoreAway ?? null),
-          });
-        }
-      } catch (e) {
-        console.warn("[useMatchesData] friendly_matches fetch failed", e);
-      }
-
-      try {
-        const legacySnap = await getDocs(query(collection(db, `clubs/${clubUidInner}/matches`)));
-        for (const matchDoc of legacySnap.docs) {
-          const m = matchDoc.data() as any;
-          const matchId = matchDoc.id;
-          const matchDate = typeof m?.matchDate === "string" ? m.matchDate : "";
-          if (!matchId || !matchDate) continue;
-
-          const compId = typeof m?.competitionId === "string" ? m.competitionId : "legacy";
-          const roundId = typeof m?.roundId === "string" ? m.roundId : "legacy";
-
-          const homeTeamId = typeof m?.homeTeam === "string" ? m.homeTeam : "";
-          const awayTeamId = typeof m?.awayTeam === "string" ? m.awayTeam : "";
-          const homeTeamInfo = homeTeamId ? teamsMap.get(homeTeamId) : undefined;
-          const awayTeamInfo = awayTeamId ? teamsMap.get(awayTeamId) : undefined;
-
-          result.push({
-            id: matchId,
-            competitionId: compId,
-            competitionName: typeof m?.competitionName === "string" ? m.competitionName : compId,
-            competitionSeason: typeof m?.competitionSeason === "string" ? m.competitionSeason : undefined,
-            roundId,
-            roundName: typeof m?.roundName === "string" ? m.roundName : roundId,
-            matchDate,
-            matchTime: typeof m?.matchTime === "string" ? m.matchTime : undefined,
-            homeTeamId,
-            awayTeamId,
-            homeTeamName: homeTeamInfo?.name || (typeof m?.homeTeamName === "string" ? m.homeTeamName : "不明なチーム"),
-            awayTeamName: awayTeamInfo?.name || (typeof m?.awayTeamName === "string" ? m.awayTeamName : "不明なチーム"),
-            homeTeamLogo: homeTeamInfo?.logoUrl || (typeof m?.homeTeamLogo === "string" ? m.homeTeamLogo : undefined),
-            awayTeamLogo: awayTeamInfo?.logoUrl || (typeof m?.awayTeamLogo === "string" ? m.awayTeamLogo : undefined),
-            scoreHome: typeof m?.scoreHome === "number" ? m.scoreHome : (m?.scoreHome ?? null),
-            scoreAway: typeof m?.scoreAway === "number" ? m.scoreAway : (m?.scoreAway ?? null),
-          });
-        }
-      } catch (e) {
-        console.warn("[useMatchesData] legacy matches fetch failed", e);
-      }
-
       result.sort((a, b) => String(a.matchDate).localeCompare(String(b.matchDate)));
       return result;
     },
     []
-  );
-
-  const mergeMatches = useCallback(
-    (a: EnrichedMatch[], b: EnrichedMatch[]) => {
-      const map = new Map<string, EnrichedMatch>();
-      for (const m of a) map.set(getMatchKey(m), m);
-      for (const m of b) {
-        const k = getMatchKey(m);
-        const existing = map.get(k);
-        if (!existing) {
-          map.set(k, m);
-          continue;
-        }
-
-        const pick = <T,>(primary: T, fallback: T) => {
-          if (primary === undefined || primary === null) return fallback;
-          if (typeof primary === "string" && primary.trim().length === 0) return fallback;
-          return primary;
-        };
-
-        const scoreHome = pick(m.scoreHome, existing.scoreHome);
-        const scoreAway = pick(m.scoreAway, existing.scoreAway);
-
-        map.set(k, {
-          ...existing,
-          ...m,
-          competitionName: pick(m.competitionName, existing.competitionName),
-          competitionSeason: pick(m.competitionSeason, existing.competitionSeason),
-          roundName: pick(m.roundName, existing.roundName),
-          matchTime: pick(m.matchTime, existing.matchTime),
-          homeTeamId: pick(m.homeTeamId, existing.homeTeamId),
-          awayTeamId: pick(m.awayTeamId, existing.awayTeamId),
-          homeTeamName: pick(m.homeTeamName, existing.homeTeamName),
-          awayTeamName: pick(m.awayTeamName, existing.awayTeamName),
-          homeTeamLogo: pick(m.homeTeamLogo, existing.homeTeamLogo),
-          awayTeamLogo: pick(m.awayTeamLogo, existing.awayTeamLogo),
-          scoreHome,
-          scoreAway,
-        });
-      }
-
-      const merged = Array.from(map.values());
-      merged.sort((x, y) => String(x.matchDate).localeCompare(String(y.matchDate)));
-      return merged;
-    },
-    [getMatchKey]
   );
 
   const runSearch = useCallback(
@@ -442,12 +319,12 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
           })
           .filter(Boolean) as EnrichedMatch[];
 
-        const treeMatches = await fetchMatchesFromTree(clubUid, competitionMeta);
-        if (fetchId !== activeFetchIdRef.current) return;
+        const indexIsEmpty = !Array.isArray((indexSnap as any)?.docs) || (indexSnap as any).docs.length === 0;
 
-        const merged = mergeMatches(enrichedMatchesFromIndex, treeMatches);
-
-        const filtered = merged.filter((m) => {
+        const filtered = enrichedMatchesFromIndex
+          .slice()
+          .sort((a, b) => String(a.matchDate).localeCompare(String(b.matchDate)))
+          .filter((m) => {
           const seasonOk = filters.season === "all" || m.competitionSeason === filters.season;
           const competitionOk = filters.competitionId === "all" || m.competitionId === filters.competitionId;
 
@@ -456,9 +333,25 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
             filters.teamId === "all" || m.homeTeamId === filters.teamId || m.awayTeamId === filters.teamId || teamsUnset;
 
           return seasonOk && competitionOk && teamOk;
-        });
+          });
 
-        setMatches(filtered);
+        // If index query returned any docs, never run the expensive tree fallback.
+        // Showing 0 results should be fast.
+        if (!indexIsEmpty) {
+          setMatches(filtered);
+          return;
+        }
+
+        // Fallback: only when index is truly empty.
+        const treeMatches = await fetchMatchesFromTree(clubUid, competitionMeta);
+        if (fetchId !== activeFetchIdRef.current) return;
+        const fallbackFiltered = treeMatches.filter((m) => {
+          const seasonOk = filters.season === "all" || m.competitionSeason === filters.season;
+          const competitionOk = filters.competitionId === "all" || m.competitionId === filters.competitionId;
+          const teamOk = m.homeTeamId === filters.teamId || m.awayTeamId === filters.teamId;
+          return seasonOk && competitionOk && teamOk;
+        });
+        setMatches(fallbackFiltered);
       } catch (e) {
         console.error("[useMatchesData] runSearch failed", e);
         toast.error("試合データの読み込みに失敗しました。");
@@ -466,7 +359,7 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
         if (fetchId === activeFetchIdRef.current) setLoadingMatches(false);
       }
     },
-    [clubUid, fetchMatchesFromTree, mergeMatches]
+    [clubUid, fetchMatchesFromTree]
   );
 
   const clearMatches = useCallback(() => {

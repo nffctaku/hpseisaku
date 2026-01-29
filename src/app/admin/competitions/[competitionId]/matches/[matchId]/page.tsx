@@ -32,6 +32,27 @@ export default function MatchAdminPage() {
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
   const [resolvedMatchDocPath, setResolvedMatchDocPath] = useState<string | null>(null);
+  const [seasonId, setSeasonId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user || !ownerUid || typeof competitionId !== 'string') return;
+    let cancelled = false;
+    const fetchSeason = async () => {
+      try {
+        const compSnap = await getDoc(doc(db, `clubs/${ownerUid}/competitions/${competitionId}`));
+        if (cancelled) return;
+        const s = compSnap.exists() ? (compSnap.data() as any)?.season : undefined;
+        setSeasonId(typeof s === 'string' ? s : null);
+      } catch {
+        if (cancelled) return;
+        setSeasonId(null);
+      }
+    };
+    fetchSeason();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, ownerUid, competitionId]);
 
   useEffect(() => {
     if (!user || !ownerUid || typeof matchId !== 'string' || typeof competitionId !== 'string') {
@@ -73,9 +94,18 @@ export default function MatchAdminPage() {
         // Fetch players (per-team collection path)
         if (matchData.homeTeam && matchData.awayTeam) {
           const fetchPlayers = async (teamId: string): Promise<Player[]> => {
-            const playersRef = collection(db, `clubs/${ownerUid}/teams/${teamId}/players`);
-            const snap = await getDocs(playersRef);
-            return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
+            if (!teamId || !user || !ownerUid) return [];
+            const primaryRef = collection(db, `clubs/${ownerUid}/teams/${teamId}/players`);
+            const primarySnap = await getDocs(primaryRef);
+            if (!primarySnap.empty) {
+              return primarySnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
+            }
+
+            const legacyUid = user.uid;
+            if (!legacyUid || legacyUid === ownerUid) return [];
+            const fallbackRef = collection(db, `clubs/${legacyUid}/teams/${teamId}/players`);
+            const fallbackSnap = await getDocs(fallbackRef);
+            return fallbackSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
           };
 
           const [homePlayers, awayPlayers] = await Promise.all([
@@ -287,9 +317,10 @@ export default function MatchAdminPage() {
             match={match}
             homePlayers={homePlayers}
             awayPlayers={awayPlayers}
-            roundId={match.roundId as string}
-            competitionId={competitionId as string}
+            roundId={(match as any).roundId}
+            competitionId={(match as any).competitionId}
             matchDocPath={resolvedMatchDocPath ?? undefined}
+            seasonId={seasonId ?? undefined}
           />
         </TabsContent>
       </Tabs>

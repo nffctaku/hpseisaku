@@ -16,15 +16,27 @@ export function MatchesFilters(props: {
   competitions: CompetitionOption[];
   competitionTeamIds: Map<string, string[]>;
   initialTeamId: string;
+  fixedSeason?: string;
+  hideSeasonSelect?: boolean;
   onSearch: (v: MatchesFiltersValue) => void;
   onClear: () => void;
   loading: boolean;
 }) {
-  const { teams, competitions, competitionTeamIds, initialTeamId, onSearch, onClear, loading } = props;
+  const { teams, competitions, competitionTeamIds, initialTeamId, fixedSeason, hideSeasonSelect, onSearch, onClear, loading } = props;
 
-  const [season, setSeason] = useState<string>("all");
+  const [season, setSeason] = useState<string>(typeof fixedSeason === "string" && fixedSeason.trim().length > 0 ? fixedSeason : "all");
   const [competitionId, setCompetitionId] = useState<string>("all");
   const [teamId, setTeamId] = useState<string>("all");
+
+  useEffect(() => {
+    if (!hideSeasonSelect) return;
+    const next = typeof fixedSeason === "string" && fixedSeason.trim().length > 0 ? fixedSeason : "all";
+    if (season !== next) {
+      setSeason(next);
+      setCompetitionId("all");
+      setTeamId("all");
+    }
+  }, [fixedSeason, hideSeasonSelect, season]);
 
   useEffect(() => {
     if (teamId !== "all") return;
@@ -67,18 +79,20 @@ export function MatchesFilters(props: {
   return (
     <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 sm:gap-4 w-full">
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 flex-1">
-        <Select value={season} onValueChange={setSeason}>
-          <SelectTrigger className="w-full sm:w-[220px] bg-white text-gray-900">
-            <SelectValue placeholder="すべてのシーズン" />
-          </SelectTrigger>
-          <SelectContent>
-            {seasons.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s === "all" ? "すべてのシーズン" : s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {hideSeasonSelect ? null : (
+          <Select value={season} onValueChange={setSeason}>
+            <SelectTrigger className="w-full sm:w-[220px] bg-white text-gray-900">
+              <SelectValue placeholder="すべてのシーズン" />
+            </SelectTrigger>
+            <SelectContent>
+              {seasons.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s === "all" ? "すべてのシーズン" : s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <Select value={competitionId} onValueChange={setCompetitionId}>
           <SelectTrigger className="w-full sm:w-[220px] bg-white text-gray-900">
@@ -120,12 +134,12 @@ export function MatchesFilters(props: {
         </Select>
       </div>
 
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
         <button
           type="button"
           disabled={loading}
           onClick={() => onSearch({ season, competitionId, teamId })}
-          className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 px-4 py-2 rounded-md whitespace-nowrap text-center text-sm"
+          className="w-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 px-6 py-2 rounded-md whitespace-nowrap text-center text-sm"
         >
           表示
         </button>
@@ -133,12 +147,12 @@ export function MatchesFilters(props: {
           type="button"
           disabled={loading}
           onClick={() => {
-            setSeason("all");
+            setSeason(typeof fixedSeason === "string" && fixedSeason.trim().length > 0 ? fixedSeason : "all");
             setCompetitionId("all");
             setTeamId(initialTeamId && teams.some((t) => t.id === initialTeamId) ? initialTeamId : "all");
             onClear();
           }}
-          className="rounded-md border bg-white px-4 py-2 text-sm text-gray-900 shadow-sm hover:bg-gray-50 disabled:opacity-60"
+          className="w-full rounded-md border bg-white px-6 py-2 text-sm text-gray-900 shadow-sm hover:bg-gray-50 disabled:opacity-60"
         >
           クリア
         </button>

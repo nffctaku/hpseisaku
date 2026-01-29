@@ -357,6 +357,7 @@ export default function FriendlyMatchAdminPage() {
             roundId={(match as any).roundId}
             competitionId={(match as any).competitionId}
             matchDocPath={matchDocPath}
+            seasonId={(match as any).competitionSeason || (match as any).season || undefined}
           />
         </TabsContent>
       </Tabs>
