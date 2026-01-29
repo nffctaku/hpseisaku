@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,7 +21,7 @@ interface Team {
 }
 
 export default function PlayersAdminPage() {
-  const { user, loading } = useAuth();
+  const { user, ownerUid, loading } = useAuth();
   const router = useRouter();
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
@@ -30,15 +30,46 @@ export default function PlayersAdminPage() {
   useEffect(() => {
     const fetchTeams = async () => {
       if (!user) return;
+      const clubUid = ownerUid || user.uid;
       setFetchingTeams(true);
       try {
-        const teamsColRef = collection(db, `clubs/${user.uid}/teams`);
+        const teamsColRef = collection(db, `clubs/${clubUid}/teams`);
         const snap = await getDocs(teamsColRef);
         const list: Team[] = snap.docs.map((doc) => ({
           id: doc.id,
           name: (doc.data().name as string) || doc.id,
         }));
         setTeams(list);
+
+        if (selectedTeamId) return;
+        if (list.length === 1) {
+          setSelectedTeamId(list[0].id);
+          return;
+        }
+
+        // Try to auto-select mainTeamId
+        try {
+          let main: string | null = null;
+          const byId = await getDoc(doc(db, 'club_profiles', clubUid));
+          if (byId.exists()) {
+            const data = byId.data() as any;
+            if (typeof data?.mainTeamId === 'string') main = String(data.mainTeamId).trim();
+          }
+
+          if (!main) {
+            const q = query(collection(db, 'club_profiles'), where('ownerUid', '==', clubUid), limit(1));
+            const s = await getDocs(q);
+            if (!s.empty) {
+              const data = s.docs[0].data() as any;
+              if (typeof data?.mainTeamId === 'string') main = String(data.mainTeamId).trim();
+            }
+          }
+
+          if (main && list.some((t) => t.id === main)) {
+            setSelectedTeamId(main);
+          }
+        } catch {
+        }
       } catch (error) {
         console.error('Failed to fetch teams: ', error);
       } finally {
@@ -47,7 +78,7 @@ export default function PlayersAdminPage() {
     };
 
     fetchTeams();
-  }, [user]);
+  }, [user, ownerUid, selectedTeamId]);
 
   if (loading) {
     return (

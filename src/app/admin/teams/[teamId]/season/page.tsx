@@ -9,6 +9,7 @@ import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 interface Season {
   id: string;
@@ -51,6 +52,7 @@ export default function TeamSeasonSelectPage() {
   const [selectedSeason, setSelectedSeason] = useState<string>("");
   const [newSeasonId, setNewSeasonId] = useState<string>("");
   const [creating, setCreating] = useState(false);
+  const [booting, setBooting] = useState(true);
 
   const seasonOptions = useMemo(() => generateSeasonOptions(), []);
   const availableSeasonOptions = useMemo(() => {
@@ -62,15 +64,20 @@ export default function TeamSeasonSelectPage() {
     if (!clubUid) return;
 
     const seasonsColRef = collection(db, `clubs/${clubUid}/seasons`);
-    getDocs(seasonsColRef).then((snapshot) => {
-      const seasonsData = snapshot.docs
-        .map((d) => ({ id: toSlashSeason(d.id), ...(d.data() as any) } as Season))
-        .sort((a, b) => b.id.localeCompare(a.id));
-      setSeasons(seasonsData);
-      if (seasonsData.length > 0) {
-        setSelectedSeason(seasonsData[0].id);
-      }
-    });
+    setBooting(true);
+    getDocs(seasonsColRef)
+      .then((snapshot) => {
+        const seasonsData = snapshot.docs
+          .map((d) => ({ id: toSlashSeason(d.id), ...(d.data() as any) } as Season))
+          .sort((a, b) => b.id.localeCompare(a.id));
+        setSeasons(seasonsData);
+        if (seasonsData.length > 0) {
+          setSelectedSeason(seasonsData[0].id);
+        }
+      })
+      .finally(() => {
+        setBooting(false);
+      });
   }, [clubUid]);
 
   useEffect(() => {
@@ -126,81 +133,89 @@ export default function TeamSeasonSelectPage() {
 
   return (
     <div className="max-w-xl">
-      <h1 className="text-3xl font-bold mb-6">シーズン選択</h1>
-      <div className="space-y-2">
-        <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-          <SelectTrigger className="w-full sm:w-[240px] bg-white text-gray-900">
-            <SelectValue placeholder="シーズンを選択" />
-          </SelectTrigger>
-          <SelectContent>
-            {seasons.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.id}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-        <Button
-          type="button"
-          disabled={!canContinue}
-          className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:hover:bg-emerald-600"
-          onClick={() => {
-            if (!selectedSeason) return;
-            if (next === "booklet") {
-              router.push(`/admin/teams/${teamId}/booklet?season=${encodeURIComponent(selectedSeason)}`);
-              return;
-            }
-            if (next === "transfers") {
-              router.push(`/admin/teams/${teamId}/transfers?season=${encodeURIComponent(selectedSeason)}`);
-              return;
-            }
-            router.push(`/admin/teams/${teamId}?season=${encodeURIComponent(selectedSeason)}`);
-          }}
-        >
-          {next === "booklet" ? "名鑑へ" : "編集"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="bg-white text-gray-900 border border-border hover:bg-gray-100"
-          onClick={() => router.push("/admin/teams")}
-        >
-          戻る
-        </Button>
-      </div>
-
-      <div className="mt-8 space-y-3">
-        {seasons.length === 0 ? (
-          <div className="text-sm text-muted-foreground">シーズンが未作成です。まずシーズンを作成してください。</div>
-        ) : (
-          <div className="text-sm text-muted-foreground">今シーズンを追加できます。</div>
-        )}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Select value={newSeasonId} onValueChange={setNewSeasonId}>
-            <SelectTrigger className="w-full sm:w-[240px] bg-white text-gray-900">
-              <SelectValue placeholder="ー" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableSeasonOptions.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            onClick={handleCreateSeason}
-            disabled={!canCreate}
-            className="whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600"
-          >
-            {seasons.length === 0 ? "シーズン作成" : "シーズン追加"}
-          </Button>
+      {!user || booting ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="h-6 w-6 animate-spin" />
         </div>
-      </div>
+      ) : (
+        <>
+          <h1 className="text-3xl font-bold mb-6">シーズン選択</h1>
+          <div className="space-y-2">
+            <Select value={selectedSeason} onValueChange={setSelectedSeason}>
+              <SelectTrigger className="w-full sm:w-[240px] bg-white text-gray-900">
+                <SelectValue placeholder="シーズンを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {seasons.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              disabled={!canContinue}
+              className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:hover:bg-emerald-600"
+              onClick={() => {
+                if (!selectedSeason) return;
+                if (next === "booklet") {
+                  router.push(`/admin/teams/${teamId}/booklet?season=${encodeURIComponent(selectedSeason)}`);
+                  return;
+                }
+                if (next === "transfers") {
+                  router.push(`/admin/teams/${teamId}/transfers?season=${encodeURIComponent(selectedSeason)}`);
+                  return;
+                }
+                router.push(`/admin/teams/${teamId}?season=${encodeURIComponent(selectedSeason)}`);
+              }}
+            >
+              {next === "booklet" ? "名鑑へ" : "編集"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="bg-white text-gray-900 border border-border hover:bg-gray-100"
+              onClick={() => router.push("/admin/teams")}
+            >
+              戻る
+            </Button>
+          </div>
+
+          <div className="mt-8 space-y-3">
+            {seasons.length === 0 ? (
+              <div className="text-sm text-muted-foreground">シーズンが未作成です。まずシーズンを作成してください。</div>
+            ) : (
+              <div className="text-sm text-muted-foreground">今シーズンを追加できます。</div>
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Select value={newSeasonId} onValueChange={setNewSeasonId}>
+                <SelectTrigger className="w-full sm:w-[240px] bg-white text-gray-900">
+                  <SelectValue placeholder="ー" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSeasonOptions.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                onClick={handleCreateSeason}
+                disabled={!canCreate}
+                className="whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600"
+              >
+                {seasons.length === 0 ? "シーズン作成" : "シーズン追加"}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

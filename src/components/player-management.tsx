@@ -549,13 +549,13 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   return (
     <>
       <div className="mt-6">
-        <div className="flex justify-between items-center mb-4">
+        <div className="mb-4 w-full">
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button
                 onClick={openAddDialog}
                 disabled={Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers}
-                className="bg-white text-gray-900 hover:bg-gray-100 border border-border"
+                className="w-full bg-white text-gray-900 hover:bg-gray-100 border border-border"
               >
                 選手を追加
               </Button>

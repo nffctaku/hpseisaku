@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase';
 import { doc, collection, getDocs, setDoc, writeBatch, updateDoc, query, where, arrayUnion } from 'firebase/firestore';
 import { toDashSeason, toSlashSeason } from '@/lib/season';
 import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 import { PlayerManagement } from '@/components/player-management';
 import { StaffManagement } from '@/components/staff-management';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,7 @@ export default function TeamPlayersPage() {
 
   useEffect(() => {
     if (!clubUid) return;
+    if (!seasonFromQuery) return;
     const seasonsColRef = collection(db, `clubs/${clubUid}/seasons`);
     getDocs(seasonsColRef).then(snapshot => {
       const seasonsData = snapshot.docs
@@ -178,116 +180,119 @@ export default function TeamPlayersPage() {
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-2xl font-bold truncate sm:text-3xl">選手管理</h1>
-          {selectedSeason && (
-            <span className="inline-flex items-center rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white whitespace-nowrap">
-              {selectedSeason}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="bg-white text-gray-900 border border-border hover:bg-gray-100 whitespace-nowrap"
-            onClick={() => router.push(`/admin/teams/${teamId}/season`)}
-          >
-            シーズン選択に戻る
-          </Button>
-        </div>
+    !seasonFromQuery ? (
+      <div className="flex items-center justify-center py-10">
+        <Loader2 className="h-6 w-6 animate-spin" />
       </div>
-
-      <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          {selectedSeason && (
-            <div className="flex items-center gap-3">
-              <Switch
-                id={`public-switch-${selectedSeason}`}
-                checked={seasons.find(s => s.id === selectedSeason)?.isPublic || false}
-                onCheckedChange={(checked) => handleTogglePublic(selectedSeason, checked)}
-                className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-gray-500"
-              />
-              <div className="flex flex-col leading-tight">
-                <Label htmlFor={`public-switch-${selectedSeason}`} className="text-sm text-white">
-                  HPに公開する
-                </Label>
-                <span className="text-xs text-muted-foreground">
-                  {seasons.find(s => s.id === selectedSeason)?.isPublic ? '現在: 公開中' : '現在: 非公開'}
-                </span>
-                <span className="hidden sm:block text-xs text-muted-foreground">ONにするとHPの選手一覧に表示されます。</span>
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1">
-            <Dialog open={isCopyDialogOpen} onOpenChange={setIsCopyDialogOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  disabled={!selectedSeason}
-                  className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white"
-                >
-                  選手をコピー
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>選手をコピー</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="copy-source-season">コピー元シーズン</Label>
-                    <Select value={copySourceSeason} onValueChange={setCopySourceSeason}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="シーズンを選択" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {seasonIds.filter(s => s !== selectedSeason).map((seasonId) => (
-                          <SelectItem key={seasonId} value={seasonId}>
-                            {seasonId}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    選択したシーズンのロスターから未登録の選手だけを{selectedSeason}シーズンに追加します。
-                  </div>
-                  <Button 
-                    type="button"
-                    onClick={handleCopyFromSeason}
-                    disabled={!copySourceSeason}
-                    className="w-full"
-                  >
-                    コピーを実行
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-            <p className="hidden sm:block text-xs text-muted-foreground">他シーズンのロスターから未登録の選手だけを追加します。</p>
+    ) : (
+      <div className="container mx-auto py-6 sm:py-10">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">選手管理</h1>
+            {selectedSeason ? (
+              <span className="inline-flex items-center rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white">{selectedSeason}</span>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 px-1.5 text-[10px] bg-white text-gray-900 border border-border hover:bg-gray-100 whitespace-nowrap"
+              onClick={() => router.push(`/admin/teams/${teamId}/season`)}
+            >
+              シーズン選択に戻る
+            </Button>
           </div>
         </div>
-      </div>
 
-      {selectedSeason ? (
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-          <TabsList className="bg-white/10">
-            <TabsTrigger value="players">選手管理</TabsTrigger>
-            <TabsTrigger value="staff">スタッフ管理</TabsTrigger>
-          </TabsList>
-          <TabsContent value="players">
-            <PlayerManagement teamId={teamId} selectedSeason={selectedSeason} />
-          </TabsContent>
-          <TabsContent value="staff">
-            <StaffManagement teamId={teamId} selectedSeason={selectedSeason} />
-          </TabsContent>
-        </Tabs>
-      ) : (
-        <p>シーズンを選択または追加してください。</p>
-      )}
-    </div>
+        <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            {selectedSeason && (
+              <div className="flex items-center gap-3">
+                <Switch
+                  id={`public-switch-${selectedSeason}`}
+                  checked={seasons.find(s => s.id === selectedSeason)?.isPublic || false}
+                  onCheckedChange={(checked) => handleTogglePublic(selectedSeason, checked)}
+                  className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-gray-500"
+                />
+                <div className="flex flex-col leading-tight">
+                  <Label htmlFor={`public-switch-${selectedSeason}`} className="text-sm text-white">
+                    HPに公開する
+                  </Label>
+                  <span className="text-xs text-muted-foreground">
+                    {seasons.find(s => s.id === selectedSeason)?.isPublic ? '現在: 公開中' : '現在: 非公開'}
+                  </span>
+                  <span className="hidden sm:block text-xs text-muted-foreground">ONにするとHPの選手一覧に表示されます。</span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1">
+              <Dialog open={isCopyDialogOpen} onOpenChange={setIsCopyDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={!selectedSeason}
+                    className="bg-white text-gray-900 border border-border hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-white"
+                  >
+                    選手をコピー
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>選手をコピー</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="copy-source-season">コピー元シーズン</Label>
+                      <Select value={copySourceSeason} onValueChange={setCopySourceSeason}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="シーズンを選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {seasonIds.filter(s => s !== selectedSeason).map((seasonId) => (
+                            <SelectItem key={seasonId} value={seasonId}>
+                              {seasonId}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      選択したシーズンのロスターから未登録の選手だけを{selectedSeason}シーズンに追加します。
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={handleCopyFromSeason}
+                      disabled={!copySourceSeason}
+                      className="w-full"
+                    >
+                      コピーを実行
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <p className="hidden sm:block text-xs text-muted-foreground">他シーズンのロスターから未登録の選手だけを追加します。</p>
+            </div>
+          </div>
+        </div>
+
+        {selectedSeason ? (
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+            <TabsList className="grid w-full grid-cols-2 bg-white/10">
+              <TabsTrigger className="w-full" value="players">選手管理</TabsTrigger>
+              <TabsTrigger className="w-full" value="staff">スタッフ管理</TabsTrigger>
+            </TabsList>
+            <TabsContent value="players">
+              <PlayerManagement teamId={teamId} selectedSeason={selectedSeason} />
+            </TabsContent>
+            <TabsContent value="staff">
+              <StaffManagement teamId={teamId} selectedSeason={selectedSeason} />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <p>シーズンを選択または追加してください。</p>
+        )}
+      </div>
+    )
   );
 }

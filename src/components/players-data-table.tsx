@@ -39,13 +39,27 @@ export function PlayersDataTable<TData, TValue>({
   return (
     <div>
       <div className="rounded-md border bg-white text-gray-900">
-        <Table className="bg-white text-gray-900">
+        <Table className="w-full bg-white text-gray-900">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="bg-gray-50">
                 {headerGroup.headers.map((header) => {
+                  const colId = header.column.id;
+                  const isNumber = colId === "number";
+                  const isPosition = colId === "position";
+                  const isName = colId === "name";
+                  const isTight = isNumber || isPosition;
                   return (
-                    <TableHead key={header.id} className="text-gray-900">
+                    <TableHead
+                      key={header.id}
+                      className={
+                        isTight
+                          ? `${isNumber ? "w-[4ch]" : "w-[3ch]"} whitespace-nowrap py-2 ${isNumber ? "!pl-[1ch] !pr-0" : (isPosition ? "!pl-[2ch] !pr-0" : "!px-1")} text-gray-900`
+                          : isName
+                            ? "py-2 !pl-[2ch] !pr-1.5 text-gray-900"
+                            : "py-2 !px-1.5 text-gray-900"
+                      }
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -64,10 +78,21 @@ export function PlayersDataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="text-gray-900"
+                  className="text-gray-900 odd:bg-white even:bg-gray-100"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="text-gray-900">
+                    <TableCell
+                      key={cell.id}
+                      className={
+                        cell.column.id === "number"
+                          ? "w-[4ch] whitespace-nowrap py-2 !pl-[1ch] !pr-0 text-gray-900 tabular-nums"
+                          : cell.column.id === "position"
+                            ? "w-[3ch] whitespace-nowrap py-2 !pl-[2ch] !pr-0 text-gray-900"
+                            : cell.column.id === "name"
+                              ? "py-2 !pl-[2ch] !pr-1.5 text-gray-900"
+                              : "py-2 !px-1.5 text-gray-900"
+                      }
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}

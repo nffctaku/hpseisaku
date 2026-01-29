@@ -43,41 +43,20 @@ export const columns = (openEditDialog: (player: Player) => void, setDeletingPla
       return (
         <Button
           variant="ghost"
+          className="h-7 w-full justify-start !px-0 text-[10px] leading-none"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           No.
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="ml-0.5 h-2.5 w-2.5" />
         </Button>
       )
     },
-    size: 60,
-    minSize: 50,
+    size: 42,
+    minSize: 34,
     cell: ({ row }) => {
       const value = row.getValue<number | undefined>("number");
       return value != null ? value : "-";
     },
-  },
-  {
-    accessorKey: "name",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
-    size: 220,
-    minSize: 160,
-    cell: ({ row }) => {
-      const player = row.original;
-      return (
-        <span className="block whitespace-nowrap truncate max-w-[15ch]">{player.name}</span>
-      );
-    }
   },
   {
     accessorKey: "position",
@@ -85,10 +64,11 @@ export const columns = (openEditDialog: (player: Player) => void, setDeletingPla
       return (
         <Button
           variant="ghost"
+          className="h-7 w-full justify-start !px-0 text-[10px] leading-none"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           POS
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="ml-0.5 h-2.5 w-2.5" />
         </Button>
       )
     },
@@ -100,8 +80,31 @@ export const columns = (openEditDialog: (player: Player) => void, setDeletingPla
       const ob = order[b] ?? 999;
       return oa === ob ? a.localeCompare(b) : oa - ob;
     },
-    size: 70,
-    minSize: 60,
+    size: 52,
+    minSize: 44,
+  },
+  {
+    accessorKey: "name",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          className="h-7 w-full justify-start !px-0 text-[10px] leading-none"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Name
+          <ArrowUpDown className="ml-0.5 h-2.5 w-2.5" />
+        </Button>
+      )
+    },
+    size: 220,
+    minSize: 160,
+    cell: ({ row }) => {
+      const player = row.original;
+      return (
+        <span className="block whitespace-nowrap truncate max-w-[15ch]">{player.name}</span>
+      );
+    }
   },
   {
     id: "actions",
