@@ -503,16 +503,29 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     const selectedSeasonDash = toDashSeason(selectedSeason);
     try {
       const playerDocRef = doc(db, `clubs/${clubUid}/teams/${teamId}/players`, deletingPlayer.id);
+      const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeasonDash}/roster`, deletingPlayer.id);
       const seasons = Array.isArray((deletingPlayer as any)?.seasons) ? ((deletingPlayer as any).seasons as string[]) : [];
       const remaining = seasons.filter((s) => s !== selectedSeason);
       if (remaining.length === 0) {
         await deleteDoc(playerDocRef);
+        await deleteDoc(rosterDocRef);
       } else {
         await updateDoc(playerDocRef, {
           seasons: arrayRemove(selectedSeason),
           [`seasonData.${selectedSeasonDash}`]: deleteField(),
         } as any);
+
+        await setDoc(
+          rosterDocRef,
+          {
+            seasons: arrayRemove(selectedSeason),
+            [`seasonData.${selectedSeasonDash}`]: deleteField(),
+          } as any,
+          { merge: true }
+        );
       }
+
+      await invalidatePlayerStatsCache(deletingPlayer.id);
       setDeletingPlayer(null);
     } catch (error) {
       console.error("Error deleting player: ", error);

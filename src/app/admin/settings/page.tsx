@@ -12,6 +12,7 @@ import { toast } from "sonner";
 export default function AdminSettingsPage() {
   const { user, refreshUserProfile } = useAuth();
   const [playerProfileLatest, setPlayerProfileLatest] = useState(false);
+  const [directoryListed, setDirectoryListed] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -19,7 +20,11 @@ export default function AdminSettingsPage() {
     setPlayerProfileLatest(v === true);
   }, [user?.displaySettings?.playerProfileLatest]);
 
-  const save = async (next: boolean) => {
+  useEffect(() => {
+    setDirectoryListed(user?.directoryListed === true);
+  }, [user?.directoryListed]);
+
+  const save = async (payload: Record<string, any>) => {
     if (!auth.currentUser) {
       toast.error("ログインしていません。");
       return;
@@ -34,11 +39,7 @@ export default function AdminSettingsPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({
-          displaySettings: {
-            playerProfileLatest: next,
-          },
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -87,7 +88,32 @@ export default function AdminSettingsPage() {
                 onCheckedChange={(checked) => {
                   const next = checked === true;
                   setPlayerProfileLatest(next);
-                  void save(next);
+                  void save({
+                    displaySettings: {
+                      playerProfileLatest: next,
+                    },
+                  });
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-md border bg-white/60 p-4 mt-4">
+            <div className="flex items-start justify-between gap-6">
+              <div className="space-y-1">
+                <Label className="text-sm">クラブHP</Label>
+                <div className="text-sm font-medium text-gray-900">HP一覧ページに掲載する</div>
+                <div className="text-xs text-muted-foreground">
+                  ONにすると、一般公開のHP一覧ページ（/clubs）にあなたのクラブHPが表示されます。
+                </div>
+              </div>
+              <Switch
+                checked={directoryListed}
+                disabled={saving || !user}
+                onCheckedChange={(checked) => {
+                  const next = checked === true;
+                  setDirectoryListed(next);
+                  void save({ directoryListed: next });
                 }}
               />
             </div>

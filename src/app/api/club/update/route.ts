@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       realTeamUsage,
       gameTeamUsage,
       transfersPublic,
+      directoryListed,
       displaySettings,
       sponsors,
       snsLinks,
@@ -97,6 +98,10 @@ export async function POST(request: Request) {
 
     if (typeof transfersPublic === 'boolean') {
       updateData.transfersPublic = transfersPublic;
+    }
+
+    if (typeof directoryListed === 'boolean') {
+      updateData.directoryListed = directoryListed;
     }
 
     if (displaySettings && typeof displaySettings === 'object') {

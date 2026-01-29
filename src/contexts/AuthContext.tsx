@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged, setPersistence, browserLocalPersistence, getRedirectResult } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter, usePathname } from 'next/navigation';
 
 // Define a more detailed user profile type
@@ -14,6 +14,7 @@ export interface UserProfile extends User {
   layoutType?: string;
   plan?: string;
   ownerUid?: string;
+  directoryListed?: boolean;
   displaySettings?: {
     playerProfileLatest?: boolean;
   };
@@ -53,6 +54,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser({ ...authUser, ...profileData } as UserProfile);
       setClubProfileExists(true);
       setOwnerUid(authUser.uid);
+      try {
+        await updateDoc(profileDocRef, { lastLoginAt: serverTimestamp() } as any);
+      } catch (e) {
+        console.warn('[AuthContext] failed to update lastLoginAt (doc id)', e);
+      }
       console.log('[AuthContext] profile found by doc id, user set', { uid: authUser.uid, profileData });
       return;
     }
@@ -61,10 +67,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const q = query(collection(db, 'club_profiles'), where('ownerUid', '==', authUser.uid));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-      const profileData = querySnapshot.docs[0].data();
+      const docSnap = querySnapshot.docs[0];
+      const profileData = docSnap.data();
       setUser({ ...authUser, ...profileData } as UserProfile);
       setClubProfileExists(true);
-      setOwnerUid(profileData.ownerUid || querySnapshot.docs[0].id);
+      setOwnerUid(profileData.ownerUid || docSnap.id);
+      try {
+        await updateDoc(docSnap.ref, { lastLoginAt: serverTimestamp() } as any);
+      } catch (e) {
+        console.warn('[AuthContext] failed to update lastLoginAt (ownerUid query)', e);
+      }
       console.log('[AuthContext] profile found by ownerUid, user set', { uid: authUser.uid, profileData });
       return;
     }
@@ -79,6 +91,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser({ ...authUser, ...profileData, ownerUid: foundOwnerUid } as UserProfile);
       setClubProfileExists(true);
       setOwnerUid(foundOwnerUid);
+      try {
+        await updateDoc(adminDoc.ref, { lastLoginAt: serverTimestamp() } as any);
+      } catch (e) {
+        console.warn('[AuthContext] failed to update lastLoginAt (admins query)', e);
+      }
       console.log('[AuthContext] profile found by admins, user set', { uid: authUser.uid, foundOwnerUid, profileData });
       return;
     }

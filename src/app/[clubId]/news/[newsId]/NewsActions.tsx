@@ -84,7 +84,13 @@ export default function NewsActions({
   return (
     <div className="flex items-center gap-2">
       <Button asChild variant="outline" size="sm">
-        <a href={tweetHref} target="_blank" rel="noopener noreferrer" aria-label="Xでシェア">
+        <a
+          href={tweetHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Xでシェア"
+          className="text-black"
+        >
           <Share2 />
           Xでシェア
         </a>
