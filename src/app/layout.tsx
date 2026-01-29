@@ -10,7 +10,7 @@ const siteUrl =
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "F-MAIN | スポーツチーム専用の試合記録・選手名鑑プラットフォーム",
+  title: "FootChron | スポーツチーム専用の試合記録・選手名鑑プラットフォーム",
   description:
     "試合結果の自動グラフ化や詳細な選手名鑑を、誰でも簡単に作成・公開。チームの歴史をデータで資産化するF-MAIN。",
   keywords: ["スポーツ記録", "選手名鑑", "試合速報", "チーム運営"],
