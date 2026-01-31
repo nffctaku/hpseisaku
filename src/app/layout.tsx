@@ -14,6 +14,23 @@ export const metadata: Metadata = {
   description:
     "試合結果の自動グラフ化や詳細な選手名鑑を、誰でも簡単に作成・公開。チームの歴史をデータで資産化するF-MAIN。",
   keywords: ["スポーツ記録", "選手名鑑", "試合速報", "チーム運営"],
+  alternates: {
+    canonical: siteUrl,
+  },
+  openGraph: {
+    title: "FootChron | スポーツチーム専用の試合記録・選手名鑑プラットフォーム",
+    description:
+      "試合結果の自動グラフ化や詳細な選手名鑑を、誰でも簡単に作成・公開。チームの歴史をデータで資産化するF-MAIN。",
+    url: siteUrl,
+    siteName: "FootChron",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FootChron | スポーツチーム専用の試合記録・選手名鑑プラットフォーム",
+    description:
+      "試合結果の自動グラフ化や詳細な選手名鑑を、誰でも簡単に作成・公開。チームの歴史をデータで資産化するF-MAIN。",
+  },
   verification: {
     google: "S1ug_Ca7PwWYF9UVwZQ6hqBwFdW6MCNS9c1eLb5j_0Q",
   },
