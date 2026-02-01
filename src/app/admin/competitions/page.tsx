@@ -42,7 +42,6 @@ interface Competition {
 
 export default function CompetitionsPage() {
   const { user, ownerUid } = useAuth();
-  const isPro = user?.plan === "pro";
   const router = useRouter();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
@@ -51,6 +50,7 @@ export default function CompetitionsPage() {
   const [limitDialogType, setLimitDialogType] = useState<"free" | "pro">("free");
 
   const planTier = getPlanTier(user?.plan);
+  const isPaid = planTier !== "free";
   const maxCompetitions = getPlanLimit("competitions_per_club", planTier);
 
   const clubUid = ownerUid || user?.uid;
@@ -122,7 +122,7 @@ export default function CompetitionsPage() {
 
   const handleCreateCompetition = () => {
     if (selectedSeason !== "all" && Number.isFinite(maxCompetitions) && filteredCompetitions.length >= maxCompetitions) {
-      setLimitDialogType(isPro ? "pro" : "free");
+      setLimitDialogType(isPaid ? "pro" : "free");
       setLimitDialogOpen(true);
       return;
     }

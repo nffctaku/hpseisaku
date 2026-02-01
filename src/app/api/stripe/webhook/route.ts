@@ -56,9 +56,12 @@ export async function POST(req: NextRequest) {
       const ownerUid = session.client_reference_id;
       const customerId = typeof session.customer === 'string' ? session.customer : undefined;
 
+      const planRaw = typeof (session as any)?.metadata?.plan === 'string' ? String((session as any).metadata.plan) : '';
+      const plan = planRaw === 'officia' ? 'officia' : 'pro';
+
       if (ownerUid) {
         const profileRef = db.collection('club_profiles').doc(ownerUid);
-        const updateData: Record<string, unknown> = { plan: 'pro' };
+        const updateData: Record<string, unknown> = { plan };
 
         if (customerId) {
           updateData.stripeCustomerId = customerId;

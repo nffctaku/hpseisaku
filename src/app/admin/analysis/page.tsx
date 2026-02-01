@@ -22,7 +22,7 @@ export default function AnalysisPage() {
   const leagueCompareMetric: 'rank' = 'rank';
 
   const planTier = getPlanTier(user?.plan);
-  const canViewTournament = planTier === "pro" || planTier === "tm";
+  const canViewTournament = planTier === "pro" || planTier === "officia";
   
   const {
     matches,

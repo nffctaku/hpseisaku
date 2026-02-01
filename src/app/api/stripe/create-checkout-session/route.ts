@@ -14,11 +14,41 @@ const stripe = stripeSecretKey
   ? new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' })
   : null;
 
+type CheckoutPlan = 'pro' | 'officia';
+
+const resolvePriceId = async (opts: { plan: CheckoutPlan; productId?: string }): Promise<string> => {
+  if (!stripe) throw new Error('Stripe not configured');
+
+  if (opts.plan === 'pro') {
+    if (!priceId) throw new Error('STRIPE_PRICE_ID is not set');
+    return priceId;
+  }
+
+  // Officia: productId -> default_price
+  const productId = typeof opts.productId === 'string' ? opts.productId : '';
+  if (!productId) throw new Error('productId is required for Officia plan');
+
+  const product = await stripe.products.retrieve(productId, { expand: ['default_price'] });
+  const defaultPrice = (product as any)?.default_price;
+  const resolved = typeof defaultPrice === 'string' ? defaultPrice : typeof defaultPrice?.id === 'string' ? defaultPrice.id : '';
+  if (!resolved) throw new Error('default_price is missing on the Stripe product');
+  return resolved;
+};
+
 export async function POST(req: NextRequest) {
   try {
-    if (!stripe || !priceId || !appBaseUrl) {
+    if (!stripe) {
       return NextResponse.json(
         { error: 'Stripe is not correctly configured on the server.' },
+        { status: 500 }
+      );
+    }
+
+    const requestOrigin = req.nextUrl?.origin;
+    const baseUrl = requestOrigin || appBaseUrl;
+    if (!baseUrl) {
+      return NextResponse.json(
+        { error: 'App URL is not correctly configured on the server.' },
         { status: 500 }
       );
     }
@@ -32,12 +62,17 @@ export async function POST(req: NextRequest) {
     const decoded = await auth.verifyIdToken(idToken);
     const ownerUid = decoded.uid;
 
-    // 既にProなら決済を作らない
+    const body = await req.json().catch(() => ({} as any));
+    const planRaw = typeof body?.plan === 'string' ? body.plan : 'pro';
+    const plan: CheckoutPlan = planRaw === 'officia' ? 'officia' : 'pro';
+    const productId = typeof body?.productId === 'string' ? body.productId : undefined;
+
+    // 既に有料なら決済を作らない
     try {
       const profileRef = db.collection('club_profiles').doc(ownerUid);
       const profileSnap = await profileRef.get();
       const plan = profileSnap.exists ? (profileSnap.data() as any)?.plan : undefined;
-      if (plan === 'pro') {
+      if (plan === 'pro' || plan === 'officia') {
         return NextResponse.json(
           { error: 'Already subscribed.' },
           { status: 409 }
@@ -65,13 +100,36 @@ export async function POST(req: NextRequest) {
     // Stripe側も冪等化
     const idempotencyKey = `checkout:${ownerUid}:${Math.floor(now / ttlMs)}`;
 
+    let resolvedPriceId: string;
+    try {
+      resolvedPriceId = await resolvePriceId({ plan, productId });
+    } catch (e) {
+      console.error('[create-checkout-session] failed to resolve price', {
+        plan,
+        productId,
+        message: (e as any)?.message,
+      });
+      return NextResponse.json(
+        { error: (e as any)?.message || 'Failed to resolve price.' },
+        { status: 400 }
+      );
+    }
+
     const session = await stripe.checkout.sessions.create(
       {
       mode: 'subscription',
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${appBaseUrl}/admin/plan?result=success`,
-      cancel_url: `${appBaseUrl}/admin/plan?result=cancel`,
+      line_items: [{ price: resolvedPriceId, quantity: 1 }],
+      success_url: `${baseUrl}/admin/plan?result=success`,
+      cancel_url: `${baseUrl}/admin/plan?result=cancel`,
       client_reference_id: ownerUid,
+      metadata: {
+        plan,
+      },
+      subscription_data: {
+        metadata: {
+          plan,
+        },
+      },
       },
       { idempotencyKey }
     );
@@ -88,7 +146,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url }, { status: 200 });
   } catch (error) {
-    console.error('Error creating Stripe Checkout Session', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error('[create-checkout-session] Error creating checkout session:', {
+      message: (error as any)?.message,
+      code: (error as any)?.code,
+      type: (error as any)?.type,
+    });
+    return NextResponse.json(
+      {
+        error: (error as any)?.message || 'Failed to create checkout session',
+        code: (error as any)?.code,
+      },
+      { status: 500 }
+    );
   }
 }

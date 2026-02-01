@@ -13,7 +13,8 @@ export default function PlanPage() {
   const { user, ownerUid, refreshUserProfile } = useAuth();
   const planTier = getPlanTier(user?.plan);
   const isPro = planTier === "pro";
-  const isTm = planTier === "tm";
+  const isOfficia = planTier === "officia";
+  const isPaid = planTier !== "free";
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -23,7 +24,7 @@ export default function PlanPage() {
     }
   }, [refreshUserProfile, searchParams]);
 
-  const handleUpgrade = async () => {
+  const handleUpgrade = async (opts?: { plan?: "pro" | "officia"; productId?: string }) => {
     setLoading(true);
     try {
       const idToken = await (await import("firebase/auth")).getAuth().currentUser?.getIdToken();
@@ -38,10 +39,24 @@ export default function PlanPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
+        body: JSON.stringify({ plan: opts?.plan, productId: opts?.productId }),
       });
 
       if (!res.ok) {
-        alert("決済ページの作成に失敗しました。");
+        let detail = '';
+        try {
+          const data = await res.json();
+          const msg = typeof (data as any)?.error === 'string' ? (data as any).error : '';
+          const code = typeof (data as any)?.code === 'string' ? (data as any).code : '';
+          detail = [msg, code].filter(Boolean).join(' ');
+        } catch {
+          try {
+            detail = await res.text();
+          } catch {
+            detail = '';
+          }
+        }
+        alert(`決済ページの作成に失敗しました。${detail ? `\n${detail}` : ''}`);
         return;
       }
 
@@ -136,10 +151,10 @@ export default function PlanPage() {
             <p className="text-sm text-muted-foreground">月額 0円</p>
           </div>
           <div className="pt-4 flex flex-col gap-2">
-            {!isPro && !isTm ? (
+            {!isPaid ? (
               <p className="text-sm font-semibold text-emerald-700">現在 Free プランをご利用中です。</p>
             ) : (
-              <p className="text-sm text-muted-foreground">現在のプラン: {isPro ? "Pro" : "TM"}</p>
+              <p className="text-sm text-muted-foreground">現在のプラン: {isPro ? "Pro" : "Officia"}</p>
             )}
           </div>
         </div>
@@ -169,8 +184,8 @@ export default function PlanPage() {
             ) : (
               <>
                 <Button
-                  onClick={handleUpgrade}
-                  disabled={loading || isTm}
+                  onClick={() => handleUpgrade({ plan: "pro" })}
+                  disabled={loading || isOfficia}
                   className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-6 py-2 rounded-md shadow-md"
                 >
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -184,21 +199,58 @@ export default function PlanPage() {
 
         <div className="space-y-4 bg-white text-gray-900 border rounded-lg p-6">
           <div>
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold mb-1">TM プラン</h2>
-              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-200 text-slate-700">準備中</span>
-            </div>
-            <p className="text-sm text-muted-foreground">チーム向け（決済準備中）</p>
+            <h2 className="text-lg font-semibold mb-1">Officia プラン</h2>
+            <p className="text-sm text-muted-foreground">月額 1,980円</p>
           </div>
           <div className="pt-4 flex flex-col gap-2">
-            {isTm ? (
-              <p className="text-sm font-semibold text-emerald-700">現在 TM プランをご利用中です。</p>
+            {isOfficia ? (
+              <>
+                <p className="text-sm font-semibold text-emerald-700">現在 Officia プランをご利用中です。</p>
+                <p className="text-xs text-muted-foreground">
+                  決済と請求管理は Stripe 上で行われます。プランの変更や解約は、下記ボタンから開く Stripe の画面で行ってください。
+                </p>
+                <Button
+                  onClick={handleOpenBillingPortal}
+                  disabled={loading}
+                  variant="outline"
+                  className="w-full md:w-auto text-sm"
+                >
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  契約内容の確認・解約はこちら
+                </Button>
+              </>
             ) : (
-              <p className="text-sm text-muted-foreground">準備中です。</p>
+              <>
+                {isPro ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      現在 Pro プランをご利用中です。Officia への変更は Stripe の画面から行ってください。
+                    </p>
+                    <Button
+                      onClick={handleOpenBillingPortal}
+                      disabled={loading}
+                      variant="outline"
+                      className="w-full md:w-auto text-sm"
+                    >
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      契約内容の確認・変更はこちら
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      onClick={() => handleUpgrade({ plan: "officia", productId: "prod_Ttjx45ygceCBbw" })}
+                      disabled={loading}
+                      className="w-full md:w-auto bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-6 py-2 rounded-md shadow-md"
+                    >
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Officia プランに申し込む
+                    </Button>
+                    <p className="text-xs text-muted-foreground">ボタンを押すと Stripe の決済画面が開きます。</p>
+                  </>
+                )}
+              </>
             )}
-            <Button disabled variant="outline" className="w-full md:w-auto text-sm">
-              準備中
-            </Button>
           </div>
         </div>
       </div>
