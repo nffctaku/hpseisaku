@@ -552,7 +552,12 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           </CardHeader>
         )}
         <CardContent>
-          <form onSubmit={methods.handleSubmit(onSubmit)}>
+          <form
+            onSubmit={methods.handleSubmit(onSubmit, (errors) => {
+              console.error('SquadRegistrationForm: validation errors', errors);
+              toast.error('入力内容にエラーがあります。未入力・数値範囲などを確認してください。');
+            })}
+          >
             {(view === 'player' || view === 'both') ? (
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-2">

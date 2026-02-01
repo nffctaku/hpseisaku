@@ -317,7 +317,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                 </div>
 
                 {(opts?.showTrash ?? true) ? (
-                  <Button variant="ghost" size="icon" onClick={() => remove(globalIndex)} className="shrink-0">
+                  <Button type="button" variant="ghost" size="icon" onClick={() => remove(globalIndex)} className="shrink-0">
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 ) : null}

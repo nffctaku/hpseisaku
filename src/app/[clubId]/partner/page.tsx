@@ -92,9 +92,10 @@ async function getPartners(ownerUid: string): Promise<Partner[]> {
   return published;
 }
 
-function LogoCard({ partner }: { partner: Partner }) {
+function LogoCard({ partner, largeOnDesktop }: { partner: Partner; largeOnDesktop?: boolean }) {
+  const heightClass = largeOnDesktop ? "h-20 sm:h-40" : "h-20";
   const body = (
-    <div className="flex items-center justify-center rounded-md bg-white p-4 h-20">
+    <div className={`flex items-center justify-center rounded-md bg-white p-4 ${heightClass}`}>
       {partner.logoUrl ? (
         <div className="relative w-full h-full">
           <Image src={partner.logoUrl} alt={partner.name} fill className="object-contain" />
@@ -226,7 +227,7 @@ export default async function PartnerPage({ params }: { params: { clubId: string
                       } gap-4`}
                     >
                       {sec.partners.map((p) => (
-                        <LogoCard key={p.id} partner={p} />
+                        <LogoCard key={p.id} partner={p} largeOnDesktop />
                       ))}
                     </div>
                   </section>
