@@ -554,10 +554,17 @@ export async function POST(req: NextRequest) {
       code: (error as any)?.code,
       type: (error as any)?.type,
     });
+    const message =
+      typeof (error as any)?.message === 'string'
+        ? String((error as any).message)
+        : typeof error === 'string'
+          ? error
+          : 'Internal Server Error';
+    const code = typeof (error as any)?.code === 'string' && (error as any).code ? String((error as any).code) : 'unknown_error';
     return NextResponse.json(
       {
-        error: (error as any)?.message || 'Internal Server Error',
-        code: (error as any)?.code,
+        error: message,
+        code,
       },
       { status: 500 }
     );
