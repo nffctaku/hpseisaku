@@ -6,7 +6,16 @@ service cloud.firestore {
     // CLUB PROFILES - Allow read for authenticated users, write for owners
     match /club_profiles/{userId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      // Allow writes when:
+      // - document id equals the authenticated uid (legacy pattern)
+      // - OR the document's ownerUid equals the authenticated uid (current pattern)
+      // - OR the incoming write sets ownerUid to the authenticated uid (create/merge)
+      allow write: if request.auth != null
+        && (
+          request.auth.uid == userId
+          || resource.data.ownerUid == request.auth.uid
+          || request.resource.data.ownerUid == request.auth.uid
+        );
     }
 
     // USER-SPECIFIC DATA - Full access for owners

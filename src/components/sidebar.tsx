@@ -134,6 +134,7 @@ export function Sidebar() {
     { href: `/admin/club/info`, label: 'クラブ情報', icon: Settings },
     { href: `/admin/news`, label: 'ニュース管理', icon: Newspaper },
     { href: `/admin/tv`, label: 'TV管理', icon: Tv },
+    { href: `/admin/partners`, label: 'パートナー管理', icon: Shield },
     { href: `/admin/analysis`, label: '分析管理', icon: LineChart },
     { href: transfersHref, label: '移籍管理', icon: TransfersIcon },
     { href: `/admin/matches`, label: '試合管理', icon: Calendar },

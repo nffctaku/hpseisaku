@@ -51,17 +51,17 @@ export function Hero({ news, maxSlides }: HeroProps) {
                   src={toCloudinaryPadded16x9(item.imageUrl, 1600)}
                   alt={item.title}
                   fill
-                  className="object-contain"
+                  className="object-cover"
                   priority={index === 0}
                 />
               ) : (
                 <div className="w-full h-full bg-gray-700" />
               )}
-              <div className="absolute left-0 right-0 bottom-0 h-40 md:h-52 bg-gradient-to-t from-black/55 via-black/25 to-transparent md:from-black/45 md:via-black/20 flex items-end p-4 md:p-8 lg:p-12">
+              <div className="absolute left-0 right-0 bottom-0 h-44 md:h-52 bg-gradient-to-t from-black/70 via-black/30 to-transparent md:from-black/45 md:via-black/20 flex items-end p-4 md:p-8 lg:p-12">
                 <div className="text-white">
                   <p className="text-sm text-gray-300">ニュース</p>
-                  <h2 className="text-2xl md:text-4xl lg:text-5xl font-bold mt-2 leading-tight">{item.title}</h2>
-                  <p className="mt-4 text-sm font-semibold tracking-wider">CONTINUE READING →</p>
+                  <h2 className="mt-2 text-xl md:text-4xl lg:text-5xl font-bold leading-tight line-clamp-2 md:line-clamp-3">{item.title}</h2>
+                  <p className="mt-3 text-sm font-semibold tracking-wider">CONTINUE READING →</p>
                 </div>
               </div>
             </div>

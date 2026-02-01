@@ -82,7 +82,6 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
             )}
           </Link>
           <div className="flex flex-col min-w-0">
-            <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">CLUB</span>
             <span className="text-xs sm:text-sm md:text-lg font-semibold leading-tight max-w-[8rem] xs:max-w-[10rem] sm:max-w-none truncate">
               {clubName || "クラブ名未設定"}
             </span>
