@@ -503,6 +503,7 @@ export async function POST(req: NextRequest) {
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
+      configuration: 'bpc_1Sw05vP1yzZQTG1FLrwNKVAz',
       return_url: `${baseUrl}/admin/plan`,
     });
 
