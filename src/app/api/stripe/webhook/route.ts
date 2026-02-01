@@ -1,17 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/firebase/admin';
+import type { FirebaseFirestore } from 'firebase-admin/firestore';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const proPriceId = process.env.STRIPE_PRICE_ID;
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-if (!stripeSecretKey) {
-  console.warn('STRIPE_SECRET_KEY is not set');
-}
 
 const stripe = stripeSecretKey
   ? new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' })
   : null;
+
+const OFFICIA_MONTHLY_PRODUCT_ID = 'prod_Ttjx45ygceCBbw';
+const OFFICIA_ANNUAL_PRODUCT_ID = 'prod_Ttjy3LQx3hJ0uD';
+
+const resolvePlanFromSubscription = (sub: Stripe.Subscription): 'free' | 'pro' | 'officia' => {
+  const status = sub.status;
+  const activeLike = status === 'active' || status === 'trialing' || status === 'past_due';
+  if (!activeLike) return 'free';
+
+  const item = sub.items?.data?.[0];
+  const price = item?.price;
+  const priceId = typeof price?.id === 'string' ? price.id : '';
+  const productId = typeof price?.product === 'string' ? price.product : '';
+
+  if (proPriceId && priceId === proPriceId) return 'pro';
+  if (productId === OFFICIA_MONTHLY_PRODUCT_ID || productId === OFFICIA_ANNUAL_PRODUCT_ID) return 'officia';
+  return 'free';
+};
+
+const getProfileRefsByCustomerId = async (
+  customerId: string
+): Promise<FirebaseFirestore.DocumentReference[]> => {
+  const snap = await db
+    .collection('club_profiles')
+    .where('stripeCustomerId', '==', customerId)
+    .limit(10)
+    .get();
+  return snap.docs.map((d) => d.ref);
+};
 
 export async function POST(req: NextRequest) {
   if (!stripe || !webhookSecret) {
@@ -83,6 +110,29 @@ export async function POST(req: NextRequest) {
           );
       } else {
         console.warn('checkout.session.completed without client_reference_id');
+      }
+    }
+
+    if (event.type === 'customer.subscription.updated') {
+      const sub = event.data.object as Stripe.Subscription;
+      const customerId = typeof sub.customer === 'string' ? sub.customer : undefined;
+      if (customerId) {
+        const plan = resolvePlanFromSubscription(sub);
+        const refs = await getProfileRefsByCustomerId(customerId);
+        await Promise.all(refs.map((ref: FirebaseFirestore.DocumentReference) => ref.set({ plan }, { merge: true })));
+      } else {
+        console.warn('customer.subscription.updated without customer id');
+      }
+    }
+
+    if (event.type === 'customer.subscription.deleted') {
+      const sub = event.data.object as Stripe.Subscription;
+      const customerId = typeof sub.customer === 'string' ? sub.customer : undefined;
+      if (customerId) {
+        const refs = await getProfileRefsByCustomerId(customerId);
+        await Promise.all(refs.map((ref: FirebaseFirestore.DocumentReference) => ref.set({ plan: 'free' }, { merge: true })));
+      } else {
+        console.warn('customer.subscription.deleted without customer id');
       }
     }
 

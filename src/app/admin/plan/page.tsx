@@ -92,15 +92,23 @@ export default function PlanPage() {
       });
 
       if (!res.ok) {
-        if (process.env.NODE_ENV !== "production") {
-          try {
-            const data = await res.json();
+        let detail = '';
+        try {
+          const data = await res.json();
+          const msg = typeof (data as any)?.error === 'string' ? (data as any).error : '';
+          const code = typeof (data as any)?.code === 'string' ? (data as any).code : '';
+          detail = [msg, code].filter(Boolean).join(' ');
+          if (process.env.NODE_ENV !== "production") {
             console.error("[create-portal-session] failed", data);
+          }
+        } catch {
+          try {
+            detail = await res.text();
           } catch {
-            // ignore
+            detail = '';
           }
         }
-        alert("請求情報の取得に失敗しました。管理者に連絡してください");
+        alert(`請求情報の取得に失敗しました。${detail ? `\n${detail}` : ''}`);
         return;
       }
 
@@ -144,7 +152,7 @@ export default function PlanPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 max-w-5xl md:grid-cols-3">
+      <div className="grid gap-4 max-w-5xl md:grid-cols-4">
         <div className="space-y-4 bg-white text-gray-900 border rounded-lg p-6">
           <div>
             <h2 className="text-lg font-semibold mb-1">Free プラン</h2>
@@ -192,6 +200,63 @@ export default function PlanPage() {
                   有料プランにアップグレード
                 </Button>
                 <p className="text-xs text-muted-foreground">ボタンを押すと Stripe の決済画面が開きます。</p>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4 bg-white text-gray-900 border rounded-lg p-6">
+          <div>
+            <h2 className="text-lg font-semibold mb-1">Officia 年間プラン</h2>
+            <p className="text-sm text-muted-foreground">年額 22,000円</p>
+          </div>
+          <div className="pt-4 flex flex-col gap-2">
+            {isOfficia ? (
+              <>
+                <p className="text-sm font-semibold text-emerald-700">現在 Officia プランをご利用中です。</p>
+                <p className="text-xs text-muted-foreground">
+                  決済と請求管理は Stripe 上で行われます。プランの変更や解約は、下記ボタンから開く Stripe の画面で行ってください。
+                </p>
+                <Button
+                  onClick={handleOpenBillingPortal}
+                  disabled={loading}
+                  variant="outline"
+                  className="w-full md:w-auto text-sm"
+                >
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  契約内容の確認・解約はこちら
+                </Button>
+              </>
+            ) : (
+              <>
+                {isPro ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      現在 Pro プランをご利用中です。Officia への変更は Stripe の画面から行ってください。
+                    </p>
+                    <Button
+                      onClick={handleOpenBillingPortal}
+                      disabled={loading}
+                      variant="outline"
+                      className="w-full md:w-auto text-sm"
+                    >
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      契約内容の確認・変更はこちら
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      onClick={() => handleUpgrade({ plan: "officia", productId: "prod_Ttjy3LQx3hJ0uD" })}
+                      disabled={loading}
+                      className="w-full md:w-auto bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-6 py-2 rounded-md shadow-md"
+                    >
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Officia 年間プランに申し込む
+                    </Button>
+                    <p className="text-xs text-muted-foreground">ボタンを押すと Stripe の決済画面が開きます。</p>
+                  </>
+                )}
               </>
             )}
           </div>

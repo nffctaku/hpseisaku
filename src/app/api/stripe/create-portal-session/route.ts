@@ -465,15 +465,37 @@ export async function POST(req: NextRequest) {
           }
 
           if (!stripeCustomerId) {
-            return NextResponse.json(
-              {
-                error: 'Stripe customer information is not available for this user.',
-                code: 'missing_stripe_customer',
-                diag: publicDiag(),
-                ...(process.env.NODE_ENV !== 'production' ? { debug } : {}),
-              },
-              { status: 400 }
-            );
+            // As a last resort, create a Stripe customer if we have an email.
+            if (email) {
+              try {
+                const created = await stripe.customers.create({
+                  email,
+                  metadata: {
+                    requesterUid,
+                    profileDocId: String((profileSnap as any)?.id || ''),
+                  },
+                });
+                stripeCustomerId = typeof created?.id === 'string' ? created.id : undefined;
+                if (stripeCustomerId) {
+                  await profileRef.set({ stripeCustomerId }, { merge: true });
+                  debug.restoredFrom = 'created_customer';
+                }
+              } catch (e) {
+                debug.customerCreateError = (e as any)?.message || String(e);
+              }
+            }
+
+            if (!stripeCustomerId) {
+              return NextResponse.json(
+                {
+                  error: 'Stripe customer information is not available for this user.',
+                  code: 'missing_stripe_customer',
+                  diag: publicDiag(),
+                  ...(process.env.NODE_ENV !== 'production' ? { debug } : {}),
+                },
+                { status: 400 }
+              );
+            }
           }
         }
       }
@@ -486,7 +508,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: portalSession.url }, { status: 200 });
   } catch (error) {
-    console.error('Error creating Stripe Billing Portal session', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error('[create-portal-session] Error creating Stripe Billing Portal session', {
+      message: (error as any)?.message,
+      code: (error as any)?.code,
+      type: (error as any)?.type,
+    });
+    return NextResponse.json(
+      {
+        error: (error as any)?.message || 'Internal Server Error',
+        code: (error as any)?.code,
+      },
+      { status: 500 }
+    );
   }
 }
