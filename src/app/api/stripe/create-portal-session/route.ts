@@ -517,12 +517,19 @@ export async function POST(req: NextRequest) {
         s.status === 'active' || s.status === 'trialing' || s.status === 'past_due'
       );
       if (!target) {
+        // Fall back to the regular portal so the user can still reach Stripe.
+        const portalSession = await stripe.billingPortal.sessions.create({
+          customer: stripeCustomerId,
+          configuration,
+          return_url: `${baseUrl}/admin/plan`,
+        });
         return NextResponse.json(
           {
-            error: 'No active subscription found for this customer.',
-            code: 'no_active_subscription',
+            url: portalSession.url,
+            warning: 'No active subscription found for cancellation flow. Opened regular portal instead.',
+            code: 'no_active_subscription_fallback',
           },
-          { status: 400 }
+          { status: 200 }
         );
       }
 
