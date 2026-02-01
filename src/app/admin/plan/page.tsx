@@ -71,7 +71,7 @@ export default function PlanPage() {
     }
   };
 
-  const handleOpenBillingPortal = async () => {
+  const handleOpenBillingPortal = async (opts?: { flow?: "manage" | "cancel" }) => {
     setLoading(true);
     try {
       const authModule = await import("firebase/auth");
@@ -88,7 +88,7 @@ export default function PlanPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ ownerUid: ownerUid || user?.uid }),
+        body: JSON.stringify({ ownerUid: ownerUid || user?.uid, flow: opts?.flow || "manage" }),
       });
 
       if (!res.ok) {
@@ -180,7 +180,7 @@ export default function PlanPage() {
                   決済と請求管理は Stripe 上で行われます。プランの変更や解約は、下記ボタンから開く Stripe の画面で行ってください。
                 </p>
                 <Button
-                  onClick={handleOpenBillingPortal}
+                  onClick={() => handleOpenBillingPortal({ flow: "cancel" })}
                   disabled={loading}
                   variant="outline"
                   className="w-full md:w-auto text-sm"
@@ -218,7 +218,7 @@ export default function PlanPage() {
                   決済と請求管理は Stripe 上で行われます。プランの変更や解約は、下記ボタンから開く Stripe の画面で行ってください。
                 </p>
                 <Button
-                  onClick={handleOpenBillingPortal}
+                  onClick={() => handleOpenBillingPortal({ flow: "cancel" })}
                   disabled={loading}
                   variant="outline"
                   className="w-full md:w-auto text-sm"
@@ -235,7 +235,7 @@ export default function PlanPage() {
                       現在 Pro プランをご利用中です。Officia への変更は Stripe の画面から行ってください。
                     </p>
                     <Button
-                      onClick={handleOpenBillingPortal}
+                      onClick={() => handleOpenBillingPortal({ flow: "manage" })}
                       disabled={loading}
                       variant="outline"
                       className="w-full md:w-auto text-sm"
@@ -275,7 +275,7 @@ export default function PlanPage() {
                   決済と請求管理は Stripe 上で行われます。プランの変更や解約は、下記ボタンから開く Stripe の画面で行ってください。
                 </p>
                 <Button
-                  onClick={handleOpenBillingPortal}
+                  onClick={() => handleOpenBillingPortal({ flow: "cancel" })}
                   disabled={loading}
                   variant="outline"
                   className="w-full md:w-auto text-sm"
@@ -292,7 +292,7 @@ export default function PlanPage() {
                       現在 Pro プランをご利用中です。Officia への変更は Stripe の画面から行ってください。
                     </p>
                     <Button
-                      onClick={handleOpenBillingPortal}
+                      onClick={() => handleOpenBillingPortal({ flow: "manage" })}
                       disabled={loading}
                       variant="outline"
                       className="w-full md:w-auto text-sm"

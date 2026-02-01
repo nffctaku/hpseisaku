@@ -54,8 +54,11 @@ export async function POST(req: NextRequest) {
     }
 
     let ownerUidHint = '';
+    let flow: 'manage' | 'cancel' = 'manage';
     try {
       const body = await req.json();
+      const flowRaw = typeof (body as any)?.flow === 'string' ? String((body as any).flow) : 'manage';
+      flow = flowRaw === 'cancel' ? 'cancel' : 'manage';
       ownerUidHint = typeof body?.ownerUid === 'string' ? body.ownerUid.trim() : '';
     } catch {
       // ignore (no body)
@@ -501,9 +504,46 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const configuration = 'bpc_1Sw05vP1yzZQTG1FLrwNKVAz';
+
+    if (flow === 'cancel') {
+      // Force the portal to open the cancellation flow even if the overview UI doesn't show it.
+      const subs = await stripe.subscriptions.list({
+        customer: stripeCustomerId,
+        status: 'all',
+        limit: 10,
+      });
+      const target = subs.data.find((s) =>
+        s.status === 'active' || s.status === 'trialing' || s.status === 'past_due'
+      );
+      if (!target) {
+        return NextResponse.json(
+          {
+            error: 'No active subscription found for this customer.',
+            code: 'no_active_subscription',
+          },
+          { status: 400 }
+        );
+      }
+
+      const portalSession = await stripe.billingPortal.sessions.create({
+        customer: stripeCustomerId,
+        configuration,
+        flow_data: {
+          type: 'subscription_cancel',
+          subscription_cancel: {
+            subscription: target.id,
+          },
+        },
+        return_url: `${baseUrl}/admin/plan`,
+      });
+
+      return NextResponse.json({ url: portalSession.url }, { status: 200 });
+    }
+
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
-      configuration: 'bpc_1Sw05vP1yzZQTG1FLrwNKVAz',
+      configuration,
       return_url: `${baseUrl}/admin/plan`,
     });
 
