@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/firebase/admin';
-import type { FirebaseFirestore } from 'firebase-admin/firestore';
+import type { DocumentReference } from 'firebase-admin/firestore';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const proPriceId = process.env.STRIPE_PRICE_ID;
@@ -12,7 +12,7 @@ const stripe = stripeSecretKey
   : null;
 
 const OFFICIA_MONTHLY_PRODUCT_ID = 'prod_Ttjx45ygceCBbw';
-const OFFICIA_ANNUAL_PRODUCT_ID = 'prod_Ttjy3LQx3hJ0uD';
+const OFFICIA_ANNUAL_PRODUCT_ID = 'prod_TtnQto5avOK0S9';
 
 const resolvePlanFromSubscription = (sub: Stripe.Subscription): 'free' | 'pro' | 'officia' => {
   const status = sub.status;
@@ -31,7 +31,7 @@ const resolvePlanFromSubscription = (sub: Stripe.Subscription): 'free' | 'pro' |
 
 const getProfileRefsByCustomerId = async (
   customerId: string
-): Promise<FirebaseFirestore.DocumentReference[]> => {
+): Promise<DocumentReference[]> => {
   const snap = await db
     .collection('club_profiles')
     .where('stripeCustomerId', '==', customerId)
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
       if (customerId) {
         const plan = resolvePlanFromSubscription(sub);
         const refs = await getProfileRefsByCustomerId(customerId);
-        await Promise.all(refs.map((ref: FirebaseFirestore.DocumentReference) => ref.set({ plan }, { merge: true })));
+        await Promise.all(refs.map((ref: DocumentReference) => ref.set({ plan }, { merge: true })));
       } else {
         console.warn('customer.subscription.updated without customer id');
       }
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
       const customerId = typeof sub.customer === 'string' ? sub.customer : undefined;
       if (customerId) {
         const refs = await getProfileRefsByCustomerId(customerId);
-        await Promise.all(refs.map((ref: FirebaseFirestore.DocumentReference) => ref.set({ plan: 'free' }, { merge: true })));
+        await Promise.all(refs.map((ref: DocumentReference) => ref.set({ plan: 'free' }, { merge: true })));
       } else {
         console.warn('customer.subscription.deleted without customer id');
       }

@@ -247,7 +247,7 @@ export default function PlanPage() {
                 ) : (
                   <>
                     <Button
-                      onClick={() => handleUpgrade({ plan: "officia", productId: "prod_Ttjy3LQx3hJ0uD" })}
+                      onClick={() => handleUpgrade({ plan: "officia", productId: "prod_TtnQto5avOK0S9" })}
                       disabled={loading}
                       className="w-full md:w-auto bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-6 py-2 rounded-md shadow-md"
                     >
