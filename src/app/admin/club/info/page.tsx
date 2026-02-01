@@ -13,7 +13,6 @@ import Image from 'next/image';
 import { collection, getDocs, query, where, limit, doc, updateDoc } from 'firebase/firestore';
 import { SettingsTab } from './components/SettingsTab';
 import { LayoutTab } from './components/LayoutTab';
-import { SponsorsTab } from './components/SponsorsTab';
 import { TextsTab } from './components/TextsTab';
 import { SnsTab } from './components/SnsTab';
 
@@ -21,11 +20,6 @@ interface TeamOption {
   id: string;
   name: string;
   logoUrl?: string;
-}
-
-interface SponsorItem {
-  imageUrl: string;
-  linkUrl: string;
 }
 
 interface LegalPageItem {
@@ -88,7 +82,6 @@ export default function ClubInfoPage() {
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [layoutType, setLayoutType] = useState<string>('default');
   const [mainTeamLocked, setMainTeamLocked] = useState(false);
-  const [sponsors, setSponsors] = useState<SponsorItem[]>([]);
   const [snsLinks, setSnsLinks] = useState<{ x?: string; youtube?: string; tiktok?: string; instagram?: string }>({});
   const [legalPages, setLegalPages] = useState<LegalPageItem[]>([]);
   const [realTeamUsage, setRealTeamUsage] = useState<boolean>(false);
@@ -127,14 +120,6 @@ export default function ClubInfoPage() {
           }
           if (typeof data.transfersPublic === 'boolean') {
             setTransfersPublic(Boolean(data.transfersPublic));
-          }
-          if (Array.isArray(data.sponsors)) {
-            setSponsors(
-              data.sponsors.map((s: any) => ({
-                imageUrl: typeof s.imageUrl === 'string' ? s.imageUrl : '',
-                linkUrl: typeof s.linkUrl === 'string' ? s.linkUrl : '',
-              }))
-            );
           }
           if (data.snsLinks && typeof data.snsLinks === 'object') {
             setSnsLinks({
@@ -266,7 +251,6 @@ export default function ClubInfoPage() {
           realTeamUsage,
           gameTeamUsage,
           transfersPublic,
-          sponsors,
           snsLinks,
           legalPages,
           homeBgColor,
@@ -326,14 +310,13 @@ export default function ClubInfoPage() {
       <Card>
         <CardHeader>
           <CardTitle>クラブ情報編集</CardTitle>
-          <CardDescription>クラブ設定・スポンサー・テキストページ・SNSリンクを編集します。</CardDescription>
+          <CardDescription>クラブ設定・テキストページ・SNSリンクを編集します。</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="settings" className="w-full">
             <TabsList className="mb-4 w-full justify-start flex-wrap h-auto gap-1">
               <TabsTrigger value="settings" className="px-2 sm:px-3 text-xs sm:text-sm">クラブ設定</TabsTrigger>
               <TabsTrigger value="layout" className="px-2 sm:px-3 text-xs sm:text-sm">レイアウト</TabsTrigger>
-              <TabsTrigger value="sponsors" className="px-2 sm:px-3 text-xs sm:text-sm">スポンサー</TabsTrigger>
               <TabsTrigger value="texts" className="px-2 sm:px-3 text-xs sm:text-sm">テキスト</TabsTrigger>
               <TabsTrigger value="sns" className="px-2 sm:px-3 text-xs sm:text-sm">SNSリンク</TabsTrigger>
             </TabsList>
@@ -373,10 +356,6 @@ export default function ClubInfoPage() {
 
             <TabsContent value="layout">
               <LayoutTab homeBgColor={homeBgColor} setHomeBgColor={setHomeBgColor} />
-            </TabsContent>
-
-            <TabsContent value="sponsors">
-              <SponsorsTab sponsors={sponsors} setSponsors={setSponsors} isPro={isPro} />
             </TabsContent>
 
             <TabsContent value="texts">

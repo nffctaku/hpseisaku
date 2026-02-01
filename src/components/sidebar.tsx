@@ -130,11 +130,11 @@ export function Sidebar() {
     );
   };
 
-  const navItems: Array<{ href: string; label: string; icon: any; external?: boolean }> = [
+  const navItems: Array<{ href: string; label: string; icon: any; external?: boolean; disabled?: boolean }> = [
     { href: `/admin/club/info`, label: 'クラブ情報', icon: Settings },
     { href: `/admin/news`, label: 'ニュース管理', icon: Newspaper },
     { href: `/admin/tv`, label: 'TV管理', icon: Tv },
-    { href: `/admin/partners`, label: 'パートナー管理', icon: Shield },
+    { href: `/admin/partners`, label: 'パートナー管理', icon: Shield, disabled: true },
     { href: `/admin/analysis`, label: '分析管理', icon: LineChart },
     { href: transfersHref, label: '移籍管理', icon: TransfersIcon },
     { href: `/admin/matches`, label: '試合管理', icon: Calendar },
@@ -166,6 +166,7 @@ export function Sidebar() {
           const Icon = item.icon;
           const href = item.href;
           const isExternal = Boolean((item as any).external);
+          const isDisabled = Boolean((item as any).disabled);
 
           return (
             isExternal ? (
@@ -182,6 +183,18 @@ export function Sidebar() {
                 <Icon className="h-4 w-4" />
                 {item.label}
               </a>
+            ) : isDisabled ? (
+              <div
+                key={item.label}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-gray-400 transition-all',
+                  'opacity-60 cursor-not-allowed'
+                )}
+                aria-disabled="true"
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </div>
             ) : (
               <Link
                 key={item.label}

@@ -44,29 +44,6 @@ export function ClubFooter({
         <div className="container mx-auto px-4 py-6">
           <div className="flex flex-col gap-4">
             <div className="text-center">
-              {sponsors.length > 0 && (
-                <div className="mb-3 flex flex-wrap justify-center gap-3">
-                  {sponsors
-                    .filter((s) => typeof s?.imageUrl === "string" && s.imageUrl.trim().length > 0)
-                    .map((s, index) => (
-                      <Link
-                        key={`${s.imageUrl}-${index}`}
-                        href={s.linkUrl || "#"}
-                        target={s.linkUrl ? "_blank" : undefined}
-                        rel={s.linkUrl ? "noopener noreferrer" : undefined}
-                        className="inline-flex items-center justify-center"
-                      >
-                        <Image
-                          src={s.imageUrl}
-                          alt={`sponsor-${index + 1}`}
-                          width={240}
-                          height={80}
-                          className="h-16 w-auto object-contain"
-                        />
-                      </Link>
-                    ))}
-                </div>
-              )}
               <div className="text-[10px] font-semibold text-white whitespace-normal break-words leading-snug">
                 {gameTeamUsage ? (
                   <>
