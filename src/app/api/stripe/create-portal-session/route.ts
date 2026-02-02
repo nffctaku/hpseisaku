@@ -81,12 +81,43 @@ export async function POST(req: NextRequest) {
       const safe = String(emailToTry || '').trim();
       if (!safe) return null;
 
-      const customers = await stripe.customers.list({ email: safe, limit: 1 });
+      const hasActiveSubscription = async (customerId: string) => {
+        const subs = await stripe.subscriptions.list({
+          customer: customerId,
+          status: 'all',
+          limit: 10,
+        });
+        return subs.data.some(
+          (s) => s.status === 'active' || s.status === 'trialing' || s.status === 'past_due'
+        );
+      };
+
+      const customers = await stripe.customers.list({ email: safe, limit: 20 });
+      const lookupCount = Array.isArray(customers.data) ? customers.data.length : 0;
+
+      for (const c of customers.data || []) {
+        if (c?.id) {
+          try {
+            if (await hasActiveSubscription(c.id)) {
+              return {
+                id: c.id,
+                lookupCount,
+                searchCount: 0,
+                searchError: null as string | null,
+                restoredFrom: 'email_active_subscription' as const,
+              };
+            }
+          } catch {
+            // ignore and continue
+          }
+        }
+      }
+
       const first = customers.data?.[0];
       if (first?.id) {
         return {
           id: first.id,
-          lookupCount: Array.isArray(customers.data) ? customers.data.length : 0,
+          lookupCount,
           searchCount: 0,
           searchError: null as string | null,
           restoredFrom: 'email' as const,
@@ -97,13 +128,32 @@ export async function POST(req: NextRequest) {
       let searchError: string | null = null;
       try {
         const queryEmail = safe.replace(/'/g, "\\'");
-        const searched = await stripe.customers.search({ query: `email:'${queryEmail}'`, limit: 1 });
+        const searched = await stripe.customers.search({ query: `email:'${queryEmail}'`, limit: 20 });
         searchCount = Array.isArray(searched.data) ? searched.data.length : 0;
+
+        for (const c of searched.data || []) {
+          if (c?.id) {
+            try {
+              if (await hasActiveSubscription(c.id)) {
+                return {
+                  id: c.id,
+                  lookupCount,
+                  searchCount,
+                  searchError,
+                  restoredFrom: 'email_search_active_subscription' as const,
+                };
+              }
+            } catch {
+              // ignore and continue
+            }
+          }
+        }
+
         const hit = searched.data?.[0];
         if (hit?.id) {
           return {
             id: hit.id,
-            lookupCount: Array.isArray(customers.data) ? customers.data.length : 0,
+            lookupCount,
             searchCount,
             searchError,
             restoredFrom: 'email_search' as const,
@@ -115,7 +165,7 @@ export async function POST(req: NextRequest) {
 
       return {
         id: null,
-        lookupCount: Array.isArray(customers.data) ? customers.data.length : 0,
+        lookupCount,
         searchCount,
         searchError,
         restoredFrom: null,

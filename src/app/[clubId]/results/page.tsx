@@ -30,11 +30,24 @@ async function getMatchesForClub(clubId: string) {
     // 1. Find ownerUid from clubId
     const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
     const profilesSnap = await profilesQuery.get();
-    if (profilesSnap.empty) {
+    let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
+    if (!profilesSnap.empty) {
+        profileDoc = profilesSnap.docs[0];
+    } else {
+        // fallback: allow accessing by direct doc id (ownerUid) or by ownerUid field
+        const direct = await db.collection('club_profiles').doc(clubId).get();
+        if (direct.exists) {
+            profileDoc = direct;
+        } else {
+            const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
+            if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
+        }
+    }
+    if (!profileDoc) {
         return null;
     }
-    const profileData = profilesSnap.docs[0].data() as any;
-    const ownerUid = profileData.ownerUid as string | undefined;
+    const profileData = profileDoc.data() as any;
+    const ownerUid = (profileData?.ownerUid as string | undefined) || profileDoc.id;
     const clubName = profileData.clubName || 'Unknown Club';
     const logoUrl = profileData.logoUrl || null;
     const snsLinks = (profileData as any).snsLinks ?? {};

@@ -19,7 +19,7 @@ const getMatchKey = (m: Pick<EnrichedMatch, "competitionId" | "roundId" | "id">)
   return `${m.competitionId}__${m.roundId}__${m.id}`;
 };
 
-export function MatchesList(props: { matches: EnrichedMatch[] }) {
+export function MatchesList(props: { matches: EnrichedMatch[]; perspectiveTeamId?: string }) {
   const { matches } = props;
 
   const groupedMatches = matches.reduce((acc, match) => {
@@ -47,11 +47,27 @@ export function MatchesList(props: { matches: EnrichedMatch[] }) {
               const matchDate = parseISO(match.matchDate);
               const formattedDate = format(matchDate, "M/d", { locale: ja });
 
+              const perspectiveTeamId = props.perspectiveTeamId;
+              const hasPerspective = typeof perspectiveTeamId === 'string' && perspectiveTeamId.trim() && perspectiveTeamId !== 'all';
+              const isPerspectiveHome = hasPerspective && match.homeTeamId === perspectiveTeamId;
+              const isPerspectiveAway = hasPerspective && match.awayTeamId === perspectiveTeamId;
+
+              const selfScore = isPerspectiveHome
+                ? (match.scoreHome as number | null | undefined)
+                : isPerspectiveAway
+                  ? (match.scoreAway as number | null | undefined)
+                  : (match.scoreHome as number | null | undefined);
+              const oppScore = isPerspectiveHome
+                ? (match.scoreAway as number | null | undefined)
+                : isPerspectiveAway
+                  ? (match.scoreHome as number | null | undefined)
+                  : (match.scoreAway as number | null | undefined);
+
               const resultColor = !isFinished
                 ? "bg-gray-600"
-                : match.scoreHome === match.scoreAway
+                : selfScore === oppScore
                   ? "bg-gray-600"
-                  : match.scoreHome! > match.scoreAway!
+                  : (selfScore as number) > (oppScore as number)
                     ? "bg-emerald-600"
                     : "bg-rose-600";
 

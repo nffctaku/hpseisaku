@@ -82,16 +82,14 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   const legacyStorageKey = `default_squad_${ownerUid}`;
 
   // localStorageからデフォルトスタメン・サブ設定を読み込む
-  const loadDefaultSquad = (teamPlayers: Player[]) => {
+  const loadDefaultSquad = (teamPlayers: Player[], fallbackTeamId?: string) => {
     try {
       const saved = localStorage.getItem(seasonStorageKey) ?? localStorage.getItem(legacyStorageKey);
       if (saved) {
         const data = JSON.parse(saved);
-        // チームIDを特定（最初の選手のteamId、またはmatch.homeTeam）
-        let teamId = teamPlayers[0]?.teamId;
-        if (!teamId) {
-          teamId = match.homeTeam;
-        }
+        // チームIDを特定（引数のfallbackTeamIdを優先。無ければ最初の選手のteamId）
+        let teamId = fallbackTeamId || teamPlayers[0]?.teamId;
+        if (!teamId) return [];
         
         const teamDefaultSquad = data[teamId] || { starters: [], subs: [] };
         
@@ -99,7 +97,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         const defaultPlayerStats: any[] = [];
         
         // スタメン
-        teamDefaultSquad.starters.forEach((playerId: string) => {
+        teamDefaultSquad.starters.forEach((playerId: string, index: number) => {
           const player = teamPlayers.find(p => p.id === playerId);
           if (player) {
             defaultPlayerStats.push({
@@ -108,6 +106,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
               position: player.position || 'N/A',
               teamId: teamId,
               role: 'starter',
+              starterSlot: index,
               rating: undefined,
               minutesPlayed: 90,
               goals: 0,
@@ -153,14 +152,22 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     try {
       const existingData = localStorage.getItem(seasonStorageKey);
       const data = existingData ? JSON.parse(existingData) : {};
+
+      const homePlayerIds = new Set((homePlayers || []).map((p) => p.id));
+      const awayPlayerIds = new Set((awayPlayers || []).map((p) => p.id));
+      const inferTeamId = (ps: any) => {
+        const fromPs = typeof ps?.teamId === 'string' ? ps.teamId.trim() : '';
+        if (fromPs) return fromPs;
+        const pid = typeof ps?.playerId === 'string' ? ps.playerId : '';
+        if (pid && homePlayerIds.has(pid)) return match.homeTeam;
+        if (pid && awayPlayerIds.has(pid)) return match.awayTeam;
+        return '';
+      };
       
       // チームごとにスタメンとサブを分類
       const teamGroups = playerStats.reduce((acc: any, ps: any) => {
-        // teamIdがundefinedの場合はmatchのhomeTeamを使用
-        let teamId = ps.teamId;
-        if (!teamId) {
-          teamId = match.homeTeam;
-        }
+        const teamId = inferTeamId(ps);
+        if (!teamId) return acc;
         
         if (!acc[teamId]) {
           acc[teamId] = { starters: [], subs: [] };
@@ -179,6 +186,21 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       });
       
       localStorage.setItem(seasonStorageKey, JSON.stringify(data));
+
+      // Also persist to legacy key (without season) so default can be applied on pages
+      // where seasonId is not available.
+      if (seasonStorageKey !== legacyStorageKey) {
+        try {
+          const legacyExisting = localStorage.getItem(legacyStorageKey);
+          const legacyData = legacyExisting ? JSON.parse(legacyExisting) : {};
+          Object.keys(teamGroups).forEach((teamId) => {
+            legacyData[teamId] = teamGroups[teamId];
+          });
+          localStorage.setItem(legacyStorageKey, JSON.stringify(legacyData));
+        } catch {
+          // ignore legacy write errors
+        }
+      }
     } catch (error) {
       console.error('Error saving default squad:', error);
     }
@@ -322,8 +344,8 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   }, [match.id, roundId, competitionId, user, ownerUid, methods, matchDocPath]);
 
   const applyDefaultSquad = () => {
-    const homeDefault = loadDefaultSquad(homePlayers);
-    const awayDefault = loadDefaultSquad(awayPlayers);
+    const homeDefault = loadDefaultSquad(homePlayers, match.homeTeam);
+    const awayDefault = loadDefaultSquad(awayPlayers, match.awayTeam);
     const current = methods.getValues();
     methods.reset({
       customStatHeaders: current.customStatHeaders || [],

@@ -18,9 +18,11 @@ export default function MatchesPage() {
 
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  const [lastTeamId, setLastTeamId] = useState<string>("all");
 
   useEffect(() => {
     setHasSearched(false);
+    setLastTeamId("all");
     clearMatches();
   }, [clubUid, clearMatches]);
 
@@ -116,10 +118,12 @@ export default function MatchesPage() {
             loading={loadingMatches}
             onSearch={async (v) => {
               setHasSearched(true);
+              setLastTeamId(v.teamId);
               await runSearch(v);
             }}
             onClear={() => {
               setHasSearched(false);
+              setLastTeamId("all");
               clearMatches();
             }}
           />
@@ -132,7 +136,7 @@ export default function MatchesPage() {
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : hasSearched ? (
-          <MatchesList matches={matches} />
+          <MatchesList matches={matches} perspectiveTeamId={lastTeamId !== 'all' ? lastTeamId : undefined} />
         ) : selectedSeason === null ? (
           <div className="text-center py-10 text-muted-foreground">上でシーズンを選択してください。</div>
         ) : (
