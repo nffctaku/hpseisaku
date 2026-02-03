@@ -26,6 +26,20 @@ interface Match {
   scoreAway?: number | null;
 }
 
+function getSeasonFromMatchDate(matchDate: string): string | null {
+  if (typeof matchDate !== 'string') return null;
+  const raw = matchDate.trim();
+  if (!raw) return null;
+  const normalized = raw
+    .replace(/\//g, '-')
+    .replace(/^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})$/, (_m, y, mo, d) => `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+  const dt = new Date(normalized);
+  if (Number.isNaN(dt.getTime())) return null;
+  const year = dt.getFullYear();
+  const month = dt.getMonth();
+  return month >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
+}
+
 async function getMatchesForClub(clubId: string) {
     // 1. Find ownerUid from clubId
     const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
@@ -91,9 +105,21 @@ async function getMatchesForClub(clubId: string) {
     const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
     const competitionsSnap = await competitionsQuery.get();
 
+    const seasonsInCompetitions = competitionsSnap.docs
+      .map((d) => {
+        const s = (d.data() as any)?.season;
+        return typeof s === 'string' && s.trim().length > 0 ? s.trim() : null;
+      })
+      .filter((s): s is string => Boolean(s));
+
+    const latestSeason = seasonsInCompetitions.length > 0 ? [...seasonsInCompetitions].sort().reverse()[0] : null;
+
     const nestedMatches = await Promise.all(
         competitionsSnap.docs.map(async (compDoc) => {
             const competitionData = compDoc.data() as any;
+            if (latestSeason && String(competitionData?.season || '').trim() !== latestSeason) {
+              return [] as Match[];
+            }
             const roundsQuery = db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`);
             const roundsSnap = await roundsQuery.get();
 
@@ -142,6 +168,10 @@ async function getMatchesForClub(clubId: string) {
     const friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
     friendlySnap.forEach((matchDoc) => {
         const matchData = matchDoc.data() as any;
+        if (latestSeason) {
+          const s = getSeasonFromMatchDate(String(matchData.matchDate || ''));
+          if (s && s !== latestSeason) return;
+        }
         const compId = (matchData.competitionId as string) === 'practice' ? 'practice' : 'friendly';
         const compName = matchData.competitionName || (compId === 'practice' ? '練習試合' : '親善試合');
         const homeTeam = teamsMap.get(matchData.homeTeam);
@@ -170,7 +200,7 @@ async function getMatchesForClub(clubId: string) {
     // 4. Sort all matches by date
     enrichedMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
 
-    return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage };
+    return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, latestSeason };
 }
 
 export default async function ResultsPage({
@@ -190,7 +220,7 @@ export default async function ResultsPage({
         notFound();
     }
 
-    const { matches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage } = data as any;
+    const { matches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, latestSeason } = data as any;
 
     return (
         <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
@@ -201,6 +231,7 @@ export default async function ResultsPage({
               clubId={resolvedMainTeamId || mainTeamId || ownerUid} // 自チーム判定にはメインチームIDを優先（docIdへ解決）
               clubSlug={clubId} // public clubId slug for URLs
               clubName={clubName} 
+              initialSelectedSeason={latestSeason || undefined}
             />
           </div>
           <ClubFooter

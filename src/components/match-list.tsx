@@ -35,6 +35,7 @@ interface MatchListProps {
   clubId: string; // internal ID used for filtering
   clubSlug: string; // public clubId used in URLs
   clubName: string;
+  initialSelectedSeason?: string;
 }
 
 const getFormattedDateGroup = (dateString: string) => {
@@ -52,10 +53,10 @@ const getSeason = (date: Date): string => {
   return month >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
 };
 
-export function MatchList({ allMatches, clubId, clubSlug, clubName }: MatchListProps) {
+export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelectedSeason }: MatchListProps) {
   const [showAll, setShowAll] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState<string>('all');
-  const [selectedSeason, setSelectedSeason] = useState<string>('all');
+  const [selectedSeason, setSelectedSeason] = useState<string>(initialSelectedSeason || 'all');
 
   const seasons = [
     'all',

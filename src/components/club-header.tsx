@@ -68,7 +68,7 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
     <header className="w-full border-b border-border/60 bg-background/80 backdrop-blur relative z-20">
       <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href={`/${clubId}`} className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-white flex items-center justify-center overflow-hidden border border-border">
+          <Link href={`/${clubId}`} className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center overflow-hidden">
             {logoUrl ? (
               <Image
                 src={logoUrl}
