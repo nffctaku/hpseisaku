@@ -25,6 +25,10 @@ async function getCompetitionsForClub(clubId: string) {
     const directSnap = await directRef.get();
     if (directSnap.exists) {
       profileDoc = directSnap;
+    } else {
+      // 3. Fallback: clubId might be an ownerUid
+      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
+      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
     }
   }
 

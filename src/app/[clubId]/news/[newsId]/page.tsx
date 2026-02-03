@@ -21,12 +21,26 @@ async function getArticle(clubId: string, newsId: string): Promise<NewsArticle |
   const profileQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
   const profileSnapshot = await profileQuery.get();
 
-  if (profileSnapshot.empty) {
+  let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
+  if (!profileSnapshot.empty) {
+    profileDoc = profileSnapshot.docs[0];
+  } else {
+    const direct = await db.collection('club_profiles').doc(clubId).get();
+    if (direct.exists) {
+      profileDoc = direct;
+    } else {
+      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
+      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
+    }
+  }
+
+  if (!profileDoc) {
     console.error(`No club profile found for clubId: ${clubId}`);
     return null;
   }
 
-  const ownerUid = profileSnapshot.docs[0].data().ownerUid;
+  const profileData = profileDoc.data() as any;
+  const ownerUid = (profileData?.ownerUid as string | undefined) || profileDoc.id;
   if (!ownerUid) {
     console.error(`ownerUid not found in club profile for clubId: ${clubId}`);
     return null;
@@ -57,11 +71,25 @@ async function getArticle(clubId: string, newsId: string): Promise<NewsArticle |
    const profileQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
    const profileSnapshot = await profileQuery.get();
 
-   if (profileSnapshot.empty) {
+   let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
+   if (!profileSnapshot.empty) {
+     profileDoc = profileSnapshot.docs[0];
+   } else {
+     const direct = await db.collection('club_profiles').doc(clubId).get();
+     if (direct.exists) {
+       profileDoc = direct;
+     } else {
+       const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
+       if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
+     }
+   }
+
+   if (!profileDoc) {
      return [];
    }
 
-   const ownerUid = profileSnapshot.docs[0].data().ownerUid;
+   const profileData = profileDoc.data() as any;
+   const ownerUid = (profileData?.ownerUid as string | undefined) || profileDoc.id;
    if (!ownerUid) {
      return [];
    }

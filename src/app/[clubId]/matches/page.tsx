@@ -170,7 +170,12 @@ async function getClubMatches(clubId: string): Promise<{ clubName: string; group
     profileDoc = profilesSnap.docs[0];
   } else {
     const directSnap = await db.collection('club_profiles').doc(clubId).get();
-    if (directSnap.exists) profileDoc = directSnap;
+    if (directSnap.exists) {
+      profileDoc = directSnap;
+    } else {
+      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
+      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
+    }
   }
 
   if (!profileDoc) {

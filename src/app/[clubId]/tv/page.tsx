@@ -47,11 +47,25 @@ async function getClubInfo(clubId: string) {
   const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
   const profilesSnap = await profilesQuery.get();
 
-  if (profilesSnap.empty) {
-    return null;
+  if (!profilesSnap.empty) {
+    const doc = profilesSnap.docs[0];
+    return { ...(doc.data() as any), ownerUid: (doc.data() as any)?.ownerUid || doc.id };
   }
 
-  return profilesSnap.docs[0].data();
+  // fallback: allow accessing by direct doc id (ownerUid) or by ownerUid field
+  const direct = await db.collection('club_profiles').doc(clubId).get();
+  if (direct.exists) {
+    const data = direct.data() as any;
+    return { ...data, ownerUid: data?.ownerUid || direct.id };
+  }
+
+  const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
+  if (!ownerSnap.empty) {
+    const doc = ownerSnap.docs[0];
+    return { ...(doc.data() as any), ownerUid: (doc.data() as any)?.ownerUid || doc.id };
+  }
+
+  return null;
 }
 
 export default async function TvPage({ params: { clubId }, searchParams }: TvPageProps) {

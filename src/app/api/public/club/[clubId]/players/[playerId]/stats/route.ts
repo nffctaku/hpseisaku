@@ -53,10 +53,23 @@ function getSeasonDataEntry(seasonData: any, seasonId: string): any {
 async function resolveOwnerUid(clubId: string): Promise<{ ownerUid: string; clubName?: string | null; legalPages?: any[] }> {
   const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
   const profileSnap = await profilesQuery.get();
-  if (profileSnap.empty) throw new Error("Club not found");
-  const doc = profileSnap.docs[0];
-  const data = doc.data() as any;
-  const ownerUid = (data.ownerUid as string) || doc.id;
+
+  let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
+  if (!profileSnap.empty) {
+    profileDoc = profileSnap.docs[0];
+  } else {
+    const direct = await db.collection('club_profiles').doc(clubId).get();
+    if (direct.exists) {
+      profileDoc = direct;
+    } else {
+      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
+      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
+    }
+  }
+
+  if (!profileDoc) throw new Error("Club not found");
+  const data = profileDoc.data() as any;
+  const ownerUid = (data.ownerUid as string) || profileDoc.id;
   return {
     ownerUid,
     clubName: typeof data.clubName === "string" ? data.clubName : null,

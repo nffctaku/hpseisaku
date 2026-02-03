@@ -71,6 +71,20 @@ async function getPlayersData(
         snsLinks = (data as any).snsLinks || {};
         legalPages = Array.isArray(data.legalPages) ? data.legalPages : [];
         gameTeamUsage = Boolean((data as any).gameTeamUsage);
+      } else {
+        const ownerSnap = await db.collection("club_profiles").where('ownerUid', '==', clubId).limit(1).get();
+        if (!ownerSnap.empty) {
+          const doc = ownerSnap.docs[0];
+          const data = doc.data() as any;
+          ownerUid = (data.ownerUid as string) || doc.id;
+          clubName = data.clubName || clubName;
+          logoUrl = data.logoUrl || null;
+          homeBgColor = typeof data.homeBgColor === 'string' ? data.homeBgColor : null;
+          sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
+          snsLinks = (data as any).snsLinks || {};
+          legalPages = Array.isArray(data.legalPages) ? data.legalPages : [];
+          gameTeamUsage = Boolean((data as any).gameTeamUsage);
+        }
       }
     }
   } catch (e) {

@@ -63,6 +63,11 @@ async function resolveClubProfile(clubId: string): Promise<any | null> {
       return directSnap.data();
     }
 
+    const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
+    if (!ownerSnap.empty) {
+      return ownerSnap.docs[0].data();
+    }
+
     return null;
   } catch (e) {
     console.error("Failed to resolve club profile for transfers page", e);

@@ -42,11 +42,15 @@ async function getClubInfo(clubId: string) {
 
   const clubProfileDoc = !profilesSnap.empty ? profilesSnap.docs[0] : null;
   const directSnap = clubProfileDoc ? null : await db.collection("club_profiles").doc(clubId).get();
+  const ownerSnap = clubProfileDoc || directSnap?.exists
+    ? null
+    : await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
 
-  if (!clubProfileDoc && !directSnap?.exists) return null;
+  if (!clubProfileDoc && !directSnap?.exists && ownerSnap?.empty) return null;
 
-  const profileData = (clubProfileDoc ? clubProfileDoc.data() : (directSnap!.data() as any))!;
-  const ownerUid = (profileData as any).ownerUid || (clubProfileDoc ? clubProfileDoc.id : directSnap!.id);
+  const fallbackDoc = ownerSnap && !ownerSnap.empty ? ownerSnap.docs[0] : null;
+  const profileData = (clubProfileDoc ? clubProfileDoc.data() : (directSnap?.exists ? (directSnap!.data() as any) : (fallbackDoc!.data() as any)))!;
+  const ownerUid = (profileData as any).ownerUid || (clubProfileDoc ? clubProfileDoc.id : (directSnap?.exists ? directSnap!.id : fallbackDoc!.id));
   if (!ownerUid) return null;
 
   const mainTeamId = (profileData as any)?.mainTeamId;

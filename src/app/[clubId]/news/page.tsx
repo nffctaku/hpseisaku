@@ -22,17 +22,25 @@ async function getNewsData(clubId: string, page: number) {
   const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
   const profilesSnap = await profilesQuery.get();
 
-  if (profilesSnap.empty) {
-    return null;
+  let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
+  if (!profilesSnap.empty) {
+    profileDoc = profilesSnap.docs[0];
+  } else {
+    // fallback: allow accessing by direct doc id (ownerUid) or by ownerUid field
+    const direct = await db.collection('club_profiles').doc(clubId).get();
+    if (direct.exists) {
+      profileDoc = direct;
+    } else {
+      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
+      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
+    }
   }
 
-  const clubProfileDoc = profilesSnap.docs[0];
-  const profileData = clubProfileDoc.data();
-  const ownerUid = profileData.ownerUid;
+  if (!profileDoc) return null;
 
-  if (!ownerUid) {
-    return null;
-  }
+  const profileData = profileDoc.data() as any;
+  const ownerUid = (profileData?.ownerUid as string | undefined) || profileDoc.id;
+  if (!ownerUid) return null;
 
   const newsCollectionRef = db.collection(`clubs/${ownerUid}/news`);
 
