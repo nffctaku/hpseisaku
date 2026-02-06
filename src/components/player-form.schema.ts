@@ -88,6 +88,33 @@ const manualCompetitionStatSchema = z.object({
   avgRating: ratingSchema,
 });
 
+const optionalNumberSchema = z
+  .preprocess((v) => {
+    if (v === "" || v == null) return undefined;
+    return v;
+  }, z.union([z.coerce.number(), z.nan()]).optional())
+  .transform((v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined));
+
+const optionalIntSchema = z
+  .preprocess((v) => {
+    if (v === "" || v == null) return undefined;
+    return v;
+  }, z.union([z.coerce.number().int(), z.nan()]).optional())
+  .transform((v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined));
+
+const optionalBoundedIntSchema = (opts: { min?: number; max?: number }) =>
+  z
+    .preprocess((v) => {
+      if (v === "" || v == null) return undefined;
+      return v;
+    }, z.union([z.coerce.number().int(), z.nan()]).optional())
+    .transform((v) => {
+      if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
+      if (typeof opts.min === "number" && v < opts.min) return undefined;
+      if (typeof opts.max === "number" && v > opts.max) return undefined;
+      return v;
+    });
+
 export const formSchema = z.object({
   name: z.string().min(2, { message: "選手名は2文字以上で入力してください。" }),
   number: z.preprocess(
@@ -105,12 +132,12 @@ export const formSchema = z.object({
   mainPosition: z.enum(DETAILED_POSITIONS).optional(),
   subPositions: z.array(z.enum(DETAILED_POSITIONS)).max(3).optional(),
   photoUrl: z.string().url({ message: "無効なURLです。" }).optional().or(z.literal("")),
-  height: z.coerce.number().optional(),
-  weight: z.coerce.number().optional(),
+  height: optionalNumberSchema,
+  weight: optionalNumberSchema,
   preferredFoot: z.enum(["left", "right", "both"]).optional(),
-  age: z.coerce.number().int().optional(),
-  tenureYears: tenureYearsSchema,
-  annualSalary: statNumberSchema,
+  age: optionalIntSchema,
+  tenureYears: optionalBoundedIntSchema({ min: 0, max: 50 }),
+  annualSalary: optionalNumberSchema,
   annualSalaryCurrency: z.enum(["JPY", "GBP", "EUR"]).optional(),
   contractEndYear: contractEndYearSchema,
   contractEndMonth: contractEndMonthSchema,

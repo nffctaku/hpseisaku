@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import Image from 'next/image';
-import { collection, getDocs, query, where, limit, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { SettingsTab } from './components/SettingsTab';
 import { LayoutTab } from './components/LayoutTab';
 import { TextsTab } from './components/TextsTab';
@@ -87,6 +87,45 @@ export default function ClubInfoPage() {
   const [realTeamUsage, setRealTeamUsage] = useState<boolean>(false);
   const [gameTeamUsage, setGameTeamUsage] = useState<boolean>(false);
   const [transfersPublic, setTransfersPublic] = useState<boolean>(true);
+
+  const syncClubProfileFromTeam = async (team: TeamOption, teamId: string) => {
+    if (!user) return;
+
+    const nextClubName = (team?.name || '').trim();
+    const nextLogoUrl = (team?.logoUrl || '').trim();
+    if (!nextClubName && !nextLogoUrl) return;
+
+    try {
+      const payload: Record<string, any> = {
+        ownerUid: user.uid,
+        mainTeamId: teamId,
+      };
+      if (nextClubName) payload.clubName = nextClubName;
+      payload.logoUrl = nextLogoUrl ? nextLogoUrl : null;
+
+      // uid doc
+      await setDoc(doc(db, 'club_profiles', user.uid), payload, { merge: true });
+
+      // any legacy docs where ownerUid == uid
+      const profilesRef = collection(db, 'club_profiles');
+      const qProfiles = query(profilesRef, where('ownerUid', '==', user.uid), limit(10));
+      const snap = await getDocs(qProfiles);
+      await Promise.all(
+        snap.docs
+          .filter((d) => d.id !== user.uid)
+          .map((d) => setDoc(d.ref, payload, { merge: true }))
+      );
+
+      if (refreshUserProfile) {
+        await refreshUserProfile();
+      }
+      if (fetchClubInfo) {
+        await fetchClubInfo();
+      }
+    } catch (e) {
+      console.error('Failed to auto sync club profile from team:', e);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -201,6 +240,19 @@ export default function ClubInfoPage() {
         teamsData.sort((a, b) => a.name.localeCompare(b.name));
         setTeams(teamsData);
 
+        const candidateTeamId = selectedTeamId || teamsData[0]?.id || '';
+        const candidateTeam = candidateTeamId ? teamsData.find((t) => t.id === candidateTeamId) : undefined;
+
+        // 画面表示の初期値（クラブ設定未更新でも、チーム登録情報を自動反映）
+        if (candidateTeam) {
+          if (!clubName || clubName.trim().length === 0) {
+            setClubName(candidateTeam.name || '');
+          }
+          if (!logoUrl || logoUrl.trim().length === 0) {
+            setLogoUrl(candidateTeam.logoUrl || '');
+          }
+        }
+
         // メインチームが決まっている場合は、そのチームの名前とロゴをクラブ表示用にも反映する
         if (selectedTeamId) {
           const mainTeam = teamsData.find(t => t.id === selectedTeamId);
@@ -208,6 +260,11 @@ export default function ClubInfoPage() {
             setClubName(mainTeam.name || '');
             setLogoUrl(mainTeam.logoUrl || '');
           }
+        }
+
+        // club_profiles が未設定のときは、初回だけ自動で同期する（更新ボタン不要）
+        if (candidateTeam && user && (!user.clubName || !user.logoUrl)) {
+          await syncClubProfileFromTeam(candidateTeam, candidateTeamId);
         }
       } catch (error) {
         console.error('Error fetching teams for club info:', error);

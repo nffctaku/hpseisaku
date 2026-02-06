@@ -203,11 +203,13 @@ export function BasicInfoSection({
                 <FormLabel>身長 (cm)</FormLabel>
                 <FormControl>
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="180"
                     {...field}
                     value={(field.value ?? "") as any}
-                    onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                    onChange={(e) => field.onChange(e.target.value)}
                   />
                 </FormControl>
                 <FormMessage />
@@ -223,11 +225,13 @@ export function BasicInfoSection({
                 <FormLabel>体重 (kg)</FormLabel>
                 <FormControl>
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="75"
                     {...field}
                     value={(field.value ?? "") as any}
-                    onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                    onChange={(e) => field.onChange(e.target.value)}
                   />
                 </FormControl>
                 <FormMessage />
@@ -266,11 +270,13 @@ export function BasicInfoSection({
                 <FormLabel>年齢</FormLabel>
                 <FormControl>
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="25"
                     {...field}
                     value={(field.value ?? "") as any}
-                    onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                    onChange={(e) => field.onChange(e.target.value)}
                   />
                 </FormControl>
                 <FormMessage />
@@ -317,22 +323,13 @@ export function OtherInfoSection({
                 <FormLabel>在籍年数</FormLabel>
                 <FormControl>
                   <Input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="0"
-                    min="0"
-                    max="50"
                     {...field}
                     value={(field.value ?? "") as any}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === "" || value === "-") {
-                        field.onChange(undefined);
-                      } else {
-                        const num = Number(value);
-                        field.onChange(num >= 0 ? num : undefined);
-                      }
-                    }}
+                    onChange={(e) => field.onChange(e.target.value)}
                   />
                 </FormControl>
                 <FormMessage />
@@ -368,21 +365,12 @@ export function OtherInfoSection({
                         )}
                       />
                       <Input
-                        type="number"
+                        type="text"
                         inputMode="numeric"
+                        pattern="[0-9]*"
                         placeholder="例: 10000"
-                        min="0"
-                        step="1"
                         value={(field.value ?? "") as any}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value === "" || value === "-") {
-                            field.onChange(undefined);
-                          } else {
-                            const num = Number(value);
-                            field.onChange(num >= 0 ? num : undefined);
-                          }
-                        }}
+                        onChange={(e) => field.onChange(e.target.value)}
                       />
                     </div>
                   </FormControl>

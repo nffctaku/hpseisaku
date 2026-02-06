@@ -375,20 +375,12 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                       <FormLabel>背番号 *</FormLabel>
                       <FormControl>
                         <Input
-                          type="number"
+                          type="text"
                           inputMode="numeric"
-                          min={1}
-                          step={1}
+                          pattern="[0-9]*"
                           placeholder="背番号"
                           value={(field.value ?? "") as any}
-                          onChange={(e) => {
-                            if (e.target.value === "") {
-                              field.onChange(undefined);
-                              return;
-                            }
-                            const n = Number(e.target.value);
-                            field.onChange(Number.isFinite(n) ? Math.max(1, Math.trunc(n)) : undefined);
-                          }}
+                          onChange={(e) => field.onChange(e.target.value)}
                         />
                       </FormControl>
                       <FormMessage />
@@ -703,11 +695,13 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                   <FormLabel>総合値</FormLabel>
                   <FormControl>
                     <Input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       placeholder="未入力なら自動計算"
                       {...field}
                       value={(field.value ?? "") as any}
-                      onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                      onChange={(e) => field.onChange(e.target.value)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -746,11 +740,13 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                         <FormLabel>数値</FormLabel>
                         <FormControl>
                           <Input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             placeholder="0-99"
                             {...field}
                             value={(field.value ?? "") as any}
-                            onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                            onChange={(e) => field.onChange(e.target.value)}
                           />
                         </FormControl>
                         <FormMessage />
