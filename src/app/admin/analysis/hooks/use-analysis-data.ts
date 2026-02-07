@@ -27,6 +27,32 @@ export function useAnalysisData() {
   const [error, setError] = useState<string | null>(null);
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
 
+  const computePlayerStatsFromEvents = (events: any[]): Array<{ playerId: string; playerName?: string; goals: number; assists: number }> => {
+    const map = new Map<string, { playerId: string; playerName?: string; goals: number; assists: number }>();
+    for (const ev of events || []) {
+      const type = typeof ev?.type === 'string' ? ev.type : '';
+      if (type !== 'goal') continue;
+      const scorerId = typeof ev?.playerId === 'string' ? ev.playerId : '';
+      const scorerName = typeof ev?.playerName === 'string' ? ev.playerName : undefined;
+      if (scorerId) {
+        const cur = map.get(scorerId) || { playerId: scorerId, playerName: scorerName, goals: 0, assists: 0 };
+        cur.goals += 1;
+        if (!cur.playerName && scorerName) cur.playerName = scorerName;
+        map.set(scorerId, cur);
+      }
+
+      const assistId = typeof ev?.assistPlayerId === 'string' ? ev.assistPlayerId : '';
+      const assistName = typeof ev?.assistPlayerName === 'string' ? ev.assistPlayerName : undefined;
+      if (assistId && assistId !== 'pk' && assistId !== 'none') {
+        const cur = map.get(assistId) || { playerId: assistId, playerName: assistName, goals: 0, assists: 0 };
+        cur.assists += 1;
+        if (!cur.playerName && assistName) cur.playerName = assistName;
+        map.set(assistId, cur);
+      }
+    }
+    return Array.from(map.values());
+  };
+
   useEffect(() => {
     // Try both clubId and ownerUid to find the data
     const clubId = clubInfo.id;
@@ -193,15 +219,35 @@ export function useAnalysisData() {
               console.log(`[useAnalysisData] Matches for competition ${comp.id}, round ${roundId}:`, matchesSnapshot.size);
               
               if (matchesSnapshot.size > 0) {
-                const matchesData = matchesSnapshot.docs.map(doc => ({
-                  id: doc.id,
-                  competitionId: comp.id,
-                  competitionName: comp.name,
-                  competitionSeason: (comp as any)?.season,
-                  competitionType: competitionType,
-                  roundId: roundId,
-                  ...doc.data()
-                }));
+                const matchesData = await Promise.all(
+                  matchesSnapshot.docs.map(async (d) => {
+                    const base = {
+                      id: d.id,
+                      competitionId: comp.id,
+                      competitionName: comp.name,
+                      competitionSeason: (comp as any)?.season,
+                      competitionType: competitionType,
+                      roundId: roundId,
+                      __matchDocPath: d.ref.path,
+                      ...d.data(),
+                    };
+
+                    // If match doc doesn't have embedded events, but an events subcollection exists,
+                    // fetch it so totals (goals/assists) can be derived.
+                    const hasEmbeddedEvents = Array.isArray((base as any).events) && (base as any).events.length > 0;
+                    if (!hasEmbeddedEvents) {
+                      try {
+                        const eventsSnap = await getDocs(collection(db, d.ref.path, 'events'));
+                        if (!eventsSnap.empty) {
+                          (base as any).events = eventsSnap.docs.map((ev) => ({ id: ev.id, ...ev.data() }));
+                        }
+                      } catch {
+                        // ignore events fetch failures
+                      }
+                    }
+                    return base;
+                  })
+                );
                 console.log(`[useAnalysisData] Sample match data:`, matchesData[0]);
                 allMatches.push(...matchesData);
               }
@@ -592,9 +638,12 @@ export function useAnalysisData() {
     const goals: { [key: string]: PlayerStats } = {};
 
     filteredMatches.forEach(match => {
-      // Extract goalscorers from playerStats
-      if (match.playerStats && Array.isArray(match.playerStats)) {
-        match.playerStats.forEach((player: any) => {
+      const sourcePlayerStats = (match.playerStats && Array.isArray(match.playerStats) && match.playerStats.length > 0)
+        ? match.playerStats
+        : computePlayerStatsFromEvents(Array.isArray(match.events) ? match.events : []);
+
+      if (sourcePlayerStats && Array.isArray(sourcePlayerStats)) {
+        sourcePlayerStats.forEach((player: any) => {
           if (!goals[player.playerId]) {
             goals[player.playerId] = {
               playerId: player.playerId,
@@ -620,9 +669,12 @@ export function useAnalysisData() {
     const assists: { [key: string]: PlayerStats } = {};
 
     filteredMatches.forEach(match => {
-      // Extract assists from playerStats
-      if (match.playerStats && Array.isArray(match.playerStats)) {
-        match.playerStats.forEach((player: any) => {
+      const sourcePlayerStats = (match.playerStats && Array.isArray(match.playerStats) && match.playerStats.length > 0)
+        ? match.playerStats
+        : computePlayerStatsFromEvents(Array.isArray(match.events) ? match.events : []);
+
+      if (sourcePlayerStats && Array.isArray(sourcePlayerStats)) {
+        sourcePlayerStats.forEach((player: any) => {
           if (!assists[player.playerId]) {
             assists[player.playerId] = {
               playerId: player.playerId,

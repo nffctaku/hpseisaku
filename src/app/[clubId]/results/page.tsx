@@ -41,44 +41,60 @@ function getSeasonFromMatchDate(matchDate: string): string | null {
 }
 
 async function getMatchesForClub(clubId: string) {
-    // 1. Find ownerUid from clubId
-    const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
-    const profilesSnap = await profilesQuery.get();
-    let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
-    if (!profilesSnap.empty) {
-        profileDoc = profilesSnap.docs[0];
-    } else {
-        // fallback: allow accessing by direct doc id (ownerUid) or by ownerUid field
-        const direct = await db.collection('club_profiles').doc(clubId).get();
-        if (direct.exists) {
-            profileDoc = direct;
+    try {
+      let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
+      try {
+        const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
+        const profilesSnap = await profilesQuery.get();
+        if (!profilesSnap.empty) {
+          profileDoc = profilesSnap.docs[0];
         } else {
+          const direct = await db.collection('club_profiles').doc(clubId).get();
+          if (direct.exists) {
+            profileDoc = direct;
+          } else {
             const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
             if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
+          }
         }
-    }
-    if (!profileDoc) {
-        return null;
-    }
-    const profileData = profileDoc.data() as any;
-    const ownerUid = (profileData?.ownerUid as string | undefined) || profileDoc.id;
-    const clubName = profileData.clubName || 'Unknown Club';
-    const logoUrl = profileData.logoUrl || null;
-    const snsLinks = (profileData as any).snsLinks ?? {};
-    const sponsors = (Array.isArray((profileData as any).sponsors) ? ((profileData as any).sponsors as any[]) : []) as any;
-    const legalPages = (Array.isArray((profileData as any).legalPages) ? ((profileData as any).legalPages as any[]) : []) as any;
-    const homeBgColor = (profileData as any).homeBgColor as string | undefined;
-    const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
-    const mainTeamId = profileData.mainTeamId as string | undefined;
-    if (!ownerUid) {
-        return null;
-    }
+      } catch (e) {
+        console.error('[results:getMatchesForClub] failed to resolve club profile', { clubId }, e);
+        throw e;
+      }
 
-    // 2. Fetch all teams into a map
-    const teamsMap = new Map<string, { id: string; name: string; logoUrl?: string; }>();
-    const teamsQuery = db.collection(`clubs/${ownerUid}/teams`);
-    const teamsSnap = await teamsQuery.get();
-    teamsSnap.forEach(doc => teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as { id: string; name: string; logoUrl?: string; }));
+      if (!profileDoc) {
+        console.error('[results:getMatchesForClub] club profile not found', { clubId });
+        return null;
+      }
+
+      const profileData = profileDoc.data() as any;
+      const ownerUid = (profileData?.ownerUid as string | undefined) || profileDoc.id;
+      const clubName = profileData.clubName || 'Unknown Club';
+      const logoUrl = profileData.logoUrl || null;
+      const snsLinks = (profileData as any).snsLinks ?? {};
+      const sponsors = (Array.isArray((profileData as any).sponsors) ? ((profileData as any).sponsors as any[]) : []) as any;
+      const legalPages = (Array.isArray((profileData as any).legalPages) ? ((profileData as any).legalPages as any[]) : []) as any;
+      const homeBgColor = (profileData as any).homeBgColor as string | undefined;
+      const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
+      const mainTeamId = profileData.mainTeamId as string | undefined;
+
+      if (!ownerUid) {
+        console.error('[results:getMatchesForClub] ownerUid missing', { clubId, profileDocId: profileDoc.id });
+        return null;
+      }
+
+      const teamsMap = new Map<string, { id: string; name: string; logoUrl?: string; }>();
+      let teamsSnap: FirebaseFirestore.QuerySnapshot;
+      try {
+        const teamsQuery = db.collection(`clubs/${ownerUid}/teams`);
+        teamsSnap = await teamsQuery.get();
+        teamsSnap.forEach((doc) =>
+          teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as { id: string; name: string; logoUrl?: string; })
+        );
+      } catch (e) {
+        console.error('[results:getMatchesForClub] failed to fetch teams', { clubId, ownerUid }, e);
+        throw e;
+      }
 
     // Resolve mainTeamId to actual team document id (doc.id)
     let resolvedMainTeamId: string | undefined = undefined;
@@ -100,10 +116,15 @@ async function getMatchesForClub(clubId: string) {
       }
     }
 
-    // 3. Fetch all competitions, rounds, and matches
     const enrichedMatches: Match[] = [];
-    const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
-    const competitionsSnap = await competitionsQuery.get();
+    let competitionsSnap: FirebaseFirestore.QuerySnapshot;
+    try {
+      const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
+      competitionsSnap = await competitionsQuery.get();
+    } catch (e) {
+      console.error('[results:getMatchesForClub] failed to fetch competitions', { clubId, ownerUid }, e);
+      throw e;
+    }
 
     const seasonsInCompetitions = competitionsSnap.docs
       .map((d) => {
@@ -115,57 +136,79 @@ async function getMatchesForClub(clubId: string) {
     const latestSeason = seasonsInCompetitions.length > 0 ? [...seasonsInCompetitions].sort().reverse()[0] : null;
 
     const nestedMatches = await Promise.all(
-        competitionsSnap.docs.map(async (compDoc) => {
-            const competitionData = compDoc.data() as any;
-            if (latestSeason && String(competitionData?.season || '').trim() !== latestSeason) {
-              return [] as Match[];
+      competitionsSnap.docs.map(async (compDoc) => {
+        const competitionData = compDoc.data() as any;
+        if (latestSeason && String(competitionData?.season || '').trim() !== latestSeason) {
+          return [] as Match[];
+        }
+        let roundsSnap: FirebaseFirestore.QuerySnapshot;
+        try {
+          const roundsQuery = db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`);
+          roundsSnap = await roundsQuery.get();
+        } catch (e) {
+          console.error('[results:getMatchesForClub] failed to fetch rounds', { clubId, ownerUid, competitionId: compDoc.id }, e);
+          throw e;
+        }
+
+        const matchesByRound = await Promise.all(
+          roundsSnap.docs.map(async (roundDoc) => {
+            const roundData = roundDoc.data() as any;
+            let matchesSnap: FirebaseFirestore.QuerySnapshot;
+            try {
+              const matchesQuery = db.collection(
+                `clubs/${ownerUid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`
+              );
+              matchesSnap = await matchesQuery.get();
+            } catch (e) {
+              console.error(
+                '[results:getMatchesForClub] failed to fetch matches',
+                { clubId, ownerUid, competitionId: compDoc.id, roundId: roundDoc.id },
+                e
+              );
+              throw e;
             }
-            const roundsQuery = db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`);
-            const roundsSnap = await roundsQuery.get();
 
-            const matchesByRound = await Promise.all(
-                roundsSnap.docs.map(async (roundDoc) => {
-                    const roundData = roundDoc.data() as any;
-                    const matchesQuery = db.collection(
-                        `clubs/${ownerUid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`
-                    );
-                    const matchesSnap = await matchesQuery.get();
+            return matchesSnap.docs.map((matchDoc) => {
+              const matchData = matchDoc.data() as any;
+              const homeTeam = teamsMap.get(matchData.homeTeam);
+              const awayTeam = teamsMap.get(matchData.awayTeam);
 
-                    return matchesSnap.docs.map((matchDoc) => {
-                        const matchData = matchDoc.data() as any;
-                        const homeTeam = teamsMap.get(matchData.homeTeam);
-                        const awayTeam = teamsMap.get(matchData.awayTeam);
+              return {
+                id: matchDoc.id,
+                competitionId: compDoc.id,
+                competitionName: competitionData.name,
+                competitionLogoUrl: competitionData.logoUrl,
+                season: competitionData.season,
+                roundId: roundDoc.id,
+                roundName: roundData.name,
+                matchDate: matchData.matchDate,
+                matchTime: matchData.matchTime,
+                homeTeamId: matchData.homeTeam,
+                awayTeamId: matchData.awayTeam,
+                homeTeamName: homeTeam?.name || '不明なチーム',
+                awayTeamName: awayTeam?.name || '不明なチーム',
+                homeTeamLogo: homeTeam?.logoUrl,
+                awayTeamLogo: awayTeam?.logoUrl,
+                scoreHome: matchData.scoreHome,
+                scoreAway: matchData.scoreAway,
+              } as Match;
+            });
+          })
+        );
 
-                        return {
-                            id: matchDoc.id,
-                            competitionId: compDoc.id,
-                            competitionName: competitionData.name,
-                            competitionLogoUrl: competitionData.logoUrl,
-                            season: competitionData.season,
-                            roundId: roundDoc.id,
-                            roundName: roundData.name,
-                            matchDate: matchData.matchDate,
-                            matchTime: matchData.matchTime,
-                            homeTeamId: matchData.homeTeam,
-                            awayTeamId: matchData.awayTeam,
-                            homeTeamName: homeTeam?.name || '不明なチーム',
-                            awayTeamName: awayTeam?.name || '不明なチーム',
-                            homeTeamLogo: homeTeam?.logoUrl,
-                            awayTeamLogo: awayTeam?.logoUrl,
-                            scoreHome: matchData.scoreHome,
-                            scoreAway: matchData.scoreAway,
-                        } as Match;
-                    });
-                })
-            );
-
-            return matchesByRound.flat();
-        })
+        return matchesByRound.flat();
+      })
     );
 
     enrichedMatches.push(...nestedMatches.flat());
 
-    const friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
+    let friendlySnap: FirebaseFirestore.QuerySnapshot;
+    try {
+      friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
+    } catch (e) {
+      console.error('[results:getMatchesForClub] failed to fetch friendly_matches', { clubId, ownerUid }, e);
+      throw e;
+    }
     friendlySnap.forEach((matchDoc) => {
         const matchData = matchDoc.data() as any;
         if (latestSeason) {
@@ -201,6 +244,10 @@ async function getMatchesForClub(clubId: string) {
     enrichedMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
 
     return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, latestSeason };
+    } catch (e) {
+      console.error('[results:getMatchesForClub] unexpected error', { clubId }, e);
+      throw e;
+    }
 }
 
 export default async function ResultsPage({
