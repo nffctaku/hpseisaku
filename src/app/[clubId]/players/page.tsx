@@ -114,13 +114,9 @@ async function getPlayersData(
 
   const allSeasons = Array.from(seasonIdSet).sort((a, b) => b.localeCompare(a));
 
-  const seasonNormalized = typeof season === "string" ? toSlashSeason(season) : undefined;
-
-  const activeSeason = allSeasons.length
-    ? seasonNormalized && allSeasons.includes(seasonNormalized)
-      ? seasonNormalized
-      : allSeasons[0]
-    : "";
+  // Public players page: always show only the latest public season.
+  const activeSeason = allSeasons.length ? allSeasons[0] : "";
+  const displaySeasons = activeSeason ? [activeSeason] : [];
 
   // If roster exists for the active season, use it as the source of truth for public player visibility.
   // This prevents deleted players from lingering due to stale seasonData/seasons or duplicates across teams.
@@ -179,7 +175,7 @@ async function getPlayersData(
       legalPages,
       gameTeamUsage,
       players: [],
-      allSeasons,
+      allSeasons: displaySeasons,
       activeSeason: "",
     };
   }
@@ -230,7 +226,18 @@ async function getPlayersData(
   // 背番号でソート（重複しても一旦そのまま）
   filteredPlayers.sort((a, b) => (a.number || 0) - (b.number || 0));
 
-  return { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, gameTeamUsage, players: filteredPlayers, allSeasons, activeSeason };
+  return {
+    clubName,
+    logoUrl,
+    homeBgColor,
+    sponsors,
+    snsLinks,
+    legalPages,
+    gameTeamUsage,
+    players: filteredPlayers,
+    allSeasons: displaySeasons,
+    activeSeason,
+  };
 }
 
 export default async function PlayersPage({

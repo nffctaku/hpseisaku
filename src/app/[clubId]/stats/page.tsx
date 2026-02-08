@@ -367,17 +367,18 @@ export default function ClubStatsPage() {
   const [gameTeamUsage, setGameTeamUsage] = useState<boolean>(false);
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
   const [statsData, setStatsData] = useState<StatsDataResponse | null>(null);
+  const [statsDataAll, setStatsDataAll] = useState<StatsDataResponse | null>(null);
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>("all");
   const [performanceSeason, setPerformanceSeason] = useState<string>("");
 
   const seasons = useMemo(() => {
     const set = new Set<string>();
-    (statsData?.competitions || []).forEach((c) => {
+    ((statsDataAll ?? statsData)?.competitions || []).forEach((c) => {
       if (c.season && typeof c.season === "string" && c.season.trim() !== "") set.add(c.season);
     });
     return Array.from(set).sort((a, b) => b.localeCompare(a));
-  }, [statsData]);
+  }, [statsData, statsDataAll]);
 
   const fetchStatsData = async (opts?: { season?: string; competitionId?: string; showLoading?: boolean }) => {
     if (!clubId) return;
@@ -392,10 +393,24 @@ export default function ClubStatsPage() {
       const suffix = qs.toString() ? `?${qs.toString()}` : '';
       const res = await fetch(`/api/club/${clubId}/stats-data${suffix}`);
       if (!res.ok) {
+        let bodyText = '';
+        try {
+          bodyText = await res.text();
+        } catch {
+          bodyText = '';
+        }
+        console.error('stats-data API error', {
+          status: res.status,
+          statusText: res.statusText,
+          body: bodyText,
+        });
         throw new Error("クラブ情報の取得に失敗しました");
       }
       const data = (await res.json()) as StatsDataResponse;
       setOwnerUid(data.ownerUid);
+      if (!opts?.season && !opts?.competitionId) {
+        setStatsDataAll(data);
+      }
       setStatsData(data);
       const profile = (data as any).profile || {};
       setClubName(profile.clubName || "");
@@ -453,19 +468,19 @@ export default function ClubStatsPage() {
         ) : error ? (
           <div className="text-sm text-red-600 py-4">{error}</div>
         ) : !ownerUid || !statsData ? (
-          <div className="text-sm text-muted-foreground py-4">
-            クラブのオーナー情報が取得できませんでした。
-          </div>
-        ) : (
-          <>
-            <SeasonPerformance
-              matches={statsData.matches}
-              competitions={statsData.competitions}
-              teams={statsData.teams}
-              mainTeamId={mainTeamId}
-              selectedSeason={performanceSeason}
-              onSeasonChange={setPerformanceSeason}
-            />
+        <div className="text-sm text-muted-foreground py-4">
+          クラブのオーナー情報が取得できませんでした。
+        </div>
+      ) : (
+        <>
+          <SeasonPerformance
+            matches={(statsDataAll ?? statsData).matches}
+            competitions={(statsDataAll ?? statsData).competitions}
+            teams={(statsDataAll ?? statsData).teams}
+            mainTeamId={mainTeamId}
+            selectedSeason={performanceSeason}
+            onSeasonChange={setPerformanceSeason}
+          />
 
             <div className="mt-8 flex flex-wrap items-center gap-2 justify-end">
               <Select value={selectedSeason} onValueChange={setSelectedSeason}>

@@ -1,6 +1,9 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/lib/firebase/admin";
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 function toSlashSeason(season: string): string {
   if (!season) return season;
   if (season.includes("/")) {
@@ -77,6 +80,11 @@ function chunkArray<T>(arr: T[], chunkSize: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += chunkSize) out.push(arr.slice(i, i + chunkSize));
   return out;
+}
+
+function toSafeDocId(id: string): string {
+  // Firestore doc id cannot contain '/'
+  return String(id || '').replace(/\//g, '__');
 }
 
 type AggregatedPlayerStats = {
@@ -237,6 +245,7 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
 
     const teamKey = resolvedMainTeamId || mainTeamId || 'all';
     const cacheKey = `${statsCacheVersion}__${teamKey}__${seasonKey}__${competitionKey}`;
+    const cacheDocId = toSafeDocId(cacheKey);
 
     const competitions = competitionsSnap.docs
       .map((d) => {
@@ -283,7 +292,7 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
     }
 
     // Use cached aggregated stats if present (but still return matches for UI computations)
-    const cacheRef = db.collection(`clubs/${ownerUid}/public_stats_index`).doc(cacheKey);
+    const cacheRef = db.collection(`clubs/${ownerUid}/public_stats_index`).doc(cacheDocId);
     const cacheSnap = await cacheRef.get();
     let cachedAggregatedStats: Record<string, AggregatedPlayerStats> | null = null;
     if (cacheSnap.exists) {
@@ -431,6 +440,9 @@ export async function GET(request: NextRequest, context: { params: { clubId: str
       return new NextResponse(errorMessage, { status: 404 });
     }
     console.error("API Error (stats-data):", error);
+    if (process.env.NODE_ENV !== 'production') {
+      return NextResponse.json({ error: errorMessage }, { status: 500 });
+    }
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }

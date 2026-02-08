@@ -311,13 +311,14 @@ export function SeasonPerformance({
       <Card className="bg-white text-gray-900">
         <CardHeader>
           <CardTitle className="text-lg">
-            大会別(リーグ戦のみ) {selectedSeason}
+            大会別(リーグ戦のみ)
           </CardTitle>
         </CardHeader>
         <CardContent>
           <Table className="bg-white">
             <TableHeader>
               <TableRow>
+                <TableHead>シーズン</TableHead>
                 <TableHead>リーグ戦</TableHead>
                 <TableHead className="text-center">勝</TableHead>
                 <TableHead className="text-center">分</TableHead>
@@ -330,8 +331,18 @@ export function SeasonPerformance({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {competitions
-                .filter((c) => c.season === selectedSeason && c.format === 'league')
+              {(() => {
+                const league = competitions.filter((c) => c.format === 'league');
+                const showOnHome = league.filter((c: any) => Boolean((c as any).showOnHome));
+                const target = showOnHome.length > 0 ? showOnHome : league;
+                return target;
+              })()
+                .sort((a, b) => {
+                  const sa = typeof a.season === 'string' ? a.season : '';
+                  const sb = typeof b.season === 'string' ? b.season : '';
+                  if (sa !== sb) return sb.localeCompare(sa);
+                  return String(a.name || '').localeCompare(String(b.name || ''));
+                })
                 .map((competition) => {
                   const competitionMatches = matches.filter(
                     (m) => m.competitionId === competition.id
@@ -388,6 +399,7 @@ export function SeasonPerformance({
 
                   return (
                     <TableRow key={competition.id}>
+                      <TableCell className="font-medium">{competition.season || '-'}</TableCell>
                       <TableCell className="font-medium">{competition.name}</TableCell>
                       <TableCell className="text-center">{wins}</TableCell>
                       <TableCell className="text-center">{draws}</TableCell>
