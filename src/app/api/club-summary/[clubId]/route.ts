@@ -2,6 +2,9 @@ import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/firebase/admin';
 import { NewsArticle } from '@/types/news';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 async function getClubSummary(clubId: string) {
   const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
   const profilesSnap = await profilesQuery.get();

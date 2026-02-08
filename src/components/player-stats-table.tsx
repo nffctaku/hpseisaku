@@ -223,6 +223,45 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     });
   };
 
+  const setBenchPlayer = (fieldId: string, playerId: string) => {
+    const nextPlayerId = playerId === NONE_SELECT_VALUE ? '' : playerId;
+    const globalIndex = fields.findIndex((ff) => ff.id === fieldId);
+    if (globalIndex === -1) return;
+
+    const currentRow = watch(`playerStats.${globalIndex}` as any) as any;
+    const currentPlayerId = String(currentRow?.playerId || '');
+
+    if (!nextPlayerId) {
+      remove(globalIndex);
+      return;
+    }
+
+    if (teamPlayerIdsInStats.includes(nextPlayerId) && currentPlayerId !== nextPlayerId) {
+      toast.warning('同じ選手を複数枠に登録することはできません。');
+      return;
+    }
+
+    const player = allPlayers.find((p) => p.id === nextPlayerId);
+    if (!player) return;
+
+    const base = {
+      playerId: player.id,
+      playerName: player.name,
+      position: player.position || 'N/A',
+      teamId,
+      role: 'sub',
+      rating: undefined,
+      minutesPlayed: 0,
+      goals: 0,
+      assists: 0,
+      yellowCards: 0,
+      redCards: 0,
+      customStats: customStatHeaders.map((h: any) => ({ id: h.id, name: h.name, value: '' })),
+    };
+
+    setValue(`playerStats.${globalIndex}` as any, { ...currentRow, ...base }, { shouldDirty: true });
+  };
+
   const setStarterSlotPlayer = (slot: number, playerId: string) => {
     const nextPlayerId = playerId === NONE_SELECT_VALUE ? '' : playerId;
     const existingInSlot = starters.find((f) => (f as any).starterSlot === slot);
@@ -288,6 +327,13 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     const normalizeCount = (v: any) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
     const playerIdForCounts = String(watch(`playerStats.${globalIndex}.playerId`) || (field as any)?.playerId || "");
+    const playerNumber = (() => {
+      if (!playerIdForCounts) return undefined;
+      const p = allPlayers.find((ap) => ap.id === playerIdForCounts) as any;
+      const nRaw = p?.number;
+      const n = typeof nRaw === 'number' && Number.isFinite(nRaw) ? nRaw : Number(nRaw);
+      return Number.isFinite(n) ? n : undefined;
+    })();
     const goalsFromEvents = playerIdForCounts ? (derivedCounts.goals.get(playerIdForCounts) ?? null) : null;
     const assistsFromEvents = playerIdForCounts ? (derivedCounts.assists.get(playerIdForCounts) ?? null) : null;
     const yellowFromEvents = playerIdForCounts ? (derivedCounts.yellow.get(playerIdForCounts) ?? null) : null;
@@ -308,113 +354,114 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     return (
       <div key={field.id} className="space-y-1">
         <div className="rounded-md border bg-white px-3 py-3 text-gray-900">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 min-w-0">
-              {opts?.header ? (
-                opts.header
+          <div className="overflow-x-auto md:overflow-visible">
+            <div className="grid min-w-max grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto_auto_auto] items-end gap-2 text-xs">
+              <div className="min-w-0 self-end">
+                {opts?.header ? (
+                  opts.header
+                ) : (
+                  <div className="flex items-end gap-2 min-w-0">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
+                      {field.position}
+                    </span>
+                    <span className="font-medium text-sm truncate">
+                      {playerNumber !== undefined ? `#${playerNumber} ` : ''}
+                      {field.playerName}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] text-gray-500">評価</span>
+                <Select value={ratingValue} onValueChange={(val) => setValue(ratingFieldName, parseFloat(val))}>
+                  <SelectTrigger size="sm" className="w-20 bg-white text-gray-900 shadow-none focus-visible:ring-0">
+                    <SelectValue placeholder="-" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ratingOptions.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] text-gray-500">出場分</span>
+                <Select
+                  value={watch(minutesFieldName)?.toString() ?? ""}
+                  onValueChange={(val) => setValue(minutesFieldName, parseInt(val, 10))}
+                >
+                  <SelectTrigger size="sm" className="w-20 bg-white text-gray-900 shadow-none focus-visible:ring-0">
+                    <SelectValue placeholder="-" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(role === 'starter' ? starterMinutesOptions : benchMinutesOptions).map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] text-gray-500">G</span>
+                <Input
+                  type="number"
+                  min="0"
+                  max="10"
+                  readOnly
+                  value={goalsValue}
+                  className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
+                />
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] text-gray-500">A</span>
+                <Input
+                  type="number"
+                  min="0"
+                  max="10"
+                  readOnly
+                  value={assistsValue}
+                  className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
+                />
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] text-gray-500">Y</span>
+                <Input
+                  type="number"
+                  min="0"
+                  max="2"
+                  readOnly
+                  value={yellowValue}
+                  className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
+                />
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] text-gray-500">R</span>
+                <Input
+                  type="number"
+                  min="0"
+                  max="1"
+                  readOnly
+                  value={redValue}
+                  className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
+                />
+              </div>
+
+              {(opts?.showTrash ?? true) ? (
+                <Button type="button" variant="ghost" size="icon" onClick={() => remove(globalIndex)} className="shrink-0">
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
               ) : (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
-                    {field.position}
-                  </span>
-                  <span className="font-medium text-sm truncate">{field.playerName}</span>
-                </div>
+                <div />
               )}
-            </div>
-
-            <div className="flex flex-wrap items-end gap-2 overflow-x-auto md:overflow-visible text-xs">
-              <div className="flex items-end gap-2 shrink-0">
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-gray-500">評価</span>
-                  <Select value={ratingValue} onValueChange={(val) => setValue(ratingFieldName, parseFloat(val))}>
-                    <SelectTrigger size="sm" className="w-20 bg-white text-gray-900 shadow-none focus-visible:ring-0">
-                      <SelectValue placeholder="-" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ratingOptions.map((r) => (
-                        <SelectItem key={r} value={r}>
-                          {r}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-gray-500">出場分</span>
-                  <Select
-                    value={watch(minutesFieldName)?.toString() ?? ""}
-                    onValueChange={(val) => setValue(minutesFieldName, parseInt(val, 10))}
-                  >
-                    <SelectTrigger size="sm" className="w-20 bg-white text-gray-900 shadow-none focus-visible:ring-0">
-                      <SelectValue placeholder="-" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(role === 'starter' ? starterMinutesOptions : benchMinutesOptions).map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex items-end gap-2">
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-gray-500">G</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="10"
-                    readOnly
-                    value={goalsValue}
-                    className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
-                  />
-                </div>
-
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-gray-500">A</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="10"
-                    readOnly
-                    value={assistsValue}
-                    className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
-                  />
-                </div>
-
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-gray-500">Y</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="2"
-                    readOnly
-                    value={yellowValue}
-                    className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
-                  />
-                </div>
-
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-gray-500">R</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="1"
-                    readOnly
-                    value={redValue}
-                    className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
-                  />
-                </div>
-
-                {(opts?.showTrash ?? true) ? (
-                  <Button type="button" variant="ghost" size="icon" onClick={() => remove(globalIndex)} className="shrink-0">
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                ) : null}
-              </div>
             </div>
           </div>
         </div>
@@ -525,7 +572,35 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
           </Select>
         </div>
         <div className="grid grid-cols-1 gap-3">
-          {bench.map(field => renderPlayerRow(field as any))}
+          {bench.map((field) => {
+            const globalIndex = fields.findIndex((f) => f.id === (field as any).id);
+            if (globalIndex === -1) return null;
+            const currentPlayerId = String(watch(`playerStats.${globalIndex}.playerId`) || (field as any)?.playerId || '');
+            const options = sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
+            return renderPlayerRow(field as any, {
+              showTrash: true,
+              header: (
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
+                    {(field as any).position}
+                  </span>
+                  <Select value={currentPlayerId} onValueChange={(val) => setBenchPlayer((field as any).id, val)}>
+                    <SelectTrigger className="h-8 w-44 text-xs bg-white text-gray-900">
+                      <SelectValue placeholder="選手を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE_SELECT_VALUE}>未選択</SelectItem>
+                      {options.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {`#${p.number} ${p.name}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ),
+            });
+          })}
         </div>
       </div>
     </div>

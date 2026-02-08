@@ -94,19 +94,25 @@ async function getPlayersData(
 
   const baseClubDocId = ownerUid || clubId;
 
-  // シーズン一覧はまず clubs/{ownerUid}/seasons を見て、なければ clubs/{clubId}/seasons を見る
-  let seasonsSnap = await db.collection(`clubs/${baseClubDocId}/seasons`).get();
-  if (seasonsSnap.empty && baseClubDocId !== clubId) {
-    seasonsSnap = await db.collection(`clubs/${clubId}/seasons`).get();
-  }
-  const allSeasons = seasonsSnap
-    .docs
-    .filter((doc) => {
+  // シーズン一覧は clubs/{ownerUid}/seasons と clubs/{clubId}/seasons の両方を見てマージする
+  // (ownerUid 側に1件でも存在すると fallback しない仕様だと、シーズンが分散している場合に1つしか表示されない)
+  const seasonIdSet = new Set<string>();
+  const loadSeasonsFrom = async (clubDocId: string) => {
+    const snap = await db.collection(`clubs/${clubDocId}/seasons`).get();
+    snap.docs.forEach((doc) => {
       const data = doc.data() as any;
-      return data?.isPublic !== false;
-    })
-    .map((doc) => toSlashSeason(doc.id))
-    .sort((a, b) => b.localeCompare(a));
+      if (data?.isPublic === false) return;
+      const normalized = toSlashSeason(doc.id);
+      if (normalized) seasonIdSet.add(normalized);
+    });
+  };
+
+  await loadSeasonsFrom(baseClubDocId);
+  if (baseClubDocId !== clubId) {
+    await loadSeasonsFrom(clubId);
+  }
+
+  const allSeasons = Array.from(seasonIdSet).sort((a, b) => b.localeCompare(a));
 
   const seasonNormalized = typeof season === "string" ? toSlashSeason(season) : undefined;
 
@@ -182,30 +188,41 @@ async function getPlayersData(
   // seasons/seasonData のキー表記は slash/dash が混在するので両方許容する
   const activeSeasonDash = activeSeason ? toDashSeason(activeSeason) : "";
   const activeSeasonSlash = activeSeason ? toSlashSeason(activeSeason) : "";
+  const filterBySeasonMembership = (p: any) => {
+    const seasons = Array.isArray(p?.seasons) ? (p.seasons as string[]) : [];
+    const seasonData = p?.seasonData && typeof p.seasonData === "object" ? (p.seasonData as any) : null;
+    if (seasons.length === 0 && !seasonData) return true;
+
+    if (seasons.length === 0 && seasonData) {
+      return Boolean(seasonData[activeSeasonDash] || seasonData[activeSeasonSlash]);
+    }
+
+    return seasons.includes(activeSeason) || seasons.includes(activeSeasonSlash) || seasons.includes(activeSeasonDash);
+  };
+
+  const filterByRoster = (p: any) => {
+    if (!rosterPlayerIdSet) return true;
+    const pid = String(p?.id || "");
+    if (!rosterPlayerIdSet.has(pid)) return false;
+    const rosterTeamId = rosterTeamIdByPlayerId?.get(pid);
+    if (rosterTeamId) {
+      const teamId = typeof p?.teamId === "string" ? p.teamId : p?.__teamId;
+      return String(teamId || "") === rosterTeamId;
+    }
+    return true;
+  };
+
   let filteredPlayers = activeSeason
     ? players.filter((p: any) => {
-        if (rosterPlayerIdSet) {
-          const pid = String(p?.id || "");
-          if (!rosterPlayerIdSet.has(pid)) return false;
-          const rosterTeamId = rosterTeamIdByPlayerId?.get(pid);
-          if (rosterTeamId) {
-            const teamId = typeof p?.teamId === "string" ? p.teamId : p?.__teamId;
-            return String(teamId || "") === rosterTeamId;
-          }
-          return true;
-        }
-
-        const seasons = Array.isArray(p?.seasons) ? (p.seasons as string[]) : [];
-        const seasonData = p?.seasonData && typeof p.seasonData === "object" ? (p.seasonData as any) : null;
-        if (seasons.length === 0 && !seasonData) return true;
-
-        if (seasons.length === 0 && seasonData) {
-          return Boolean(seasonData[activeSeasonDash] || seasonData[activeSeasonSlash]);
-        }
-
-        return seasons.includes(activeSeason) || seasons.includes(activeSeasonSlash) || seasons.includes(activeSeasonDash);
+        if (rosterPlayerIdSet) return filterByRoster(p);
+        return filterBySeasonMembership(p);
       })
     : players;
+
+  // If roster exists but results in zero players, fall back to season membership filtering.
+  if (activeSeason && rosterPlayerIdSet && filteredPlayers.length === 0) {
+    filteredPlayers = players.filter((p: any) => filterBySeasonMembership(p));
+  }
 
   // HP非表示フラグ（isPublished === false）は一覧から除外
   filteredPlayers = filteredPlayers.filter((p) => p.isPublished !== false);
