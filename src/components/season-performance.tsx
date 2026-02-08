@@ -240,18 +240,6 @@ export function SeasonPerformance({
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold">シーズン別成績</h2>
-        <Select value={selectedSeason} onValueChange={onSeasonChange}>
-          <SelectTrigger className="w-[180px] bg-white text-gray-900 border">
-            <SelectValue placeholder="シーズンを選択" />
-          </SelectTrigger>
-          <SelectContent>
-            {seasons.map((season) => (
-              <SelectItem key={season} value={season}>
-                {season}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">

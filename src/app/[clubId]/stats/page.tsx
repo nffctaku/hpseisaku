@@ -368,7 +368,7 @@ export default function ClubStatsPage() {
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
   const [statsData, setStatsData] = useState<StatsDataResponse | null>(null);
   const [statsDataAll, setStatsDataAll] = useState<StatsDataResponse | null>(null);
-  const [selectedSeason, setSelectedSeason] = useState<string>("all");
+  const [selectedSeason, setSelectedSeason] = useState<string>("");
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>("all");
   const [performanceSeason, setPerformanceSeason] = useState<string>("");
 
@@ -443,10 +443,17 @@ export default function ClubStatsPage() {
     }
   }, [seasons, performanceSeason]);
 
+  // Stats list filter: fixed to the latest season (except the league-by-competition section)
+  useEffect(() => {
+    if (seasons.length > 0 && !selectedSeason) {
+      setSelectedSeason(seasons[0]);
+    }
+  }, [seasons, selectedSeason]);
+
   useEffect(() => {
     if (!clubId) return;
     // When filters change, fetch server-filtered + cached aggregate.
-    fetchStatsData({ season: selectedSeason, competitionId: selectedCompetitionId, showLoading: false });
+    fetchStatsData({ season: selectedSeason || 'all', competitionId: selectedCompetitionId, showLoading: false });
   }, [clubId, selectedSeason, selectedCompetitionId]);
 
   return (
@@ -483,20 +490,6 @@ export default function ClubStatsPage() {
           />
 
             <div className="mt-8 flex flex-wrap items-center gap-2 justify-end">
-              <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-                <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900 border">
-                  <SelectValue placeholder="シーズンを選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">すべてのシーズン</SelectItem>
-                  {seasons.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
               <Select value={selectedCompetitionId} onValueChange={setSelectedCompetitionId}>
                 <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900 border">
                   <SelectValue placeholder="大会を選択" />
