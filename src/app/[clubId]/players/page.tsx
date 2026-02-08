@@ -5,7 +5,8 @@ import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 
-export const revalidate = 300;
+export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 interface Player {
   id: string;
@@ -114,9 +115,14 @@ async function getPlayersData(
 
   const allSeasons = Array.from(seasonIdSet).sort((a, b) => b.localeCompare(a));
 
-  // Public players page: always show only the latest public season.
-  const activeSeason = allSeasons.length ? allSeasons[0] : "";
-  const displaySeasons = activeSeason ? [activeSeason] : [];
+  const requestedSeason = typeof season === "string" ? season.trim() : "";
+  const activeSeason =
+    requestedSeason && allSeasons.includes(requestedSeason)
+      ? requestedSeason
+      : allSeasons.length
+        ? allSeasons[0]
+        : "";
+  const displaySeasons = allSeasons;
 
   // If roster exists for the active season, use it as the source of truth for public player visibility.
   // This prevents deleted players from lingering due to stale seasonData/seasons or duplicates across teams.

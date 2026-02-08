@@ -428,6 +428,72 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const hasTeamStats = teamStats.length > 0;
   const hasEvents = Array.isArray(events) && events.length > 0;
 
+  const LineupPlayerCard = ({ ps }: { ps: any }) => {
+    const minutes = Number(ps.minutesPlayed) || 0;
+    const rating = Number(ps.rating) || 0;
+    const goals = Number(ps.goals) || 0;
+    const assists = Number(ps.assists) || 0;
+    const hasRating = rating > 0;
+    const hasMinutes = minutes > 0;
+    const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+    const numberLabel = meta?.number ? `${meta.number}` : "";
+    const positionLabel = meta?.position || ps.position || "";
+
+    const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
+    const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
+    const pillText =
+      typeof subOutMinute === "number"
+        ? `${formatMinute(subOutMinute)}'`
+        : typeof subInMinute === "number"
+          ? `${formatMinute(subInMinute)}'`
+          : "";
+
+    const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
+
+    return (
+      <div className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3">
+        <Avatar className="size-9">
+          {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
+          <AvatarFallback className="text-[11px] font-semibold">{(ps.playerName || "").slice(0, 1)}</AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold truncate">{ps.playerName}</div>
+          <div className="text-[11px] text-muted-foreground truncate">
+            {numberLabel && `${numberLabel} `}
+            {positionLabel}
+          </div>
+        </div>
+        {pillText && (
+          <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+            {pillText}
+          </span>
+        )}
+        {(hasMinutes || goals > 0 || assists > 0) && (
+          <span className="shrink-0 inline-flex items-center gap-2">
+            {goals > 0 && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
+                <span className="text-[12px] leading-none">⚽</span>
+                <span>{goals}</span>
+              </span>
+            )}
+            {assists > 0 && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
+                <span className="text-[12px] leading-none">👟</span>
+                <span>{assists}</span>
+              </span>
+            )}
+            {hasMinutes && (
+              <span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
+                {minutes}
+              </span>
+            )}
+          </span>
+        )}
+        {hasRating && <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>{rating.toFixed(1)}</span>}
+      </div>
+    );
+  };
+
   const HomeLineups = (
     <div>
       <h3 className="text-center text-xs font-semibold text-muted-foreground mb-2">
@@ -436,76 +502,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
       <div className="space-y-2 mb-4">
         {homeStarters.length ? (
           homeStartersSorted.map((ps: any, idx: number) => {
-            const minutes = Number(ps.minutesPlayed) || 0;
-            const rating = Number(ps.rating) || 0;
-            const goals = Number(ps.goals) || 0;
-            const assists = Number(ps.assists) || 0;
-            const hasRating = rating > 0;
-            const hasMinutes = minutes > 0;
-            const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
-            const numberLabel = meta?.number ? `${meta.number}` : "";
-            const positionLabel = meta?.position || ps.position || "";
-
-            const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
-            const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
-            const pillText =
-              typeof subOutMinute === "number"
-                ? `${formatMinute(subOutMinute)}'`
-                : typeof subInMinute === "number"
-                  ? `${formatMinute(subInMinute)}'`
-                  : "";
-
-            const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
-
             return (
-              <div
-                key={idx}
-                className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
-              >
-                <Avatar className="size-9">
-                  {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
-                  <AvatarFallback className="text-[11px] font-semibold">
-                    {(ps.playerName || "").slice(0, 1)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold truncate">{ps.playerName}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">
-                    {numberLabel && `${numberLabel} `}
-                    {positionLabel}
-                  </div>
-                </div>
-                {pillText && (
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                    {pillText}
-                  </span>
-                )}
-                {(hasMinutes || goals > 0 || assists > 0) && (
-                  <span className="shrink-0 inline-flex items-center gap-2">
-                    {goals > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
-                        <span className="text-[12px] leading-none">⚽</span>
-                        <span>{goals}</span>
-                      </span>
-                    )}
-                    {assists > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
-                        <span className="text-[12px] leading-none">👟</span>
-                        <span>{assists}</span>
-                      </span>
-                    )}
-                    {hasMinutes && (
-                      <span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
-                        {minutes}
-                      </span>
-                    )}
-                  </span>
-                )}
-                {hasRating && (
-                  <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
-                    {rating.toFixed(1)}
-                  </span>
-                )}
+              <div key={idx}>
+                <LineupPlayerCard ps={ps} />
               </div>
             );
           })
@@ -517,76 +516,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
       <div className="space-y-2">
         {homeSubs.length ? (
           homeSubsSorted.map((ps: any, idx: number) => {
-            const minutes = Number(ps.minutesPlayed) || 0;
-            const rating = Number(ps.rating) || 0;
-            const goals = Number(ps.goals) || 0;
-            const assists = Number(ps.assists) || 0;
-            const hasRating = rating > 0;
-            const hasMinutes = minutes > 0;
-            const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
-            const numberLabel = meta?.number ? `${meta.number}` : "";
-            const positionLabel = meta?.position || ps.position || "";
-
-            const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
-            const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
-            const pillText =
-              typeof subOutMinute === "number"
-                ? `${formatMinute(subOutMinute)}'`
-                : typeof subInMinute === "number"
-                  ? `${formatMinute(subInMinute)}'`
-                  : "";
-
-            const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
-
             return (
-              <div
-                key={idx}
-                className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
-              >
-                <Avatar className="size-9">
-                  {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
-                  <AvatarFallback className="text-[11px] font-semibold">
-                    {(ps.playerName || "").slice(0, 1)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold truncate">{ps.playerName}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">
-                    {numberLabel && `${numberLabel} `}
-                    {positionLabel}
-                  </div>
-                </div>
-                {pillText && (
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                    {pillText}
-                  </span>
-                )}
-                {(hasMinutes || goals > 0 || assists > 0) && (
-                  <span className="shrink-0 inline-flex items-center gap-2">
-                    {goals > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
-                        <span className="text-[12px] leading-none">⚽</span>
-                        <span>{goals}</span>
-                      </span>
-                    )}
-                    {assists > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
-                        <span className="text-[12px] leading-none">👟</span>
-                        <span>{assists}</span>
-                      </span>
-                    )}
-                    {hasMinutes && (
-                      <span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
-                        {minutes}
-                      </span>
-                    )}
-                  </span>
-                )}
-                {hasRating && (
-                  <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
-                    {rating.toFixed(1)}
-                  </span>
-                )}
+              <div key={idx}>
+                <LineupPlayerCard ps={ps} />
               </div>
             );
           })
@@ -605,76 +537,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
       <div className="space-y-2 mb-4">
         {awayStarters.length ? (
           awayStartersSorted.map((ps: any, idx: number) => {
-            const minutes = Number(ps.minutesPlayed) || 0;
-            const rating = Number(ps.rating) || 0;
-            const goals = Number(ps.goals) || 0;
-            const assists = Number(ps.assists) || 0;
-            const hasRating = rating > 0;
-            const hasMinutes = minutes > 0;
-            const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
-            const numberLabel = meta?.number ? `${meta.number}` : "";
-            const positionLabel = meta?.position || ps.position || "";
-
-            const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
-            const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
-            const pillText =
-              typeof subOutMinute === "number"
-                ? `${formatMinute(subOutMinute)}'`
-                : typeof subInMinute === "number"
-                  ? `${formatMinute(subInMinute)}'`
-                  : "";
-
-            const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
-
             return (
-              <div
-                key={idx}
-                className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
-              >
-                <Avatar className="size-9">
-                  {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
-                  <AvatarFallback className="text-[11px] font-semibold">
-                    {(ps.playerName || "").slice(0, 1)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold truncate">{ps.playerName}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">
-                    {numberLabel && `${numberLabel} `}
-                    {positionLabel}
-                  </div>
-                </div>
-                {pillText && (
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                    {pillText}
-                  </span>
-                )}
-                {(hasMinutes || goals > 0 || assists > 0) && (
-                  <span className="shrink-0 inline-flex items-center gap-2">
-                    {goals > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
-                        <span className="text-[12px] leading-none">⚽</span>
-                        <span>{goals}</span>
-                      </span>
-                    )}
-                    {assists > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
-                        <span className="text-[12px] leading-none">👟</span>
-                        <span>{assists}</span>
-                      </span>
-                    )}
-                    {hasMinutes && (
-                      <span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
-                        {minutes}
-                      </span>
-                    )}
-                  </span>
-                )}
-                {hasRating && (
-                  <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
-                    {rating.toFixed(1)}
-                  </span>
-                )}
+              <div key={idx}>
+                <LineupPlayerCard ps={ps} />
               </div>
             );
           })
@@ -686,76 +551,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
       <div className="space-y-2">
         {awaySubs.length ? (
           awaySubsSorted.map((ps: any, idx: number) => {
-            const minutes = Number(ps.minutesPlayed) || 0;
-            const rating = Number(ps.rating) || 0;
-            const goals = Number(ps.goals) || 0;
-            const assists = Number(ps.assists) || 0;
-            const hasRating = rating > 0;
-            const hasMinutes = minutes > 0;
-            const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
-            const numberLabel = meta?.number ? `${meta.number}` : "";
-            const positionLabel = meta?.position || ps.position || "";
-
-            const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
-            const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
-            const pillText =
-              typeof subOutMinute === "number"
-                ? `${formatMinute(subOutMinute)}'`
-                : typeof subInMinute === "number"
-                  ? `${formatMinute(subInMinute)}'`
-                  : "";
-
-            const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
-
             return (
-              <div
-                key={idx}
-                className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
-              >
-                <Avatar className="size-9">
-                  {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
-                  <AvatarFallback className="text-[11px] font-semibold">
-                    {(ps.playerName || "").slice(0, 1)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold truncate">{ps.playerName}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">
-                    {numberLabel && `${numberLabel} `}
-                    {positionLabel}
-                  </div>
-                </div>
-                {pillText && (
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                    {pillText}
-                  </span>
-                )}
-                {(hasMinutes || goals > 0 || assists > 0) && (
-                  <span className="shrink-0 inline-flex items-center gap-2">
-                    {goals > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
-                        <span className="text-[12px] leading-none">⚽</span>
-                        <span>{goals}</span>
-                      </span>
-                    )}
-                    {assists > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
-                        <span className="text-[12px] leading-none">👟</span>
-                        <span>{assists}</span>
-                      </span>
-                    )}
-                    {hasMinutes && (
-                      <span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
-                        {minutes}
-                      </span>
-                    )}
-                  </span>
-                )}
-                {hasRating && (
-                  <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
-                    {rating.toFixed(1)}
-                  </span>
-                )}
+              <div key={idx}>
+                <LineupPlayerCard ps={ps} />
               </div>
             );
           })
