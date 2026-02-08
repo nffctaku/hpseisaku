@@ -102,13 +102,27 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
     const teamId = (watch(`events.${index}.teamId`) ?? field.teamId ?? match.homeTeam) as string;
 
     // この試合でスタメン／ベンチに登録されている選手のみをイベント選択対象にする
-    const activePlayerIds: string[] = (playerStats as any[])
-      .map((ps) => ps.playerId)
-      .filter(Boolean);
-
     const rawTeamPlayers = teamId === match.homeTeam ? homePlayers : awayPlayers;
+    const teamPlayerIdSet = new Set(rawTeamPlayers.map((p) => p.id));
+
+    const active = (playerStats as any[])
+      .filter((ps) => ps?.playerId && teamPlayerIdSet.has(ps.playerId))
+      .map((ps) => ({
+        playerId: ps.playerId as string,
+        role: (ps.role ?? 'starter') as 'starter' | 'sub',
+      }));
+
+    const activePlayerIds = active.map((a) => a.playerId);
+    const starterIds = active.filter((a) => a.role === 'starter').map((a) => a.playerId);
+    const subIds = active.filter((a) => a.role === 'sub').map((a) => a.playerId);
+
     const filteredByActive = rawTeamPlayers.filter((p) => activePlayerIds.includes(p.id));
     const teamPlayers = filteredByActive.length > 0 ? filteredByActive : rawTeamPlayers;
+    const starterPlayers = rawTeamPlayers.filter((p) => starterIds.includes(p.id));
+    const subPlayers = rawTeamPlayers.filter((p) => subIds.includes(p.id));
+
+    const outPlayers = starterPlayers.length > 0 ? starterPlayers : teamPlayers;
+    const inPlayers = subPlayers.length > 0 ? subPlayers : teamPlayers;
 
     return (
       <div
@@ -281,7 +295,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">未選択</SelectItem>
-                  {teamPlayers.map((p) => (
+                  {outPlayers.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
                     </SelectItem>
@@ -302,7 +316,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">未選択</SelectItem>
-                  {teamPlayers.map((p) => (
+                  {inPlayers.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
                     </SelectItem>

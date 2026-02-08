@@ -69,6 +69,51 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     return { goals, assists, yellow, red };
   }, [watchedEvents]);
 
+  const derivedStarterMinutes = useMemo(() => {
+    const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
+    const outMinuteByPlayerId = new Map<string, number>();
+
+    events
+      .filter((ev: any) => ev?.type === 'substitution')
+      .forEach((ev: any) => {
+        const outId = typeof ev?.outPlayerId === 'string' ? ev.outPlayerId : '';
+        if (!outId) return;
+        if (ev?.teamId !== teamId) return;
+        const m = typeof ev?.minute === 'number' ? ev.minute : Number(ev?.minute);
+        if (!Number.isFinite(m)) return;
+        const minute = Math.max(0, Math.floor(m));
+
+        const cur = outMinuteByPlayerId.get(outId);
+        if (typeof cur === 'number') {
+          outMinuteByPlayerId.set(outId, Math.min(cur, minute));
+        } else {
+          outMinuteByPlayerId.set(outId, minute);
+        }
+      });
+
+    return outMinuteByPlayerId;
+  }, [teamId, watchedEvents]);
+
+  // Reflect substitution OUT minute to starter minutesPlayed automatically
+  useEffect(() => {
+    const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
+    stats.forEach((ps, idx) => {
+      if (!ps) return;
+      if (ps.teamId !== teamId) return;
+      if ((ps.role ?? 'starter') !== 'starter') return;
+      const pid = typeof ps.playerId === 'string' ? ps.playerId : '';
+      if (!pid) return;
+
+      const desired = derivedStarterMinutes.has(pid) ? (derivedStarterMinutes.get(pid) as number) : 90;
+      const curRaw = ps.minutesPlayed;
+      const cur = typeof curRaw === 'number' && Number.isFinite(curRaw) ? curRaw : Number(curRaw);
+      const curNum = Number.isFinite(cur) ? cur : 0;
+      if (curNum === desired) return;
+
+      setValue(`playerStats.${idx}.minutesPlayed` as any, desired, { shouldDirty: true });
+    });
+  }, [derivedStarterMinutes, teamId, watchedPlayerStats, setValue]);
+
   const sortedAllPlayers = [...allPlayers].sort((a, b) => {
     const an = typeof (a as any)?.number === 'number' && Number.isFinite((a as any).number) ? (a as any).number : Number.POSITIVE_INFINITY;
     const bn = typeof (b as any)?.number === 'number' && Number.isFinite((b as any).number) ? (b as any).number : Number.POSITIVE_INFINITY;
