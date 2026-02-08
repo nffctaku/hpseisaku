@@ -426,6 +426,345 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const hasLineups =
     homeStarters.length > 0 || homeSubs.length > 0 || awayStarters.length > 0 || awaySubs.length > 0;
   const hasTeamStats = teamStats.length > 0;
+  const hasEvents = Array.isArray(events) && events.length > 0;
+
+  const HomeLineups = (
+    <div>
+      <h3 className="text-center text-xs font-semibold text-muted-foreground mb-2">
+        {match.homeTeamName} Starting Lineup
+      </h3>
+      <div className="space-y-2 mb-4">
+        {homeStarters.length ? (
+          homeStartersSorted.map((ps: any, idx: number) => {
+            const minutes = Number(ps.minutesPlayed) || 0;
+            const rating = Number(ps.rating) || 0;
+            const goals = Number(ps.goals) || 0;
+            const assists = Number(ps.assists) || 0;
+            const hasRating = rating > 0;
+            const hasMinutes = minutes > 0;
+            const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+            const numberLabel = meta?.number ? `${meta.number}` : "";
+            const positionLabel = meta?.position || ps.position || "";
+
+            const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
+            const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
+            const pillText =
+              typeof subOutMinute === "number"
+                ? `${formatMinute(subOutMinute)}'`
+                : typeof subInMinute === "number"
+                  ? `${formatMinute(subInMinute)}'`
+                  : "";
+
+            const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
+
+            return (
+              <div
+                key={idx}
+                className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
+              >
+                <Avatar className="size-9">
+                  {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
+                  <AvatarFallback className="text-[11px] font-semibold">
+                    {(ps.playerName || "").slice(0, 1)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{ps.playerName}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    {numberLabel && `${numberLabel} `}
+                    {positionLabel}
+                  </div>
+                </div>
+                {pillText && (
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+                    {pillText}
+                  </span>
+                )}
+                {(hasMinutes || goals > 0 || assists > 0) && (
+                  <span className="shrink-0 inline-flex items-center gap-2">
+                    {goals > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
+                        <span className="text-[12px] leading-none">⚽</span>
+                        <span>{goals}</span>
+                      </span>
+                    )}
+                    {assists > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
+                        <span className="text-[12px] leading-none">👟</span>
+                        <span>{assists}</span>
+                      </span>
+                    )}
+                    {hasMinutes && (
+                      <span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
+                        {minutes}
+                      </span>
+                    )}
+                  </span>
+                )}
+                {hasRating && (
+                  <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
+                    {rating.toFixed(1)}
+                  </span>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          <p className="text-center text-xs text-muted-foreground py-2">スタメン情報がありません。</p>
+        )}
+      </div>
+      <h4 className="text-center text-xs font-semibold text-muted-foreground mb-2">Substitutes</h4>
+      <div className="space-y-2">
+        {homeSubs.length ? (
+          homeSubsSorted.map((ps: any, idx: number) => {
+            const minutes = Number(ps.minutesPlayed) || 0;
+            const rating = Number(ps.rating) || 0;
+            const goals = Number(ps.goals) || 0;
+            const assists = Number(ps.assists) || 0;
+            const hasRating = rating > 0;
+            const hasMinutes = minutes > 0;
+            const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+            const numberLabel = meta?.number ? `${meta.number}` : "";
+            const positionLabel = meta?.position || ps.position || "";
+
+            const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
+            const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
+            const pillText =
+              typeof subOutMinute === "number"
+                ? `${formatMinute(subOutMinute)}'`
+                : typeof subInMinute === "number"
+                  ? `${formatMinute(subInMinute)}'`
+                  : "";
+
+            const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
+
+            return (
+              <div
+                key={idx}
+                className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
+              >
+                <Avatar className="size-9">
+                  {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
+                  <AvatarFallback className="text-[11px] font-semibold">
+                    {(ps.playerName || "").slice(0, 1)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{ps.playerName}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    {numberLabel && `${numberLabel} `}
+                    {positionLabel}
+                  </div>
+                </div>
+                {pillText && (
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+                    {pillText}
+                  </span>
+                )}
+                {(hasMinutes || goals > 0 || assists > 0) && (
+                  <span className="shrink-0 inline-flex items-center gap-2">
+                    {goals > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
+                        <span className="text-[12px] leading-none">⚽</span>
+                        <span>{goals}</span>
+                      </span>
+                    )}
+                    {assists > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
+                        <span className="text-[12px] leading-none">👟</span>
+                        <span>{assists}</span>
+                      </span>
+                    )}
+                    {hasMinutes && (
+                      <span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
+                        {minutes}
+                      </span>
+                    )}
+                  </span>
+                )}
+                {hasRating && (
+                  <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
+                    {rating.toFixed(1)}
+                  </span>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          <p className="text-center text-xs text-muted-foreground py-2">サブ情報がありません。</p>
+        )}
+      </div>
+    </div>
+  );
+
+  const AwayLineups = (
+    <div>
+      <h3 className="text-center text-xs font-semibold text-muted-foreground mb-2">
+        {match.awayTeamName} Starting Lineup
+      </h3>
+      <div className="space-y-2 mb-4">
+        {awayStarters.length ? (
+          awayStartersSorted.map((ps: any, idx: number) => {
+            const minutes = Number(ps.minutesPlayed) || 0;
+            const rating = Number(ps.rating) || 0;
+            const goals = Number(ps.goals) || 0;
+            const assists = Number(ps.assists) || 0;
+            const hasRating = rating > 0;
+            const hasMinutes = minutes > 0;
+            const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+            const numberLabel = meta?.number ? `${meta.number}` : "";
+            const positionLabel = meta?.position || ps.position || "";
+
+            const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
+            const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
+            const pillText =
+              typeof subOutMinute === "number"
+                ? `${formatMinute(subOutMinute)}'`
+                : typeof subInMinute === "number"
+                  ? `${formatMinute(subInMinute)}'`
+                  : "";
+
+            const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
+
+            return (
+              <div
+                key={idx}
+                className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
+              >
+                <Avatar className="size-9">
+                  {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
+                  <AvatarFallback className="text-[11px] font-semibold">
+                    {(ps.playerName || "").slice(0, 1)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{ps.playerName}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    {numberLabel && `${numberLabel} `}
+                    {positionLabel}
+                  </div>
+                </div>
+                {pillText && (
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+                    {pillText}
+                  </span>
+                )}
+                {(hasMinutes || goals > 0 || assists > 0) && (
+                  <span className="shrink-0 inline-flex items-center gap-2">
+                    {goals > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
+                        <span className="text-[12px] leading-none">⚽</span>
+                        <span>{goals}</span>
+                      </span>
+                    )}
+                    {assists > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
+                        <span className="text-[12px] leading-none">👟</span>
+                        <span>{assists}</span>
+                      </span>
+                    )}
+                    {hasMinutes && (
+                      <span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
+                        {minutes}
+                      </span>
+                    )}
+                  </span>
+                )}
+                {hasRating && (
+                  <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
+                    {rating.toFixed(1)}
+                  </span>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          <p className="text-center text-xs text-muted-foreground py-2">スタメン情報がありません。</p>
+        )}
+      </div>
+      <h4 className="text-center text-xs font-semibold text-muted-foreground mb-2">Substitutes</h4>
+      <div className="space-y-2">
+        {awaySubs.length ? (
+          awaySubsSorted.map((ps: any, idx: number) => {
+            const minutes = Number(ps.minutesPlayed) || 0;
+            const rating = Number(ps.rating) || 0;
+            const goals = Number(ps.goals) || 0;
+            const assists = Number(ps.assists) || 0;
+            const hasRating = rating > 0;
+            const hasMinutes = minutes > 0;
+            const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+            const numberLabel = meta?.number ? `${meta.number}` : "";
+            const positionLabel = meta?.position || ps.position || "";
+
+            const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
+            const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
+            const pillText =
+              typeof subOutMinute === "number"
+                ? `${formatMinute(subOutMinute)}'`
+                : typeof subInMinute === "number"
+                  ? `${formatMinute(subInMinute)}'`
+                  : "";
+
+            const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
+
+            return (
+              <div
+                key={idx}
+                className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
+              >
+                <Avatar className="size-9">
+                  {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
+                  <AvatarFallback className="text-[11px] font-semibold">
+                    {(ps.playerName || "").slice(0, 1)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{ps.playerName}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    {numberLabel && `${numberLabel} `}
+                    {positionLabel}
+                  </div>
+                </div>
+                {pillText && (
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+                    {pillText}
+                  </span>
+                )}
+                {(hasMinutes || goals > 0 || assists > 0) && (
+                  <span className="shrink-0 inline-flex items-center gap-2">
+                    {goals > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
+                        <span className="text-[12px] leading-none">⚽</span>
+                        <span>{goals}</span>
+                      </span>
+                    )}
+                    {assists > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
+                        <span className="text-[12px] leading-none">👟</span>
+                        <span>{assists}</span>
+                      </span>
+                    )}
+                    {hasMinutes && (
+                      <span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
+                        {minutes}
+                      </span>
+                    )}
+                  </span>
+                )}
+                {hasRating && (
+                  <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
+                    {rating.toFixed(1)}
+                  </span>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          <p className="text-center text-xs text-muted-foreground py-2">サブ情報がありません。</p>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen">
@@ -528,14 +867,20 @@ export default async function MatchDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Tabs: Lineups / Stats */}
-        <Tabs defaultValue={hasLineups || !hasTeamStats ? "lineups" : "stats"} className="w-full">
-          <TabsList className="grid grid-cols-2 w-80 mx-auto mb-4">
+        {/* Tabs: Lineups / Stats / Events */}
+        <Tabs
+          defaultValue={hasLineups || (!hasTeamStats && !hasEvents) ? "lineups" : hasTeamStats ? "stats" : "events"}
+          className="w-full"
+        >
+          <TabsList className="grid grid-cols-3 w-[420px] max-w-full mx-auto mb-4">
             <TabsTrigger value="lineups">
               LINEUPS
             </TabsTrigger>
             <TabsTrigger value="stats" disabled={!hasTeamStats}>
               STATS
+            </TabsTrigger>
+            <TabsTrigger value="events" disabled={!hasEvents}>
+              EVENTS
             </TabsTrigger>
           </TabsList>
 
@@ -543,270 +888,23 @@ export default async function MatchDetailPage({ params }: PageProps) {
           <TabsContent value="lineups" className="mt-4">
             {hasLineups ? (
               <section className="bg-card rounded-lg p-4 md:p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                  {/* Home */}
-                  <div>
-                    <h3 className="text-center text-xs font-semibold text-muted-foreground mb-2">
-                      {match.homeTeamName} Starting Lineup
-                    </h3>
-                    <div className="space-y-2 mb-4">
-                      {homeStarters.length ? (
-                        homeStartersSorted.map((ps: any, idx: number) => {
-                          const minutes = Number(ps.minutesPlayed) || 0;
-                          const rating = Number(ps.rating) || 0;
-                          const hasRating = rating > 0;
-                          const hasMinutes = minutes > 0;
-                          const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
-                          const numberLabel = meta?.number ? `${meta.number}` : "";
-                          const positionLabel = meta?.position || ps.position || "";
-
-                          const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
-                          const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
-                          const pillText =
-                            typeof subOutMinute === "number"
-                              ? `${formatMinute(subOutMinute)}'`
-                              : typeof subInMinute === "number"
-                                ? `${formatMinute(subInMinute)}'`
-                                : "";
-
-                          const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
-
-                          return (
-                            <div
-                              key={idx}
-                              className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
-                            >
-                              <Avatar className="size-9">
-                                {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
-                                <AvatarFallback className="text-[11px] font-semibold">
-                                  {(ps.playerName || "").slice(0, 1)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold truncate">{ps.playerName}</div>
-                                <div className="text-[11px] text-muted-foreground truncate">
-                                  {numberLabel && `${numberLabel} `}
-                                  {positionLabel}
-                                </div>
-                              </div>
-                              {pillText && (
-                                <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                                  {pillText}
-                                </span>
-                              )}
-                              {hasMinutes && (
-                                <span className="shrink-0 inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
-                                  {minutes}
-                                </span>
-                              )}
-                              {hasRating && (
-                                <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
-                                  {rating.toFixed(1)}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <p className="text-center text-xs text-muted-foreground py-2">スタメン情報がありません。</p>
-                      )}
-                    </div>
-                    <h4 className="text-center text-xs font-semibold text-muted-foreground mb-2">Substitutes</h4>
-                    <div className="space-y-2">
-                      {homeSubs.length ? (
-                        homeSubsSorted.map((ps: any, idx: number) => {
-                          const minutes = Number(ps.minutesPlayed) || 0;
-                          const rating = Number(ps.rating) || 0;
-                          const hasRating = rating > 0;
-                          const hasMinutes = minutes > 0;
-                          const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
-                          const numberLabel = meta?.number ? `${meta.number}` : "";
-                          const positionLabel = meta?.position || ps.position || "";
-
-                          const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
-                          const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
-                          const pillText =
-                            typeof subOutMinute === "number"
-                              ? `${formatMinute(subOutMinute)}'`
-                              : typeof subInMinute === "number"
-                                ? `${formatMinute(subInMinute)}'`
-                                : "";
-
-                          const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
-
-                          return (
-                            <div
-                              key={idx}
-                              className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
-                            >
-                              <Avatar className="size-9">
-                                {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
-                                <AvatarFallback className="text-[11px] font-semibold">
-                                  {(ps.playerName || "").slice(0, 1)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold truncate">{ps.playerName}</div>
-                                <div className="text-[11px] text-muted-foreground truncate">
-                                  {numberLabel && `${numberLabel} `}
-                                  {positionLabel}
-                                </div>
-                              </div>
-                              {pillText && (
-                                <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                                  {pillText}
-                                </span>
-                              )}
-                              {hasMinutes && (
-                                <span className="shrink-0 inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
-                                  {minutes}
-                                </span>
-                              )}
-                              {hasRating && (
-                                <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
-                                  {rating.toFixed(1)}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <p className="text-center text-xs text-muted-foreground py-2">サブ情報がありません。</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Away */}
-                  <div>
-                    <h3 className="text-center text-xs font-semibold text-muted-foreground mb-2">
-                      {match.awayTeamName} Starting Lineup
-                    </h3>
-                    <div className="space-y-2 mb-4">
-                      {awayStarters.length ? (
-                        awayStartersSorted.map((ps: any, idx: number) => {
-                          const minutes = Number(ps.minutesPlayed) || 0;
-                          const rating = Number(ps.rating) || 0;
-                          const hasRating = rating > 0;
-                          const hasMinutes = minutes > 0;
-                          const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
-                          const numberLabel = meta?.number ? `${meta.number}` : "";
-                          const positionLabel = meta?.position || ps.position || "";
-
-                          const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
-                          const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
-                          const pillText =
-                            typeof subOutMinute === "number"
-                              ? `${formatMinute(subOutMinute)}'`
-                              : typeof subInMinute === "number"
-                                ? `${formatMinute(subInMinute)}'`
-                                : "";
-
-                          const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
-
-                          return (
-                            <div
-                              key={idx}
-                              className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
-                            >
-                              <Avatar className="size-9">
-                                {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
-                                <AvatarFallback className="text-[11px] font-semibold">
-                                  {(ps.playerName || "").slice(0, 1)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold truncate">{ps.playerName}</div>
-                                <div className="text-[11px] text-muted-foreground truncate">
-                                  {numberLabel && `${numberLabel} `}
-                                  {positionLabel}
-                                </div>
-                              </div>
-                              {pillText && (
-                                <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                                  {pillText}
-                                </span>
-                              )}
-                              {hasMinutes && (
-                                <span className="shrink-0 inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
-                                  {minutes}
-                                </span>
-                              )}
-                              {hasRating && (
-                                <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
-                                  {rating.toFixed(1)}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <p className="text-center text-xs text-muted-foreground py-2">スタメン情報がありません。</p>
-                      )}
-                    </div>
-                    <h4 className="text-center text-xs font-semibold text-muted-foreground mb-2">Substitutes</h4>
-                    <div className="space-y-2">
-                      {awaySubs.length ? (
-                        awaySubsSorted.map((ps: any, idx: number) => {
-                          const minutes = Number(ps.minutesPlayed) || 0;
-                          const rating = Number(ps.rating) || 0;
-                          const hasRating = rating > 0;
-                          const hasMinutes = minutes > 0;
-                          const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
-                          const numberLabel = meta?.number ? `${meta.number}` : "";
-                          const positionLabel = meta?.position || ps.position || "";
-
-                          const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
-                          const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
-                          const pillText =
-                            typeof subOutMinute === "number"
-                              ? `${formatMinute(subOutMinute)}'`
-                              : typeof subInMinute === "number"
-                                ? `${formatMinute(subInMinute)}'`
-                                : "";
-
-                          const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
-
-                          return (
-                            <div
-                              key={idx}
-                              className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3"
-                            >
-                              <Avatar className="size-9">
-                                {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
-                                <AvatarFallback className="text-[11px] font-semibold">
-                                  {(ps.playerName || "").slice(0, 1)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold truncate">{ps.playerName}</div>
-                                <div className="text-[11px] text-muted-foreground truncate">
-                                  {numberLabel && `${numberLabel} `}
-                                  {positionLabel}
-                                </div>
-                              </div>
-                              {pillText && (
-                                <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-                                  {pillText}
-                                </span>
-                              )}
-                              {hasMinutes && (
-                                <span className="shrink-0 inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
-                                  {minutes}
-                                </span>
-                              )}
-                              {hasRating && (
-                                <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>
-                                  {rating.toFixed(1)}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <p className="text-center text-xs text-muted-foreground py-2">サブ情報がありません。</p>
-                      )}
-                    </div>
-                  </div>
+                <div className="md:hidden">
+                  <Tabs defaultValue="home" className="w-full">
+                    <TabsList className="grid grid-cols-2 w-80 max-w-full mx-auto mb-4">
+                      <TabsTrigger value="home">{match.homeTeamName}</TabsTrigger>
+                      <TabsTrigger value="away">{match.awayTeamName}</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="home" className="mt-0">
+                      {HomeLineups}
+                    </TabsContent>
+                    <TabsContent value="away" className="mt-0">
+                      {AwayLineups}
+                    </TabsContent>
+                  </Tabs>
+                </div>
+                <div className="hidden md:grid md:grid-cols-2 gap-6 text-sm">
+                  {HomeLineups}
+                  {AwayLineups}
                 </div>
               </section>
             ) : (
@@ -853,211 +951,184 @@ export default async function MatchDetailPage({ params }: PageProps) {
               </div>
             )}
           </TabsContent>
-        </Tabs>
 
-        {/* Events timeline (same concept as admin preview) */}
-        {events && events.length > 0 && (
-          <section className="bg-card rounded-lg p-4 md:p-6">
-            <h2 className="text-lg font-semibold mb-4 text-center">試合イベント</h2>
-            {(() => {
-              const sorted = events
-                .slice()
-                .sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
+          {/* EVENTS */}
+          <TabsContent value="events" className="mt-4">
+            {hasEvents ? (
+              <section className="bg-card rounded-lg p-4 md:p-6">
+                <h2 className="text-lg font-semibold mb-4 text-center">試合イベント</h2>
+                {(() => {
+                  const sorted = events
+                    .slice()
+                    .sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
 
-              const formatMinute = (minute: any) => {
-                const n = typeof minute === 'number' ? minute : Number(minute);
-                if (!Number.isFinite(n)) return '';
-                if (Number.isInteger(n)) return `${n}`;
+                  const renderTypeBadge = (ev: any) => {
+                    if (ev.type === "goal") return "⚽";
+                    if (ev.type === "yellow") return "Y";
+                    if (ev.type === "red") return "R";
+                    if (ev.type === "sub_in" || ev.type === "sub_out") return "⇄";
+                    if (ev.type === "card") return ev.cardColor === "red" ? "R" : "Y";
+                    if (ev.type === "substitution") return "⇄";
+                    if (ev.type === "note") return "✎";
+                    return "";
+                  };
 
-                const base = Math.floor(n);
-                const extra = Math.round((n - base) * 1000);
-                if (base === 45 && extra >= 1) return `45+${extra}`;
-                if (base === 90 && extra >= 1) return `90+${extra}`;
-                return `${n}`;
-              };
+                  type Row =
+                    | { kind: "event"; ev: any; homeScore: number; awayScore: number }
+                    | { kind: "ht"; homeScore: number; awayScore: number; id: string }
+                    | { kind: "ft"; homeScore: number; awayScore: number; id: string };
 
-              const renderTypeBadge = (ev: any) => {
-                if (ev.type === "goal") return "⚽";
-                // HP側（Firestore events サブコレクション）
-                if (ev.type === "yellow") return "Y";
-                if (ev.type === "red") return "R";
-                if (ev.type === "sub_in" || ev.type === "sub_out") return "⇄";
-                // 管理側（match.events 配列）
-                if (ev.type === "card") return ev.cardColor === "red" ? "R" : "Y";
-                if (ev.type === "substitution") return "⇄";
-                if (ev.type === "note") return "✎";
-                return "";
-              };
+                  const rows: Row[] = [];
+                  let hScore = 0;
+                  let aScore = 0;
 
-              type Row =
-                | { kind: "event"; ev: any; homeScore: number; awayScore: number }
-                | { kind: "ht"; homeScore: number; awayScore: number; id: string }
-                | { kind: "ft"; homeScore: number; awayScore: number; id: string };
-
-              const rows: Row[] = [];
-              let hScore = 0;
-              let aScore = 0;
-
-              sorted.forEach((ev) => {
-                if (ev.type === "goal") {
-                  if (ev.teamId === match.homeTeam) hScore += 1;
-                  else if (ev.teamId === match.awayTeam) aScore += 1;
-                }
-                rows.push({ kind: "event", ev, homeScore: hScore, awayScore: aScore });
-              });
-
-              // HT row (after last event <= 45')
-              const lastFirstHalfIndex = rows
-                .map((r, idx) => ({ r, idx }))
-                .filter(({ r }) => r.kind === "event" && ((r as any).ev.minute ?? 0) <= 45)
-                .map(({ idx }) => idx)
-                .pop();
-
-              if (lastFirstHalfIndex !== undefined) {
-                const ref = rows[lastFirstHalfIndex] as Extract<Row, { kind: "event" }>;
-                rows.splice(lastFirstHalfIndex + 1, 0, {
-                  kind: "ht",
-                  homeScore: ref.homeScore,
-                  awayScore: ref.awayScore,
-                  id: "ht-line",
-                });
-              }
-
-              // FT row (final score)
-              const finalScoreRow = rows
-                .slice()
-                .reverse()
-                .find((r) => r.kind === "event") as Extract<Row, { kind: "event" }> | undefined;
-
-              if (finalScoreRow) {
-                rows.push({
-                  kind: "ft",
-                  homeScore: finalScoreRow.homeScore,
-                  awayScore: finalScoreRow.awayScore,
-                  id: "ft-line",
-                });
-              }
-
-              return (
-                <div className="space-y-2 text-xs md:text-sm rounded-md border border-border/60 bg-background/40 px-2 py-2">
-                  {rows.map((row, index) => {
-                    if (row.kind === "ht" || row.kind === "ft") {
-                      const label = `${row.kind.toUpperCase()} ${row.homeScore}-${row.awayScore}`;
-                      return (
-                        <div
-                          key={row.id}
-                          className="flex items-center justify-center py-1 text-[11px] text-muted-foreground"
-                        >
-                          <span className="px-3 py-0.5 rounded-full border border-border bg-muted/40">
-                            {label}
-                          </span>
-                        </div>
-                      );
-                    }
-
-                    const { ev, homeScore, awayScore } = row;
-                    const isHome = ev.teamId === match.homeTeam;
-                    const nameFromEvent = (ev as any).playerName as string | undefined;
-                    const nameFromStats = ev.playerId ? playerNameMap.get(ev.playerId) : undefined;
-                    const nameLabel = nameFromEvent || nameFromStats || "";
-                    const assist = (ev as any).assistPlayerName as string | undefined;
-                    const assistId = (ev as any).assistPlayerId as string | undefined;
-
-                    const outPlayerId = (ev as any).outPlayerId as string | undefined;
-                    const inPlayerId = (ev as any).inPlayerId as string | undefined;
-                    const outName = outPlayerId ? playerNameMap.get(outPlayerId) : undefined;
-                    const inName = inPlayerId ? playerNameMap.get(inPlayerId) : undefined;
-
-                    let label = "";
-                    let mobileLines: string[] = [];
-                    let goalScoreLabel: string | null = null;
+                  sorted.forEach((ev) => {
                     if (ev.type === "goal") {
-                      const isPk = assistId === 'pk' || assist === 'PK';
-                      if (isPk) {
-                        label = nameLabel ? `${nameLabel} ゴール(PK)` : 'ゴール(PK)';
-                      } else {
-                        label = nameLabel || "ゴール";
-                        if (assist) label += `（A: ${assist}` + ")";
-                      }
-                      goalScoreLabel = `${homeScore}-${awayScore}`;
-
-                      mobileLines = [
-                        isPk ? `${nameLabel || "ゴール"} (PK)` : `${nameLabel || "ゴール"}`,
-                        !isPk && assist ? `${assist}` : "",
-                      ].filter(Boolean);
-                    } else if (ev.type === "yellow") {
-                      label = nameLabel || "カード";
-                      mobileLines = [label];
-                    } else if (ev.type === "red") {
-                      label = nameLabel || "カード";
-                      mobileLines = [label];
-                    } else if (ev.type === "sub_in" || ev.type === "sub_out") {
-                      label = nameLabel || "交代";
-                      mobileLines = [label];
-                    } else if (ev.type === "card") {
-                      label = nameLabel || "カード";
-                      mobileLines = [label];
-                    } else if (ev.type === "substitution") {
-                      label = `${outName ?? "OUT"} → ${inName ?? "IN"}`;
-                      mobileLines = [
-                        `OUT: ${outName ?? "OUT"}`,
-                        `IN: ${inName ?? "IN"}`,
-                      ];
-                    } else if (ev.type === "note") {
-                      label = (ev as any).text || "メモ";
-                      mobileLines = [label];
+                      if (ev.teamId === match.homeTeam) hScore += 1;
+                      else if (ev.teamId === match.awayTeam) aScore += 1;
                     }
+                    rows.push({ kind: "event", ev, homeScore: hScore, awayScore: aScore });
+                  });
 
-                    if (ev.type === "goal" && goalScoreLabel) {
-                      label = `${label} (${goalScoreLabel})`;
-                    }
+                  const lastFirstHalfIndex = rows
+                    .map((r, idx) => ({ r, idx }))
+                    .filter(({ r }) => r.kind === "event" && ((r as any).ev.minute ?? 0) <= 45)
+                    .map(({ idx }) => idx)
+                    .pop();
 
-                    return (
-                      <div
-                        key={ev.id ?? index}
-                        className="grid grid-cols-2 items-center gap-2 px-2 py-1"
-                      >
-                        {/* Home side: minute at left edge, then label */}
-                        <div className="flex justify-start pr-2 min-w-0">
-                          {isHome && label && (
-                            <div className="flex items-center gap-2 min-w-0 max-w-full">
+                  if (lastFirstHalfIndex !== undefined) {
+                    const ref = rows[lastFirstHalfIndex] as Extract<Row, { kind: "event" }>;
+                    rows.splice(lastFirstHalfIndex + 1, 0, {
+                      kind: "ht",
+                      homeScore: ref.homeScore,
+                      awayScore: ref.awayScore,
+                      id: "ht-line",
+                    });
+                  }
+
+                  const finalScoreRow = rows
+                    .slice()
+                    .reverse()
+                    .find((r) => r.kind === "event") as Extract<Row, { kind: "event" }> | undefined;
+
+                  if (finalScoreRow) {
+                    rows.push({
+                      kind: "ft",
+                      homeScore: finalScoreRow.homeScore,
+                      awayScore: finalScoreRow.awayScore,
+                      id: "ft-line",
+                    });
+                  }
+
+                  return (
+                    <div className="space-y-2 text-xs md:text-sm rounded-md border border-border/60 bg-background/40 px-2 py-2">
+                      {rows.map((row, index) => {
+                        if (row.kind === "ht" || row.kind === "ft") {
+                          const label = `${row.kind.toUpperCase()} ${row.homeScore}-${row.awayScore}`;
+                          return (
+                            <div
+                              key={row.id}
+                              className="flex items-center justify-center py-1 text-[11px] text-muted-foreground"
+                            >
+                              <span className="px-3 py-0.5 rounded-full border border-border bg-muted/40">
+                                {label}
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        const { ev, homeScore, awayScore } = row;
+                        const isHome = ev.teamId === match.homeTeam;
+                        const nameFromEvent = (ev as any).playerName as string | undefined;
+                        const nameFromStats = ev.playerId ? playerNameMap.get(ev.playerId) : undefined;
+                        const nameLabel = nameFromEvent || nameFromStats || "";
+                        const assist = (ev as any).assistPlayerName as string | undefined;
+                        const assistId = (ev as any).assistPlayerId as string | undefined;
+
+                        const outPlayerId = (ev as any).outPlayerId as string | undefined;
+                        const inPlayerId = (ev as any).inPlayerId as string | undefined;
+                        const outName = outPlayerId ? playerNameMap.get(outPlayerId) : undefined;
+                        const inName = inPlayerId ? playerNameMap.get(inPlayerId) : undefined;
+
+                        let label = "";
+                        let goalScoreLabel: string | null = null;
+                        if (ev.type === "goal") {
+                          const isPk = assistId === 'pk' || assist === 'PK';
+                          if (isPk) {
+                            label = nameLabel ? `${nameLabel} ゴール(PK)` : 'ゴール(PK)';
+                          } else {
+                            label = nameLabel || "ゴール";
+                            if (assist) label += `（A: ${assist}` + ")";
+                          }
+                          goalScoreLabel = `${homeScore}-${awayScore}`;
+                        } else if (ev.type === "yellow") {
+                          label = nameLabel || "カード";
+                        } else if (ev.type === "red") {
+                          label = nameLabel || "カード";
+                        } else if (ev.type === "sub_in" || ev.type === "sub_out") {
+                          label = nameLabel || "交代";
+                        } else if (ev.type === "card") {
+                          label = nameLabel || "カード";
+                        } else if (ev.type === "substitution") {
+                          label = `${outName ?? "OUT"} → ${inName ?? "IN"}`;
+                        } else if (ev.type === "note") {
+                          label = (ev as any).text || "メモ";
+                        }
+
+                        if (ev.type === "goal" && goalScoreLabel) {
+                          label = `${label} (${goalScoreLabel})`;
+                        }
+
+                        return (
+                          <div
+                            key={ev.id ?? index}
+                            className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 px-2 py-1"
+                          >
+                            <div className="flex justify-start pr-2 min-w-0">
+                              {isHome && label && (
+                                <div className="flex items-center gap-2 min-w-0 max-w-full">
+                                  <div className="min-w-0">
+                                    <div className="flex items-start justify-start gap-1 text-[11px] font-medium text-emerald-500 whitespace-nowrap">
+                                      <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
+                                      <span className="whitespace-nowrap">{label}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex justify-end pl-2 min-w-0">
+                              {!isHome && label && (
+                                <div className="flex items-center gap-2 min-w-0 max-w-full">
+                                  <div className="min-w-0">
+                                    <div className="flex items-start justify-end gap-1 text-[11px] font-medium text-sky-500 whitespace-nowrap">
+                                      <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
+                                      <span className="whitespace-nowrap">{label}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="justify-self-end">
                               <span className="inline-flex h-7 min-w-10 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums shrink-0">
                                 {formatMinute(ev.minute)}'
                               </span>
-                              <div className="min-w-0">
-                                <div className="flex items-start justify-start gap-1 text-[11px] font-medium text-emerald-500 whitespace-nowrap">
-                                  <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
-                                  <span className="whitespace-nowrap">{label}</span>
-                                </div>
-                              </div>
                             </div>
-                          )}
-                        </div>
-
-                        {/* Away side: minute at right edge, then label (right-aligned) */}
-                        <div className="flex justify-end pl-2 min-w-0">
-                          {!isHome && label && (
-                            <div className="flex items-center gap-2 min-w-0 max-w-full">
-                              <div className="min-w-0">
-                                <div className="flex items-start justify-end gap-1 text-[11px] font-medium text-sky-500 whitespace-nowrap">
-                                  <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
-                                  <span className="whitespace-nowrap">{label}</span>
-                                </div>
-                              </div>
-                              <span className="inline-flex h-7 min-w-10 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums shrink-0">
-                                {formatMinute(ev.minute)}'
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </section>
-        )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </section>
+            ) : (
+              <div className="bg-card rounded-lg p-6 text-center text-sm text-muted-foreground">
+                試合イベントが登録されていません。
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

@@ -420,7 +420,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
               </div>
 
               <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-gray-500">A</span>
+                <span className="text-[10px] text-gray-500">👟</span>
                 <Input
                   type="number"
                   min="0"
