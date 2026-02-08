@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { Player, MatchDetails, MatchEvent } from '@/types/match';
 
 const eventFormSchema = z.object({
-  type: z.enum(['goal', 'yellow', 'red', 'sub_in', 'sub_out']),
+  type: z.enum(['goal', 'og', 'yellow', 'red', 'sub_in', 'sub_out']),
   minute: z.coerce.number().min(0, "時間は0以上で入力してください。"),
   teamId: z.string().min(1, "チームを選択してください。"),
   playerId: z.string().optional(),
@@ -119,19 +119,20 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
           name="type"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>種類</FormLabel>
+              <FormLabel>イベントタイプ</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="種類を選択" />
+                    <SelectValue placeholder="イベントを選択" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
                   <SelectItem value="goal">ゴール</SelectItem>
+                  <SelectItem value="og">OG</SelectItem>
                   <SelectItem value="yellow">イエローカード</SelectItem>
                   <SelectItem value="red">レッドカード</SelectItem>
-                  <SelectItem value="sub_in">選手交代 (IN)</SelectItem>
-                  <SelectItem value="sub_out">選手交代 (OUT)</SelectItem>
+                  <SelectItem value="sub_in">交代 (IN)</SelectItem>
+                  <SelectItem value="sub_out">交代 (OUT)</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />

@@ -96,6 +96,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
   const renderEventRow = (field: any, index: number) => {
     const currentType = (watch(`events.${index}.type`) ?? field.type) as
       | "goal"
+      | "og"
       | "card"
       | "substitution"
       | "note";
@@ -183,6 +184,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="goal">ゴール</SelectItem>
+                <SelectItem value="og">OG</SelectItem>
                 <SelectItem value="card">カード</SelectItem>
                 <SelectItem value="substitution">交代</SelectItem>
                 <SelectItem value="note">メモ</SelectItem>
@@ -193,7 +195,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
 
         {/* 詳細エリア */}
         <div className="flex-1 flex flex-wrap items-center gap-2 min-w-0">
-          {currentType === "goal" && (
+          {(currentType === "goal" || currentType === "og") && (
             <>
               <Select
                 value={watch(`events.${index}.playerId`) ?? "none"}

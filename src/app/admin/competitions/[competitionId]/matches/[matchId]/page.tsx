@@ -332,6 +332,8 @@ function EventIcon({ type }: { type: MatchEvent['type'] }) {
   switch (type) {
     case 'goal':
       return <FaFutbol className="h-5 w-5 text-green-500" />;
+    case 'og':
+      return <FaFutbol className="h-5 w-5 text-green-500" />;
     case 'yellow':
       return <Square className="h-5 w-5 text-yellow-500 fill-current" />;
     case 'red':

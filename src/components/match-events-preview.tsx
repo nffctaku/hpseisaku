@@ -60,6 +60,9 @@ export function MatchEventsPreview({ match, homePlayers, awayPlayers }: MatchEve
         ? `${mainPlayer}${assistPlayer ? `（A: ${assistPlayer}` + ') ' : ''}`
         : 'ゴール';
     }
+    if (ev.type === 'og') {
+      return mainPlayer ? `${mainPlayer}` : 'OG';
+    }
     if (ev.type === 'card') {
       return mainPlayer ? `${mainPlayer}` : 'カード';
     }
@@ -76,6 +79,7 @@ export function MatchEventsPreview({ match, homePlayers, awayPlayers }: MatchEve
 
   const renderTypeBadge = (ev: any) => {
     if (ev.type === 'goal') return '⚽';
+    if (ev.type === 'og') return 'OG';
     if (ev.type === 'card') return ev.cardColor === 'red' ? 'R' : 'Y';
     if (ev.type === 'substitution') return '⇄';
     return '✎';
@@ -95,6 +99,10 @@ export function MatchEventsPreview({ match, homePlayers, awayPlayers }: MatchEve
     if (ev.type === 'goal') {
       if (ev.teamId === match.homeTeam) homeScore += 1;
       else if (ev.teamId === match.awayTeam) awayScore += 1;
+    }
+    if (ev.type === 'og') {
+      if (ev.teamId === match.homeTeam) awayScore += 1;
+      else if (ev.teamId === match.awayTeam) homeScore += 1;
     }
     rows.push({ kind: 'event', ev, homeScore, awayScore });
   });
@@ -151,7 +159,7 @@ export function MatchEventsPreview({ match, homePlayers, awayPlayers }: MatchEve
         const { ev, homeScore: h, awayScore: a } = row;
         const isHome = ev.teamId === match.homeTeam;
         let label = renderLabel(ev);
-        if (ev.type === 'goal') {
+        if (ev.type === 'goal' || ev.type === 'og') {
           label = `${label} (${h}-${a})`;
         }
 

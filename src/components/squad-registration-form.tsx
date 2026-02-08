@@ -42,7 +42,7 @@ const formSchema = z.object({
         id: z.string(),
         minute: z.coerce.number().min(0).max(145),
         teamId: z.string(),
-        type: z.enum(['goal', 'card', 'substitution', 'note']),
+        type: z.enum(['goal', 'og', 'card', 'substitution', 'note']),
         playerId: z.string().optional(),
         assistPlayerId: z.string().optional(),
         cardColor: z.enum(['yellow', 'red']).optional(),

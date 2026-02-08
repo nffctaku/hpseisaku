@@ -15,7 +15,7 @@ export interface Team {
 
 export interface MatchEvent {
   id: string;
-  type: 'goal' | 'yellow' | 'red' | 'sub_in' | 'sub_out';
+  type: 'goal' | 'og' | 'yellow' | 'red' | 'sub_in' | 'sub_out';
   minute: number;
   playerId: string;
   playerName: string;

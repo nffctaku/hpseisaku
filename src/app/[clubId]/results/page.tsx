@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { MatchList } from '@/components/match-list';
 import { ClubHeader } from '@/components/club-header';
 import { ClubFooter } from '@/components/club-footer';
+import { toSlashSeason } from "@/lib/season";
 
 // This interface should be defined or imported if it's not already global.
 // For now, we'll define a basic structure.
@@ -126,21 +127,32 @@ async function getMatchesForClub(clubId: string) {
       throw e;
     }
 
-    const seasonsInCompetitions = competitionsSnap.docs
-      .map((d) => {
-        const s = (d.data() as any)?.season;
-        return typeof s === 'string' && s.trim().length > 0 ? s.trim() : null;
-      })
-      .filter((s): s is string => Boolean(s));
+    const publicSeasonIdSet = new Set<string>();
+    const loadPublicSeasonsFrom = async (clubDocId: string) => {
+      const snap = await db.collection(`clubs/${clubDocId}/seasons`).get();
+      snap.docs.forEach((doc) => {
+        const data = doc.data() as any;
+        if (data?.isPublic === false) return;
+        const seasonIdRaw = typeof doc.id === 'string' ? doc.id.trim() : '';
+        const seasonId = seasonIdRaw ? toSlashSeason(seasonIdRaw) : '';
+        if (seasonId) publicSeasonIdSet.add(seasonId);
+      });
+    };
 
-    const latestSeason = seasonsInCompetitions.length > 0 ? [...seasonsInCompetitions].sort().reverse()[0] : null;
+    await loadPublicSeasonsFrom(ownerUid);
+    if (ownerUid !== clubId) {
+      await loadPublicSeasonsFrom(clubId);
+    }
+
+    const publicSeasons = Array.from(publicSeasonIdSet);
+    const latestSeason = publicSeasons.length > 0 ? publicSeasons.slice().sort().reverse()[0] : null;
 
     const nestedMatches = await Promise.all(
       competitionsSnap.docs.map(async (compDoc) => {
         const competitionData = compDoc.data() as any;
-        if (latestSeason && String(competitionData?.season || '').trim() !== latestSeason) {
-          return [] as Match[];
-        }
+        const compSeasonRaw = typeof competitionData?.season === 'string' ? competitionData.season.trim() : '';
+        const compSeason = compSeasonRaw ? toSlashSeason(compSeasonRaw) : '';
+        if (publicSeasonIdSet.size > 0 && (!compSeason || !publicSeasonIdSet.has(compSeason))) return [] as Match[];
         let roundsSnap: FirebaseFirestore.QuerySnapshot;
         try {
           const roundsQuery = db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`);
@@ -178,7 +190,7 @@ async function getMatchesForClub(clubId: string) {
                 competitionId: compDoc.id,
                 competitionName: competitionData.name,
                 competitionLogoUrl: competitionData.logoUrl,
-                season: competitionData.season,
+                season: compSeason,
                 roundId: roundDoc.id,
                 roundName: roundData.name,
                 matchDate: matchData.matchDate,
@@ -211,20 +223,25 @@ async function getMatchesForClub(clubId: string) {
     }
     friendlySnap.forEach((matchDoc) => {
         const matchData = matchDoc.data() as any;
-        if (latestSeason) {
-          const s = getSeasonFromMatchDate(String(matchData.matchDate || ''));
-          if (s && s !== latestSeason) return;
+        if (publicSeasonIdSet.size > 0) {
+          const sRaw = getSeasonFromMatchDate(String(matchData.matchDate || ''));
+          const s = sRaw ? toSlashSeason(sRaw) : null;
+          if (s && !publicSeasonIdSet.has(s)) return;
         }
         const compId = (matchData.competitionId as string) === 'practice' ? 'practice' : 'friendly';
         const compName = matchData.competitionName || (compId === 'practice' ? '練習試合' : '親善試合');
         const homeTeam = teamsMap.get(matchData.homeTeam);
         const awayTeam = teamsMap.get(matchData.awayTeam);
 
+        const friendlySeasonRaw = getSeasonFromMatchDate(String(matchData.matchDate || ''));
+        const friendlySeason = friendlySeasonRaw ? toSlashSeason(friendlySeasonRaw) : undefined;
+
         enrichedMatches.push({
             id: matchDoc.id,
             competitionId: compId,
             competitionName: compName,
             competitionLogoUrl: matchData.competitionLogoUrl,
+            ...(friendlySeason ? { season: friendlySeason } : {}),
             roundId: 'single',
             roundName: typeof matchData.roundName === 'string' ? matchData.roundName : '',
             matchDate: matchData.matchDate,

@@ -365,11 +365,15 @@ export default async function MatchDetailPage({ params }: PageProps) {
   });
 
   const homeGoals = events
-    .filter((e) => e.type === "goal" && e.teamId === match.homeTeam)
-    .sort((a, b) => a.minute - b.minute);
+    .filter((e: any) =>
+      (e.type === "goal" && e.teamId === match.homeTeam) || (e.type === "og" && e.teamId === match.awayTeam)
+    )
+    .sort((a: any, b: any) => (a.minute ?? 0) - (b.minute ?? 0));
   const awayGoals = events
-    .filter((e) => e.type === "goal" && e.teamId === match.awayTeam)
-    .sort((a, b) => a.minute - b.minute);
+    .filter((e: any) =>
+      (e.type === "goal" && e.teamId === match.awayTeam) || (e.type === "og" && e.teamId === match.homeTeam)
+    )
+    .sort((a: any, b: any) => (a.minute ?? 0) - (b.minute ?? 0));
 
   const teamStats = match.teamStats || [];
 
@@ -762,6 +766,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
 
                   const renderTypeBadge = (ev: any) => {
                     if (ev.type === "goal") return "⚽";
+                    if (ev.type === "og") return "OG";
                     if (ev.type === "yellow") return "Y";
                     if (ev.type === "red") return "R";
                     if (ev.type === "sub_in" || ev.type === "sub_out") return "⇄";
@@ -784,6 +789,10 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     if (ev.type === "goal") {
                       if (ev.teamId === match.homeTeam) hScore += 1;
                       else if (ev.teamId === match.awayTeam) aScore += 1;
+                    }
+                    if (ev.type === "og") {
+                      if (ev.teamId === match.homeTeam) aScore += 1;
+                      else if (ev.teamId === match.awayTeam) hScore += 1;
                     }
                     rows.push({ kind: "event", ev, homeScore: hScore, awayScore: aScore });
                   });
@@ -859,6 +868,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
                             if (assist) label += `（A: ${assist}` + ")";
                           }
                           goalScoreLabel = `${homeScore}-${awayScore}`;
+                        } else if (ev.type === "og") {
+                          label = nameLabel || "OG";
+                          goalScoreLabel = `${homeScore}-${awayScore}`;
                         } else if (ev.type === "yellow") {
                           label = nameLabel || "カード";
                         } else if (ev.type === "red") {
@@ -873,7 +885,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                           label = (ev as any).text || "メモ";
                         }
 
-                        if (ev.type === "goal" && goalScoreLabel) {
+                        if ((ev.type === "goal" || ev.type === "og") && goalScoreLabel) {
                           label = `${label} (${goalScoreLabel})`;
                         }
 
