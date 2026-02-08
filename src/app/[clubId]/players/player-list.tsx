@@ -88,14 +88,24 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
                           />
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-5xl font-black tracking-tighter text-gray-700">{player.number}</span>
+                            <span
+                              className={`text-5xl font-black tracking-tighter ${accentColor ? '' : 'text-gray-700'}`}
+                              style={accentColor ? { color: accentColor } : undefined}
+                            >
+                              {player.number}
+                            </span>
                           </div>
                         )}
 
                         <div className="absolute left-0 right-0 bottom-0 h-20 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
 
                         <div className="absolute top-4 left-4">
-                          <div className="text-white text-base font-semibold leading-none">{player.number}</div>
+                          <div
+                            className={`text-base font-semibold leading-none ${accentColor ? '' : 'text-white'}`}
+                            style={accentColor ? { color: accentColor } : undefined}
+                          >
+                            {player.number}
+                          </div>
                           <div
                             className={`h-1 w-6 mt-2 ${accentColor ? '' : 'bg-white'}`}
                             style={accentColor ? { backgroundColor: accentColor } : undefined}
