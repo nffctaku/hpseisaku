@@ -229,18 +229,34 @@ const getRosterHits = (ownerUid: string, playerId: string): Promise<RosterHit[]>
   )();
 };
 
-async function getRegisteredSeasonIds(ownerUid: string, playerId: string, playerSeasons?: string[]): Promise<string[]> {
+async function getRegisteredSeasonIds(ownerUid: string, playerId: string, playerDoc: any): Promise<string[]> {
   const hits = await getRosterHits(ownerUid, playerId);
   const rosterSeasonIds: string[] = hits.map((h) => h.seasonId);
 
-  const base = rosterSeasonIds.length > 0 ? rosterSeasonIds : (Array.isArray(playerSeasons) ? playerSeasons : []);
+  const playerSeasons = Array.isArray(playerDoc?.seasons) ? (playerDoc.seasons as any[]) : [];
+  const seasonDataKeys =
+    playerDoc?.seasonData && typeof playerDoc.seasonData === "object" ? Object.keys(playerDoc.seasonData as any) : [];
+
+  const base = [
+    ...rosterSeasonIds,
+    ...playerSeasons,
+    ...seasonDataKeys,
+  ];
+
   const normalized = base
     .map((s) => (typeof s === "string" ? s.trim() : ""))
     .filter((s) => s.length > 0)
     .map((s) => toSlashSeason(s));
 
   normalized.sort((a, b) => b.localeCompare(a));
-  return Array.from(new Set(normalized));
+
+  const unique = Array.from(new Set(normalized));
+
+  // Only keep seasons that still exist under clubs/{ownerUid}/seasons.
+  // This prevents deleted seasons from appearing in public player stats pages.
+  const seasonsSnap = await db.collection(`clubs/${ownerUid}/seasons`).get();
+  const existing = new Set(seasonsSnap.docs.map((d) => toSlashSeason(d.id)));
+  return unique.filter((s) => existing.has(toSlashSeason(s)));
 }
 
 async function findPlayerDoc(ownerUid: string, playerId: string, preferredTeamId?: string | null): Promise<any | null> {
@@ -587,7 +603,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
       return NextResponse.json({ error: "Player not found" }, { status: 404 });
     }
 
-    const registeredSeasonIds = await getRegisteredSeasonIds(ownerUid, playerId, Array.isArray(playerDoc.seasons) ? playerDoc.seasons : []);
+    const registeredSeasonIds = await getRegisteredSeasonIds(ownerUid, playerId, playerDoc);
 
     const statsSeason = (() => {
       const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { collection, doc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -131,6 +131,50 @@ export default function TeamSeasonSelectPage() {
     }
   };
 
+  const handleDeleteSeason = async () => {
+    if (!clubUid || !user) return;
+    if (!selectedSeason) {
+      toast.error("シーズンが選択されていません。");
+      return;
+    }
+
+    const ok = window.confirm(`シーズン ${selectedSeason} を削除します。\nこのシーズンのロスター/選手のシーズンデータも削除されます。\nよろしいですか？`);
+    if (!ok) return;
+
+    try {
+      const token = await (auth.currentUser as any)?.getIdToken?.();
+      if (!token) {
+        toast.error("認証情報を取得できませんでした。再ログインしてください。");
+        return;
+      }
+      const res = await fetch("/api/club/delete-season", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ seasonId: selectedSeason }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(typeof body?.message === "string" ? body.message : `Failed (${res.status})`);
+      }
+
+      const seasonsColRef = collection(db, `clubs/${clubUid}/seasons`);
+      const snapshot = await getDocs(seasonsColRef);
+      const seasonsData = snapshot.docs
+        .map((d) => ({ id: toSlashSeason(d.id), ...(d.data() as any) } as Season))
+        .sort((a, b) => b.id.localeCompare(a.id));
+      setSeasons(seasonsData);
+      setSelectedSeason(seasonsData[0]?.id ?? "");
+
+      toast.success(`シーズン ${selectedSeason} を削除しました。`);
+    } catch (e) {
+      console.error("[TeamSeasonSelectPage] failed to delete season", e);
+      toast.error(e instanceof Error ? e.message : "シーズン削除に失敗しました");
+    }
+  };
+
   return (
     <div className="max-w-xl">
       {!user || booting ? (
@@ -174,6 +218,14 @@ export default function TeamSeasonSelectPage() {
               }}
             >
               {next === "booklet" ? "名鑑へ" : "編集"}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!selectedSeason}
+              onClick={handleDeleteSeason}
+            >
+              シーズン削除
             </Button>
             <Button
               type="button"
