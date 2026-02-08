@@ -263,6 +263,35 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                                     <div key={match.id} className="block bg-white text-gray-900 rounded-md border">
                                       {/* Mobile */}
                                       <div className="p-2 lg:hidden">
+                                          <div className="text-[10px] text-muted-foreground text-center">
+                                            <span className="inline-flex max-w-full items-center justify-center gap-2 min-w-0">
+                                              <span className="shrink-0">
+                                                {(() => {
+                                                  const d = parseISO(match.matchDate);
+                                                  const dateLabel = Number.isNaN(d.getTime())
+                                                    ? match.matchDate
+                                                    : format(d, 'yyyy.M.d(EEE)', { locale: ja });
+                                                  return `${dateLabel}${match.matchTime ? ` ${match.matchTime}` : ''}`;
+                                                })()}
+                                              </span>
+                                              <span className="inline-flex min-w-0 items-center gap-1">
+                                                {match.competitionLogoUrl ? (
+                                                  <Image
+                                                    src={match.competitionLogoUrl}
+                                                    alt=""
+                                                    width={12}
+                                                    height={12}
+                                                    className="h-3 w-3 shrink-0 object-contain"
+                                                  />
+                                                ) : null}
+                                                <span className="truncate">
+                                                  {match.roundId === 'single' || !match.roundName
+                                                    ? match.competitionName
+                                                    : `${match.competitionName} / ${match.roundName}`}
+                                                </span>
+                                              </span>
+                                            </span>
+                                          </div>
                                           <div className="grid grid-cols-12 items-center gap-1">
                                               <div className="col-span-5 flex items-center justify-end gap-1 min-w-0">
                                                   <span className="font-semibold text-[11px] text-right truncate">{match.homeTeamName}</span>
@@ -304,22 +333,6 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                                                   <span className="font-semibold text-[11px] truncate">{match.awayTeamName}</span>
                                               </div>
                                           </div>
-                                          <div className="text-[10px] text-muted-foreground text-center mt-1">
-                                              <span className="inline-flex items-center justify-center gap-1">
-                                                {match.competitionLogoUrl ? (
-                                                  <Image
-                                                    src={match.competitionLogoUrl}
-                                                    alt=""
-                                                    width={12}
-                                                    height={12}
-                                                    className="h-3 w-3 object-contain"
-                                                  />
-                                                ) : null}
-                                                <span>
-                                                  {match.roundId === 'single' ? match.competitionName : `${match.competitionName} / ${match.roundName}`}
-                                                </span>
-                                              </span>
-                                          </div>
                                       </div>
 
                                       {/* Desktop */}
@@ -341,7 +354,20 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
 
                                           <div className="mt-2 font-semibold leading-snug">
                                             <div className="text-sm truncate">
-                                              {match.roundId === 'single' ? match.competitionName : match.competitionName}
+                                              <span className="inline-flex items-center gap-2 min-w-0">
+                                                {match.competitionLogoUrl ? (
+                                                  <Image
+                                                    src={match.competitionLogoUrl}
+                                                    alt=""
+                                                    width={16}
+                                                    height={16}
+                                                    className="h-4 w-4 shrink-0 object-contain"
+                                                  />
+                                                ) : null}
+                                                <span className="truncate">
+                                                  {match.roundId === 'single' ? match.competitionName : match.competitionName}
+                                                </span>
+                                              </span>
                                             </div>
                                             {match.roundId !== 'single' && match.roundName ? (
                                               <div className="text-sm truncate">{match.roundName}</div>
