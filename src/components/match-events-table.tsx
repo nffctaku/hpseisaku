@@ -230,7 +230,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pk">PK</SelectItem>
-                  <SelectItem value="none">なし</SelectItem>
+                  <SelectItem value="none">(アシスト/PK）</SelectItem>
                   {teamPlayers.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
