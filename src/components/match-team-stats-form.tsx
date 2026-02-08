@@ -61,7 +61,12 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
   const [isTemplateLoading, setIsTemplateLoading] = useState(false);
   const [isTemplateSaving, setIsTemplateSaving] = useState(false);
   const [templateStats, setTemplateStats] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [savedIndicatorVisible, setSavedIndicatorVisible] = useState(false);
   const initializedMatchIdRef = useRef<string | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveReadyRef = useRef(false);
+  const autosavingRef = useRef(false);
+  const savedIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -164,6 +169,7 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
     const statsFromTemplate = templateStats;
     replace(buildStatsForForm(existingStats, statsFromTemplate));
     initializedMatchIdRef.current = match.id;
+    autosaveReadyRef.current = true;
   }, [match, replace, templateStats, form.formState.isDirty]);
 
   const handleSetAsDefault = async () => {
@@ -190,6 +196,15 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
     }
   };
 
+  useEffect(() => {
+    return () => {
+      if (savedIndicatorTimerRef.current) {
+        clearTimeout(savedIndicatorTimerRef.current);
+        savedIndicatorTimerRef.current = null;
+      }
+    };
+  }, []);
+
   const handleAddStat = () => {
     if (fields.length >= 15) {
       toast.warning('スタッツ項目は最大15個です。');
@@ -214,6 +229,11 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
       }));
       await updateDoc(matchRef, { teamStats: normalizedForSave });
       toast.success('試合スタッツを更新しました。');
+      form.reset(form.getValues(), { keepValues: true });
+
+      setSavedIndicatorVisible(true);
+      if (savedIndicatorTimerRef.current) clearTimeout(savedIndicatorTimerRef.current);
+      savedIndicatorTimerRef.current = setTimeout(() => setSavedIndicatorVisible(false), 2000);
     } catch (error) {
       console.error('Error updating team stats:', error);
       const code = typeof (error as any)?.code === 'string' ? (error as any).code : '';
@@ -222,6 +242,60 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
       setIsSaving(false);
     }
   };
+
+  useEffect(() => {
+    const sub = form.watch(() => {
+      if (!autosaveReadyRef.current) return;
+      if (!form.formState.isDirty) return;
+      if (isSaving || autosavingRef.current || isTemplateLoading || isTemplateSaving) return;
+      if (!ownerUid) return;
+
+      const parsed = formSchema.safeParse(form.getValues());
+      if (!parsed.success) return;
+
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = setTimeout(async () => {
+        if (!autosaveReadyRef.current) return;
+        if (!form.formState.isDirty) return;
+        if (isSaving || autosavingRef.current || isTemplateLoading || isTemplateSaving) return;
+
+        const latest = formSchema.safeParse(form.getValues());
+        if (!latest.success) return;
+
+        autosavingRef.current = true;
+        try {
+          const matchRef = doc(
+            db,
+            matchDocPath || `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`
+          );
+          const normalizedForSave = latest.data.teamStats.map((s) => ({
+            id: s.id,
+            name: s.name,
+            homeValue: toNumberOrNull(s.homeValue),
+            awayValue: toNumberOrNull(s.awayValue),
+          }));
+          await updateDoc(matchRef, { teamStats: normalizedForSave });
+          form.reset(form.getValues(), { keepValues: true });
+
+          setSavedIndicatorVisible(true);
+          if (savedIndicatorTimerRef.current) clearTimeout(savedIndicatorTimerRef.current);
+          savedIndicatorTimerRef.current = setTimeout(() => setSavedIndicatorVisible(false), 2000);
+        } catch (e) {
+          console.error('Error auto-saving team stats:', e);
+        } finally {
+          autosavingRef.current = false;
+        }
+      }, 1500);
+    });
+
+    return () => {
+      sub.unsubscribe();
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [form, ownerUid, competitionId, roundId, match.id, matchDocPath, isSaving, isTemplateLoading, isTemplateSaving]);
 
   return (
     <Card className="mt-4 bg-white text-gray-900">
@@ -321,6 +395,9 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
               <PlusCircle className="mr-2 h-4 w-4" />
               項目を追加
             </Button>
+            <div className="text-xs text-muted-foreground">
+              {savedIndicatorVisible ? '自動保存しました' : null}
+            </div>
             <Button
               type="submit"
               disabled={isSaving}

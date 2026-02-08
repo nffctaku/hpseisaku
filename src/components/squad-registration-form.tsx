@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm, FormProvider, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -76,6 +76,12 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   const [saving, setSaving] = useState(false);
   const [settingDefault, setSettingDefault] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
+  const [savedIndicatorVisible, setSavedIndicatorVisible] = useState(false);
+
+   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+   const autosaveReadyRef = useRef(false);
+   const savingRef = useRef(false);
+   const savedIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const normalizedSeasonId = typeof seasonId === 'string' ? seasonId.trim() : '';
   const seasonStorageKey = normalizedSeasonId ? `default_squad_${ownerUid}_${normalizedSeasonId}` : `default_squad_${ownerUid}`;
@@ -242,6 +248,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
 
   const watchedEvents = useWatch({ control: methods.control, name: 'events' });
   const watchedPlayerStats = useWatch({ control: methods.control, name: 'playerStats' });
+  const watchedCustomStatHeaders = useWatch({ control: methods.control, name: 'customStatHeaders' });
 
   useEffect(() => {
     const events = Array.isArray(watchedEvents) ? watchedEvents : [];
@@ -338,6 +345,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         toast.error("選手データの読み込みに失敗しました。");
       } finally {
         setLoading(false);
+        autosaveReadyRef.current = true;
       }
     };
     fetchMatchData();
@@ -354,19 +362,21 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     });
   };
 
-  const onSubmit: SubmitHandler<FormValues> = async (data) => {
+  const saveSquadData = async (data: FormValues, opts?: { showToast?: boolean }) => {
+    const showToast = opts?.showToast !== false;
     if (!user || !ownerUid || !roundId || !competitionId) {
-      toast.error('データが不完全なため保存できません。');
-      return;
+      if (showToast) toast.error('データが不完全なため保存できません。');
+      return { ok: false as const };
     }
-    setSaving(true);
+    if (savingRef.current) return { ok: false as const };
+    savingRef.current = true;
+    if (showToast) setSaving(true);
     try {
       const matchDocRef = doc(
         db,
         matchDocPath || `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`
       );
 
-      // イベントから G/A/Y/R を集計
       const goalCounts = new Map<string, number>();
       const assistCounts = new Map<string, number>();
       const yellowCounts = new Map<string, number>();
@@ -396,7 +406,6 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         }
       });
 
-      // 選手ID → 名前のマップ（得点者表示用にイベントへ埋め込む）
       const playerNameMap = new Map<string, string>();
       [...homePlayers, ...awayPlayers].forEach((p) => {
         if (p.id && p.name) {
@@ -407,20 +416,18 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       const normalizedPlayerStats = (data.playerStats || [])
         .filter((ps: any) => Boolean(ps?.playerId))
         .map((ps: any) => {
-        const playerId = ps.playerId;
-        const role = ps?.role ? ps.role : 'starter';
-        return {
-          ...ps,
-          role,
-          goals: goalCounts.get(playerId) ?? 0,
-          assists: assistCounts.get(playerId) ?? 0,
-          yellowCards: yellowCounts.get(playerId) ?? 0,
-          redCards: redCounts.get(playerId) ?? 0,
-        };
-      });
+          const playerId = ps.playerId;
+          const role = ps?.role ? ps.role : 'starter';
+          return {
+            ...ps,
+            role,
+            goals: goalCounts.get(playerId) ?? 0,
+            assists: assistCounts.get(playerId) ?? 0,
+            yellowCards: yellowCounts.get(playerId) ?? 0,
+            redCards: redCounts.get(playerId) ?? 0,
+          };
+        });
 
-      // Firestore は undefined を許可しないため、events から undefined のフィールドを取り除く
-      // 併せて playerName / assistPlayerName もイベントに埋め込む
       const sanitizedEvents = (data.events || []).map((ev) => {
         const {
           id,
@@ -460,9 +467,6 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       });
       await setDoc(matchDocRef, payload, { merge: true });
 
-      // 交代イベントを試合イベント（サブコレクション）へ反映
-      // - 既存の手動追加イベント（goal/yellow/red/sub_*等）は保持
-      // - このフォーム由来の交代イベントは id が "sub-" で始まるドキュメントとして管理し、現状と差分を取って追加/削除
       const eventsColRef = collection(
         db,
         `${(matchDocPath || `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`)}/events`
@@ -511,7 +515,6 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           }
         });
 
-      // 既存の sub- 生成イベントのうち、現在のフォームに存在しないものは削除
       const existingEventsSnap = await getDocs(eventsColRef);
       existingEventsSnap.docs.forEach((d) => {
         if (d.id.startsWith('sub-') && !desiredSubDocIds.has(d.id)) {
@@ -521,15 +524,71 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
 
       await batch.commit();
 
-      toast.success('出場選手・スタッツ・イベントを更新しました。');
+      if (showToast) toast.success('出場選手・スタッツ・イベントを更新しました。');
+
+      setSavedIndicatorVisible(true);
+      if (savedIndicatorTimerRef.current) clearTimeout(savedIndicatorTimerRef.current);
+      savedIndicatorTimerRef.current = setTimeout(() => {
+        setSavedIndicatorVisible(false);
+      }, 2000);
+
+      return { ok: true as const };
     } catch (error) {
       console.error("Error saving squad data:", error);
       const code = typeof (error as any)?.code === 'string' ? (error as any)?.code : '';
-      toast.error(`更新に失敗しました。${code ? ` (${code})` : ''}`);
+      if (showToast) toast.error(`更新に失敗しました。${code ? ` (${code})` : ''}`);
+      return { ok: false as const };
     } finally {
-      setSaving(false);
+      savingRef.current = false;
+      if (showToast) setSaving(false);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (savedIndicatorTimerRef.current) {
+        clearTimeout(savedIndicatorTimerRef.current);
+        savedIndicatorTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const onSubmit: SubmitHandler<FormValues> = async (data) => {
+    await saveSquadData(data, { showToast: true });
+  };
+
+  useEffect(() => {
+    if (loading) return;
+    if (!autosaveReadyRef.current) return;
+    if (!methods.formState.isDirty) return;
+    if (savingRef.current) return;
+
+    const parsed = formSchema.safeParse(methods.getValues());
+    if (!parsed.success) return;
+
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+    autosaveTimerRef.current = setTimeout(async () => {
+      if (!autosaveReadyRef.current) return;
+      if (!methods.formState.isDirty) return;
+      if (savingRef.current) return;
+      const latest = formSchema.safeParse(methods.getValues());
+      if (!latest.success) return;
+      const res = await saveSquadData(latest.data, { showToast: false });
+      if (res.ok) {
+        const cur = methods.getValues();
+        methods.reset(cur, { keepValues: true });
+      }
+    }, 1500);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [watchedEvents, watchedPlayerStats, watchedCustomStatHeaders, methods.formState.isDirty, loading]);
 
   // 現在のメンバーをデフォルトとして設定
   const setAsDefaultSquad = () => {
@@ -639,6 +698,9 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 保存
               </Button>
+              <div className="text-xs text-muted-foreground">
+                {savedIndicatorVisible ? '自動保存しました' : null}
+              </div>
             </div>
           ) : (
             <div className="mt-8 flex justify-end">
@@ -650,6 +712,9 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 保存
               </Button>
+              <div className="ml-3 self-center text-xs text-muted-foreground">
+                {savedIndicatorVisible ? '自動保存しました' : null}
+              </div>
             </div>
           )}
           </form>

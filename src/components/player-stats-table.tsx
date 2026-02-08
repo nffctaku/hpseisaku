@@ -104,13 +104,24 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
       const pid = typeof ps.playerId === 'string' ? ps.playerId : '';
       if (!pid) return;
 
-      const desired = derivedStarterMinutes.has(pid) ? (derivedStarterMinutes.get(pid) as number) : 90;
+      // If the player has a substitution OUT event, enforce minutesPlayed to that minute.
+      // Otherwise, allow manual selection (only initialize to 90 when it's missing).
+      const hasOut = derivedStarterMinutes.has(pid);
+      const desired = hasOut ? (derivedStarterMinutes.get(pid) as number) : undefined;
+
       const curRaw = ps.minutesPlayed;
       const cur = typeof curRaw === 'number' && Number.isFinite(curRaw) ? curRaw : Number(curRaw);
-      const curNum = Number.isFinite(cur) ? cur : 0;
-      if (curNum === desired) return;
+      const curNum = Number.isFinite(cur) ? cur : undefined;
 
-      setValue(`playerStats.${idx}.minutesPlayed` as any, desired, { shouldDirty: true });
+      if (hasOut) {
+        if (curNum === desired) return;
+        setValue(`playerStats.${idx}.minutesPlayed` as any, desired as number, { shouldDirty: true });
+        return;
+      }
+
+      if (curRaw === undefined || curRaw === null || curRaw === '') {
+        setValue(`playerStats.${idx}.minutesPlayed` as any, 90, { shouldDirty: false });
+      }
     });
   }, [derivedStarterMinutes, teamId, watchedPlayerStats, setValue]);
 
