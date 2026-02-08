@@ -1463,30 +1463,32 @@ export default async function PlayerPage({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-1">
-                <div className="relative aspect-[4/5] rounded-lg border bg-card overflow-hidden">
-                  {player.photoUrl ? (
-                    <Image
-                      src={player.photoUrl}
-                      alt={player.name}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 33vw"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
-                      <p className="text-7xl font-black text-primary tracking-tighter">
-                        {currentSeasonData?.number ?? player.number ?? "-"}
-                      </p>
-                      <h1 className="mt-4 text-3xl font-bold uppercase text-center break-words">{player.name}</h1>
-                    </div>
-                  )}
-                </div>
+                <div className="mx-auto w-full max-w-[260px]">
+                  <div className="relative w-full h-52 sm:h-52 md:h-60 rounded-lg border bg-card overflow-hidden">
+                    {player.photoUrl ? (
+                      <Image
+                        src={player.photoUrl}
+                        alt={player.name}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 33vw"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+                        <p className="text-7xl font-black text-primary tracking-tighter">
+                          {currentSeasonData?.number ?? player.number ?? "-"}
+                        </p>
+                        <h1 className="mt-4 text-3xl font-bold uppercase text-center break-words">{player.name}</h1>
+                      </div>
+                    )}
+                  </div>
 
-                <MiniPitch
-                  player={player}
-                  className="hidden md:block mt-4 w-full"
-                  pitchClassName="w-full aspect-[3/4] min-h-[340px]"
-                />
+                  <MiniPitch
+                    player={player}
+                    className="hidden md:block mt-4 w-full"
+                    pitchClassName="w-full aspect-[3/4] min-h-[340px]"
+                  />
+                </div>
               </div>
 
               <div className="md:col-span-2">
