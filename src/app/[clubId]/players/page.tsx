@@ -15,6 +15,7 @@ interface Player {
   photoUrl: string;
   seasons?: string[];
   isPublished?: boolean;
+  __teamId?: string;
 }
 
 async function getPlayersData(
@@ -115,6 +116,31 @@ async function getPlayersData(
       : allSeasons[0]
     : "";
 
+  // If roster exists for the active season, use it as the source of truth for public player visibility.
+  // This prevents deleted players from lingering due to stale seasonData/seasons or duplicates across teams.
+  const activeSeasonDashForRoster = activeSeason ? toDashSeason(activeSeason) : "";
+  let rosterPlayerIdSet: Set<string> | null = null;
+  let rosterTeamIdByPlayerId: Map<string, string> | null = null;
+  if (activeSeasonDashForRoster) {
+    try {
+      const rosterSnap = await db.collection(`clubs/${baseClubDocId}/seasons/${activeSeasonDashForRoster}/roster`).get();
+      if (!rosterSnap.empty) {
+        rosterPlayerIdSet = new Set(rosterSnap.docs.map((d) => d.id));
+        rosterTeamIdByPlayerId = new Map(
+          rosterSnap.docs
+            .map((d) => {
+              const data = d.data() as any;
+              const teamId = typeof data?.teamId === "string" ? data.teamId.trim() : "";
+              return teamId ? ([d.id, teamId] as const) : null;
+            })
+            .filter((x): x is readonly [string, string] => Boolean(x))
+        );
+      }
+    } catch (e) {
+      console.warn("Failed to load roster for players page", e);
+    }
+  }
+
   // 選手データもまず clubs/{ownerUid}/teams/*/players を見て、なければ clubs/{clubId}/teams を見る
   let teamsSnap = await db.collection(`clubs/${baseClubDocId}/teams`).get();
   if (teamsSnap.empty && baseClubDocId !== clubId) {
@@ -128,6 +154,7 @@ async function getPlayersData(
       const teamPlayersSnap = await teamPlayersRef.get();
       return teamPlayersSnap.docs.map((pDoc) => ({
         id: pDoc.id,
+        __teamId: teamDoc.id,
         ...(pDoc.data() as any),
       })) as Player[];
     })
@@ -135,12 +162,39 @@ async function getPlayersData(
 
   players.push(...playersByTeam.flat());
 
+  // If no season is public, do not show any players on the public page.
+  if (!activeSeason) {
+    return {
+      clubName,
+      logoUrl,
+      homeBgColor,
+      sponsors,
+      snsLinks,
+      legalPages,
+      gameTeamUsage,
+      players: [],
+      allSeasons,
+      activeSeason: "",
+    };
+  }
+
   // シーズンでフィルタ（seasons 未設定 or 空配列は全シーズン所属として扱う）
   // seasons/seasonData のキー表記は slash/dash が混在するので両方許容する
   const activeSeasonDash = activeSeason ? toDashSeason(activeSeason) : "";
   const activeSeasonSlash = activeSeason ? toSlashSeason(activeSeason) : "";
   let filteredPlayers = activeSeason
     ? players.filter((p: any) => {
+        if (rosterPlayerIdSet) {
+          const pid = String(p?.id || "");
+          if (!rosterPlayerIdSet.has(pid)) return false;
+          const rosterTeamId = rosterTeamIdByPlayerId?.get(pid);
+          if (rosterTeamId) {
+            const teamId = typeof p?.teamId === "string" ? p.teamId : p?.__teamId;
+            return String(teamId || "") === rosterTeamId;
+          }
+          return true;
+        }
+
         const seasons = Array.isArray(p?.seasons) ? (p.seasons as string[]) : [];
         const seasonData = p?.seasonData && typeof p.seasonData === "object" ? (p.seasonData as any) : null;
         if (seasons.length === 0 && !seasonData) return true;

@@ -9,6 +9,7 @@ import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { MatchDetails, Player } from '@/types/match';
+import { toDashSeason } from '@/lib/season';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MatchTeamStatsForm } from '@/components/match-team-stats-form';
 import { SquadRegistrationForm } from '@/components/squad-registration-form';
@@ -100,6 +101,28 @@ export default function MatchAdminPage() {
           return fallbackSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
         };
 
+        const fetchRosterPlayerIdSet = async (teamId: string): Promise<Set<string> | null> => {
+          if (!ownerUid) return null;
+          const rawSeason = typeof seasonId === 'string' ? seasonId.trim() : '';
+          if (!rawSeason) return null;
+          const seasonDash = toDashSeason(rawSeason);
+          if (!seasonDash) return null;
+          try {
+            const rosterSnap = await getDocs(collection(db, `clubs/${ownerUid}/seasons/${seasonDash}/roster`));
+            if (rosterSnap.empty) return null;
+            const ids = rosterSnap.docs
+              .filter((d) => {
+                const data = d.data() as any;
+                const tid = typeof data?.teamId === 'string' ? data.teamId.trim() : '';
+                return tid ? tid === teamId : true;
+              })
+              .map((d) => d.id);
+            return new Set(ids);
+          } catch {
+            return null;
+          }
+        };
+
         unsubscribe = onSnapshot(
           resolvedRef,
           async (snap) => {
@@ -129,12 +152,18 @@ export default function MatchAdminPage() {
             setMatch(matchData);
 
             if (matchData.homeTeam && matchData.awayTeam) {
+              const [homeRosterSet, awayRosterSet] = await Promise.all([
+                fetchRosterPlayerIdSet(matchData.homeTeam),
+                fetchRosterPlayerIdSet(matchData.awayTeam),
+              ]);
+
               const [home, away] = await Promise.all([
                 fetchPlayers(matchData.homeTeam),
-                fetchPlayers(matchData.awayTeam)
+                fetchPlayers(matchData.awayTeam),
               ]);
-              setHomePlayers(home);
-              setAwayPlayers(away);
+
+              setHomePlayers(homeRosterSet ? home.filter((p) => homeRosterSet.has(p.id)) : home);
+              setAwayPlayers(awayRosterSet ? away.filter((p) => awayRosterSet.has(p.id)) : away);
             }
 
             setLoading(false);

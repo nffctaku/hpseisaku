@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { useFormContext, useFieldArray, useWatch } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -33,7 +33,7 @@ const benchMinutesOptions = Array.from({ length: 146 }, (_, i) => i.toString());
 const NONE_SELECT_VALUE = "__none__";
 
 export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPlayers: Player[] }) {
-  console.log(`PlayerStatsTable (${teamId}): Received allPlayers`, allPlayers);
+  console.log(`PlayerStatsTable v3 (${teamId}): Received allPlayers`, allPlayers);
   const { control, watch, setValue } = useFormContext();
   const { fields, append, prepend, remove } = useFieldArray({
     control,
@@ -41,6 +41,33 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
   });
 
   const watchedPlayerStats = useWatch({ control, name: 'playerStats' });
+  const watchedEvents = useWatch({ control, name: 'events' });
+
+  const derivedCounts = useMemo(() => {
+    const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
+    const goals = new Map<string, number>();
+    const assists = new Map<string, number>();
+    const yellow = new Map<string, number>();
+    const red = new Map<string, number>();
+
+    events.forEach((ev: any) => {
+      const type = typeof ev?.type === 'string' ? ev.type : '';
+      if (type === 'goal') {
+        if (ev.playerId) goals.set(ev.playerId, (goals.get(ev.playerId) || 0) + 1);
+        if (ev.assistPlayerId) assists.set(ev.assistPlayerId, (assists.get(ev.assistPlayerId) || 0) + 1);
+        return;
+      }
+
+      // card (new format) / yellow|red (legacy format)
+      if ((type === 'card' || type === 'yellow' || type === 'red') && ev.playerId) {
+        const color = type === 'card' ? ev.cardColor : type;
+        if (color === 'yellow') yellow.set(ev.playerId, (yellow.get(ev.playerId) || 0) + 1);
+        if (color === 'red') red.set(ev.playerId, (red.get(ev.playerId) || 0) + 1);
+      }
+    });
+
+    return { goals, assists, yellow, red };
+  }, [watchedEvents]);
 
   const sortedAllPlayers = [...allPlayers].sort((a, b) => {
     const an = typeof (a as any)?.number === 'number' && Number.isFinite((a as any).number) ? (a as any).number : Number.POSITIVE_INFINITY;
@@ -202,10 +229,18 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     const minutesFieldName = `playerStats.${globalIndex}.minutesPlayed`;
     const customStats = watch(customStatPath) || [];
     const rawRating = watch(ratingFieldName);
-    const goalsValue = watch(`playerStats.${globalIndex}.goals`) ?? 0;
-    const assistsValue = watch(`playerStats.${globalIndex}.assists`) ?? 0;
-    const yellowValue = watch(`playerStats.${globalIndex}.yellowCards`) ?? 0;
-    const redValue = watch(`playerStats.${globalIndex}.redCards`) ?? 0;
+    const normalizeCount = (v: any) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+    const playerIdForCounts = String(watch(`playerStats.${globalIndex}.playerId`) || (field as any)?.playerId || "");
+    const goalsFromEvents = playerIdForCounts ? (derivedCounts.goals.get(playerIdForCounts) ?? null) : null;
+    const assistsFromEvents = playerIdForCounts ? (derivedCounts.assists.get(playerIdForCounts) ?? null) : null;
+    const yellowFromEvents = playerIdForCounts ? (derivedCounts.yellow.get(playerIdForCounts) ?? null) : null;
+    const redFromEvents = playerIdForCounts ? (derivedCounts.red.get(playerIdForCounts) ?? null) : null;
+
+    const goalsValue = goalsFromEvents ?? normalizeCount(watch(`playerStats.${globalIndex}.goals`));
+    const assistsValue = assistsFromEvents ?? normalizeCount(watch(`playerStats.${globalIndex}.assists`));
+    const yellowValue = yellowFromEvents ?? normalizeCount(watch(`playerStats.${globalIndex}.yellowCards`));
+    const redValue = redFromEvents ?? normalizeCount(watch(`playerStats.${globalIndex}.redCards`));
     const ratingValue =
       typeof rawRating === 'number' &&
       Number.isFinite(rawRating) &&
@@ -216,25 +251,27 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
 
     return (
       <div key={field.id} className="space-y-1">
-        <div className="rounded-md border bg-white px-3 py-2 text-gray-900">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            {opts?.header ? (
-              opts.header
-            ) : (
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
-                  {field.position}
-                </span>
-                <span className="font-medium text-sm truncate">{field.playerName}</span>
-              </div>
-            )}
+        <div className="rounded-md border bg-white px-3 py-3 text-gray-900">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {opts?.header ? (
+                opts.header
+              ) : (
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
+                    {field.position}
+                  </span>
+                  <span className="font-medium text-sm truncate">{field.playerName}</span>
+                </div>
+              )}
+            </div>
 
-            <div className="flex items-end gap-2 overflow-x-auto text-xs min-w-0 max-w-full md:justify-end">
-              <div className="flex items-end gap-2 justify-start md:justify-end shrink-0">
-                <div className="flex flex-col items-center">
+            <div className="flex flex-wrap items-end gap-2 overflow-x-auto md:overflow-visible text-xs">
+              <div className="flex items-end gap-2 shrink-0">
+                <div className="flex flex-col items-center gap-1">
                   <span className="text-[10px] text-gray-500">評価</span>
                   <Select value={ratingValue} onValueChange={(val) => setValue(ratingFieldName, parseFloat(val))}>
-                    <SelectTrigger className="h-7 w-20 text-xs bg-white text-gray-900">
+                    <SelectTrigger size="sm" className="w-20 bg-white text-gray-900 shadow-none focus-visible:ring-0">
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -247,13 +284,13 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                   </Select>
                 </div>
 
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center gap-1">
                   <span className="text-[10px] text-gray-500">出場分</span>
                   <Select
                     value={watch(minutesFieldName)?.toString() ?? ""}
                     onValueChange={(val) => setValue(minutesFieldName, parseInt(val, 10))}
                   >
-                    <SelectTrigger className="h-7 w-20 text-xs bg-white text-gray-900">
+                    <SelectTrigger size="sm" className="w-20 bg-white text-gray-900 shadow-none focus-visible:ring-0">
                       <SelectValue placeholder="-" />
                     </SelectTrigger>
                     <SelectContent>
@@ -267,8 +304,8 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                 </div>
               </div>
 
-              <div className="flex items-end gap-2 justify-start md:justify-end shrink-0">
-                <div className="flex flex-col items-center">
+              <div className="flex items-end gap-2">
+                <div className="flex flex-col items-center gap-1">
                   <span className="text-[10px] text-gray-500">G</span>
                   <Input
                     type="number"
@@ -276,11 +313,11 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                     max="10"
                     readOnly
                     value={goalsValue}
-                    className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
+                    className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
                   />
                 </div>
 
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center gap-1">
                   <span className="text-[10px] text-gray-500">A</span>
                   <Input
                     type="number"
@@ -288,11 +325,11 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                     max="10"
                     readOnly
                     value={assistsValue}
-                    className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
+                    className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
                   />
                 </div>
 
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center gap-1">
                   <span className="text-[10px] text-gray-500">Y</span>
                   <Input
                     type="number"
@@ -300,11 +337,11 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                     max="2"
                     readOnly
                     value={yellowValue}
-                    className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
+                    className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
                   />
                 </div>
 
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center gap-1">
                   <span className="text-[10px] text-gray-500">R</span>
                   <Input
                     type="number"
@@ -312,7 +349,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
                     max="1"
                     readOnly
                     value={redValue}
-                    className="h-7 w-10 text-center text-sm bg-gray-100 text-gray-900 cursor-default"
+                    className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
                   />
                 </div>
 
@@ -355,7 +392,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h4 className="text-sm font-semibold text-gray-300">スタメン（最大11人）</h4>
         </div>
-        <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3">
           {Array.from({ length: 11 }).map((_, slot) => {
             const slotField = starters.find((f) => (f as any).starterSlot === slot);
             const currentPlayerId = (slotField as any)?.playerId || '';
@@ -364,7 +401,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
             if (!slotField) {
               return (
                 <div key={`starter-slot-${slot}`} className="space-y-1">
-                  <div className="rounded-md border bg-white px-3 py-2 text-gray-900">
+                  <div className="rounded-md border bg-white px-3 py-3 text-gray-900">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
                         -
@@ -431,7 +468,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
             </SelectContent>
           </Select>
         </div>
-        <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3">
           {bench.map(field => renderPlayerRow(field as any))}
         </div>
       </div>

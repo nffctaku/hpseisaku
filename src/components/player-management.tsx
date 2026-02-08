@@ -352,12 +352,21 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             }))
         : undefined;
 
-      const endYear = (values as any)?.contractEndYear as number | undefined;
-      const endMonth = (values as any)?.contractEndMonth as number | undefined;
       const contractEndDate =
-        endYear != null && endMonth != null
-          ? `${String(endYear).padStart(4, "0")}-${String(endMonth).padStart(2, "0")}`
+        typeof (values as any)?.contractEndYear === "number" &&
+        Number.isFinite((values as any)?.contractEndYear) &&
+        typeof (values as any)?.contractEndMonth === "number" &&
+        Number.isFinite((values as any)?.contractEndMonth)
+          ? `${String((values as any)?.contractEndYear).padStart(4, "0")}-${String((values as any)?.contractEndMonth).padStart(2, "0")}`
           : undefined;
+
+      const snsLinksRaw = (values as any)?.snsLinks;
+      const snsLinksClean = {
+        x: typeof snsLinksRaw?.x === "string" ? snsLinksRaw.x : "",
+        youtube: typeof snsLinksRaw?.youtube === "string" ? snsLinksRaw.youtube : "",
+        tiktok: typeof snsLinksRaw?.tiktok === "string" ? snsLinksRaw.tiktok : "",
+        instagram: typeof snsLinksRaw?.instagram === "string" ? snsLinksRaw.instagram : "",
+      } as any;
 
       const seasonPayload: PlayerSeasonData = {
         number: values.number,
@@ -375,7 +384,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         annualSalaryCurrency: (values as any).annualSalaryCurrency,
         contractEndDate,
         photoUrl: values.photoUrl,
-        snsLinks: values.snsLinks,
+        snsLinks: snsLinksClean,
         params: paramsNormalized as any,
         manualCompetitionStats: manualStatsNormalized as any,
         isPublished: values.isPublished,
@@ -501,28 +510,30 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       return;
     }
     const selectedSeasonDash = toDashSeason(selectedSeason);
+    const selectedSeasonSlash = selectedSeason;
     try {
       const playerDocRef = doc(db, `clubs/${clubUid}/teams/${teamId}/players`, deletingPlayer.id);
       const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeasonDash}/roster`, deletingPlayer.id);
       const seasons = Array.isArray((deletingPlayer as any)?.seasons) ? ((deletingPlayer as any).seasons as string[]) : [];
-      const remaining = seasons.filter((s) => s !== selectedSeason);
+      const normalizedTarget = String(selectedSeasonSlash || "").trim();
+      const normalizedTargetDash = String(selectedSeasonDash || "").trim();
+      const remaining = seasons.filter((s) => {
+        const raw = typeof s === "string" ? s.trim() : "";
+        if (!raw) return false;
+        return raw !== normalizedTarget && raw !== normalizedTargetDash;
+      });
       if (remaining.length === 0) {
         await deleteDoc(playerDocRef);
         await deleteDoc(rosterDocRef);
       } else {
         await updateDoc(playerDocRef, {
-          seasons: arrayRemove(selectedSeason),
+          seasons: arrayRemove(selectedSeasonSlash, selectedSeasonDash),
           [`seasonData.${selectedSeasonDash}`]: deleteField(),
         } as any);
 
-        await setDoc(
-          rosterDocRef,
-          {
-            seasons: arrayRemove(selectedSeason),
-            [`seasonData.${selectedSeasonDash}`]: deleteField(),
-          } as any,
-          { merge: true }
-        );
+        // Public pages use roster doc IDs as the source of truth.
+        // If the player is removed from this season, the roster doc must be deleted.
+        await deleteDoc(rosterDocRef);
       }
 
       await invalidatePlayerStatsCache(deletingPlayer.id);

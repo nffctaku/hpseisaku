@@ -138,11 +138,20 @@ export default function TeamPlayersPage() {
         const seasons: string[] = Array.isArray(data?.seasons) ? data.seasons : [];
         if (seasons.includes(selectedSeason)) return;
 
+        const snsLinksRaw = data?.snsLinks;
+        const snsLinksClean = {
+          x: typeof snsLinksRaw?.x === "string" ? snsLinksRaw.x : "",
+          youtube: typeof snsLinksRaw?.youtube === "string" ? snsLinksRaw.youtube : "",
+          tiktok: typeof snsLinksRaw?.tiktok === "string" ? snsLinksRaw.tiktok : "",
+          instagram: typeof snsLinksRaw?.instagram === "string" ? snsLinksRaw.instagram : "",
+        };
+
         const sourceSeasonData = (data?.seasonData && typeof data.seasonData === "object")
           ? (data.seasonData[copySourceSeason] || data.seasonData[copySourceSeasonDash])
           : undefined;
-        const seasonPayload = sourceSeasonData
-          ? sourceSeasonData
+
+        const seasonPayloadBase: any = sourceSeasonData
+          ? { ...sourceSeasonData }
           : {
               number: typeof data?.number === "number" ? data.number : undefined,
               position: typeof data?.position === "string" ? data.position : undefined,
@@ -150,11 +159,24 @@ export default function TeamPlayersPage() {
               age: typeof data?.age === "number" ? data.age : undefined,
               height: typeof data?.height === "number" ? data.height : undefined,
               photoUrl: typeof data?.photoUrl === "string" ? data.photoUrl : undefined,
-              snsLinks: data?.snsLinks,
               params: data?.params,
               manualCompetitionStats: data?.manualCompetitionStats,
               isPublished: typeof data?.isPublished === "boolean" ? data.isPublished : undefined,
             };
+
+        // Ensure snsLinks exists and contains no undefined (Firestore rejects undefined).
+        seasonPayloadBase.snsLinks = {
+          x: typeof seasonPayloadBase?.snsLinks?.x === "string" ? seasonPayloadBase.snsLinks.x : snsLinksClean.x,
+          youtube: typeof seasonPayloadBase?.snsLinks?.youtube === "string" ? seasonPayloadBase.snsLinks.youtube : snsLinksClean.youtube,
+          tiktok: typeof seasonPayloadBase?.snsLinks?.tiktok === "string" ? seasonPayloadBase.snsLinks.tiktok : snsLinksClean.tiktok,
+          instagram: typeof seasonPayloadBase?.snsLinks?.instagram === "string" ? seasonPayloadBase.snsLinks.instagram : snsLinksClean.instagram,
+        };
+
+        // Remove top-level undefined fields from season payload.
+        const seasonPayload: any = {};
+        Object.entries(seasonPayloadBase).forEach(([k, v]) => {
+          if (v !== undefined) seasonPayload[k] = v;
+        });
 
         batch.update(pDoc.ref, {
           seasons: arrayUnion(selectedSeason),

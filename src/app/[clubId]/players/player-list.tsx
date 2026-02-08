@@ -126,7 +126,7 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
           ))}
         </div>
       ) : (
-        <p>このシーズンに登録されている選手はいません。</p>
+        <p>{allSeasons.length === 0 ? "公開されているシーズンはありません。" : "このシーズンに登録されている選手はいません。"}</p>
       )}
     </div>
   );
