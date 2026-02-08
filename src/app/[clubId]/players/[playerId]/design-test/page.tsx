@@ -446,38 +446,38 @@ export default async function PlayerDesignTestPage({
 
               <div className="relative">
                 <div className="md:hidden relative aspect-[16/10] sm:aspect-[16/9]">
-                    {player.photoUrl ? (
-                      <Image
-                        src={player.photoUrl}
-                        alt={player.name}
-                        fill
-                        priority
-                        sizes="(max-width: 768px) 100vw, 100vw"
-                        className="object-cover object-top"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 bg-white/5" />
-                    )}
+                  {player.photoUrl ? (
+                    <Image
+                      src={player.photoUrl}
+                      alt={player.name}
+                      fill
+                      priority
+                      sizes="(max-width: 768px) 100vw, 100vw"
+                      className="object-cover object-[50%_30%]"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-white/5" />
+                  )}
 
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
 
-                    <div className="absolute left-0 right-0 bottom-0 p-4 sm:p-6">
-                      <div className="flex items-end justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className={`${numberFont.className} text-6xl sm:text-7xl font-black tracking-tighter leading-none`}>
-                            {currentSeasonData?.number ?? player.number ?? "-"}
-                          </div>
-                          <h1 className="mt-1 text-3xl sm:text-4xl font-black tracking-tight break-words">{player.name}</h1>
-                          <div className="mt-1 text-sm sm:text-base text-white/80">{null}</div>
+                  <div className="absolute left-0 right-0 bottom-0 p-4 sm:p-6">
+                    <div className="flex items-end justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className={`${numberFont.className} text-6xl sm:text-7xl font-black tracking-tighter leading-none`}>
+                          {currentSeasonData?.number ?? player.number ?? "-"}
                         </div>
+                        <h1 className="mt-1 text-3xl sm:text-4xl font-black tracking-tight break-words">{player.name}</h1>
+                        <div className="mt-1 text-sm sm:text-base text-white/80">{null}</div>
                       </div>
                     </div>
                   </div>
+                </div>
 
                 <div className="hidden md:block p-6">
                   <div className="flex gap-6">
-                      <div className="w-[42%] shrink-0">
-                        <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                      <div className="w-[220px] shrink-0">
+                        <div className="relative h-[220px] w-[220px] overflow-hidden rounded-xl border border-white/10 bg-white/5">
                           {player.photoUrl ? (
                             <Image
                               src={player.photoUrl}

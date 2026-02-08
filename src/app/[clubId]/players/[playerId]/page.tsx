@@ -1463,8 +1463,8 @@ export default async function PlayerPage({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-1">
-                <div className="mx-auto w-full max-w-[260px]">
-                  <div className="relative w-full h-52 sm:h-52 md:h-60 rounded-lg border bg-card overflow-hidden">
+                <div className="w-full md:mx-auto md:w-[220px]">
+                  <div className="relative w-full h-52 sm:h-52 md:h-[220px] rounded-lg border bg-card overflow-hidden">
                     {player.photoUrl ? (
                       <Image
                         src={player.photoUrl}
@@ -1482,12 +1482,6 @@ export default async function PlayerPage({
                       </div>
                     )}
                   </div>
-
-                  <MiniPitch
-                    player={player}
-                    className="hidden md:block mt-4 w-full"
-                    pitchClassName="w-full aspect-[3/4] min-h-[340px]"
-                  />
                 </div>
               </div>
 
