@@ -72,6 +72,10 @@ export default function PartnersAdminPage() {
   const { user, ownerUid } = useAuth();
   const clubUid = ownerUid || user?.uid;
 
+  const canManagePartners =
+    user?.uid === 'gNDzHTPlzVZK8cOl7ogxQBRvugH2' ||
+    Boolean(user?.uid && ownerUid && user.uid === ownerUid);
+
   const [partners, setPartners] = useState<Partner[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
 
@@ -126,6 +130,10 @@ export default function PartnersAdminPage() {
   };
 
   useEffect(() => {
+    if (!canManagePartners) {
+      setPageLoading(false);
+      return;
+    }
     if (!clubUid) {
       setPageLoading(false);
       return;
@@ -395,6 +403,14 @@ export default function PartnersAdminPage() {
       setDeleting(null);
     }
   };
+
+  if (!canManagePartners) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-sm text-muted-foreground">権限がありません。</div>
+      </div>
+    );
+  }
 
   if (pageLoading) {
     return (

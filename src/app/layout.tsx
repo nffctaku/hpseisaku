@@ -3,6 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Analytics } from "@vercel/analytics/react";
 import { Toaster } from "sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -47,11 +48,13 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning translate="no" className="notranslate">
       <body className="antialiased notranslate" translate="no">
-        <AuthProvider>
-          {children}
-          <Toaster richColors position="top-right" />
-          <Analytics />
-        </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <AuthProvider>
+            {children}
+            <Toaster richColors position="top-right" />
+            <Analytics />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

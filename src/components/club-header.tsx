@@ -3,10 +3,11 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Loader2, Menu, Share2 } from "lucide-react";
+import { Loader2, Menu, Moon, Share2, Sun } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
 
 interface ClubHeaderProps {
   clubId: string;
@@ -24,8 +25,10 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const pathname = usePathname();
+  const { theme, resolvedTheme, setTheme } = useTheme();
 
   const isNavigating = navigatingTo != null;
+  const isDark = (resolvedTheme || theme) === "dark";
 
   const navLinkClass = (active: boolean, disabled: boolean) =>
     `${active ? "text-primary" : ""} ${disabled ? "opacity-60 pointer-events-none" : ""} hover:text-primary transition-colors inline-flex items-center gap-1.5`;
@@ -88,6 +91,15 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
           </div>
         </div>
         <div className="flex items-center gap-2 text-[11px] sm:text-xs md:text-sm">
+          <button
+            type="button"
+            className="p-2 flex items-center justify-center hover:opacity-80"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            aria-label="テーマ切替"
+          >
+            {isDark ? <Sun className="w-5 h-5" strokeWidth={2.2} /> : <Moon className="w-5 h-5" strokeWidth={2.2} />}
+          </button>
+
           <button
             type="button"
             className="p-2 flex items-center justify-center hover:opacity-80"

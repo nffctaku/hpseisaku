@@ -76,10 +76,10 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   // 未ログイン時は、管理画面の代わりにログイン画面を表示
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white px-4">
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground px-4">
         <div className="max-w-sm w-full text-center space-y-4">
           <h1 className="text-2xl font-bold">ログインまたは新規作成</h1>
-          <p className="text-sm text-gray-300">
+          <p className="text-sm text-muted-foreground">
             Googleアカウントでログインすると、この画面からクラブや大会の管理を始められます。
           </p>
           <div className="flex justify-center mt-4">
@@ -91,13 +91,13 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen w-full bg-gray-900 text-white">
+    <div className="flex min-h-screen w-full bg-background text-foreground">
       <Dialog open={tosOpen} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-lg" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>利用規約への同意</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 text-sm text-slate-700">
+          <div className="space-y-4 text-sm text-foreground">
             <p>
               サービスの利用を開始するには、利用規約に同意してください。
             </p>

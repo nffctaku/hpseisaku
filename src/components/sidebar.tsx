@@ -32,6 +32,10 @@ export function Sidebar() {
   const { clubInfo } = useClub();
   const clubId = clubInfo.id || user?.clubId || user?.uid || null;
 
+  const canManagePartners =
+    user?.uid === 'gNDzHTPlzVZK8cOl7ogxQBRvugH2' ||
+    Boolean(user?.ownerUid && user?.uid && user.uid === user.ownerUid);
+
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
 
   const bookletHref = mainTeamId
@@ -134,7 +138,7 @@ export function Sidebar() {
     { href: `/admin/club/info`, label: 'クラブ情報', icon: Settings },
     { href: `/admin/news`, label: 'ニュース管理', icon: Newspaper },
     { href: `/admin/tv`, label: 'TV管理', icon: Tv },
-    { href: `/admin/partners`, label: 'パートナー管理', icon: Shield, disabled: true },
+    { href: `/admin/partners`, label: 'パートナー管理', icon: Shield, disabled: !canManagePartners },
     { href: `/admin/analysis`, label: '分析管理', icon: LineChart },
     { href: transfersHref, label: '移籍管理', icon: TransfersIcon },
     { href: `/admin/matches`, label: '試合管理', icon: Calendar },
