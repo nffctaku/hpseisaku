@@ -21,9 +21,26 @@ function toCloudinaryPadded16x9(url: string, width: number) {
 interface HeroProps {
   news: NewsArticle[];
   maxSlides?: number;
+  isLoading?: boolean;
 }
 
-export function Hero({ news, maxSlides }: HeroProps) {
+export function Hero({ news, maxSlides, isLoading }: HeroProps) {
+
+  if (isLoading) {
+    return (
+      <div className="relative h-[60vh] w-full bg-gray-800 flex flex-col items-center justify-center gap-4">
+        <Image
+          src="/favicon.png"
+          alt="Loading"
+          width={64}
+          height={64}
+          className="opacity-90 animate-pulse"
+          priority
+        />
+        <p className="text-white text-sm">読み込み中</p>
+      </div>
+    );
+  }
 
   if (!news || news.length === 0) {
     return (

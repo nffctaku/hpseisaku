@@ -59,6 +59,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
         videos: [],
         competitions: [],
     });
+    const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
 
     useEffect(() => {
@@ -73,6 +74,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
 
         const fetchData = async () => {
             try {
+                setIsLoading(true);
                 // 1. まず軽量なサマリーデータを取得して、素早く初期表示する
                 const summaryRes = await fetch(`/api/club-summary/${clubId}`);
                 if (!summaryRes.ok) {
@@ -88,6 +90,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                 const summaryData = await summaryRes.json();
                 if (cancelled) return;
                 setClubInfo(summaryData);
+                setIsLoading(false);
 
                 // 2. バックグラウンドで重いフルデータを取得し、到着したら上書き
                 const runFullFetch = async () => {
@@ -127,6 +130,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                 };
             } catch (e) {
                 console.error("Failed to fetch club summary:", e);
+                setIsLoading(false);
                 // Continue with empty state even if fetch fails
             }
         };
@@ -155,6 +159,24 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
     const mainHeroItem = heroItems[0] as NewsArticle | undefined;
     const sideHeroItems = heroItems.slice(1, 4) as NewsArticle[];
 
+    if (isLoading) {
+      return (
+        <main className="min-h-screen flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Image
+              src="/favicon.png"
+              alt="Loading"
+              width={64}
+              height={64}
+              className="opacity-90 animate-pulse"
+              priority
+            />
+            <p className="text-sm text-muted-foreground">読み込み中</p>
+          </div>
+        </main>
+      );
+    }
+
     return (
         <main
           className="min-h-screen"
@@ -167,7 +189,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                 snsLinks={clubInfo.profile?.snsLinks || {}}
             />
             <div className="md:hidden">
-              <Hero news={heroNews} maxSlides={heroNewsLimit} />
+              <Hero news={heroNews} maxSlides={heroNewsLimit} isLoading={isLoading} />
             </div>
 
             <div className="hidden md:block">
@@ -208,7 +230,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                           </div>
                         </Link>
                       ) : (
-                        <Hero news={heroNews} maxSlides={heroNewsLimit} />
+                        <Hero news={heroNews} maxSlides={heroNewsLimit} isLoading={isLoading} />
                       )}
                     </div>
 
