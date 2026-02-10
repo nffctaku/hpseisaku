@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Loader2, Menu, Moon, Share2, Sun } from "lucide-react";
@@ -24,11 +24,33 @@ interface ClubHeaderProps {
 export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+  const [partnersEnabled, setPartnersEnabled] = useState(false);
   const pathname = usePathname();
   const { theme, resolvedTheme, setTheme } = useTheme();
 
   const isNavigating = navigatingTo != null;
   const isDark = (resolvedTheme || theme) === "dark";
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/public/club/${encodeURIComponent(clubId)}/partners-enabled`, {
+          method: "GET",
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as any;
+        if (cancelled) return;
+        setPartnersEnabled(Boolean(json?.enabled));
+      } catch {
+        // ignore
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [clubId]);
 
   const navLinkClass = (active: boolean, disabled: boolean) =>
     `${active ? "text-primary" : ""} ${disabled ? "opacity-60 pointer-events-none" : ""} hover:text-primary transition-colors inline-flex items-center gap-1.5`;
@@ -178,6 +200,16 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
               Squad
             </Link>
 
+            {partnersEnabled && (
+              <Link
+                href={`/${clubId}/partner`}
+                className={navLinkClass(pathname?.startsWith(`/${clubId}/partner`) ?? false, isNavigating)}
+                onClick={() => setNavigatingTo(`/${clubId}/partner`)}
+              >
+                PARTNER
+              </Link>
+            )}
+
             {isNavigating && (
               <span className="inline-flex items-center text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -272,6 +304,19 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
               >
                 Squad
               </Link>
+
+              {partnersEnabled && (
+                <Link
+                  href={`/${clubId}/partner`}
+                  className="py-3 rounded hover:bg-white/10 transition-colors text-center"
+                  onClick={() => {
+                    setNavigatingTo(`/${clubId}/partner`);
+                    setMenuOpen(false);
+                  }}
+                >
+                  PARTNER
+                </Link>
+              )}
             </div>
             {snsLinks && (snsLinks.x || snsLinks.youtube || snsLinks.tiktok || snsLinks.instagram) && (
               <div className="mt-3 pt-3 border-t border-border/60 flex justify-center gap-4 text-white">
