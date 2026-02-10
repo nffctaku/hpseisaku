@@ -17,7 +17,7 @@ import { useRouter, usePathname } from 'next/navigation';
 
 function AdminLayoutContent({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { clubInfo } = useClub();
   const [tosChecked, setTosChecked] = useState(false);
   const [tosLoading, setTosLoading] = useState(false);
@@ -28,6 +28,22 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   const allowHorizontalScroll = (pathname || '').includes('/booklet');
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground px-4">
+        <Image
+          src="/favicon.png"
+          alt="読み込み中"
+          width={56}
+          height={56}
+          className="animate-pulse"
+          priority
+        />
+        <div className="mt-3 text-sm text-muted-foreground">読み込み中</div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const checkConsent = async () => {
