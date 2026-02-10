@@ -15,10 +15,21 @@ interface Player {
   photoUrl?: string;
 }
 
-export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason, accentColor }: {
+interface Staff {
+  id: string;
+  name: string;
+  position?: string;
+  nationality?: string;
+  age?: number;
+  profile?: string;
+  photoUrl?: string;
+}
+
+export function PlayerList({ clubId, clubName, players, staff, allSeasons, activeSeason, accentColor }: {
   clubId: string;
   clubName: string;
   players: Player[];
+  staff: Staff[];
   allSeasons: string[];
   activeSeason: string;
   accentColor?: string | null;
@@ -27,6 +38,7 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<'players' | 'staff'>('players');
   const [seasonPickerOpen, setSeasonPickerOpen] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
   const baseTabBtn = useMemo(
     () =>
@@ -66,7 +78,7 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
               <button
                 type="button"
                 onClick={() => setSeasonPickerOpen((v) => !v)}
-                className="w-full h-8 px-3 text-xs rounded-xl bg-white/5 text-white border border-white/15 hover:bg-white/10 sm:w-[180px] sm:h-9 sm:text-sm"
+                className="w-full h-8 px-3 text-xs rounded-xl bg-background/90 text-foreground border border-border hover:bg-background shadow-sm shadow-black/10 sm:w-[180px] sm:h-9 sm:text-sm dark:bg-white/5 dark:text-white dark:border-white/15 dark:hover:bg-white/10 dark:shadow-black/15"
               >
                 シーズン
               </button>
@@ -84,7 +96,7 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
                 </div>
               )}
 
-              <div className="mt-2 overflow-hidden rounded-xl border border-white/15 bg-white/5">
+              <div className="mt-2 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm shadow-black/10 dark:border-white/15 dark:bg-white/5 dark:shadow-black/15">
                 <div className="flex items-stretch">
                   <button
                     type="button"
@@ -92,19 +104,19 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
                     className={
                       activeTab === 'players'
                         ? `${baseTabBtn} bg-blue-600 text-white`
-                        : `${baseTabBtn} text-white/90 hover:bg-white/10`
+                        : `${baseTabBtn} text-foreground/90 hover:bg-muted dark:text-white/90 dark:hover:bg-white/10`
                     }
                   >
                     選手
                   </button>
-                  <div className="w-px bg-white/15" aria-hidden="true" />
+                  <div className="w-px bg-border dark:bg-white/15" aria-hidden="true" />
                   <button
                     type="button"
                     onClick={() => setActiveTab('staff')}
                     className={
                       activeTab === 'staff'
                         ? `${baseTabBtn} bg-blue-600 text-white`
-                        : `${baseTabBtn} text-white/90 hover:bg-white/10`
+                        : `${baseTabBtn} text-foreground/90 hover:bg-muted dark:text-white/90 dark:hover:bg-white/10`
                     }
                   >
                     スタッフ
@@ -117,7 +129,41 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
       </div>
 
       {activeTab === 'staff' ? (
-        <div className="py-10 text-center text-sm text-muted-foreground">スタッフ一覧は準備中です。</div>
+        staff.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 gap-y-2 sm:gap-4">
+            {staff.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setSelectedStaff(s)}
+                className="rounded-xl border border-border bg-card text-card-foreground shadow-sm overflow-hidden text-left"
+              >
+                <div className="relative w-full h-40 sm:h-44 bg-muted">
+                  {s.photoUrl ? (
+                    <Image
+                      src={s.photoUrl}
+                      alt={s.name}
+                      fill
+                      sizes="(max-width: 768px) 50vw, 25vw"
+                      className="object-contain"
+                    />
+                  ) : null}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/15 to-transparent" />
+                  <div className="absolute left-3 right-3 bottom-3">
+                    <div className="text-white text-base sm:text-lg font-black tracking-tight leading-none drop-shadow-sm break-words">
+                      {s.name}
+                    </div>
+                    {s.position ? (
+                      <div className="mt-1 text-[11px] sm:text-xs text-white/80 drop-shadow-sm">{s.position}</div>
+                    ) : null}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="py-10 text-center text-sm text-muted-foreground">このシーズンに登録されているスタッフはいません。</div>
+        )
       ) : players.length > 0 ? (
         <div className="space-y-12">
           {Object.entries(sortedGroupedPlayers).map(([position, players]) => (
@@ -177,6 +223,59 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
         </div>
       ) : (
         <p>{allSeasons.length === 0 ? "公開されているシーズンはありません。" : "このシーズンに登録されている選手はいません。"}</p>
+      )}
+
+      {selectedStaff && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+          onClick={() => setSelectedStaff(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-white/15 bg-zinc-950 text-white shadow-2xl ring-1 ring-black/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 p-4">
+              <div className="min-w-0 flex-1 text-center">
+                <div className="text-lg font-black tracking-tight">{selectedStaff.name}</div>
+                {selectedStaff.position ? (
+                  <div className="mt-0.5 text-sm text-white/70">{selectedStaff.position}</div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedStaff(null)}
+                className="h-8 w-8 rounded-md border border-white/15 bg-white/5 text-white hover:bg-white/10"
+                aria-label="閉じる"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-4 pt-3 space-y-2 text-sm text-center">
+              {(selectedStaff.nationality || selectedStaff.age != null) ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/15 bg-white/5 p-3">
+                    <div className="text-[11px] text-white/60">国籍</div>
+                    <div className="mt-0.5 font-semibold break-words">{selectedStaff.nationality ? String(selectedStaff.nationality) : '-'}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/15 bg-white/5 p-3">
+                    <div className="text-[11px] text-white/60">年齢</div>
+                    <div className="mt-0.5 font-semibold tabular-nums">{typeof selectedStaff.age === 'number' && Number.isFinite(selectedStaff.age) ? selectedStaff.age : '-'}</div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="rounded-xl border border-white/15 bg-white/5 p-3">
+                <div className="text-[11px] text-white/60">プロフィール</div>
+                <div className="mt-1 whitespace-pre-wrap break-words text-sm">
+                  {selectedStaff.profile ? String(selectedStaff.profile) : '-'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

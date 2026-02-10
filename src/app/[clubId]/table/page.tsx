@@ -117,9 +117,6 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
       <div className="container mx-auto py-10 px-4 md:px-0">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold">順位表</h1>
-          </div>
           {seasons.length > 0 && (
             <SeasonSelect seasons={seasons} activeSeason={activeSeason} />
           )}

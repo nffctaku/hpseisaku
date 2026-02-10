@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function SeasonSelect({
   seasons,
@@ -12,26 +13,33 @@ export function SeasonSelect({
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const pushSeason = (next: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("season", next);
+    router.push(`?${params.toString()}`);
+  };
+
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <label className="text-muted-foreground" htmlFor="season-select">シーズン</label>
-      <select
-        id="season-select"
+    <div className="w-full sm:w-auto">
+      <Select
         value={activeSeason}
-        onChange={(e) => {
-          const next = e.target.value;
-          const params = new URLSearchParams(searchParams.toString());
-          params.set("season", next);
-          router.push(`?${params.toString()}`);
+        onValueChange={(next) => {
+          pushSeason(next);
         }}
-        className="border rounded-md px-2 py-1 bg-white text-gray-900 text-sm"
       >
-        {seasons.map((season) => (
-          <option key={season} value={season}>
-            {season}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="relative w-full h-8 px-3 pl-8 text-xs rounded-xl bg-background/90 text-foreground border border-border hover:bg-background shadow-sm shadow-black/15 justify-center [&_svg]:absolute [&_svg]:left-3 dark:bg-white/5 dark:text-white dark:border-white/15 dark:hover:bg-white/10 sm:w-[180px] sm:h-9 sm:text-sm">
+          <SelectValue placeholder="シーズン" className="w-full justify-center">
+            {activeSeason || "シーズン"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {seasons.map((season) => (
+            <SelectItem key={season} value={season}>
+              {season}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

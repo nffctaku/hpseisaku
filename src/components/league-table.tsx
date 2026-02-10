@@ -305,14 +305,20 @@ export function LeagueTable({ competitions, clubId, variant = 'home' }: LeagueTa
 
   if (!competitions || competitions.length === 0) {
     return (
-      <div className="bg-white p-4 rounded-lg text-center text-muted-foreground shadow-sm">
+      <div className="bg-card text-card-foreground p-4 rounded-2xl text-center text-muted-foreground shadow-sm border border-border">
         <p>表示できる大会がありません。</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white p-2 sm:p-3 rounded-lg shadow-sm">
+    <div
+      className={
+        variant === 'table'
+          ? 'mx-auto max-w-[520px] bg-card text-card-foreground p-4 rounded-2xl shadow-sm border border-border'
+          : 'bg-card text-card-foreground p-2 sm:p-3 rounded-2xl shadow-sm border border-border'
+      }
+    >
       {selectedCompetition && (
         <div className="flex items-center gap-2 mb-2">
           {selectedCompetition.logoUrl && (
@@ -338,26 +344,27 @@ export function LeagueTable({ competitions, clubId, variant = 'home' }: LeagueTa
           <p className="text-muted-foreground">{errorMessage}</p>
         </div>
       ) : standings.length > 0 ? (
-        <div className={variant === 'table' ? 'overflow-x-auto' : 'overflow-x-hidden sm:overflow-x-auto'}>
+        <div className={variant === 'table' ? 'overflow-x-hidden' : 'overflow-x-hidden sm:overflow-x-auto'}>
           <Table
             className={
               variant === 'table'
-                ? 'min-w-[640px] text-xs'
+                ? 'w-full table-fixed text-xs'
                 : 'w-full table-fixed sm:table-auto sm:min-w-[440px] text-xs'
             }
           >
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[24px] px-1 py-0.5 sm:w-[32px] sm:px-2 sm:py-1">#</TableHead>
-                <TableHead className="px-1 py-0.5 sm:px-2 sm:py-1">Club</TableHead>
-                <TableHead className="w-[36px] text-right tabular-nums px-1 py-0.5 sm:w-auto sm:px-2 sm:py-1">試</TableHead>
+                <TableHead className="w-[24px] px-2 py-1 sm:w-[32px] sm:px-2 sm:py-1">#</TableHead>
+                <TableHead className="px-2 py-1 sm:px-2 sm:py-1">Club</TableHead>
+                <TableHead className="w-[36px] text-right tabular-nums px-2 py-1 sm:w-auto sm:px-2 sm:py-1">試</TableHead>
+
                 {variant === 'table' ? (
                   <>
-                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">勝</TableHead>
-                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">分</TableHead>
-                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">負</TableHead>
-                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">得</TableHead>
-                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">失</TableHead>
+                    <TableHead className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">勝</TableHead>
+                    <TableHead className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">分</TableHead>
+                    <TableHead className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">負</TableHead>
+                    <TableHead className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">得</TableHead>
+                    <TableHead className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">失</TableHead>
                   </>
                 ) : (
                   <>
@@ -366,6 +373,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home' }: LeagueTa
                     <TableHead className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">負</TableHead>
                   </>
                 )}
+
                 <TableHead className="w-[44px] text-right tabular-nums px-1 py-0.5 sm:w-auto sm:px-2 sm:py-1">±</TableHead>
                 <TableHead className="w-[36px] text-right tabular-nums px-1 py-0.5 sm:w-auto sm:px-2 sm:py-1">点</TableHead>
               </TableRow>
@@ -373,7 +381,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home' }: LeagueTa
             <TableBody>
               {standings.map((team) => (
                 <TableRow key={team.id}>
-                  <TableCell className="font-medium px-1 py-0.5 sm:px-2 sm:py-1 relative">
+                  <TableCell className="font-medium px-2 py-1 sm:px-2 sm:py-1 relative">
                     {(() => {
                       const rule = rankLabels.find((r) => team.rank >= r.from && team.rank <= r.to);
                       if (!rule) return null;
@@ -390,13 +398,13 @@ export function LeagueTable({ competitions, clubId, variant = 'home' }: LeagueTa
                       return (
                         <span
                           className={`absolute left-0 top-0 bottom-0 ${colorClass}`}
-                          style={{ width: "2px", top: "2px", bottom: "2px" }}
+                          style={{ width: "4px", top: "1px", bottom: "1px" }}
                         />
                       );
                     })()}
                     {team.rank}
                   </TableCell>
-                  <TableCell className="px-1 py-0.5 sm:px-2 sm:py-1">
+                  <TableCell className="px-2 py-1 sm:px-2 sm:py-1">
                     <div className="flex items-center gap-1.5">
                       {team.logoUrl ? (
                         <Image
@@ -409,17 +417,17 @@ export function LeagueTable({ competitions, clubId, variant = 'home' }: LeagueTa
                       ) : (
                         <div className="w-[18px] h-[18px] bg-muted rounded-full" />
                       )}
-                      <span className="truncate max-w-[130px] sm:max-w-none">{team.teamName}</span>
+                      <span className="truncate max-w-[130px] sm:max-w-none text-[13px] sm:text-xs">{team.teamName}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.played}</TableCell>
+                  <TableCell className="text-right tabular-nums px-2 py-1 sm:px-2 sm:py-1">{team.played}</TableCell>
                   {variant === 'table' ? (
                     <>
-                      <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.wins}</TableCell>
-                      <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.draws}</TableCell>
-                      <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.losses}</TableCell>
-                      <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsFor}</TableCell>
-                      <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsAgainst}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.wins}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.draws}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.losses}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsFor}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsAgainst}</TableCell>
                     </>
                   ) : (
                     <>

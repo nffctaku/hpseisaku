@@ -19,6 +19,19 @@ interface Player {
   __teamId?: string;
 }
 
+interface Staff {
+  id: string;
+  name: string;
+  position?: string;
+  nationality?: string;
+  age?: number;
+  profile?: string;
+  photoUrl?: string;
+  seasons?: string[];
+  isPublished?: boolean;
+  __teamId?: string;
+}
+
 async function getPlayersData(
   clubId: string,
   season?: string
@@ -31,6 +44,7 @@ async function getPlayersData(
   legalPages?: any[];
   gameTeamUsage?: boolean;
   players: Player[];
+  staff: Staff[];
   allSeasons: string[];
   activeSeason: string;
 } | null> {
@@ -155,20 +169,35 @@ async function getPlayersData(
     teamsSnap = await db.collection(`clubs/${clubId}/teams`).get();
   }
   const players: Player[] = [];
+  const staff: Staff[] = [];
 
-  const playersByTeam = await Promise.all(
+  const perTeamData = await Promise.all(
     teamsSnap.docs.map(async (teamDoc) => {
       const teamPlayersRef = teamDoc.ref.collection("players").orderBy("number", "asc");
       const teamPlayersSnap = await teamPlayersRef.get();
-      return teamPlayersSnap.docs.map((pDoc) => ({
+      const teamStaffRef = teamDoc.ref.collection("staff");
+      const teamStaffSnap = await teamStaffRef.get();
+
+      const players = teamPlayersSnap.docs.map((pDoc) => ({
         id: pDoc.id,
         __teamId: teamDoc.id,
         ...(pDoc.data() as any),
       })) as Player[];
+
+      const staff = teamStaffSnap.docs.map((sDoc) => ({
+        id: sDoc.id,
+        __teamId: teamDoc.id,
+        ...(sDoc.data() as any),
+      })) as Staff[];
+
+      return { players, staff };
     })
   );
 
-  players.push(...playersByTeam.flat());
+  perTeamData.forEach(({ players: p, staff: s }) => {
+    players.push(...p);
+    staff.push(...s);
+  });
 
   // If no season is public, do not show any players on the public page.
   if (!activeSeason) {
@@ -181,6 +210,7 @@ async function getPlayersData(
       legalPages,
       gameTeamUsage,
       players: [],
+      staff: [],
       allSeasons: displaySeasons,
       activeSeason: "",
     };
@@ -232,6 +262,16 @@ async function getPlayersData(
   // 背番号でソート（重複しても一旦そのまま）
   filteredPlayers.sort((a, b) => (a.number || 0) - (b.number || 0));
 
+  const filterStaffBySeasonMembership = (s: any) => {
+    const seasons = Array.isArray(s?.seasons) ? (s.seasons as string[]) : [];
+    if (seasons.length === 0) return true;
+    return seasons.includes(activeSeason) || seasons.includes(activeSeasonSlash) || seasons.includes(activeSeasonDash);
+  };
+
+  let filteredStaff = activeSeason ? staff.filter((s: any) => filterStaffBySeasonMembership(s)) : staff;
+  filteredStaff = filteredStaff.filter((s) => (s as any)?.isPublished !== false);
+  filteredStaff.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ja'));
+
   return {
     clubName,
     logoUrl,
@@ -241,6 +281,7 @@ async function getPlayersData(
     legalPages,
     gameTeamUsage,
     players: filteredPlayers,
+    staff: filteredStaff,
     allSeasons: displaySeasons,
     activeSeason,
   };
@@ -270,7 +311,7 @@ export default async function PlayersPage({
     notFound();
   }
 
-  const { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, gameTeamUsage, players, allSeasons, activeSeason } = data;
+  const { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, gameTeamUsage, players, staff, allSeasons, activeSeason } = data;
 
   return (
     <main
@@ -282,6 +323,7 @@ export default async function PlayersPage({
         clubId={clubId}
         clubName={clubName}
         players={players}
+        staff={staff}
         allSeasons={allSeasons}
         activeSeason={activeSeason}
         accentColor={homeBgColor}
