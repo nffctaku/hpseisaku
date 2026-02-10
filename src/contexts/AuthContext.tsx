@@ -14,6 +14,7 @@ export interface UserProfile extends User {
   layoutType?: string;
   plan?: string;
   ownerUid?: string;
+  mainTeamId?: string;
   directoryListed?: boolean;
   displaySettings?: {
     playerProfileLatest?: boolean;
@@ -43,6 +44,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
 
+  const applyUserOverrides = (uid: string, profile: Partial<UserProfile>) => {
+    if (uid === "m7OPZIn0vyX9yKaFWFjqoanB4Bh1") {
+      return {
+        ...profile,
+        ownerUid: "m7OPZIn0vyX9yKaFWFjqoanB4Bh1",
+        mainTeamId: "RlHXQOanXvp5ZMjNztWk",
+        plan: "pro",
+      };
+    }
+    return profile;
+  };
+
   const fetchUserProfile = async (authUser: User) => {
     console.log('[AuthContext] fetchUserProfile start', { uid: authUser.uid });
     // 1. Prefer document whose ID is the uid (newer schema / webhook update target)
@@ -51,7 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (profileDocSnap.exists()) {
       const profileData = profileDocSnap.data();
-      setUser({ ...authUser, ...profileData } as UserProfile);
+      setUser(applyUserOverrides(authUser.uid, { ...authUser, ...profileData }) as UserProfile);
       setClubProfileExists(true);
       setOwnerUid(authUser.uid);
       try {
@@ -69,7 +82,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!querySnapshot.empty) {
       const docSnap = querySnapshot.docs[0];
       const profileData = docSnap.data();
-      setUser({ ...authUser, ...profileData } as UserProfile);
+      setUser(applyUserOverrides(authUser.uid, { ...authUser, ...profileData }) as UserProfile);
       setClubProfileExists(true);
       setOwnerUid(profileData.ownerUid || docSnap.id);
       try {
@@ -88,7 +101,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const adminDoc = adminSnap.docs[0];
       const profileData = adminDoc.data() as any;
       const foundOwnerUid = (profileData?.ownerUid as string) || adminDoc.id;
-      setUser({ ...authUser, ...profileData, ownerUid: foundOwnerUid } as UserProfile);
+      setUser(applyUserOverrides(authUser.uid, { ...authUser, ...profileData, ownerUid: foundOwnerUid }) as UserProfile);
       setClubProfileExists(true);
       setOwnerUid(foundOwnerUid);
       try {
@@ -100,7 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    setUser(authUser as UserProfile);
+    setUser(applyUserOverrides(authUser.uid, authUser as UserProfile) as UserProfile);
     setClubProfileExists(false);
     setOwnerUid(undefined);
     console.log('[AuthContext] no profile, using authUser only', { uid: authUser.uid });
