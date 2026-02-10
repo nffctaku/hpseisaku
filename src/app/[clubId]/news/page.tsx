@@ -85,7 +85,7 @@ function toCloudinaryPadded16x9(url: string, width: number) {
 function NewsCard({ article, clubId }: { article: NewsArticle, clubId: string }) {
   return (
     <Link href={`/${clubId}/news/${article.id}`} className="block group">
-      <div className="bg-white text-gray-900 rounded-lg overflow-hidden shadow-md h-full flex flex-col border">
+      <div className="bg-card text-card-foreground rounded-lg overflow-hidden shadow-md h-full flex flex-col border border-border">
         {article.imageUrl && (
           <div className="relative w-full aspect-video bg-muted">
             <Image

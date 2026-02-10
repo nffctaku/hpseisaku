@@ -139,7 +139,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
   }, [seasonRange, years, selectedYear, selectedMonth, selectedDay]);
 
   return (
-    <div className="grid grid-cols-6 lg:grid-cols-12 items-start lg:items-center gap-1 p-2 bg-card text-gray-900 rounded-md border">
+    <div className="grid grid-cols-6 lg:grid-cols-12 items-start lg:items-center gap-1 p-2 bg-card text-card-foreground rounded-md border border-border">
       {/* Date Picker (Year / Month / Day Selects) */}
       <div className="col-span-6 lg:col-span-3 flex gap-2">
         {/* Year */}
@@ -153,7 +153,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
             updateMatchDate(y, selectedMonth, newDay);
           }}
         >
-          <SelectTrigger className="w-1/3 bg-white text-gray-900">
+          <SelectTrigger className="w-1/3 bg-background text-foreground border border-border">
             <SelectValue placeholder="年" />
           </SelectTrigger>
           <SelectContent>
@@ -176,7 +176,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
             updateMatchDate(selectedYear, m, newDay);
           }}
         >
-          <SelectTrigger className="w-1/4 bg-white text-gray-900">
+          <SelectTrigger className="w-1/4 bg-background text-foreground border border-border">
             <SelectValue placeholder="月" />
           </SelectTrigger>
           <SelectContent>
@@ -198,7 +198,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
             updateMatchDate(selectedYear, selectedMonth, clamped);
           }}
         >
-          <SelectTrigger className="flex-1 bg-white text-gray-900">
+          <SelectTrigger className="flex-1 bg-background text-foreground border border-border">
             <SelectValue placeholder="日" />
           </SelectTrigger>
           <SelectContent>
@@ -214,7 +214,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
       {/* Home Team Selector */}
       <div className="col-span-2 lg:col-span-3 flex items-center justify-end gap-2">
         <Select value={match.homeTeam} onValueChange={(value) => onUpdate(match.id, 'homeTeam', value)}>
-          <SelectTrigger className="w-full bg-white text-gray-900">
+          <SelectTrigger className="w-full bg-background text-foreground border border-border">
             <SelectValue placeholder="ホーム">
               {match.homeTeam && allTeamsMap.get(match.homeTeam) ? (
                 <div className="flex items-center gap-2">
@@ -226,12 +226,12 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               ) : "ホーム"}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent className="bg-white text-gray-900">
+          <SelectContent>
             {homeTeamOptions.map(t => (
               <SelectItem
                 key={t.id}
                 value={t.id}
-                className="bg-white text-gray-900 hover:bg-gray-100 focus:bg-gray-100 data-[state=checked]:bg-gray-100"
+                className="hover:bg-muted focus:bg-muted data-[state=checked]:bg-muted"
               >
                 <div className="flex items-center gap-2">
                   {t.logoUrl && (
@@ -257,7 +257,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
           <Input
             type="number"
             min={0}
-            className="w-14 text-center font-bold text-lg bg-white text-gray-900"
+            className="w-14 text-center font-bold text-lg bg-background text-foreground border border-border"
             value={match.scoreHome ?? ''}
             onChange={(e) => {
               if (e.target.value === '') {
@@ -273,7 +273,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
           <Input
             type="number"
             min={0}
-            className="w-14 text-center font-bold text-lg bg-white text-gray-900"
+            className="w-14 text-center font-bold text-lg bg-background text-foreground border border-border"
             value={match.scoreAway ?? ''}
             onChange={(e) => {
               if (e.target.value === '') {
@@ -293,7 +293,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
             <Input
               type="number"
               min={0}
-              className="h-7 w-9 text-center font-semibold text-xs bg-white text-gray-900"
+              className="h-7 w-9 text-center font-semibold text-xs bg-background text-foreground border border-border"
               value={(match as any).pkScoreHome ?? ''}
               onChange={(e) => {
                 if (e.target.value === '') {
@@ -309,7 +309,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
             <Input
               type="number"
               min={0}
-              className="h-7 w-9 text-center font-semibold text-xs bg-white text-gray-900"
+              className="h-7 w-9 text-center font-semibold text-xs bg-background text-foreground border border-border"
               value={(match as any).pkScoreAway ?? ''}
               onChange={(e) => {
                 if (e.target.value === '') {
@@ -328,7 +328,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
       {/* Away Team Selector */}
       <div className="col-span-2 lg:col-span-3">
         <Select value={match.awayTeam} onValueChange={(value) => onUpdate(match.id, 'awayTeam', value)}>
-           <SelectTrigger className="w-full bg-white text-gray-900">
+           <SelectTrigger className="w-full bg-background text-foreground border border-border">
             <SelectValue placeholder="アウェイ">
               {match.awayTeam && allTeamsMap.get(match.awayTeam) ? (
                 <div className="flex items-center gap-2">
@@ -340,12 +340,12 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               ) : "アウェイ"}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent className="bg-white text-gray-900">
+          <SelectContent>
             {awayTeamOptions.map(t => (
               <SelectItem
                 key={t.id}
                 value={t.id}
-                className="bg-white text-gray-900 hover:bg-gray-100 focus:bg-gray-100 data-[state=checked]:bg-gray-100"
+                className="hover:bg-muted focus:bg-muted data-[state=checked]:bg-muted"
               >
                 <div className="flex items-center gap-2">
                   {t.logoUrl && (

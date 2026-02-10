@@ -387,7 +387,7 @@ export function RecordManagement() {
         <div className="font-semibold">大会記録</div>
         <div className="flex flex-wrap items-center gap-2 justify-end">
           <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-            <SelectTrigger className="w-[180px] bg-white text-gray-900">
+            <SelectTrigger className="w-[180px] bg-background text-foreground border border-border">
               <SelectValue placeholder="シーズンを選択" />
             </SelectTrigger>
             <SelectContent>
@@ -398,7 +398,7 @@ export function RecordManagement() {
           </Select>
 
           <Select value={selectedCompetitionId} onValueChange={setSelectedCompetitionId}>
-            <SelectTrigger className="w-[180px] bg-white text-gray-900">
+            <SelectTrigger className="w-[180px] bg-background text-foreground border border-border">
               <SelectValue placeholder="大会を選択" />
             </SelectTrigger>
             <SelectContent>
@@ -433,7 +433,7 @@ export function RecordManagement() {
               <Button
                 type="button"
                 variant="outline"
-                className="bg-white text-gray-900 border border-border hover:bg-gray-100 h-8 px-2 text-xs"
+                className="bg-background text-foreground border border-border hover:bg-muted h-8 px-2 text-xs"
                 onClick={() => setStandingsEditMode((v) => !v)}
                 disabled={standingsSaving || standingsLoading || standingsCompetitions.length === 0}
               >
@@ -442,7 +442,7 @@ export function RecordManagement() {
               <Button
                 type="button"
                 variant="outline"
-                className="bg-white text-gray-900 border border-border hover:bg-gray-100 h-8 px-2 text-xs"
+                className="bg-background text-foreground border border-border hover:bg-muted h-8 px-2 text-xs"
                 onClick={handleClearStandingsOverride}
                 disabled={standingsSaving || standingsLoading || standingsCompetitions.length === 0}
               >
@@ -466,7 +466,7 @@ export function RecordManagement() {
               順位表を表示するには大会を選択してください。
             </div>
           ) : standingsEditMode ? (
-            <div className="bg-white text-gray-900 border rounded-lg overflow-hidden text-xs">
+            <div className="bg-card text-card-foreground border border-border rounded-lg overflow-hidden text-xs">
               {standingsLoading ? (
                 <div className="flex items-center justify-center py-10 text-muted-foreground">
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -514,7 +514,7 @@ export function RecordManagement() {
                             inputMode="numeric"
                             value={s.wins}
                             onChange={(e) => handleStandingInputChange(s.id, 'wins', e.target.value)}
-                            className="h-8 w-[52px] px-2 text-xs bg-white text-gray-900"
+                            className="h-8 w-[52px] px-2 text-xs bg-background text-foreground border border-border"
                           />
                         </TableCell>
                         <TableCell className="p-1">
@@ -522,7 +522,7 @@ export function RecordManagement() {
                             inputMode="numeric"
                             value={s.draws}
                             onChange={(e) => handleStandingInputChange(s.id, 'draws', e.target.value)}
-                            className="h-8 w-[52px] px-2 text-xs bg-white text-gray-900"
+                            className="h-8 w-[52px] px-2 text-xs bg-background text-foreground border border-border"
                           />
                         </TableCell>
                         <TableCell className="p-1">
@@ -530,7 +530,7 @@ export function RecordManagement() {
                             inputMode="numeric"
                             value={s.losses}
                             onChange={(e) => handleStandingInputChange(s.id, 'losses', e.target.value)}
-                            className="h-8 w-[52px] px-2 text-xs bg-white text-gray-900"
+                            className="h-8 w-[52px] px-2 text-xs bg-background text-foreground border border-border"
                           />
                         </TableCell>
                         <TableCell className="p-1">
@@ -538,7 +538,7 @@ export function RecordManagement() {
                             inputMode="numeric"
                             value={s.goalsFor}
                             onChange={(e) => handleStandingInputChange(s.id, 'goalsFor', e.target.value)}
-                            className="h-8 w-[52px] px-2 text-xs bg-white text-gray-900"
+                            className="h-8 w-[52px] px-2 text-xs bg-background text-foreground border border-border"
                           />
                         </TableCell>
                         <TableCell className="p-1">
@@ -546,7 +546,7 @@ export function RecordManagement() {
                             inputMode="numeric"
                             value={s.goalsAgainst}
                             onChange={(e) => handleStandingInputChange(s.id, 'goalsAgainst', e.target.value)}
-                            className="h-8 w-[52px] px-2 text-xs bg-white text-gray-900"
+                            className="h-8 w-[52px] px-2 text-xs bg-background text-foreground border border-border"
                           />
                         </TableCell>
                         <TableCell className="p-1">

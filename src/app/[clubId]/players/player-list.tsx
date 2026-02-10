@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -24,9 +25,18 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [activeTab, setActiveTab] = useState<'players' | 'staff'>('players');
+  const [seasonPickerOpen, setSeasonPickerOpen] = useState(false);
+
+  const baseTabBtn = useMemo(
+    () =>
+      "flex-1 min-w-0 px-2 py-1.5 text-[10px] font-semibold whitespace-nowrap text-center transition-colors",
+    []
+  );
 
   const handleSeasonChange = (season: string) => {
     router.push(`${pathname}?season=${season}`);
+    setSeasonPickerOpen(false);
   };
 
   const groupedPlayers = players.reduce((acc, player) => {
@@ -50,29 +60,69 @@ export function PlayerList({ clubId, clubName, players, allSeasons, activeSeason
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <Link href={`/${clubId}`} className="text-sm text-muted-foreground hover:underline">
-          &larr; {clubName}のページに戻る
-        </Link>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2">
-          <h1 className="text-4xl font-bold tracking-tight">選手一覧</h1>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {allSeasons.length > 0 && (
-            <Select value={activeSeason} onValueChange={handleSeasonChange}>
-              <SelectTrigger className="w-full sm:w-[180px] mt-4 sm:mt-0 bg-white text-gray-900">
-                <SelectValue placeholder="シーズンを選択" />
-              </SelectTrigger>
-              <SelectContent>
-                {allSeasons.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="w-full sm:w-auto sm:ml-auto">
+              <button
+                type="button"
+                onClick={() => setSeasonPickerOpen((v) => !v)}
+                className="w-full h-8 px-3 text-xs rounded-xl bg-white/5 text-white border border-white/15 hover:bg-white/10 sm:w-[180px] sm:h-9 sm:text-sm"
+              >
+                シーズン
+              </button>
+
+              {seasonPickerOpen && (
+                <div className="mt-2">
+                  <Select value={activeSeason} onValueChange={handleSeasonChange}>
+                    <SelectTrigger className="w-full h-8 px-3 text-xs rounded-xl bg-background text-foreground border border-border sm:h-9 sm:text-sm dark:bg-white/5 dark:text-white dark:border-white/15">
+                      <SelectValue placeholder="シーズン" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allSeasons.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="mt-2 overflow-hidden rounded-xl border border-white/15 bg-white/5">
+                <div className="flex items-stretch">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('players')}
+                    className={
+                      activeTab === 'players'
+                        ? `${baseTabBtn} bg-blue-600 text-white`
+                        : `${baseTabBtn} text-white/90 hover:bg-white/10`
+                    }
+                  >
+                    選手
+                  </button>
+                  <div className="w-px bg-white/15" aria-hidden="true" />
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('staff')}
+                    className={
+                      activeTab === 'staff'
+                        ? `${baseTabBtn} bg-blue-600 text-white`
+                        : `${baseTabBtn} text-white/90 hover:bg-white/10`
+                    }
+                  >
+                    スタッフ
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
 
-      {players.length > 0 ? (
+      {activeTab === 'staff' ? (
+        <div className="py-10 text-center text-sm text-muted-foreground">スタッフ一覧は準備中です。</div>
+      ) : players.length > 0 ? (
         <div className="space-y-12">
           {Object.entries(sortedGroupedPlayers).map(([position, players]) => (
             <section key={position}>
-              <h2 className="text-2xl font-bold border-b-2 border-primary pb-2 mb-6">{position}</h2>
+              <h2 className="text-2xl font-bold border-b-2 border-white pb-2 mb-6 text-white">{position}</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 gap-y-2 sm:gap-4">
                 {players.map(player => (
                   <Link href={`/${clubId}/players/${player.id}${activeSeason ? `?season=${activeSeason}` : ''}`} key={player.id} className="block">

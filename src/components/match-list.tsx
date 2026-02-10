@@ -124,7 +124,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
         <div className="mb-8 flex flex-col items-center gap-4">
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-              <SelectTrigger className="w-[180px] bg-white text-gray-900 border shadow-sm">
+              <SelectTrigger className="w-[180px] bg-background text-foreground border border-border shadow-sm">
                 <SelectValue placeholder="シーズンを選択" />
               </SelectTrigger>
               <SelectContent>
@@ -143,7 +143,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                   className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
                     selectedCompetition === comp
                       ? 'bg-emerald-500 text-white border-emerald-600'
-                      : 'bg-white text-gray-900 border-gray-300 hover:border-gray-500'
+                      : 'bg-background text-foreground border-border hover:border-muted-foreground'
                   }`}
                 >
                   <span className="inline-flex items-center gap-1">

@@ -125,7 +125,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
 
   if (transfersPublic === false) {
     return (
-      <main className="min-h-screen flex flex-col bg-white">
+      <main className="min-h-screen flex flex-col bg-background text-foreground">
         <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
 
         <div className="flex-1 w-full">
@@ -133,7 +133,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
             <a href={`/${clubId}/club`} className="text-sm text-muted-foreground hover:underline">
               &larr; {clubName || clubId}のCLUBに戻る
             </a>
-            <div className="mt-6 rounded-lg border bg-white p-6">
+            <div className="mt-6 rounded-lg border border-border bg-card text-card-foreground p-6">
               <h1 className="text-xl font-bold">移籍情報は公開されていません</h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 このクラブの移籍履歴は現在非公開設定になっています。
@@ -201,8 +201,8 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
     const feeClass = directionLabel === "IN" ? "text-red-600" : "text-emerald-600";
 
     return (
-      <div className="overflow-hidden rounded-lg bg-white shadow-md">
-        <div className="px-4 py-3 border-b">
+      <div className="overflow-hidden rounded-lg bg-card text-card-foreground shadow-md border border-border">
+        <div className="px-4 py-3 border-b border-border">
           <h2 className="text-lg font-semibold">{directionLabel}</h2>
         </div>
         {rows.length === 0 ? (
@@ -210,14 +210,14 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-xs">
-              <thead className="bg-gray-200">
+              <thead className="bg-muted">
                 <tr className="text-left">
-                  <th className="px-2 py-1 font-medium whitespace-nowrap bg-gray-200">種</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap bg-gray-200">選手名</th>
-                  <th className="px-2 py-1 font-medium bg-gray-200">{counterpartyHeader}</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap bg-gray-200">Pos</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap bg-gray-200">年齢</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap bg-gray-200">金額</th>
+                  <th className="px-2 py-1 font-medium whitespace-nowrap">種</th>
+                  <th className="px-2 py-1 font-medium whitespace-nowrap">選手名</th>
+                  <th className="px-2 py-1 font-medium">{counterpartyHeader}</th>
+                  <th className="px-2 py-1 font-medium whitespace-nowrap">Pos</th>
+                  <th className="px-2 py-1 font-medium whitespace-nowrap">年齢</th>
+                  <th className="px-2 py-1 font-medium whitespace-nowrap">金額</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -254,7 +254,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
   };
 
   return (
-    <main className="min-h-screen flex flex-col bg-white">
+    <main className="min-h-screen flex flex-col bg-background text-foreground">
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
 
       <div className="flex-1 w-full">
