@@ -185,7 +185,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center">
                             <span
-                              className={`text-5xl font-black tracking-tighter ${accentColor ? '' : 'text-gray-700'}`}
+                              className={`text-7xl font-black tracking-tighter ${accentColor ? '' : 'text-gray-700'}`}
                               style={accentColor ? { color: accentColor } : undefined}
                             >
                               {player.number}
@@ -197,7 +197,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
 
                         <div className="absolute top-4 left-4">
                           <div
-                            className={`text-base font-semibold leading-none ${accentColor ? '' : 'text-white'}`}
+                            className={`text-2xl font-semibold leading-none ${accentColor ? '' : 'text-white'}`}
                             style={accentColor ? { color: accentColor } : undefined}
                           >
                             {player.number}
