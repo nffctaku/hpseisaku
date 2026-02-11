@@ -103,6 +103,13 @@ export function LeagueTable({ competitions, clubId, variant = 'home' }: LeagueTa
           competitions[0];
         if (!selectedComp) return;
 
+        // Public pages (unauthenticated) should not read Firestore directly.
+        // If clubId is available, always use the public API to avoid permission-denied console errors.
+        if (clubId && selectedComp?.id) {
+          await fetchStandingsViaPublicApi(clubId, selectedComp.id);
+          return;
+        }
+
         const competitionDocRef = doc(db, `clubs/${selectedComp.ownerUid}/competitions`, selectedComp.id);
 
         // 1. Fetch teams + competition doc + (optional) manually saved standings in parallel
@@ -272,25 +279,6 @@ export function LeagueTable({ competitions, clubId, variant = 'home' }: LeagueTa
           typeof (error as any)?.message === 'string' && (error as any).message
             ? String((error as any).message)
             : "";
-
-        const isPermissionDenied =
-          /permission/i.test(rawMsg) ||
-          /insufficient\s+permissions/i.test(rawMsg) ||
-          /missing\s+or\s+insufficient\s+permissions/i.test(rawMsg);
-
-        // Public pages (unauthenticated) can hit permission-denied. Fallback to server API.
-        const selectedComp =
-          (competitions.find((c) => (c as any).showOnHome) as Competition | undefined) ||
-          competitions[0];
-
-        if (isPermissionDenied && clubId && selectedComp?.id) {
-          try {
-            await fetchStandingsViaPublicApi(clubId, selectedComp.id);
-            return;
-          } catch (apiErr) {
-            console.error("Public standings API fallback failed:", apiErr);
-          }
-        }
 
         setStandings([]);
         const msg = rawMsg || "順位表の取得に失敗しました";

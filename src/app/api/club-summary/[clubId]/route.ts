@@ -3,7 +3,7 @@ import { db } from '@/lib/firebase/admin';
 import { NewsArticle } from '@/types/news';
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 async function getClubSummary(clubId: string) {
   const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);

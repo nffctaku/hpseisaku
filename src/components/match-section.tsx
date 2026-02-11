@@ -62,7 +62,8 @@ function RecentMatchesStrip({
   clubSlug: string;
 }) {
   const items = (matches || [])
-    .filter((m) => typeof m.scoreHome === 'number' && typeof m.scoreAway === 'number')
+    .filter((m) => m && typeof m === "object")
+    .filter((m) => typeof (m as any).scoreHome === 'number' && typeof (m as any).scoreAway === 'number')
     .slice()
     .sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
   if (items.length === 0) return null;

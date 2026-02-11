@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { notFound, useRouter } from 'next/navigation';
 import Link from "next/link";
 import Image from "next/image";
-import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { Hero } from "@/components/hero";
@@ -14,11 +13,7 @@ import { NewsSection } from "@/components/news-section";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import type { NewsArticle } from "@/types/news";
-
-const MatchSection = dynamic(
-  () => import("@/components/match-section").then((m) => m.MatchSection),
-  { ssr: false }
-);
+import { MatchSection } from "@/components/match-section";
 
 function toCloudinaryPadded16x9(url: string, width: number) {
   if (!url) return url;
@@ -39,27 +34,36 @@ function resolvePublishedDate(value: any): Date | null {
   return null;
 }
 
-function resolveNewsHref(item: NewsArticle, clubId: string) {
-  const noteUrl = (item as any).noteUrl;
+function resolveNewsHref(item: NewsArticle | null | undefined, clubId: string) {
+  if (!item) return `/${clubId}/news`;
+  const noteUrl = (item as any)?.noteUrl;
   if (typeof noteUrl === "string" && noteUrl.trim() !== "") return noteUrl;
-  return `/${clubId}/news/${item.id}`;
+  return `/${clubId}/news/${(item as any)?.id || ""}`;
 }
 
-function isExternalNewsLink(item: NewsArticle): boolean {
-  const noteUrl = (item as any).noteUrl;
+function isExternalNewsLink(item: NewsArticle | null | undefined): boolean {
+  const noteUrl = (item as any)?.noteUrl;
   return typeof noteUrl === "string" && noteUrl.trim() !== "";
 }
 
-export default function ClubPageContent({ clubId }: { clubId: string }) {
-    const [clubInfo, setClubInfo] = useState<any>({
+export default function ClubPageContent({
+  clubId,
+  initialClubInfo,
+}: {
+  clubId: string;
+  initialClubInfo?: any | null;
+}) {
+    const [clubInfo, setClubInfo] = useState<any>(
+      initialClubInfo ?? {
         news: [],
         latestResult: null,
         nextMatch: null,
         profile: { clubName: '' },
         videos: [],
         competitions: [],
-    });
-    const [isLoading, setIsLoading] = useState(true);
+      }
+    );
+    const [isLoading, setIsLoading] = useState(!initialClubInfo);
     const router = useRouter();
 
     useEffect(() => {
@@ -72,10 +76,24 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
         let idleHandle: number | null = null;
         let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
-        const fetchData = async () => {
+        const runFullFetch = async () => {
+            try {
+                const fullRes = await fetch(`/api/club/${clubId}`);
+                if (!fullRes.ok) {
+                    console.error(`Full club data HTTP error: ${fullRes.status}`);
+                    return;
+                }
+                const fullData = await fullRes.json();
+                if (cancelled) return;
+                setClubInfo(fullData);
+            } catch (fullErr) {
+                console.error("Failed to fetch full club data:", fullErr);
+            }
+        };
+
+        const fetchSummaryThenFull = async () => {
             try {
                 setIsLoading(true);
-                // 1. まず軽量なサマリーデータを取得して、素早く初期表示する
                 const summaryRes = await fetch(`/api/club-summary/${clubId}`);
                 if (!summaryRes.ok) {
                     if (summaryRes.status === 404) {
@@ -92,28 +110,9 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                 setClubInfo(summaryData);
                 setIsLoading(false);
 
-                // 2. バックグラウンドで重いフルデータを取得し、到着したら上書き
-                const runFullFetch = async () => {
-                    try {
-                        const fullRes = await fetch(`/api/club/${clubId}`);
-                        if (!fullRes.ok) {
-                            console.error(`Full club data HTTP error: ${fullRes.status}`);
-                            return;
-                        }
-                        const fullData = await fullRes.json();
-                        if (cancelled) return;
-                        setClubInfo(fullData);
-                    } catch (fullErr) {
-                        console.error("Failed to fetch full club data:", fullErr);
-                    }
-                };
-
-                // 初期描画を優先するため、アイドル時にフル取得を回す
                 const ric = (globalThis as any).requestIdleCallback as
                     | ((cb: () => void) => number)
                     | undefined;
-                const cic = (globalThis as any).cancelIdleCallback as ((id: number) => void) | undefined;
-
                 if (ric) {
                     idleHandle = ric(() => {
                         runFullFetch();
@@ -123,19 +122,28 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
                         runFullFetch();
                     }, 0);
                 }
-
-                return () => {
-                    if (idleHandle != null && cic) cic(idleHandle);
-                    if (timeoutHandle) clearTimeout(timeoutHandle);
-                };
             } catch (e) {
                 console.error("Failed to fetch club summary:", e);
                 setIsLoading(false);
-                // Continue with empty state even if fetch fails
             }
         };
 
-        fetchData();
+        if (!initialClubInfo) {
+            fetchSummaryThenFull();
+        } else {
+            const ric = (globalThis as any).requestIdleCallback as
+                | ((cb: () => void) => number)
+                | undefined;
+            if (ric) {
+                idleHandle = ric(() => {
+                    runFullFetch();
+                });
+            } else {
+                timeoutHandle = setTimeout(() => {
+                    runFullFetch();
+                }, 0);
+            }
+        }
 
         return () => {
             cancelled = true;
@@ -143,7 +151,7 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
             if (idleHandle != null && cic) cic(idleHandle);
             if (timeoutHandle) clearTimeout(timeoutHandle);
         };
-    }, [clubId]);
+    }, [clubId, initialClubInfo, router]);
 
     const homeBgColor = clubInfo.profile?.homeBgColor as string | undefined;
     const heroNewsLimit =
@@ -151,8 +159,11 @@ export default function ClubPageContent({ clubId }: { clubId: string }) {
         (clubInfo.profile?.heroNewsLimit as number | undefined) ??
         3;
 
-    const heroNews = (clubInfo as any).heroNews || clubInfo.news || [];
-    const listNews = clubInfo.news || [];
+    const heroNewsRaw = (clubInfo as any).heroNews || clubInfo.news || [];
+    const listNewsRaw = clubInfo.news || [];
+
+    const heroNews = (Array.isArray(heroNewsRaw) ? heroNewsRaw : []).filter((x) => x && typeof x === "object");
+    const listNews = (Array.isArray(listNewsRaw) ? listNewsRaw : []).filter((x) => x && typeof x === "object");
     const videos = clubInfo.videos || [];
 
     const heroItems = (heroNews as NewsArticle[]).slice(0, heroNewsLimit);
