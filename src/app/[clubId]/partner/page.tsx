@@ -100,7 +100,7 @@ function LogoCard({ partner, largeOnDesktop }: { partner: Partner; largeOnDeskto
   const heightClass = largeOnDesktop ? "h-20 sm:h-40" : "h-20";
   const body = (
     <div>
-      <div className="rounded-md bg-white p-4">
+      <div className="rounded-md bg-white p-2 sm:p-3">
         <div className={`flex items-center justify-center ${heightClass}`}>
           {partner.logoUrl ? (
             <div className="relative w-full h-full">
