@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { LeagueTable } from '@/components/league-table';
 import { ClubHeader } from '@/components/club-header';
 import { ClubFooter } from '@/components/club-footer';
+import { PartnerStripClient } from "@/components/partner-strip-client";
 import { SeasonSelect } from "./season-select";
 
 interface TablePageProps {
@@ -110,10 +111,7 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
     : competitionsToRender;
 
   return (
-    <main
-      className="min-h-screen"
-      style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}
-    >
+    <main className="min-h-screen bg-white">
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
       <div className="container mx-auto py-10 px-4 md:px-0">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
@@ -136,6 +134,7 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
           ))}
         </div>
       </div>
+      <PartnerStripClient clubId={clubId} />
       <ClubFooter
         clubId={clubId}
         clubName={clubName}

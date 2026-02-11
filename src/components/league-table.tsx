@@ -294,7 +294,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
 
   if (!competitions || competitions.length === 0) {
     return (
-      <div className="bg-card text-card-foreground p-4 rounded-2xl text-center text-muted-foreground shadow-sm border border-border">
+      <div className="bg-card text-card-foreground p-4 rounded-2xl text-center text-muted-foreground shadow-sm border-0">
         <p>表示できる大会がありません。</p>
       </div>
     );
@@ -304,7 +304,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
     <div
       className={
         variant === 'table'
-          ? 'mx-auto max-w-[520px] bg-card text-card-foreground p-4 rounded-2xl shadow-sm border border-border'
+          ? 'mx-auto max-w-[520px] bg-card text-card-foreground p-4 rounded-2xl shadow-sm border-0'
           : minCardOnMobile
             ? 'bg-white text-card-foreground p-2 rounded-xl shadow-none border-0 sm:bg-card sm:p-3 sm:rounded-2xl sm:shadow-sm sm:border sm:border-border'
             : 'bg-card text-card-foreground p-2 sm:p-3 rounded-2xl shadow-sm border border-border'
@@ -331,7 +331,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
       ) : errorMessage ? (
-        <div className="text-center py-10 border-2 border-dashed border-border rounded-lg">
+        <div className="text-center py-10">
           <p className="text-muted-foreground">{errorMessage}</p>
         </div>
       ) : standings.length > 0 ? (
@@ -343,8 +343,8 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
                 : 'w-full table-fixed sm:table-auto sm:min-w-[440px] text-xs'
             }
           >
-            <TableHeader>
-              <TableRow>
+            <TableHeader className={variant === 'table' ? "[&_tr]:border-0" : undefined}>
+              <TableRow className={variant === 'table' ? "border-0" : undefined}>
                 <TableHead className="w-[24px] px-2 py-1 sm:w-[32px] sm:px-2 sm:py-1">#</TableHead>
                 <TableHead className="px-2 py-1 sm:px-2 sm:py-1">Club</TableHead>
                 <TableHead className="w-[36px] text-right tabular-nums px-2 py-1 sm:w-auto sm:px-2 sm:py-1">試</TableHead>
@@ -371,7 +371,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
             </TableHeader>
             <TableBody>
               {standings.map((team) => (
-                <TableRow key={team.id}>
+                <TableRow key={team.id} className={variant === 'table' ? "border-0" : undefined}>
                   <TableCell className="font-medium px-2 py-1 sm:px-2 sm:py-1 relative">
                     {(() => {
                       const rule = rankLabels.find((r) => team.rank >= r.from && team.rank <= r.to);
@@ -435,7 +435,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
           </Table>
         </div>
       ) : (
-        <div className="text-center py-10 border-2 border-dashed border-border rounded-lg">
+        <div className="text-center py-10">
           <p className="text-muted-foreground">表示できる順位情報がありません</p>
         </div>
       )}

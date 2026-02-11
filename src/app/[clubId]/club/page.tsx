@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
+import { PartnerStripClient } from "@/components/partner-strip-client";
 import Image from "next/image";
 import Link from "next/link";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
@@ -224,6 +225,7 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
         </div>
       </div>
 
+      <PartnerStripClient clubId={clubId} />
       <ClubFooter
         clubId={clubId}
         clubName={clubName || ''}

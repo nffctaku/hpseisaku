@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
+import { PartnerStripClient } from "@/components/partner-strip-client";
 import { TransfersBalancePie } from "@/components/transfers-balance-pie";
 
 import type { TransferLog } from "@/types/transfer";
@@ -142,6 +143,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
           </div>
         </div>
 
+        <PartnerStripClient clubId={clubId} />
         <ClubFooter
           clubId={clubId}
           clubName={clubName}
@@ -303,6 +305,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
         </div>
       </div>
 
+      <PartnerStripClient clubId={clubId} />
       <ClubFooter
         clubId={clubId}
         clubName={clubName}

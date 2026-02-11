@@ -10,6 +10,7 @@ import { ja } from 'date-fns/locale';
 import PaginationControls from '@/components/pagination-controls';
 import { ClubHeader } from '@/components/club-header';
 import { ClubFooter } from '@/components/club-footer';
+import { PartnerStripClient } from "@/components/partner-strip-client";
 
 const NEWS_PER_PAGE = 9;
 
@@ -132,7 +133,7 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
   const totalPages = Math.ceil(totalNews / NEWS_PER_PAGE);
 
   return (
-    <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
+    <main className="min-h-screen flex flex-col bg-white">
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
       <div className="flex-1">
         <div className="container mx-auto px-4 py-6 sm:py-8">
@@ -154,6 +155,7 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
         </div>
       </div>
 
+      <PartnerStripClient clubId={clubId} />
       <ClubFooter
         clubId={clubId}
         clubName={clubName}

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { MatchList } from '@/components/match-list';
 import { ClubHeader } from '@/components/club-header';
 import { ClubFooter } from '@/components/club-footer';
+import { PartnerStripClient } from "@/components/partner-strip-client";
 import { toSlashSeason } from "@/lib/season";
 
 // This interface should be defined or imported if it's not already global.
@@ -284,28 +285,30 @@ export default async function ResultsPage({
         notFound();
     }
 
-    const { matches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, latestSeason } = data as any;
+  const { matches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, latestSeason } = data as any;
 
-    return (
-        <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
-          <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
-          <div className="flex-1">
-            <MatchList 
-              allMatches={matches} 
-              clubId={resolvedMainTeamId || mainTeamId || ownerUid} // 自チーム判定にはメインチームIDを優先（docIdへ解決）
-              clubSlug={clubId} // public clubId slug for URLs
-              clubName={clubName} 
-              initialSelectedSeason={latestSeason || undefined}
-            />
-          </div>
-          <ClubFooter
-            clubId={clubId}
-            clubName={clubName}
-            sponsors={sponsors}
-            snsLinks={snsLinks}
-            legalPages={legalPages}
-            gameTeamUsage={Boolean(gameTeamUsage)}
-          />
-        </main>
-    );
+  return (
+    <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+      <div className="flex-1">
+        <MatchList 
+          allMatches={matches} 
+          clubId={resolvedMainTeamId || mainTeamId || ownerUid} // 自チーム判定にはメインチームIDを優先（docIdへ解決）
+          clubSlug={clubId} // public clubId slug for URLs
+          clubName={clubName} 
+          initialSelectedSeason={latestSeason || undefined}
+        />
+      </div>
+
+      <PartnerStripClient clubId={clubId} />
+      <ClubFooter
+        clubId={clubId}
+        clubName={clubName}
+        sponsors={sponsors}
+        snsLinks={snsLinks}
+        legalPages={legalPages}
+        gameTeamUsage={Boolean(gameTeamUsage)}
+      />
+    </main>
+  );
 }

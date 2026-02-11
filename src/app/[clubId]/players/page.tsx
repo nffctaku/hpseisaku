@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PlayerList } from "./player-list";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
+import { PartnerStripClient } from "@/components/partner-strip-client";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 
 export const revalidate = 60;
@@ -328,6 +329,7 @@ export default async function PlayersPage({
         activeSeason={activeSeason}
         accentColor={homeBgColor}
       />
+      <PartnerStripClient clubId={clubId} />
       <ClubFooter
         clubId={clubId}
         clubName={clubName}

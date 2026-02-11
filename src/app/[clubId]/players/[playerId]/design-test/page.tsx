@@ -1,4 +1,5 @@
 import { ClubFooter } from "@/components/club-footer";
+import { PartnerStripClient } from "@/components/partner-strip-client";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { SnapPager } from "@/components/SnapPager";
 import { PositionMap } from "./components/PositionMap";
@@ -621,6 +622,7 @@ export default async function PlayerDesignTestPage({
             </div>
           </div>
 
+          <PartnerStripClient clubId={clubId} />
           <ClubFooter clubId={clubId} clubName={clubName} legalPages={legalPages} />
         </div>
       </div>

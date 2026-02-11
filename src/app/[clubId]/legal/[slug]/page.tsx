@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase/admin";
 import { notFound } from "next/navigation";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
+import { PartnerStripClient } from "@/components/partner-strip-client";
 import Link from "next/link";
 
 interface PageProps {
@@ -100,6 +101,7 @@ export default async function LegalTextPage({ params }: PageProps) {
           </div>
         </div>
       </div>
+      <PartnerStripClient clubId={clubId} />
       <ClubFooter
         clubId={clubId}
         clubName={clubName || ""}

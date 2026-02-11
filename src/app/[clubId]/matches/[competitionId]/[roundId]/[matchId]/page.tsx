@@ -569,7 +569,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
   );
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-white">
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
       <div className="container mx-auto px-4 py-8 max-w-5xl space-y-8">
         {/* Header with league, date, venue, emblems & score */}

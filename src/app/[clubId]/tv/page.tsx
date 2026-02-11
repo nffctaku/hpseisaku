@@ -4,6 +4,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import PaginationControls from '@/components/pagination-controls';
 import { ClubHeader } from '@/components/club-header';
 import { ClubFooter } from '@/components/club-footer';
+import { PartnerStripClient } from "@/components/partner-strip-client";
 
 const VIDEOS_PER_PAGE = 9;
 
@@ -93,7 +94,7 @@ export default async function TvPage({ params: { clubId }, searchParams }: TvPag
   const gameTeamUsage = Boolean((clubInfo as any).gameTeamUsage);
 
   return (
-    <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
+    <main className="min-h-screen flex flex-col bg-white">
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
       <div className="flex-1">
         <div className="container mx-auto py-6 sm:py-8 px-4">
@@ -140,6 +141,7 @@ export default async function TvPage({ params: { clubId }, searchParams }: TvPag
         </div>
       </div>
 
+      <PartnerStripClient clubId={clubId} />
       <ClubFooter
         clubId={clubId}
         clubName={clubName}

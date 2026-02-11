@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, ArrowUpDown } from "lucide-react";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
+import { PartnerStripClient } from "@/components/partner-strip-client";
 import { SeasonPerformance } from "@/components/season-performance";
 
 interface TeamOption {
@@ -519,6 +520,8 @@ export default function ClubStatsPage() {
           </>
         )}
       </div>
+
+      {clubId && <PartnerStripClient clubId={clubId} />}
       <ClubFooter
         clubId={clubId}
         clubName={clubName}

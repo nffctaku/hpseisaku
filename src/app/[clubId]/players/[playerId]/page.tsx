@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatMoneyWithSymbol } from "@/lib/money";
 import { ClubFooter } from "@/components/club-footer";
 import { ClubHeader } from "@/components/club-header";
+import { PartnerStripClient } from "@/components/partner-strip-client";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { PublicPlayerOverallBySeasonChart } from "@/components/public-player-overall-by-season-chart";
 import { PublicPlayerSeasonSummaries } from "@/components/public-player-season-summaries";
@@ -1609,6 +1610,7 @@ export default async function PlayerPage({
         </div>
       </div>
 
+      <PartnerStripClient clubId={clubId} />
       <ClubFooter clubId={clubId} clubName={clubName} legalPages={legalPages} gameTeamUsage={Boolean(gameTeamUsage)} />
     </div>
   );

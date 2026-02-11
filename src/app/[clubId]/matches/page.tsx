@@ -365,7 +365,8 @@ export default async function ClubMatchesPage({ params }: PageProps) {
   const competitionNames = Object.keys(groupedMatches);
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <main className="min-h-screen bg-white">
+      <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold tracking-tight">{clubName} - 試合日程</h1>
         </div>
@@ -375,7 +376,7 @@ export default async function ClubMatchesPage({ params }: PageProps) {
              {competitionNames.map((competitionName) => (
                <div key={competitionName}>
                  <h2 className="text-xl font-bold mb-4 border-l-4 border-blue-500 pl-3">{competitionName}</h2>
-                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+                 <div className="bg-white rounded-lg shadow-md p-4">
                   {groupedMatches[competitionName].map((match) => (
                      <MatchItem key={match.id} clubId={clubId} match={match} />
                   ))}
@@ -386,6 +387,7 @@ export default async function ClubMatchesPage({ params }: PageProps) {
         ) : (
             <p>{clubName}の試合予定はありません。</p>
         )}
-    </div>
+      </div>
+    </main>
   );
 }
