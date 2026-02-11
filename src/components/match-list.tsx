@@ -37,6 +37,7 @@ interface MatchListProps {
   clubSlug: string; // public clubId used in URLs
   clubName: string;
   initialSelectedSeason?: string;
+  pageForegroundClass?: string;
 }
 
 const getFormattedDateGroup = (dateString: string) => {
@@ -54,7 +55,7 @@ const getSeason = (date: Date): string => {
   return month >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
 };
 
-export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelectedSeason }: MatchListProps) {
+export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelectedSeason, pageForegroundClass }: MatchListProps) {
   const [showAll, setShowAll] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState<string>('all');
   const [selectedSeason, setSelectedSeason] = useState<string>(initialSelectedSeason || 'all');
@@ -116,12 +117,12 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
 
   return (
     <div className="container mx-auto py-8 px-4 md:px-0">
-        <div className="text-center mb-4">
+        <div className={`text-center mb-4 ${pageForegroundClass || ''}`.trim()}>
             <h1 className="text-lg sm:text-xl font-bold leading-tight">
               <span className="block">試合日程・結果</span>
             </h1>
         </div>
-        <div className="mb-8 flex flex-col items-center gap-4">
+        <div className={`mb-8 flex flex-col items-center gap-4 ${pageForegroundClass || ''}`.trim()}>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Select value={selectedSeason} onValueChange={setSelectedSeason}>
               <SelectTrigger className="w-[180px] bg-background text-foreground border border-border shadow-sm">

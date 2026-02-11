@@ -153,6 +153,7 @@ export default async function PartnerPage({ params }: { params: { clubId: string
   const clubName = (clubInfo.clubName as string | undefined) ?? "";
   const logoUrl = (clubInfo.logoUrl as string | undefined) ?? undefined;
   const snsLinks = ((clubInfo as any).snsLinks as any) ?? {};
+  const homeBgColor = (clubInfo as any).homeBgColor as string | undefined;
   const partnerTitleBg = "#000000" as const;
   const partnerTitleText = "#ffffff" as const;
   const sponsors = (Array.isArray((clubInfo as any).sponsors) ? ((clubInfo as any).sponsors as any[]) : []) as any;
@@ -218,7 +219,7 @@ export default async function PartnerPage({ params }: { params: { clubId: string
 
   return (
     <main className="min-h-screen flex flex-col bg-black">
-      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="flex-1">
         <div className="container mx-auto px-4 py-6 sm:py-10">
           <div className="p-0">

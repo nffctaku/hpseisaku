@@ -197,6 +197,7 @@ export default function ClubPageContent({
                 clubId={clubId} 
                 clubName={clubInfo.profile?.clubName || ""} 
                 logoUrl={clubInfo.profile?.logoUrl || null} 
+                headerBackgroundColor={homeBgColor}
                 snsLinks={clubInfo.profile?.snsLinks || {}}
             />
             <div className="md:hidden">

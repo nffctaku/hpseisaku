@@ -319,7 +319,7 @@ export default async function PlayersPage({
       className="min-h-screen"
       style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}
     >
-      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} headerBackgroundColor={homeBgColor ?? undefined} />
       <PlayerList
         clubId={clubId}
         clubName={clubName}

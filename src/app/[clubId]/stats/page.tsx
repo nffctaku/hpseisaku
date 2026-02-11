@@ -11,6 +11,47 @@ import { ClubFooter } from "@/components/club-footer";
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import { SeasonPerformance } from "@/components/season-performance";
 
+function parseColorToRgb(input: string): { r: number; g: number; b: number } | null {
+  const v = input.trim();
+
+  const hexMatch = v.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    if (hex.length === 3) {
+      const r = parseInt(hex[0] + hex[0], 16);
+      const g = parseInt(hex[1] + hex[1], 16);
+      const b = parseInt(hex[2] + hex[2], 16);
+      return { r, g, b };
+    }
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return { r, g, b };
+  }
+
+  const rgbMatch = v.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d*\.?\d+)\s*)?\)$/i);
+  if (rgbMatch) {
+    const r = Math.min(255, Math.max(0, Number(rgbMatch[1])));
+    const g = Math.min(255, Math.max(0, Number(rgbMatch[2])));
+    const b = Math.min(255, Math.max(0, Number(rgbMatch[3])));
+    return { r, g, b };
+  }
+
+  return null;
+}
+
+function isDarkColor(input: string): boolean | null {
+  const rgb = parseColorToRgb(input);
+  if (!rgb) return null;
+  const { r, g, b } = rgb;
+  const srgb = [r, g, b].map((c) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+  return luminance < 0.5;
+}
+
 interface TeamOption {
   id: string;
   name: string;
@@ -457,28 +498,46 @@ export default function ClubStatsPage() {
     fetchStatsData({ season: selectedSeason || 'all', competitionId: selectedCompetitionId, showLoading: false });
   }, [clubId, selectedSeason, selectedCompetitionId]);
 
+  const pageFg = (() => {
+    if (homeBgColor) {
+      const bgIsDark = isDarkColor(homeBgColor);
+      if (bgIsDark === true) return "text-white";
+      if (bgIsDark === false) return "text-black";
+    }
+    return "text-foreground";
+  })();
+
+  const pageMuted =
+    pageFg === "text-white" ? "text-white/80" : pageFg === "text-black" ? "text-black/70" : "text-muted-foreground";
+
   return (
     <main className="min-h-screen" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
       {clubId && (
-        <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+        <ClubHeader
+          clubId={clubId}
+          clubName={clubName}
+          logoUrl={logoUrl}
+          snsLinks={snsLinks}
+          headerBackgroundColor={homeBgColor ?? undefined}
+        />
       )}
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl md:text-3xl font-bold mb-4">STATS</h1>
-        <p className="text-sm text-muted-foreground mb-6">
+        <h1 className={`text-2xl md:text-3xl font-bold mb-4 ${pageFg}`}>STATS</h1>
+        <p className={`text-sm mb-6 ${pageMuted}`}>
           
         </p>
 
         {loadingOwner ? (
-          <div className="flex items-center justify-center py-10 text-muted-foreground">
+          <div className={`flex items-center justify-center py-10 ${pageMuted}`.trim()}>
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             <span>読み込み中...</span>
           </div>
         ) : error ? (
-          <div className="text-sm text-red-600 py-4">{error}</div>
+          <div className={`text-sm py-4 ${pageFg}`.trim()}>{error}</div>
         ) : !ownerUid || !statsData ? (
-        <div className="text-sm text-muted-foreground py-4">
-          クラブのオーナー情報が取得できませんでした。
-        </div>
+          <div className={`text-sm py-4 ${pageMuted}`.trim()}>
+            クラブのオーナー情報が取得できませんでした。
+          </div>
       ) : (
         <>
           <SeasonPerformance

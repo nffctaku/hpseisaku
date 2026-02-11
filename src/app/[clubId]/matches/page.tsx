@@ -2,6 +2,9 @@ import { db } from '@/lib/firebase/admin';
 import { MatchDetails } from '@/types/match';
 import { format, isValid, parseISO } from 'date-fns';
 import Link from 'next/link';
+import { ClubHeader } from "@/components/club-header";
+import { ClubFooter } from "@/components/club-footer";
+import { PartnerStripClient } from "@/components/partner-strip-client";
 
 function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | undefined): number {
   const md: any = (m as any)?.matchDate;
@@ -161,7 +164,16 @@ async function hasPublicMatchIndexData(ownerUid: string): Promise<boolean> {
   return true;
 }
 
-async function getClubMatches(clubId: string): Promise<{ clubName: string; groupedMatches: Record<string, MatchDetails[]> }> {
+async function getClubMatches(clubId: string): Promise<{
+  clubName: string;
+  logoUrl: string | null;
+  snsLinks: any;
+  sponsors: any[];
+  legalPages: any[];
+  homeBgColor?: string;
+  gameTeamUsage: boolean;
+  groupedMatches: Record<string, MatchDetails[]>;
+}> {
   let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
 
   const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
@@ -179,14 +191,38 @@ async function getClubMatches(clubId: string): Promise<{ clubName: string; group
   }
 
   if (!profileDoc) {
-    return { clubName: 'クラブ', groupedMatches: {} };
+    return {
+      clubName: 'クラブ',
+      logoUrl: null,
+      snsLinks: {},
+      sponsors: [],
+      legalPages: [],
+      homeBgColor: undefined,
+      gameTeamUsage: false,
+      groupedMatches: {},
+    };
   }
 
   const profileData = profileDoc.data() as any;
   const ownerUid = (profileData as any).ownerUid || profileDoc.id;
   const clubName = (profileData as any).clubName || 'クラブ';
+  const logoUrl = (profileData as any).logoUrl || null;
+  const snsLinks = (profileData as any).snsLinks || {};
+  const sponsors = Array.isArray((profileData as any).sponsors) ? (profileData as any).sponsors : [];
+  const legalPages = Array.isArray((profileData as any).legalPages) ? (profileData as any).legalPages : [];
+  const homeBgColor = typeof (profileData as any).homeBgColor === "string" ? (profileData as any).homeBgColor : undefined;
+  const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
   if (!ownerUid) {
-    return { clubName, groupedMatches: {} };
+    return {
+      clubName,
+      logoUrl,
+      snsLinks,
+      sponsors,
+      legalPages,
+      homeBgColor,
+      gameTeamUsage,
+      groupedMatches: {},
+    };
   }
 
   // Fast-path: use public_match_index if present
@@ -227,7 +263,7 @@ async function getClubMatches(clubId: string): Promise<{ clubName: string; group
       return acc;
     }, {} as Record<string, MatchDetails[]>);
 
-    return { clubName, groupedMatches };
+    return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, groupedMatches };
   }
 
   // If index is empty, backfill once and then read from index
@@ -268,7 +304,7 @@ async function getClubMatches(clubId: string): Promise<{ clubName: string; group
       return acc;
     }, {} as Record<string, MatchDetails[]>);
 
-    return { clubName, groupedMatches };
+    return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, groupedMatches };
   } catch (e) {
     // fall back to legacy path
   }
@@ -330,7 +366,7 @@ async function getClubMatches(clubId: string): Promise<{ clubName: string; group
     return acc;
   }, {} as Record<string, MatchDetails[]>);
 
-  return { clubName, groupedMatches };
+  return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, groupedMatches };
 }
 
 const MatchItem = ({ clubId, match }: { clubId: string; match: MatchDetails }) => (
@@ -361,11 +397,12 @@ const MatchItem = ({ clubId, match }: { clubId: string; match: MatchDetails }) =
 
 export default async function ClubMatchesPage({ params }: PageProps) {
   const { clubId } = params;
-  const { clubName, groupedMatches } = await getClubMatches(clubId);
+  const { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, groupedMatches } = await getClubMatches(clubId);
   const competitionNames = Object.keys(groupedMatches);
 
   return (
     <main className="min-h-screen bg-white">
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl || undefined} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold tracking-tight">{clubName} - 試合日程</h1>
@@ -388,6 +425,16 @@ export default async function ClubMatchesPage({ params }: PageProps) {
             <p>{clubName}の試合予定はありません。</p>
         )}
       </div>
+
+      <PartnerStripClient clubId={clubId} />
+      <ClubFooter
+        clubId={clubId}
+        clubName={clubName}
+        sponsors={sponsors}
+        snsLinks={snsLinks}
+        legalPages={legalPages}
+        gameTeamUsage={Boolean(gameTeamUsage)}
+      />
     </main>
   );
 }

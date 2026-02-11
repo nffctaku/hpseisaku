@@ -239,7 +239,6 @@ export function SeasonPerformance({
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold">シーズン別成績</h2>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">

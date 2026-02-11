@@ -5,6 +5,8 @@ import type { MatchDetails, TeamStat, PlayerStats, MatchEvent } from "@/types/ma
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ClubHeader } from "@/components/club-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ClubFooter } from "@/components/club-footer";
+import { PartnerStripClient } from "@/components/partner-strip-client";
 
 interface PageProps {
   params: Promise<{ clubId: string; competitionId: string; roundId: string; matchId: string }>;
@@ -15,7 +17,16 @@ async function getMatchDetail(
   competitionId: string,
   roundId: string,
   matchId: string,
-): Promise<{ clubName: string; logoUrl: string | null; match: MatchDetails | null } | null> {
+): Promise<{
+  clubName: string;
+  logoUrl: string | null;
+  snsLinks: any;
+  sponsors: any[];
+  legalPages: any[];
+  homeBgColor?: string;
+  gameTeamUsage: boolean;
+  match: MatchDetails | null;
+} | null> {
   // resolve club profile to ownerUid
   let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
 
@@ -34,6 +45,11 @@ async function getMatchDetail(
   const ownerUid = (profileData as any).ownerUid || profileDoc.id;
   const clubName = (profileData as any).clubName || "";
   const logoUrl = (profileData as any).logoUrl || null;
+  const snsLinks = (profileData as any).snsLinks || {};
+  const sponsors = Array.isArray((profileData as any).sponsors) ? (profileData as any).sponsors : [];
+  const legalPages = Array.isArray((profileData as any).legalPages) ? (profileData as any).legalPages : [];
+  const homeBgColor = typeof (profileData as any).homeBgColor === "string" ? (profileData as any).homeBgColor : undefined;
+  const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
   if (!ownerUid) return null;
 
   // Friendly/Practice single match
@@ -116,7 +132,7 @@ async function getMatchDetail(
       (match as any).playerMetaMap = playerMetaMap;
       (match as any).playerTeamMap = playerTeamMap;
 
-      return { clubName, logoUrl, match };
+      return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, match };
     }
   }
 
@@ -218,14 +234,14 @@ async function getMatchDetail(
     (match as any).playerMetaMap = playerMetaMap;
     (match as any).playerTeamMap = playerTeamMap;
 
-    return { clubName, logoUrl, match };
+    return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, match };
   }
 
   // Fallback: legacy flat matches collection
   const flatMatchRef = db.doc(`clubs/${ownerUid}/matches/${matchId}`);
   const flatSnap = await flatMatchRef.get();
   if (!flatSnap.exists) {
-    return { clubName, logoUrl, match: null };
+    return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, match: null };
   }
 
   const data = flatSnap.data() as any;
@@ -318,7 +334,7 @@ async function getMatchDetail(
   (match as any).playerMetaMap = playerMetaMap;
   (match as any).playerTeamMap = playerTeamMap;
 
-  return { clubName, logoUrl, match };
+  return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, match };
 }
 
 export default async function MatchDetailPage({ params }: PageProps) {
@@ -568,9 +584,15 @@ export default async function MatchDetailPage({ params }: PageProps) {
     </div>
   );
 
+  const sponsors = (data as any).sponsors as any[] | undefined;
+  const legalPages = (data as any).legalPages as any[] | undefined;
+  const snsLinks = (data as any).snsLinks as any;
+  const homeBgColor = (data as any).homeBgColor as string | undefined;
+  const gameTeamUsage = Boolean((data as any).gameTeamUsage);
+
   return (
-    <div className="min-h-screen bg-white">
-      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
+    <main className="min-h-screen bg-white">
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} headerBackgroundColor={homeBgColor} snsLinks={snsLinks} />
       <div className="container mx-auto px-4 py-8 max-w-5xl space-y-8">
         {/* Header with league, date, venue, emblems & score */}
         <div className="space-y-6">
@@ -940,6 +962,15 @@ export default async function MatchDetailPage({ params }: PageProps) {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+      <PartnerStripClient clubId={clubId} />
+      <ClubFooter
+        clubId={clubId}
+        clubName={clubName}
+        sponsors={sponsors || []}
+        snsLinks={snsLinks || {}}
+        legalPages={legalPages || []}
+        gameTeamUsage={Boolean(gameTeamUsage)}
+      />
+    </main>
   );
 }

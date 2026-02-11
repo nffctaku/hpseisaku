@@ -112,7 +112,7 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
 
   return (
     <main className="min-h-screen bg-white">
-      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} />
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} headerBackgroundColor={homeBgColor} />
       <div className="container mx-auto py-10 px-4 md:px-0">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
           {seasons.length > 0 && (

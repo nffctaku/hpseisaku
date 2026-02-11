@@ -134,7 +134,7 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
 
   return (
     <main className="min-h-screen flex flex-col bg-white">
-      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="flex-1">
         <div className="container mx-auto px-4 py-6 sm:py-8">
         <div className="flex items-center border-b pb-2 mb-6 sm:mb-8">

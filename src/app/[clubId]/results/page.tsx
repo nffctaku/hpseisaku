@@ -6,6 +6,47 @@ import { ClubFooter } from '@/components/club-footer';
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import { toSlashSeason } from "@/lib/season";
 
+function parseColorToRgb(input: string): { r: number; g: number; b: number } | null {
+  const v = input.trim();
+
+  const hexMatch = v.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    if (hex.length === 3) {
+      const r = parseInt(hex[0] + hex[0], 16);
+      const g = parseInt(hex[1] + hex[1], 16);
+      const b = parseInt(hex[2] + hex[2], 16);
+      return { r, g, b };
+    }
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return { r, g, b };
+  }
+
+  const rgbMatch = v.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d*\.?\d+)\s*)?\)$/i);
+  if (rgbMatch) {
+    const r = Math.min(255, Math.max(0, Number(rgbMatch[1])));
+    const g = Math.min(255, Math.max(0, Number(rgbMatch[2])));
+    const b = Math.min(255, Math.max(0, Number(rgbMatch[3])));
+    return { r, g, b };
+  }
+
+  return null;
+}
+
+function isDarkColor(input: string): boolean | null {
+  const rgb = parseColorToRgb(input);
+  if (!rgb) return null;
+  const { r, g, b } = rgb;
+  const srgb = [r, g, b].map((c) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+  return luminance < 0.5;
+}
+
 // This interface should be defined or imported if it's not already global.
 // For now, we'll define a basic structure.
 interface Match {
@@ -287,9 +328,18 @@ export default async function ResultsPage({
 
   const { matches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, latestSeason } = data as any;
 
+  const pageForegroundClass = (() => {
+    if (homeBgColor) {
+      const bgIsDark = isDarkColor(homeBgColor);
+      if (bgIsDark === true) return "text-white";
+      if (bgIsDark === false) return "text-black";
+    }
+    return "text-foreground";
+  })();
+
   return (
     <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
-      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="flex-1">
         <MatchList 
           allMatches={matches} 
@@ -297,6 +347,7 @@ export default async function ResultsPage({
           clubSlug={clubId} // public clubId slug for URLs
           clubName={clubName} 
           initialSelectedSeason={latestSeason || undefined}
+          pageForegroundClass={pageForegroundClass}
         />
       </div>
 

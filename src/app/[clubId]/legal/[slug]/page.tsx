@@ -63,7 +63,7 @@ export default async function LegalTextPage({ params }: PageProps) {
   }
 
   const { clubName, title, content } = data;
-  const { logoUrl, snsLinks, sponsors, legalPages, gameTeamUsage } = data as any;
+  const { logoUrl, snsLinks, sponsors, legalPages, gameTeamUsage, homeBgColor } = data as any;
 
   const paragraphs = content
     .split(/\n{2,}/)
@@ -76,6 +76,7 @@ export default async function LegalTextPage({ params }: PageProps) {
         clubId={clubId}
         clubName={clubName || ""}
         logoUrl={logoUrl}
+        headerBackgroundColor={homeBgColor}
         snsLinks={snsLinks || {}}
       />
       <div className="flex-1">

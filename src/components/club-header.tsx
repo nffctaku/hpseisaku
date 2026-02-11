@@ -13,6 +13,8 @@ interface ClubHeaderProps {
   clubId: string;
   clubName?: string;
   logoUrl?: string | null;
+  headerForeground?: "auto" | "light" | "dark";
+  headerBackgroundColor?: string;
   snsLinks?: {
     x?: string;
     youtube?: string;
@@ -21,7 +23,55 @@ interface ClubHeaderProps {
   };
 }
 
-export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderProps) {
+function parseColorToRgb(input: string): { r: number; g: number; b: number } | null {
+  const v = input.trim();
+
+  const hexMatch = v.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    if (hex.length === 3) {
+      const r = parseInt(hex[0] + hex[0], 16);
+      const g = parseInt(hex[1] + hex[1], 16);
+      const b = parseInt(hex[2] + hex[2], 16);
+      return { r, g, b };
+    }
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return { r, g, b };
+  }
+
+  const rgbMatch = v.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d*\.?\d+)\s*)?\)$/i);
+  if (rgbMatch) {
+    const r = Math.min(255, Math.max(0, Number(rgbMatch[1])));
+    const g = Math.min(255, Math.max(0, Number(rgbMatch[2])));
+    const b = Math.min(255, Math.max(0, Number(rgbMatch[3])));
+    return { r, g, b };
+  }
+
+  return null;
+}
+
+function isDarkColor(input: string): boolean | null {
+  const rgb = parseColorToRgb(input);
+  if (!rgb) return null;
+  const { r, g, b } = rgb;
+  const srgb = [r, g, b].map((c) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+  return luminance < 0.5;
+}
+
+export function ClubHeader({
+  clubId,
+  clubName,
+  logoUrl,
+  headerForeground = "auto",
+  headerBackgroundColor,
+  snsLinks,
+}: ClubHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const [partnersEnabled, setPartnersEnabled] = useState(false);
@@ -30,6 +80,19 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
 
   const isNavigating = navigatingTo != null;
   const isDark = (resolvedTheme || theme) === "dark";
+
+  const computedForeground = (() => {
+    if (headerForeground === "light") return "text-white";
+    if (headerForeground === "dark") return "text-black";
+
+    if (headerBackgroundColor) {
+      const bgIsDark = isDarkColor(headerBackgroundColor);
+      if (bgIsDark === true) return "text-white";
+      if (bgIsDark === false) return "text-black";
+    }
+
+    return isDark ? "text-white" : "text-black";
+  })();
 
   useEffect(() => {
     let cancelled = false;
@@ -90,7 +153,12 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
   };
 
   return (
-    <header className="w-full border-b border-border/60 bg-background/80 backdrop-blur relative z-20">
+    <header
+      className={`w-full border-b border-border/60 relative z-20 ${computedForeground} ${
+        headerBackgroundColor ? "" : "bg-background/80 backdrop-blur"
+      }`}
+      style={headerBackgroundColor ? { backgroundColor: headerBackgroundColor } : undefined}
+    >
       <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <Link href={`/${clubId}`} className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center overflow-hidden">

@@ -95,7 +95,7 @@ export default async function TvPage({ params: { clubId }, searchParams }: TvPag
 
   return (
     <main className="min-h-screen flex flex-col bg-white">
-      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="flex-1">
         <div className="container mx-auto py-6 sm:py-8 px-4">
         <h1 className="text-2xl sm:text-3xl font-bold mb-6 sm:mb-8 text-center sm:text-left">TV</h1>

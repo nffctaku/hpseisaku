@@ -13,6 +13,7 @@ import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { PublicPlayerOverallBySeasonChart } from "@/components/public-player-overall-by-season-chart";
 import { PublicPlayerSeasonSummaries } from "@/components/public-player-season-summaries";
 import { cache, Suspense } from "react";
+import type { CSSProperties } from "react";
 
 export const revalidate = 300;
 
@@ -35,7 +36,7 @@ const DETAILED_PITCH_LAYOUT: Array<{ key: string; label: string; grid: string }>
   { key: "GK", label: "GK", grid: "col-start-3 row-start-6" },
 ];
 
-const DETAILED_PITCH_BOXES: Array<{ key: string; label: string; style: React.CSSProperties }> = [
+const DETAILED_PITCH_BOXES: Array<{ key: string; label: string; style: CSSProperties }> = [
   { key: "ST", label: "ST", style: { left: "24%", top: "4%", width: "52%", height: "16%" } },
   { key: "LW", label: "LW", style: { left: "4%", top: "4%", width: "21%", height: "26%" } },
   { key: "RW", label: "RW", style: { left: "75%", top: "4%", width: "21%", height: "26%" } },
@@ -114,11 +115,11 @@ function MiniPitch({
             aria-hidden="true"
           >
             {/* zones */}
-            {DETAILED_PITCH_BOXES.map((p) => {
+            {DETAILED_PITCH_BOXES.map((p: { key: string; label: string; style: CSSProperties }) => {
               const isMain = main === p.key;
               const isSub = subs.includes(p.key);
               const fill = isMain ? "rgba(244,63,94,0.80)" : isSub ? "rgba(244,63,94,0.25)" : "rgba(0,0,0,0.03)";
-
+              const border = isMain ? "rgba(244,63,94,0.95)" : isSub ? "rgba(244,63,94,0.35)" : "rgba(0,0,0,0.08)";
               const x = pctToX((p.style as any)?.left);
               const y = pctToY((p.style as any)?.top);
               const w = pctToW((p.style as any)?.width);
@@ -158,7 +159,7 @@ function PositionBadges({ player }: { player: PlayerData }) {
           {main}
         </span>
       )}
-      {subs.map((p, idx) => (
+      {subs.map((p: string, idx: number) => (
         <span
           key={`${p}-${idx}`}
           className="inline-flex items-center rounded-full bg-rose-500/25 text-foreground px-3 py-1 text-sm font-semibold"
@@ -398,6 +399,29 @@ interface PlayerStats {
   ratingCount: number;
 }
 
+type SeasonSummaryCompetitionRow = {
+  competitionId: string;
+  competitionName: string;
+  competitionLogoUrl?: string;
+  matches: number;
+  goals: number;
+  assists: number;
+  avgRating: number | null;
+  hasStats: boolean;
+  overall?: number | null;
+};
+
+type SeasonSummaryRow = {
+  season: string;
+  matches: number;
+  goals: number;
+  assists: number;
+  avgRating: number | null;
+  hasStats: boolean;
+  overall?: number | null;
+  competitions: SeasonSummaryCompetitionRow[];
+};
+
 function buildManualStatsMapFromPlayer(playerData: any, targetSeason?: string | null) {
   const manualStatsMap = new Map<
     string,
@@ -460,26 +484,6 @@ function buildManualStatsMapFromPlayer(playerData: any, targetSeason?: string | 
   }
 
   return manualStatsMap;
-}
-
-interface SeasonSummaryRow {
-  season: string;
-  matches: number;
-  goals: number;
-  assists: number;
-  avgRating: number | null;
-  hasStats: boolean;
-  overall?: number | null;
-  competitions?: {
-    competitionId: string;
-    competitionName: string;
-    matches: number;
-    goals: number;
-    assists: number;
-    avgRating: number | null;
-    hasStats: boolean;
-    overall?: number | null;
-  }[];
 }
 
 interface PlayerParameterItem {
@@ -1095,12 +1099,14 @@ async function getPlayer(
   legalPages: LegalPageItem[];
   gameTeamUsage: boolean;
   displaySettings: { playerProfileLatest?: boolean };
+  homeBgColor?: string;
 } | null> {
   let clubName = clubId;
   let ownerUid: string | null = null;
   let legalPages: LegalPageItem[] = [];
   let gameTeamUsage = false;
   let displaySettings: { playerProfileLatest?: boolean } = {};
+  let homeBgColor: string | undefined = undefined;
 
   // club_profiles から ownerUid と clubName を取得
   const profilesQuery = db
@@ -1114,6 +1120,7 @@ async function getPlayer(
     ownerUid = (data.ownerUid as string) || doc.id;
     clubName = data.clubName || clubName;
     gameTeamUsage = Boolean((data as any).gameTeamUsage);
+    homeBgColor = typeof (data as any).homeBgColor === "string" ? (data as any).homeBgColor : undefined;
     if ((data as any).displaySettings && typeof (data as any).displaySettings === "object") {
       displaySettings = {
         playerProfileLatest: typeof (data as any).displaySettings.playerProfileLatest === "boolean" ? (data as any).displaySettings.playerProfileLatest : undefined,
@@ -1134,6 +1141,7 @@ async function getPlayer(
       ownerUid = (data.ownerUid as string) || directSnap.id;
       clubName = data.clubName || clubName;
       gameTeamUsage = Boolean((data as any).gameTeamUsage);
+      homeBgColor = typeof (data as any).homeBgColor === "string" ? (data as any).homeBgColor : undefined;
       if ((data as any).displaySettings && typeof (data as any).displaySettings === "object") {
         displaySettings = {
           playerProfileLatest: typeof (data as any).displaySettings.playerProfileLatest === "boolean" ? (data as any).displaySettings.playerProfileLatest : undefined,
@@ -1183,6 +1191,7 @@ async function getPlayer(
       legalPages,
       gameTeamUsage,
       displaySettings,
+      homeBgColor,
     };
   }
 
@@ -1201,7 +1210,7 @@ export default async function PlayerPage({
   const result = await getPlayer(clubId, playerId);
   if (!result) return notFound();
 
-  const { clubName, player, ownerUid, legalPages, gameTeamUsage, displaySettings } = result;
+  const { clubName, player, ownerUid, legalPages, gameTeamUsage, displaySettings, homeBgColor } = result;
 
   if (legacy !== "1" && displaySettings?.playerProfileLatest === true) {
     const qs = new URLSearchParams();
@@ -1454,6 +1463,7 @@ export default async function PlayerPage({
 
   return (
     <div className="min-h-screen flex flex-col">
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={null} headerBackgroundColor={homeBgColor} />
       <div className="flex-1">
         <div className="container mx-auto px-4 py-8">
           <div className="mb-8">

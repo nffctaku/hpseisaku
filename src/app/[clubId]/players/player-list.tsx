@@ -25,6 +25,47 @@ interface Staff {
   photoUrl?: string;
 }
 
+function parseColorToRgb(input: string): { r: number; g: number; b: number } | null {
+  const v = input.trim();
+
+  const hexMatch = v.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    if (hex.length === 3) {
+      const r = parseInt(hex[0] + hex[0], 16);
+      const g = parseInt(hex[1] + hex[1], 16);
+      const b = parseInt(hex[2] + hex[2], 16);
+      return { r, g, b };
+    }
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return { r, g, b };
+  }
+
+  const rgbMatch = v.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d*\.?\d+)\s*)?\)$/i);
+  if (rgbMatch) {
+    const r = Math.min(255, Math.max(0, Number(rgbMatch[1])));
+    const g = Math.min(255, Math.max(0, Number(rgbMatch[2])));
+    const b = Math.min(255, Math.max(0, Number(rgbMatch[3])));
+    return { r, g, b };
+  }
+
+  return null;
+}
+
+function isDarkColor(input: string): boolean | null {
+  const rgb = parseColorToRgb(input);
+  if (!rgb) return null;
+  const { r, g, b } = rgb;
+  const srgb = [r, g, b].map((c) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+  return luminance < 0.5;
+}
+
 export function PlayerList({ clubId, clubName, players, staff, allSeasons, activeSeason, accentColor }: {
   clubId: string;
   clubName: string;
@@ -68,6 +109,15 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
     return acc;
   }, {} as Record<string, Player[]>);
 
+  const positionHeadingClass = (() => {
+    if (typeof accentColor === "string" && accentColor.trim().length > 0) {
+      const bgIsDark = isDarkColor(accentColor);
+      if (bgIsDark === true) return "text-white border-white";
+      if (bgIsDark === false) return "text-black border-black";
+    }
+    return "text-white border-white";
+  })();
+
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -104,7 +154,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
                     className={
                       activeTab === 'players'
                         ? `${baseTabBtn} bg-blue-600 text-white`
-                        : `${baseTabBtn} text-foreground/90 hover:bg-muted dark:text-white/90 dark:hover:bg-white/10`
+                        : `${baseTabBtn} bg-background/90 text-foreground border-border hover:bg-background dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10`
                     }
                   >
                     選手
@@ -116,7 +166,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
                     className={
                       activeTab === 'staff'
                         ? `${baseTabBtn} bg-blue-600 text-white`
-                        : `${baseTabBtn} text-foreground/90 hover:bg-muted dark:text-white/90 dark:hover:bg-white/10`
+                        : `${baseTabBtn} bg-background/90 text-foreground border-border hover:bg-background dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10`
                     }
                   >
                     スタッフ
@@ -168,7 +218,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
         <div className="space-y-12">
           {Object.entries(sortedGroupedPlayers).map(([position, players]) => (
             <section key={position}>
-              <h2 className="text-2xl font-bold border-b-2 border-white pb-2 mb-6 text-white">{position}</h2>
+              <h2 className={`text-2xl font-bold border-b-2 pb-2 mb-6 ${positionHeadingClass}`}>{position}</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 gap-y-2 sm:gap-4">
                 {players.map(player => (
                   <Link href={`/${clubId}/players/${player.id}${activeSeason ? `?season=${activeSeason}` : ''}`} key={player.id} className="block">

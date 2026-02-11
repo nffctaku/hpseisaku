@@ -127,7 +127,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
   if (transfersPublic === false) {
     return (
       <main className="min-h-screen flex flex-col bg-background text-foreground">
-        <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+        <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
 
         <div className="flex-1 w-full">
           <div className="container mx-auto px-4 sm:px-6 py-12 sm:py-16">
@@ -257,40 +257,35 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
 
   return (
     <main className="min-h-screen flex flex-col bg-background text-foreground">
-      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
+      <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
 
       <div className="flex-1 w-full">
         <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6">
-          <div>
-            <a href={`/${clubId}/club`} className="text-sm text-muted-foreground hover:underline">
-              &larr; {clubName || clubId}のCLUBに戻る
-            </a>
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mt-2">
-              <h1 className="text-3xl font-bold">移籍履歴</h1>
-
-              {seasons.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">シーズン</span>
-                  {seasons.map((s) => {
-                    const isActive = s === activeSeason;
-                    return (
-                      <a
-                        key={s}
-                        href={`?season=${encodeURIComponent(s)}`}
-                        className={
-                          isActive
-                            ? "rounded-md bg-sky-600 px-3 py-1 text-white"
-                            : "rounded-md border border-sky-600 px-3 py-1 text-sky-700 hover:bg-sky-50"
-                        }
-                      >
-                        {s}
-                      </a>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+          <div className="space-y-1">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">移籍履歴</h1>
           </div>
+
+          {seasons.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">シーズン</span>
+              {seasons.map((s) => {
+                const isActive = s === activeSeason;
+                return (
+                  <a
+                    key={s}
+                    href={`?season=${encodeURIComponent(s)}`}
+                    className={
+                      isActive
+                        ? "rounded-md bg-sky-600 px-3 py-1 text-white"
+                        : "rounded-md border border-sky-600 px-3 py-1 text-sky-700 hover:bg-sky-50"
+                    }
+                  >
+                    {s}
+                  </a>
+                );
+              })}
+            </div>
+          )}
 
           <TransfersBalancePie inTotal={inTotal} outTotal={outTotal} balanceTotal={balanceTotal} currencyLabel={activeCurrency} />
 
