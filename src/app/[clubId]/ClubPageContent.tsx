@@ -291,15 +291,15 @@ export default function ClubPageContent({
                         <div className="md:hidden">
                           <NewsSection news={listNews} clubId={clubId} />
                         </div>
-                        <div className="lg:hidden">
-                          <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} />
-                        </div>
                         <MatchSection 
                             nextMatch={clubInfo.nextMatch} 
                             recentMatches={(clubInfo as any).recentMatches || []}
                             mainTeamId={(clubInfo as any).profile?.mainTeamId || null}
                             clubSlug={clubId}
                         />
+                        <div className="lg:hidden">
+                          <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} />
+                        </div>
                         {videos.length > 0 && <ClubTv videos={videos} clubId={clubId} />}
                     </div>
                     <div className="hidden lg:block lg:col-span-1">
