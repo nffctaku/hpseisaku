@@ -89,11 +89,11 @@ export function ClubFooter({
               <div className="flex flex-col items-center gap-3">
                 <Link href="/" className="inline-flex items-center justify-center">
                   <Image
-                    src="/footballtop-logo-13 (1).png"
-                    alt="footballtop"
-                    width={160}
-                    height={32}
-                    className="h-6 w-auto"
+                    src="/favicon.png"
+                    alt="FootChron"
+                    width={40}
+                    height={40}
+                    className="h-10 w-10"
                   />
                 </Link>
 

@@ -206,7 +206,7 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
                 className={navLinkClass(pathname?.startsWith(`/${clubId}/partner`) ?? false, isNavigating)}
                 onClick={() => setNavigatingTo(`/${clubId}/partner`)}
               >
-                PARTNER
+                Partner
               </Link>
             )}
 
@@ -314,7 +314,7 @@ export function ClubHeader({ clubId, clubName, logoUrl, snsLinks }: ClubHeaderPr
                     setMenuOpen(false);
                   }}
                 >
-                  PARTNER
+                  Partner
                 </Link>
               )}
             </div>

@@ -298,7 +298,7 @@ export default function ClubPageContent({
                             clubSlug={clubId}
                         />
                         <div className="lg:hidden">
-                          <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} />
+                          <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} minCardOnMobile />
                         </div>
                         {videos.length > 0 && <ClubTv videos={videos} clubId={clubId} />}
                     </div>

@@ -47,6 +47,7 @@ interface LeagueTableProps {
   competitions: Competition[];
   clubId?: string;
   variant?: 'home' | 'table';
+  minCardOnMobile?: boolean;
 }
 
 function isLeagueRoundName(name: unknown): boolean {
@@ -56,7 +57,7 @@ function isLeagueRoundName(name: unknown): boolean {
   return /^第\s*\d+\s*節$/.test(s);
 }
 
-export function LeagueTable({ competitions, clubId, variant = 'home' }: LeagueTableProps) {
+export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnMobile = false }: LeagueTableProps) {
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompetition, setSelectedCompetition] = useState<{ name: string; logoUrl?: string } | null>(null);
@@ -304,7 +305,9 @@ export function LeagueTable({ competitions, clubId, variant = 'home' }: LeagueTa
       className={
         variant === 'table'
           ? 'mx-auto max-w-[520px] bg-card text-card-foreground p-4 rounded-2xl shadow-sm border border-border'
-          : 'bg-card text-card-foreground p-2 sm:p-3 rounded-2xl shadow-sm border border-border'
+          : minCardOnMobile
+            ? 'bg-white text-card-foreground p-2 rounded-xl shadow-none border-0 sm:bg-card sm:p-3 sm:rounded-2xl sm:shadow-sm sm:border sm:border-border'
+            : 'bg-card text-card-foreground p-2 sm:p-3 rounded-2xl shadow-sm border border-border'
       }
     >
       {selectedCompetition && (

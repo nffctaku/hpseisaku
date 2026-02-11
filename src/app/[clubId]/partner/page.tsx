@@ -99,14 +99,21 @@ async function getPartners(ownerUid: string): Promise<Partner[]> {
 function LogoCard({ partner, largeOnDesktop }: { partner: Partner; largeOnDesktop?: boolean }) {
   const heightClass = largeOnDesktop ? "h-20 sm:h-40" : "h-20";
   const body = (
-    <div className={`flex items-center justify-center rounded-md bg-white p-4 ${heightClass}`}>
-      {partner.logoUrl ? (
-        <div className="relative w-full h-full">
-          <Image src={partner.logoUrl} alt={partner.name} fill className="object-contain" />
+    <div>
+      <div className="rounded-md bg-white p-4">
+        <div className={`flex items-center justify-center ${heightClass}`}>
+          {partner.logoUrl ? (
+            <div className="relative w-full h-full">
+              <Image src={partner.logoUrl} alt={partner.name} fill className="object-contain" />
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground font-semibold">{partner.name}</div>
+          )}
         </div>
-      ) : (
-        <div className="text-sm text-muted-foreground font-semibold">{partner.name}</div>
-      )}
+      </div>
+      <div className="mt-1 text-center text-[10px] sm:text-xs font-semibold text-white leading-snug line-clamp-2">
+        {partner.name}
+      </div>
     </div>
   );
 
@@ -146,6 +153,8 @@ export default async function PartnerPage({ params }: { params: { clubId: string
   const clubName = (clubInfo.clubName as string | undefined) ?? "";
   const logoUrl = (clubInfo.logoUrl as string | undefined) ?? undefined;
   const snsLinks = ((clubInfo as any).snsLinks as any) ?? {};
+  const partnerTitleBg = "#000000" as const;
+  const partnerTitleText = "#ffffff" as const;
   const sponsors = (Array.isArray((clubInfo as any).sponsors) ? ((clubInfo as any).sponsors as any[]) : []) as any;
   const legalPages = (Array.isArray((clubInfo as any).legalPages) ? ((clubInfo as any).legalPages as any[]) : []) as any;
   const gameTeamUsage = Boolean((clubInfo as any).gameTeamUsage);
@@ -208,15 +217,18 @@ export default async function PartnerPage({ params }: { params: { clubId: string
   }
 
   return (
-    <main className="min-h-screen flex flex-col bg-white">
+    <main className="min-h-screen flex flex-col bg-black">
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} />
       <div className="flex-1">
         <div className="container mx-auto px-4 py-6 sm:py-10">
-          <div className="bg-white/90 rounded-lg border p-6 sm:p-10">
+          <div className="p-0">
             <div className="flex items-end justify-between gap-3">
-              <div>
+              <div
+                className="w-screen text-center py-6 relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]"
+                style={{ backgroundColor: partnerTitleBg, color: partnerTitleText }}
+              >
                 <h1 className="text-2xl sm:text-3xl font-black">{partnersPageTitle}</h1>
-                <div className="mt-2 h-1 w-24 bg-[#0B2A5B]" />
+                <div className="mt-2 h-1 w-24 mx-auto" style={{ backgroundColor: partnerTitleText }} />
               </div>
             </div>
 
@@ -224,7 +236,9 @@ export default async function PartnerPage({ params }: { params: { clubId: string
               <div className="mt-8 space-y-10">
                 {sections.map((sec, index) => (
                   <section key={sec.id}>
-                    <div className="bg-[#0B2A5B] text-white font-black px-4 py-3 rounded">{sec.title}</div>
+                    <div className="bg-[#06162F] text-white font-black px-4 py-3 w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]">
+                      {sec.title}
+                    </div>
                     <div
                       className={`mt-6 grid ${
                         SECTION_GRID_CLASS_BY_COLS[(Math.min(index + 1, 3) as 1 | 2 | 3)]
