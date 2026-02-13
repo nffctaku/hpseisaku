@@ -11,26 +11,34 @@ const siteUrl =
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "FootChron | スポーツチーム専用の試合記録・選手名鑑プラットフォーム",
+  title: "FootChron | サッカー・フットサルHP作成・スタッツ管理【初期0円】",
   description:
-    "試合結果の自動グラフ化や詳細な選手名鑑を、誰でも簡単に作成・公開。チームの歴史をデータで資産化するF-MAIN。",
-  keywords: ["スポーツ記録", "選手名鑑", "試合速報", "チーム運営"],
+    "サッカー、フットサル、ソサイチ特化型のホームページ作成アプリ。一般的なノーコードにはない選手名鑑・スタッツ集計・大会管理を標準装備。初期費用0円、月額1,980円でプロ級のチームサイトを即公開。",
+  keywords: [
+    "サッカー チーム ホームページ作成",
+    "フットサル サイト作成",
+    "スタッツ管理",
+    "選手名鑑 作成",
+    "ソサイチ ホームページ",
+    "少年サッカー 団員募集",
+    "試合結果 集計 アプリ",
+  ],
   alternates: {
     canonical: siteUrl,
   },
   openGraph: {
-    title: "FootChron | スポーツチーム専用の試合記録・選手名鑑プラットフォーム",
+    title: "FootChron | サッカー・フットサルHP作成・スタッツ管理【初期0円】",
     description:
-      "試合結果の自動グラフ化や詳細な選手名鑑を、誰でも簡単に作成・公開。チームの歴史をデータで資産化するF-MAIN。",
+      "サッカー、フットサル、ソサイチ特化型のホームページ作成アプリ。選手名鑑やスタッツ集計など、現場の欲しい機能を1,980円で。専門知識不要でプロ級のデザインが手に入ります。",
     url: siteUrl,
     siteName: "FootChron",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FootChron | スポーツチーム専用の試合記録・選手名鑑プラットフォーム",
+    title: "FootChron | サッカー・フットサルHP作成・スタッツ管理【初期0円】",
     description:
-      "試合結果の自動グラフ化や詳細な選手名鑑を、誰でも簡単に作成・公開。チームの歴史をデータで資産化するF-MAIN。",
+      "一般的なノーコードにはない「サッカー専用機能」が満載。選手名鑑も試合データもこれ一つ。初期0円・月額1,980円でチームをブランディング。",
   },
   verification: {
     google: "S1ug_Ca7PwWYF9UVwZQ6hqBwFdW6MCNS9c1eLb5j_0Q",
