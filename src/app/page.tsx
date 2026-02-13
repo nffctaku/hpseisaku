@@ -207,6 +207,18 @@ export default function LandingPage() {
                   簡単に記録・公開が可能。
                 </p>
 
+                <div className="mt-5 text-center">
+                  <div className="text-sm sm:text-base font-semibold">サンプルページはこちら</div>
+                  <a
+                    href="https://www.f-main.com/kkk"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex items-center justify-center h-12 px-8 rounded-md bg-orange-500 text-white font-semibold hover:bg-orange-600 transition-colors"
+                  >
+                    サンプルページを見る
+                  </a>
+                </div>
+
                 <div className="mt-6">
                   <div className="sm:hidden relative w-screen left-1/2 -ml-[50vw] bg-[#21c45a] text-white">
                     <div className="mx-auto max-w-5xl px-6 py-6 text-center">
