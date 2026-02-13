@@ -7,12 +7,14 @@ import { db } from "@/lib/firebase";
 import {
   addDoc,
   collection,
+  deleteDoc,
+  doc,
   getDocs,
   query,
   orderBy,
   serverTimestamp,
 } from "firebase/firestore";
-import { Loader2, PlusCircle } from "lucide-react";
+import { Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -114,6 +116,22 @@ export default function FriendlyMatchesPage() {
     fetchData();
   }, [user]);
 
+  const handleDelete = async (matchId: string) => {
+    if (!user) return;
+    const ok = window.confirm("この試合を削除します。よろしいですか？");
+    if (!ok) return;
+
+    try {
+      await deleteDoc(doc(db, `clubs/${user.uid}/friendly_matches/${matchId}`));
+      setMatches((prev) => prev.filter((m) => m.id !== matchId));
+      toast.success("試合を削除しました。");
+    } catch (e: any) {
+      console.error(e);
+      const code = typeof e?.code === "string" ? e.code : "";
+      toast.error(`削除に失敗しました。${code ? ` (${code})` : ""}`);
+    }
+  };
+
   const handleCreate = async () => {
     if (!user) return;
     if (!homeTeamId || !awayTeamId) {
@@ -137,7 +155,6 @@ export default function FriendlyMatchesPage() {
         competitionName,
         roundName: "単発",
         matchDate,
-        matchTime: matchTime || undefined,
         homeTeam: homeTeamId,
         awayTeam: awayTeamId,
         homeTeamName: home?.name,
@@ -149,6 +166,10 @@ export default function FriendlyMatchesPage() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
+
+      if (matchTime) {
+        (payload as any).matchTime = matchTime;
+      }
 
       await addDoc(
         collection(db, `clubs/${user.uid}/friendly_matches`),
@@ -276,27 +297,42 @@ export default function FriendlyMatchesPage() {
       ) : (
         <div className="space-y-3">
           {matches.map((m) => (
-            <Link
+            <div
               key={m.id}
-              href={`/admin/friendly-matches/${m.id}`}
-              className="block rounded-lg border bg-card p-4 hover:bg-muted/30 transition-colors"
+              className="rounded-lg border bg-card p-4 hover:bg-muted/30 transition-colors"
             >
               <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
+                <Link
+                  href={`/admin/friendly-matches/${m.id}`}
+                  className="min-w-0 flex-1"
+                >
                   <div className="text-sm font-medium truncate">
                     {(m.homeTeamName || "Home")} vs {(m.awayTeamName || "Away")}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
                     {m.matchDate}{m.matchTime ? ` ${m.matchTime}` : ""}
                   </div>
-                </div>
-                <div className="text-xs text-muted-foreground whitespace-nowrap">
-                  {typeof m.scoreHome === "number" && typeof m.scoreAway === "number"
-                    ? `${m.scoreHome} - ${m.scoreAway}`
-                    : "未入力"}
+                </Link>
+
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-muted-foreground whitespace-nowrap">
+                    {typeof m.scoreHome === "number" && typeof m.scoreAway === "number"
+                      ? `${m.scoreHome} - ${m.scoreAway}`
+                      : "未入力"}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(m.id)}
+                    aria-label="試合を削除"
+                    className="text-muted-foreground hover:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/firebase/admin';
+import { getMatchDataForClub } from '@/lib/matches';
 import { NewsArticle } from '@/types/news';
 
 export const runtime = 'nodejs';
@@ -49,7 +50,11 @@ async function getClubSummary(clubId: string) {
   // ニュースはスライド用と一覧用の両方に使うため、十分な件数を取得する
   const baseLimit = Math.max(heroLimit * 3, 5);
   const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy('publishedAt', 'desc').limit(baseLimit);
-  const newsSnap = await newsQuery.get();
+  const [matchData, newsSnap] = await Promise.all([
+    getMatchDataForClub(ownerUid),
+    newsQuery.get(),
+  ]);
+
   const allNews = newsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
   // スライド用: featuredInHero を優先して heroLimit 件に絞る
@@ -75,10 +80,10 @@ async function getClubSummary(clubId: string) {
   return {
     profile: resolvedProfile,
     data: clubData,
-    latestResult: null,
-    nextMatch: null,
-    recentMatches: [],
-    upcomingMatches: [],
+    latestResult: matchData.latestResult,
+    nextMatch: matchData.nextMatch,
+    recentMatches: matchData.recentMatches,
+    upcomingMatches: matchData.upcomingMatches,
     news: latestNews,
     heroNews,
     videos: [],

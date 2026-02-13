@@ -294,7 +294,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
 
   if (!competitions || competitions.length === 0) {
     return (
-      <div className="bg-card text-card-foreground p-4 rounded-2xl text-center text-muted-foreground shadow-sm border-0">
+      <div className="bg-white text-gray-900 p-4 rounded-2xl text-center text-muted-foreground shadow-sm border border-black/10">
         <p>表示できる大会がありません。</p>
       </div>
     );
@@ -304,10 +304,10 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
     <div
       className={
         variant === 'table'
-          ? 'mx-auto max-w-[520px] bg-card text-card-foreground p-4 rounded-2xl shadow-sm border-0'
+          ? 'mx-auto max-w-[520px] bg-white text-gray-900 p-4 rounded-2xl shadow-sm border border-black/10'
           : minCardOnMobile
-            ? 'bg-white text-card-foreground p-2 rounded-xl shadow-none border-0 sm:bg-card sm:p-3 sm:rounded-2xl sm:shadow-sm sm:border sm:border-border'
-            : 'bg-card text-card-foreground p-2 sm:p-3 rounded-2xl shadow-sm border border-border'
+            ? 'bg-white text-gray-900 p-2 rounded-xl shadow-none border border-black/10 sm:p-3 sm:rounded-2xl sm:shadow-sm'
+            : 'bg-white text-gray-900 p-2 sm:p-3 rounded-2xl shadow-sm border border-black/10'
       }
     >
       {selectedCompetition && (

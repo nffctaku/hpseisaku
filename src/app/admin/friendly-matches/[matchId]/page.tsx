@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   onSnapshot,
@@ -31,6 +32,7 @@ interface LocalMatchEvent extends MatchEvent {
 export default function FriendlyMatchAdminPage() {
   const { user } = useAuth();
   const params = useParams();
+  const router = useRouter();
   const matchId = params.matchId as string;
 
   const [match, setMatch] = useState<MatchDetails | null>(null);
@@ -142,6 +144,22 @@ export default function FriendlyMatchAdminPage() {
   }
 
   const matchDocPath = `clubs/${user.uid}/friendly_matches/${match.id}`;
+
+  const handleDeleteMatch = async () => {
+    if (!user || !match) return;
+    const ok = window.confirm("この試合を削除します。よろしいですか？");
+    if (!ok) return;
+
+    try {
+      await deleteDoc(doc(db, matchDocPath));
+      toast.success("試合を削除しました。");
+      router.push("/admin/friendly-matches");
+    } catch (e: any) {
+      console.error(e);
+      const code = typeof e?.code === "string" ? e.code : "";
+      toast.error(`削除に失敗しました。${code ? ` (${code})` : ""}`);
+    }
+  };
 
   const handleSaveMeta = async () => {
     if (!user || !match) return;
@@ -319,7 +337,10 @@ export default function FriendlyMatchAdminPage() {
             </div>
           </div>
 
-          <div className="mt-3 flex justify-end">
+          <div className="mt-3 flex justify-between gap-2">
+            <Button type="button" variant="destructive" onClick={handleDeleteMatch}>
+              試合を削除
+            </Button>
             <Button type="button" onClick={handleSaveMeta} disabled={savingMeta}>
               {savingMeta ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               保存
