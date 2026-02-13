@@ -54,8 +54,8 @@ export function PartnerStripClient(props: { clubId: string; className?: string }
     <div className={className}>
       <div className="w-full bg-gray-900">
         <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-white font-black tracking-wide">PARTNER</div>
+          <div className="relative flex items-center justify-end gap-3">
+            <div className="absolute left-1/2 -translate-x-1/2 text-white font-black tracking-wide">PARTNER</div>
             <Link
               href={`/${encodeURIComponent(clubId)}/partner`}
               className="text-xs text-white/80 hover:text-white"
@@ -64,10 +64,10 @@ export function PartnerStripClient(props: { clubId: string; className?: string }
             </Link>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
             {items.map((p) => {
               const card = (
-                <div className="rounded-md bg-white p-2 h-16 flex items-center justify-center">
+                <div className="w-32 rounded-md bg-white p-2 h-16 flex items-center justify-center">
                   {p.logoUrl ? (
                     <div className="relative w-full h-full">
                       <Image src={p.logoUrl} alt={p.name} fill className="object-contain" />

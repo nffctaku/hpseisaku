@@ -306,8 +306,8 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
         variant === 'table'
           ? 'mx-auto max-w-[520px] bg-white text-gray-900 p-4 rounded-2xl shadow-sm border border-black/10'
           : minCardOnMobile
-            ? 'bg-white text-gray-900 p-2 rounded-xl shadow-none border border-black/10 sm:p-3 sm:rounded-2xl sm:shadow-sm'
-            : 'bg-white text-gray-900 p-2 sm:p-3 rounded-2xl shadow-sm border border-black/10'
+            ? 'bg-white text-gray-900 p-2 rounded-xl shadow-none border border-black/10 sm:p-3 sm:rounded-2xl sm:shadow-sm lg:min-h-[520px]'
+            : 'bg-white text-gray-900 p-2 sm:p-3 rounded-2xl shadow-sm border border-black/10 lg:min-h-[520px]'
       }
     >
       {selectedCompetition && (

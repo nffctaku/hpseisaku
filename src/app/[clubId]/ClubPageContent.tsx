@@ -12,6 +12,7 @@ import { ClubTv } from "@/components/club-tv";
 import { NewsSection } from "@/components/news-section";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
+import { PartnerStripClient } from "@/components/partner-strip-client";
 import type { NewsArticle } from "@/types/news";
 import { MatchSection } from "@/components/match-section";
 
@@ -257,7 +258,7 @@ export default function ClubPageContent({
                             className="flex-1 min-h-0 rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow border border-black/5"
                           >
                             <div className="h-full flex flex-col overflow-hidden">
-                              <div className="relative w-full flex-[0_0_60%] bg-muted">
+                              <div className="relative w-full flex-[0_0_72%] bg-muted">
                                 <Image
                                   src={toCloudinaryPadded16x9((item as any).imageUrl || "/no-image.png", 640)}
                                   alt={(item as any).imageUrl ? item.title : "No image available"}
@@ -266,14 +267,14 @@ export default function ClubPageContent({
                                   sizes="(min-width: 768px) 320px, 100vw"
                                 />
                               </div>
-                              <div className="flex-1 min-h-0 p-3 overflow-hidden">
+                              <div className="flex-1 min-h-0 px-3 py-2 overflow-hidden">
                                 <div className="text-[11px] text-muted-foreground">
                                   {(() => {
                                     const d = resolvePublishedDate((item as any).publishedAt);
                                     return d ? format(d, "yyyy/MM/dd") : "";
                                   })()}
                                 </div>
-                                <div className="mt-1 text-sm font-semibold leading-snug line-clamp-2 text-gray-900">
+                                <div className="mt-0.5 text-sm font-semibold leading-snug line-clamp-2 text-gray-900">
                                   {item.title}
                                 </div>
                               </div>
@@ -308,6 +309,7 @@ export default function ClubPageContent({
                     </div>
                 </div>
             </div>
+            <PartnerStripClient clubId={clubId} />
             <ClubFooter 
               clubId={clubId}
               clubName={clubInfo.profile?.clubName || ""}

@@ -33,17 +33,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <main className="flex-grow">
         <section className="relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-2 sm:px-4 py-2">
-            <div className="relative w-[64px] sm:w-[320px] h-[64px] sm:h-[64px] flex-shrink-0">
-              <Image
-                src="/ロゴ新.png"
-                alt="FootChorn"
-                fill
-                className="object-contain object-center sm:object-left"
-                sizes="(min-width: 640px) 320px, 64px"
-                priority
-              />
-            </div>
+          <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-end px-2 sm:px-4 py-2">
             <div className="flex items-center gap-1 sm:gap-3 overflow-x-auto flex-nowrap max-w-full">
               <Link
                 href="/admin"
@@ -56,7 +46,7 @@ export default function LandingPage() {
 
           <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden sm:hidden">
             <Image
-              src="/トップページモバイル３.jpg"
+              src="/サイトトップモバイル最新.jpg"
               alt="FootChorn"
               width={576}
               height={1024}

@@ -193,8 +193,8 @@ interface MatchSectionProps {
 
 export function MatchSection({ nextMatch, recentMatches = [], mainTeamId, clubSlug }: MatchSectionProps) {
   return (
-    <section className="py-8 md:py-12">
-      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 w-full">
+    <section className="pt-0 pb-8 md:pb-12">
+      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 w-full lg:min-h-[520px] flex flex-col">
         <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center">MATCHES</h2>
         <RecentMatchesStrip matches={recentMatches} mainTeamId={mainTeamId} clubSlug={clubSlug} />
         <NextMatch match={nextMatch} />
