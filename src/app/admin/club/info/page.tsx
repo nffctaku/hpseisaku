@@ -149,7 +149,11 @@ export default function ClubInfoPage() {
           const data = snap.docs[0].data() as any;
           if (data.mainTeamId) {
             setSelectedTeamId(data.mainTeamId as string);
-            setMainTeamLocked(true);
+          }
+          if (typeof data.mainTeamLocked === 'boolean') {
+            setMainTeamLocked(Boolean(data.mainTeamLocked));
+          } else {
+            setMainTeamLocked(false);
           }
           if (typeof data.realTeamUsage === 'boolean') {
             setRealTeamUsage(Boolean(data.realTeamUsage));

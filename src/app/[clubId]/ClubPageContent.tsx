@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { notFound, useRouter } from 'next/navigation';
 import Link from "next/link";
 import Image from "next/image";
@@ -66,6 +66,11 @@ export default function ClubPageContent({
     );
     const [isLoading, setIsLoading] = useState(!initialClubInfo);
     const router = useRouter();
+    const routerRef = useRef(router);
+
+    useEffect(() => {
+        routerRef.current = router;
+    }, [router]);
 
     useEffect(() => {
         if (clubId === 'admin') {
@@ -100,7 +105,7 @@ export default function ClubPageContent({
                     if (summaryRes.status === 404) {
                         console.error("Club summary not found, clearing stored ID and redirecting.");
                         localStorage.removeItem('selectedClubId');
-                        router.push('/');
+                        routerRef.current.push('/');
                     } else {
                         throw new Error(`Summary HTTP error! status: ${summaryRes.status}`);
                     }
@@ -152,7 +157,7 @@ export default function ClubPageContent({
             if (idleHandle != null && cic) cic(idleHandle);
             if (timeoutHandle) clearTimeout(timeoutHandle);
         };
-    }, [clubId, initialClubInfo, router]);
+    }, [clubId, initialClubInfo]);
 
     const homeBgColor = clubInfo.profile?.homeBgColor as string | undefined;
     const heroNewsLimit =
