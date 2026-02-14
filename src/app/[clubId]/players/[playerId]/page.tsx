@@ -1307,6 +1307,17 @@ export default async function PlayerPage({
     return candidates.length > 0 ? candidates[0] : null;
   })();
 
+  const showParamsOnPublic = (() => {
+    const fromCurrent = (currentSeasonData as any)?.showParamsOnPublic;
+    if (typeof fromCurrent === "boolean") return fromCurrent;
+    const fromLatest =
+      latestSeasonKeyForParams != null
+        ? (getSeasonDataEntry(seasonData as any, latestSeasonKeyForParams) as any)?.showParamsOnPublic
+        : undefined;
+    if (typeof fromLatest === "boolean") return fromLatest;
+    return true;
+  })();
+
   const latestSeasonKeyForContract = (() => {
     if (targetSeason) return targetSeason;
     const candidates = Array.isArray(registeredSeasonIds) ? [...registeredSeasonIds] : [];
@@ -1591,20 +1602,22 @@ export default async function PlayerPage({
                   </div>
                 )}
 
-                <div className="mt-8">
-                  <h2 className="text-xl font-bold mb-4">パラメーター</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border p-4 items-start">
-                    <div className="flex flex-col items-center gap-4">
-                      <PublicPlayerHexChart labels={paramLabels} values={paramValues} overall={overall} />
-                    </div>
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="w-full max-w-[520px]">
-                        <PublicPlayerOverallBySeasonChart data={overallSeries} />
+                {showParamsOnPublic ? (
+                  <div className="mt-8">
+                    <h2 className="text-xl font-bold mb-4">パラメーター</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border p-4 items-start">
+                      <div className="flex flex-col items-center gap-4">
+                        <PublicPlayerHexChart labels={paramLabels} values={paramValues} overall={overall} />
+                      </div>
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="w-full max-w-[520px]">
+                          <PublicPlayerOverallBySeasonChart data={overallSeries} />
+                        </div>
                       </div>
                     </div>
+                    {!hasParams && <p className="mt-3 text-xs text-muted-foreground">パラメーター未登録</p>}
                   </div>
-                  {!hasParams && <p className="mt-3 text-xs text-muted-foreground">パラメーター未登録</p>}
-                </div>
+                ) : null}
 
                 <Suspense fallback={<div className="mt-8 text-sm text-muted-foreground">スタッツ集計中...</div>}>
                   <PlayerStatsSection 

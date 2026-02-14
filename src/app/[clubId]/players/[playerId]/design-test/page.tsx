@@ -84,6 +84,12 @@ export default async function PlayerDesignTestPage({
   const effectiveSeason = season ?? inferredSeason ?? null;
   const currentSeasonData = effectiveSeason ? getSeasonDataEntry(seasonData, effectiveSeason) : undefined;
 
+  const showParamsOnPublic = (() => {
+    const v = (currentSeasonData as any)?.showParamsOnPublic;
+    if (typeof v === "boolean") return v;
+    return true;
+  })();
+
   const birthDateText = formatBirthDate((player as any)?.birthDate ?? (currentSeasonData as any)?.birthDate ?? (player as any)?.birthday);
   const ageValue = (currentSeasonData as any)?.age ?? (player as any)?.age ?? null;
   const birthLine = birthDateText ? `${birthDateText}${typeof ageValue === "number" && Number.isFinite(ageValue) ? ` (${ageValue})` : ""}` : null;
@@ -285,7 +291,7 @@ export default async function PlayerDesignTestPage({
         </div>
       ) : null}
 
-      {hasParams ? (
+      {hasParams && showParamsOnPublic ? (
         <div className="mt-4">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold">パラメータ</div>
@@ -533,7 +539,7 @@ export default async function PlayerDesignTestPage({
                           </div>
                         </div>
 
-                        {(mainPosition || (Array.isArray(subPositions) && subPositions.length > 0) || hasParams) ? (
+                        {(mainPosition || (Array.isArray(subPositions) && subPositions.length > 0) || (hasParams && showParamsOnPublic)) ? (
                           <div className="mt-4">
                             <div className="flex items-center justify-between">
                               <div className="text-sm font-semibold">ビジュアル</div>
@@ -554,7 +560,7 @@ export default async function PlayerDesignTestPage({
                                 </div>
                               ) : null}
 
-                              {hasParams ? (
+                              {hasParams && showParamsOnPublic ? (
                                 <div className="h-[260px] rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col">
                                   <div className="text-sm font-semibold">能力値</div>
                                   <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-2 flex-1 flex">
@@ -565,7 +571,7 @@ export default async function PlayerDesignTestPage({
                                 </div>
                               ) : null}
 
-                              {hasParams ? (
+                              {hasParams && showParamsOnPublic ? (
                                 <div className="h-[260px] rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col">
                                   <div className="text-sm font-semibold">総合値推移</div>
                                   <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-2 pt-3 flex-1 flex flex-col justify-end">

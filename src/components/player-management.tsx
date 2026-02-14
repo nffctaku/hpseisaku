@@ -386,6 +386,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         photoUrl: values.photoUrl,
         snsLinks: snsLinksClean,
         params: paramsNormalized as any,
+        showParamsOnPublic: (values as any).showParamsOnPublic,
         manualCompetitionStats: manualStatsNormalized as any,
         isPublished: values.isPublished,
       };

@@ -91,6 +91,7 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
         overall: undefined,
         items: Array.from({ length: 6 }, () => ({ label: "", value: undefined })),
       },
+      showParamsOnPublic: true,
       manualCompetitionStats: [],
       teamId: "",
       seasons: defaultSeason ? [defaultSeason] : [],
@@ -687,6 +688,20 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
             </div>
           </TabsContent>
           <TabsContent value="params" className="space-y-4">
+            <FormField
+              control={form.control}
+              name="showParamsOnPublic"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>HPでパラメーターを表示</FormLabel>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value ?? true} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="params.overall"

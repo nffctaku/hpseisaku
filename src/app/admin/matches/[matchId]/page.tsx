@@ -33,11 +33,18 @@ interface Player {
   number: number;
 }
 
+const optionalIntFromInputSchema = z
+  .preprocess((v) => {
+    if (v === "" || v == null) return undefined;
+    return v;
+  }, z.union([z.coerce.number().int(), z.nan()]).optional())
+  .transform((v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined));
+
 const playerStatsSchema = z.object({
   playerId: z.string(),
-  minutesPlayed: z.coerce.number().int().min(0).max(120).optional(),
-  goals: z.coerce.number().int().min(0).optional(),
-  assists: z.coerce.number().int().min(0).optional(),
+  minutesPlayed: optionalIntFromInputSchema,
+  goals: optionalIntFromInputSchema,
+  assists: optionalIntFromInputSchema,
 });
 
 const matchStatsSchema = z.object({
@@ -179,7 +186,16 @@ export default function MatchStatsPage() {
                       name={`playerStats.${index}.minutesPlayed`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormControl><Input type="number" placeholder="0" {...field} /></FormControl>
+                          <FormControl>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              placeholder="0"
+                              value={(field.value ?? "") as any}
+                              onChange={(e) => field.onChange(e.target.value)}
+                            />
+                          </FormControl>
                         </FormItem>
                       )}
                     />
@@ -188,7 +204,16 @@ export default function MatchStatsPage() {
                       name={`playerStats.${index}.goals`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormControl><Input type="number" placeholder="0" {...field} /></FormControl>
+                          <FormControl>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              placeholder="0"
+                              value={(field.value ?? "") as any}
+                              onChange={(e) => field.onChange(e.target.value)}
+                            />
+                          </FormControl>
                         </FormItem>
                       )}
                     />
@@ -197,7 +222,16 @@ export default function MatchStatsPage() {
                       name={`playerStats.${index}.assists`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormControl><Input type="number" placeholder="0" {...field} /></FormControl>
+                          <FormControl>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              placeholder="0"
+                              value={(field.value ?? "") as any}
+                              onChange={(e) => field.onChange(e.target.value)}
+                            />
+                          </FormControl>
                         </FormItem>
                       )}
                     />

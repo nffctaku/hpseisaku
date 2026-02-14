@@ -57,6 +57,7 @@ export interface PlayerSeasonData {
   photoUrl?: string;
   snsLinks?: PlayerSnsLinks;
   params?: PlayerParameters;
+  showParamsOnPublic?: boolean;
   manualCompetitionStats?: ManualCompetitionStat[];
   isPublished?: boolean;
 }

@@ -157,6 +157,7 @@ export const formSchema = z.object({
       items: z.array(paramItemSchema).length(6),
     })
     .optional(),
+  showParamsOnPublic: z.boolean().optional(),
   manualCompetitionStats: z.array(manualCompetitionStatSchema).optional(),
   teamId: z.string().optional(),
   seasons: z.array(z.string()).optional(),
