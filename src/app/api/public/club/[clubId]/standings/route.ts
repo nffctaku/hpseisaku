@@ -37,10 +37,30 @@ async function resolveOwnerUid(clubId: string): Promise<string | null> {
   try {
     const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
     const profileSnap = await profilesQuery.get();
-    if (profileSnap.empty) return null;
-    const doc = profileSnap.docs[0];
-    const data = doc.data() as any;
-    return (data.ownerUid as string) || doc.id;
+
+    const clubProfileDoc = !profileSnap.empty ? profileSnap.docs[0] : null;
+    const directSnap = clubProfileDoc ? null : await db.collection("club_profiles").doc(clubId).get();
+    const ownerSnap =
+      clubProfileDoc || directSnap?.exists
+        ? null
+        : await db.collection("club_profiles").where("ownerUid", "==", clubId).limit(1).get();
+
+    if (!clubProfileDoc && !directSnap?.exists && ownerSnap?.empty) return null;
+
+    const fallbackDoc = ownerSnap && !ownerSnap.empty ? ownerSnap.docs[0] : null;
+    const profileData = (
+      clubProfileDoc
+        ? clubProfileDoc.data()
+        : directSnap?.exists
+          ? (directSnap!.data() as any)
+          : (fallbackDoc!.data() as any)
+    ) as any;
+
+    const ownerUid =
+      (profileData as any)?.ownerUid ||
+      (clubProfileDoc ? clubProfileDoc.id : directSnap?.exists ? directSnap!.id : fallbackDoc!.id);
+
+    return ownerUid ? String(ownerUid) : null;
   } catch {
     return null;
   }
