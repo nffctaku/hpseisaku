@@ -288,6 +288,21 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       return;
     }
 
+    try {
+      await setDoc(
+        doc(db, 'club_profiles', clubUid),
+        {
+          publicPlayerParamsEnabled:
+            typeof (values as any)?.showParamsOnPublic === 'boolean'
+              ? Boolean((values as any).showParamsOnPublic)
+              : true,
+        },
+        { merge: true }
+      );
+    } catch {
+      // ignore
+    }
+
     const selectedSeasonDash = toDashSeason(selectedSeason);
 
     const prevPhotoUrl = ((seasonDefaults as any)?.photoUrl ?? (editingPlayer as any)?.photoUrl ?? '') as string;

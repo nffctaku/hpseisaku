@@ -26,7 +26,8 @@ import { notFound } from "next/navigation";
 import { Bebas_Neue } from "next/font/google";
 import { Suspense } from "react";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const numberFont = Bebas_Neue({ weight: "400", subsets: ["latin"], display: "swap" });
 
@@ -77,7 +78,7 @@ export default async function PlayerDesignTestPage({
   const result = await getPlayer(clubId, playerId);
   if (!result) return notFound();
 
-  const { clubName, player, ownerUid, legalPages, gameTeamUsage } = result;
+  const { clubName, player, ownerUid, legalPages, gameTeamUsage, publicPlayerParamsEnabled } = result as any;
 
   const seasonData = player?.seasonData && typeof player.seasonData === "object" ? (player.seasonData as any) : {};
   const inferredSeason = season ? null : inferLatestSeasonFromPlayer(player);
@@ -85,6 +86,7 @@ export default async function PlayerDesignTestPage({
   const currentSeasonData = effectiveSeason ? getSeasonDataEntry(seasonData, effectiveSeason) : undefined;
 
   const showParamsOnPublic = (() => {
+    if (typeof publicPlayerParamsEnabled === "boolean") return publicPlayerParamsEnabled;
     const v = (currentSeasonData as any)?.showParamsOnPublic;
     if (typeof v === "boolean") return v;
     return true;
@@ -482,35 +484,34 @@ export default async function PlayerDesignTestPage({
                 </div>
 
                 <div className="hidden md:block p-6">
-                  <div className="flex gap-6">
-                      <div className="w-[220px] shrink-0">
-                        <div className="relative h-[220px] w-[220px] overflow-hidden rounded-xl border border-white/10 bg-white/5">
-                          {player.photoUrl ? (
-                            <Image
-                              src={player.photoUrl}
-                              alt={player.name}
-                              fill
-                              priority
-                              sizes="(min-width: 768px) 420px, 100vw"
-                              className="object-cover object-left"
-                            />
-                          ) : (
-                            <div className="absolute inset-0 bg-white/5" />
-                          )}
-                        </div>
+                  <div className="flex gap-6 items-start">
+                    <div className="w-[420px] shrink-0">
+                      <div className="relative h-[580px] w-[420px] overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                        {player.photoUrl ? (
+                          <Image
+                            src={player.photoUrl}
+                            alt={player.name}
+                            fill
+                            priority
+                            sizes="(min-width: 768px) 420px, 100vw"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 bg-white/5" />
+                        )}
                       </div>
+                    </div>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0">
-                            <div className={`${numberFont.className} text-7xl font-black tracking-tighter leading-none`}>
-                              {currentSeasonData?.number ?? player.number ?? "-"}
-                            </div>
-                            <h1 className="mt-1 text-4xl font-black tracking-tight break-words">{player.name}</h1>
+                    <div className="flex-1 min-w-0 h-[580px] min-h-0 flex flex-col gap-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                          <div className={`${numberFont.className} text-7xl font-black tracking-tighter leading-none`}>
+                            {currentSeasonData?.number ?? player.number ?? "-"}
                           </div>
+                          <h1 className="mt-1 text-4xl font-black tracking-tight break-words">{player.name}</h1>
                         </div>
 
-                        <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4">
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                           <div className="grid grid-cols-1 gap-2 text-sm">
                             <div className="flex items-baseline justify-between gap-4">
                               <div className="text-white/70">出身</div>
@@ -538,62 +539,55 @@ export default async function PlayerDesignTestPage({
                             </div>
                           </div>
                         </div>
+                      </div>
 
-                        {(mainPosition || (Array.isArray(subPositions) && subPositions.length > 0) || (hasParams && showParamsOnPublic)) ? (
-                          <div className="mt-4">
-                            <div className="flex items-center justify-between">
-                              <div className="text-sm font-semibold">ビジュアル</div>
-                            </div>
-
-                            <div className="mt-3 grid grid-cols-3 gap-3">
-                              {mainPosition || (Array.isArray(subPositions) && subPositions.length > 0) ? (
-                                <div className="h-[260px] rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col min-h-0">
-                                  <div className="text-sm font-semibold">ポジション</div>
-                                  <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-2 flex-1 flex min-h-0 overflow-hidden">
-                                    <div className="mx-auto w-full max-w-[200px] h-full overflow-hidden">
-                                      <PositionMap
-                                        mainPosition={typeof mainPosition === "string" ? mainPosition : undefined}
-                                        subPositions={Array.isArray(subPositions) ? subPositions : undefined}
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : null}
-
-                              {hasParams && showParamsOnPublic ? (
-                                <div className="h-[260px] rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col">
-                                  <div className="text-sm font-semibold">能力値</div>
-                                  <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-2 flex-1 flex">
-                                    <div className="mx-auto w-full max-w-[180px] h-full flex items-center">
-                                      <PublicPlayerHexChart labels={paramLabels} values={paramValues} overall={overall} theme="dark" />
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : null}
-
-                              {hasParams && showParamsOnPublic ? (
-                                <div className="h-[260px] rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col">
-                                  <div className="text-sm font-semibold">総合値推移</div>
-                                  <div className="mt-2 rounded-xl border border-white/10 bg-white/5 p-2 pt-3 flex-1 flex flex-col justify-end">
-                                    <OverallTrendChart rows={overallTrendRows} height={220} />
-                                  </div>
-                                </div>
-                              ) : null}
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex-1 min-h-0">
+                        <div className="flex gap-4 items-start h-full min-h-0">
+                          <div className="w-[280px] min-h-0 flex flex-col">
+                            <div className="text-sm font-semibold">ポジション</div>
+                            <div className="mt-2 flex-1 min-h-0 rounded-xl border border-white/10 bg-white/5 p-2 overflow-hidden">
+                              <div className="mx-auto w-full max-w-[210px] h-full overflow-hidden">
+                                <PositionMap
+                                  mainPosition={typeof mainPosition === "string" ? mainPosition : undefined}
+                                  subPositions={Array.isArray(subPositions) ? subPositions : undefined}
+                                />
+                              </div>
                             </div>
                           </div>
-                        ) : null}
 
-                        {player.profile ? (
-                          <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-4">
+                          <div className="flex-1 min-w-0 min-h-0 flex flex-col">
                             <div className="text-sm font-semibold">選手紹介</div>
-                            <p className="mt-3 text-sm text-white/80 whitespace-pre-wrap line-clamp-6">{player.profile}</p>
+                            <p className="mt-3 text-sm text-white/80 whitespace-pre-wrap line-clamp-12">{player.profile || "-"}</p>
                           </div>
-                        ) : null}
+                        </div>
                       </div>
                     </div>
                   </div>
+                </div>
 
                 <div className="p-4 sm:p-6">
+                  {hasParams && showParamsOnPublic ? (
+                    <div className="hidden md:block">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <div className="text-sm font-semibold">能力値</div>
+                          <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                            <div className="mx-auto w-full max-w-[240px]">
+                              <PublicPlayerHexChart labels={paramLabels} values={paramValues} overall={overall} theme="dark" />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <div className="text-sm font-semibold">総合値推移</div>
+                          <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                            <OverallTrendChart rows={overallTrendRows} height={220} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="md:hidden">
                     <DesignTestPagerTabs targetId="design-test-pager" />
                   </div>

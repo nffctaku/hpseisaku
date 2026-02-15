@@ -164,11 +164,12 @@ async function findBestPlayerDoc(
 export async function getPlayer(
   clubId: string,
   playerId: string
-): Promise<{ clubName: string; player: any; ownerUid: string; legalPages: LegalPageItem[]; gameTeamUsage: boolean } | null> {
+): Promise<{ clubName: string; player: any; ownerUid: string; legalPages: LegalPageItem[]; gameTeamUsage: boolean; publicPlayerParamsEnabled?: boolean } | null> {
   let clubName = clubId;
   let ownerUid: string | null = null;
   let legalPages: LegalPageItem[] = [];
   let gameTeamUsage = false;
+  let publicPlayerParamsEnabled: boolean | undefined = undefined;
 
   const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId);
   const profileSnap = await profilesQuery.get();
@@ -179,6 +180,9 @@ export async function getPlayer(
     ownerUid = (data.ownerUid as string) || doc.id;
     clubName = data.clubName || clubName;
     gameTeamUsage = Boolean((data as any).gameTeamUsage);
+    if (typeof (data as any).publicPlayerParamsEnabled === "boolean") {
+      publicPlayerParamsEnabled = Boolean((data as any).publicPlayerParamsEnabled);
+    }
     if (Array.isArray((data as any).legalPages)) {
       legalPages = (data as any).legalPages
         .map((p: any) => ({
@@ -194,6 +198,9 @@ export async function getPlayer(
       ownerUid = (data.ownerUid as string) || directSnap.id;
       clubName = data.clubName || clubName;
       gameTeamUsage = Boolean((data as any).gameTeamUsage);
+      if (typeof (data as any).publicPlayerParamsEnabled === "boolean") {
+        publicPlayerParamsEnabled = Boolean((data as any).publicPlayerParamsEnabled);
+      }
       if (Array.isArray((data as any).legalPages)) {
         legalPages = (data as any).legalPages
           .map((p: any) => ({
@@ -234,6 +241,7 @@ export async function getPlayer(
       ownerUid,
       legalPages,
       gameTeamUsage,
+      publicPlayerParamsEnabled,
     };
   }
 

@@ -1212,7 +1212,7 @@ export default async function PlayerPage({
 
   const { clubName, player, ownerUid, legalPages, gameTeamUsage, displaySettings, homeBgColor } = result;
 
-  if (legacy !== "1" && displaySettings?.playerProfileLatest === true) {
+  if (legacy !== "1") {
     const qs = new URLSearchParams();
     qs.set("design", "new");
     if (typeof urlSeason === "string" && urlSeason.trim().length > 0) {
