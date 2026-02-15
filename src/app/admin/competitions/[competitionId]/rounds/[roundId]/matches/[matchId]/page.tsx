@@ -55,6 +55,11 @@ export default function MatchAdminPage() {
       return;
     }
 
+    // competition season is needed to filter players by roster
+    if (seasonId === null) {
+      return;
+    }
+
     let unsubscribe: null | (() => void) = null;
     let cancelled = false;
 
@@ -109,12 +114,12 @@ export default function MatchAdminPage() {
           if (!seasonDash) return null;
           try {
             const rosterSnap = await getDocs(collection(db, `clubs/${ownerUid}/seasons/${seasonDash}/roster`));
-            if (rosterSnap.empty) return null;
+            if (rosterSnap.empty) return new Set();
             const ids = rosterSnap.docs
               .filter((d) => {
                 const data = d.data() as any;
                 const tid = typeof data?.teamId === 'string' ? data.teamId.trim() : '';
-                return tid ? tid === teamId : true;
+                return tid === teamId;
               })
               .map((d) => d.id);
             return new Set(ids);
@@ -191,7 +196,7 @@ export default function MatchAdminPage() {
       cancelled = true;
       if (unsubscribe) unsubscribe();
     };
-  }, [user, ownerUid, competitionId, roundId, matchId]);
+  }, [user, ownerUid, competitionId, roundId, matchId, seasonId]);
 
   if (loading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
