@@ -67,7 +67,7 @@ export default function LandingPage() {
 
           <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] hidden h-[65vw] min-h-[420px] max-h-[880px] bg-white overflow-hidden sm:block">
             <Image
-              src="/トップページPC２.png"
+              src="/PCトップ画像.png"
               alt="FootChorn"
               fill
               className="object-contain object-center"
