@@ -106,7 +106,7 @@ export default function MatchAdminPage() {
           return fallbackSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
         };
 
-        const fetchRosterPlayerIdSet = async (teamId: string): Promise<Set<string> | null> => {
+        const fetchRosterPlayersForTeam = async (teamId: string, teamPlayers: Player[]): Promise<Player[] | null> => {
           if (!ownerUid) return null;
           const rawSeason = typeof seasonId === 'string' ? seasonId.trim() : '';
           if (!rawSeason) return null;
@@ -114,15 +114,61 @@ export default function MatchAdminPage() {
           if (!seasonDash) return null;
           try {
             const rosterSnap = await getDocs(collection(db, `clubs/${ownerUid}/seasons/${seasonDash}/roster`));
-            if (rosterSnap.empty) return new Set();
-            const ids = rosterSnap.docs
-              .filter((d) => {
-                const data = d.data() as any;
-                const tid = typeof data?.teamId === 'string' ? data.teamId.trim() : '';
-                return tid === teamId;
-              })
-              .map((d) => d.id);
-            return new Set(ids);
+            const teamPlayerIdSet = new Set(teamPlayers.map((p) => p.id));
+            const byId = new Map<string, Player>();
+
+            // Start with the team players (may be empty depending on account/data)
+            for (const p of teamPlayers) {
+              if (!p || !p.id) continue;
+              byId.set(p.id, { ...p, teamId: p.teamId ?? teamId } as Player);
+            }
+
+            // Add all roster players for this team (even if not in team players collection)
+            rosterSnap.docs.forEach((d) => {
+              const data = d.data() as any;
+              const tid = typeof data?.teamId === 'string' ? data.teamId.trim() : '';
+
+              const isForThisTeam = tid
+                ? tid === teamId
+                : teamPlayerIdSet.has(d.id); // legacy roster without teamId
+
+              if (!isForThisTeam) return;
+
+              const existing = byId.get(d.id);
+              if (existing) {
+                byId.set(d.id, { ...existing, teamId: existing.teamId ?? tid ?? teamId } as Player);
+                return;
+              }
+
+              // Build minimal player info from roster doc
+              const sd = (data?.seasonData && typeof data.seasonData === 'object' ? data.seasonData : {}) as any;
+              const seasonEntry = (sd?.[seasonDash] && typeof sd[seasonDash] === 'object' ? sd[seasonDash] : {}) as any;
+              const name = (typeof data?.name === 'string' ? data.name : '') || (typeof seasonEntry?.name === 'string' ? seasonEntry.name : '') || '';
+              const numberRaw = seasonEntry?.number ?? data?.number;
+              const number = typeof numberRaw === 'number' && Number.isFinite(numberRaw) ? numberRaw : (Number(numberRaw) || 0);
+              const position = (seasonEntry?.position ?? data?.position) as any;
+              const photoURL = (seasonEntry?.photoUrl ?? data?.photoUrl ?? data?.photoURL) as any;
+
+              byId.set(d.id, {
+                id: d.id,
+                name: name || '-',
+                number,
+                position: typeof position === 'string' ? position : undefined,
+                photoURL: typeof photoURL === 'string' ? photoURL : undefined,
+                teamId: tid || teamId,
+              });
+            });
+
+            const out = Array.from(byId.values());
+            out.sort((a, b) => {
+              const na = typeof a?.number === 'number' && Number.isFinite(a.number) ? a.number : 9999;
+              const nb = typeof b?.number === 'number' && Number.isFinite(b.number) ? b.number : 9999;
+              if (na !== nb) return na - nb;
+              const an = typeof a?.name === 'string' ? a.name : '';
+              const bn = typeof b?.name === 'string' ? b.name : '';
+              return an.localeCompare(bn, 'ja');
+            });
+            return out;
           } catch {
             return null;
           }
@@ -157,18 +203,18 @@ export default function MatchAdminPage() {
             setMatch(matchData);
 
             if (matchData.homeTeam && matchData.awayTeam) {
-              const [homeRosterSet, awayRosterSet] = await Promise.all([
-                fetchRosterPlayerIdSet(matchData.homeTeam),
-                fetchRosterPlayerIdSet(matchData.awayTeam),
-              ]);
-
               const [home, away] = await Promise.all([
                 fetchPlayers(matchData.homeTeam),
                 fetchPlayers(matchData.awayTeam),
               ]);
 
-              setHomePlayers(homeRosterSet ? home.filter((p) => homeRosterSet.has(p.id)) : home);
-              setAwayPlayers(awayRosterSet ? away.filter((p) => awayRosterSet.has(p.id)) : away);
+              const [homeRosterPlayers, awayRosterPlayers] = await Promise.all([
+                fetchRosterPlayersForTeam(matchData.homeTeam, home),
+                fetchRosterPlayersForTeam(matchData.awayTeam, away),
+              ]);
+
+              setHomePlayers(homeRosterPlayers ?? home);
+              setAwayPlayers(awayRosterPlayers ?? away);
             }
 
             setLoading(false);
