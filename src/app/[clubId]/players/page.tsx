@@ -140,9 +140,32 @@ async function getPlayersData(
     try {
       const rosterSnap = await db.collection(`clubs/${baseClubDocId}/seasons/${activeSeasonDashForRoster}/roster`).get();
       if (!rosterSnap.empty) {
-        rosterPlayerIdSet = new Set(rosterSnap.docs.map((d) => d.id));
+        const seasonKeyCandidates = Array.from(
+          new Set(
+            [activeSeason, toSlashSeason(activeSeason), toDashSeason(activeSeason)]
+              .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+          )
+        );
+
+        const docs = rosterSnap.docs;
+        const strictlyMatchedDocs = docs.filter((d) => {
+          const data = d.data() as any;
+          const sd = data?.seasonData && typeof data.seasonData === "object" ? (data.seasonData as any) : null;
+          const seasons = Array.isArray(data?.seasons) ? (data.seasons as any[]) : null;
+          if (sd) {
+            return seasonKeyCandidates.some((k) => k in sd);
+          }
+          if (seasons && seasons.length > 0) {
+            return seasonKeyCandidates.some((k) => seasons.includes(k));
+          }
+          return false;
+        });
+
+        const effectiveDocs = strictlyMatchedDocs.length > 0 ? strictlyMatchedDocs : docs;
+
+        rosterPlayerIdSet = new Set(effectiveDocs.map((d) => d.id));
         rosterTeamIdByPlayerId = new Map(
-          rosterSnap.docs
+          effectiveDocs
             .map((d) => {
               const data = d.data() as any;
               const teamId = typeof data?.teamId === "string" ? data.teamId.trim() : "";
