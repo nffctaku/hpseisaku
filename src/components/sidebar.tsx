@@ -20,6 +20,7 @@ import {
   LineChart,
   BookOpen,
   Mail,
+  LayoutGrid,
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';

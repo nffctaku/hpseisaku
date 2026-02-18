@@ -9,7 +9,7 @@ import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { MatchDetails, Player } from '@/types/match';
-import { toDashSeason } from '@/lib/season';
+import { toDashSeason, toSlashSeason } from '@/lib/season';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MatchTeamStatsForm } from '@/components/match-team-stats-form';
 import { SquadRegistrationForm } from '@/components/squad-registration-form';
@@ -30,14 +30,21 @@ export default function MatchAdminPage() {
   const [seasonId, setSeasonId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || !ownerUid || typeof competitionId !== 'string') return;
+    if (!user || !ownerUid || typeof competitionId !== 'string' || typeof roundId !== 'string') return;
     let cancelled = false;
     const fetchSeason = async () => {
       try {
-        const compSnap = await getDoc(doc(db, `clubs/${ownerUid}/competitions/${competitionId}`));
+        const [roundSnap, compSnap] = await Promise.all([
+          getDoc(doc(db, `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}`)),
+          getDoc(doc(db, `clubs/${ownerUid}/competitions/${competitionId}`)),
+        ]);
         if (cancelled) return;
-        const s = compSnap.exists() ? (compSnap.data() as any)?.season : undefined;
-        setSeasonId(typeof s === 'string' ? s : null);
+        const roundSeasonRaw = roundSnap.exists() ? (roundSnap.data() as any)?.season : undefined;
+        const compSeasonRaw = compSnap.exists() ? (compSnap.data() as any)?.season : undefined;
+        const roundSeason = typeof roundSeasonRaw === 'string' ? roundSeasonRaw.trim() : '';
+        const compSeason = typeof compSeasonRaw === 'string' ? compSeasonRaw.trim() : '';
+        const s = roundSeason || compSeason;
+        setSeasonId(s ? s : null);
       } catch {
         if (cancelled) return;
         setSeasonId(null);
@@ -47,7 +54,7 @@ export default function MatchAdminPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, ownerUid, competitionId]);
+  }, [user, ownerUid, competitionId, roundId]);
 
   useEffect(() => {
     if (!user || !ownerUid || typeof matchId !== 'string' || typeof competitionId !== 'string' || typeof roundId !== 'string') {
@@ -96,6 +103,12 @@ export default function MatchAdminPage() {
           const primaryRef = collection(db, `clubs/${ownerUid}/teams/${teamId}/players`);
           const primarySnap = await getDocs(primaryRef);
           if (!primarySnap.empty) {
+            console.warn('[MatchAdminPage] fetchPlayers primary hit', {
+              ownerUid,
+              teamId,
+              count: primarySnap.size,
+              path: `clubs/${ownerUid}/teams/${teamId}/players`,
+            });
             return primarySnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
           }
 
@@ -103,30 +116,97 @@ export default function MatchAdminPage() {
           if (!legacyUid || legacyUid === ownerUid) return [];
           const fallbackRef = collection(db, `clubs/${legacyUid}/teams/${teamId}/players`);
           const fallbackSnap = await getDocs(fallbackRef);
+          console.warn('[MatchAdminPage] fetchPlayers fallback result', {
+            ownerUid,
+            legacyUid,
+            teamId,
+            count: fallbackSnap.size,
+            path: `clubs/${legacyUid}/teams/${teamId}/players`,
+          });
           return fallbackSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
         };
 
-        const fetchRosterPlayersForTeam = async (teamId: string, teamPlayers: Player[]): Promise<Player[] | null> => {
-          if (!ownerUid) return null;
-          const rawSeason = typeof seasonId === 'string' ? seasonId.trim() : '';
-          if (!rawSeason) return null;
+        const filterTeamPlayersBySeason = (players: Player[], rawSeason: string | null): Player[] => {
+          const s = typeof rawSeason === 'string' ? rawSeason.trim() : '';
+          if (!s) return [];
+          const dash = toDashSeason(s);
+          const slash = toSlashSeason(s);
+          const keys = Array.from(new Set([s, dash, slash].filter((x) => typeof x === 'string' && x.trim().length > 0)));
+
+          const strict = (players || []).filter((p: any) => {
+            const seasons = Array.isArray(p?.seasons) ? (p.seasons as any[]) : null;
+            if (seasons && keys.some((k) => seasons.includes(k))) return true;
+            const sd = p?.seasonData && typeof p.seasonData === 'object' ? (p.seasonData as any) : null;
+            if (sd && keys.some((k) => sd[k])) return true;
+            return false;
+          });
+
+          const out = strict;
+
+          out.sort((a, b) => {
+            const na = typeof a?.number === 'number' && Number.isFinite(a.number) ? a.number : 9999;
+            const nb = typeof b?.number === 'number' && Number.isFinite(b.number) ? b.number : 9999;
+            if (na !== nb) return na - nb;
+            const an = typeof a?.name === 'string' ? a.name : '';
+            const bn = typeof b?.name === 'string' ? b.name : '';
+            return an.localeCompare(bn, 'ja');
+          });
+          return out;
+        };
+
+        const fetchRosterPlayersForTeam = async (teamId: string, teamPlayers: Player[], effectiveSeason: string | null): Promise<Player[]> => {
+          if (!ownerUid) return [];
+          const rawSeason = typeof effectiveSeason === 'string' ? effectiveSeason.trim() : '';
+          if (!rawSeason) return [];
           const seasonDash = toDashSeason(rawSeason);
-          if (!seasonDash) return null;
+          if (!seasonDash) return [];
+          const seasonSlash = toSlashSeason(rawSeason);
+          const seasonKeyCandidates = Array.from(
+            new Set(
+              [rawSeason, seasonDash, seasonSlash].filter(
+                (v): v is string => typeof v === 'string' && v.trim().length > 0
+              )
+            )
+          );
           try {
             const rosterSnap = await getDocs(collection(db, `clubs/${ownerUid}/seasons/${seasonDash}/roster`));
+            if (rosterSnap.empty) return [];
             const teamPlayerIdSet = new Set(teamPlayers.map((p) => p.id));
-            const byId = new Map<string, Player>();
-
-            // Start with the team players (may be empty depending on account/data)
+            const teamPlayersById = new Map<string, Player>();
             for (const p of teamPlayers) {
               if (!p || !p.id) continue;
-              byId.set(p.id, { ...p, teamId: p.teamId ?? teamId } as Player);
+              teamPlayersById.set(p.id, p);
             }
 
-            // Add all roster players for this team (even if not in team players collection)
+            const debugMeta = {
+              teamId,
+              seasonId: rawSeason,
+              seasonDash,
+              rosterCount: rosterSnap.size,
+              teamPlayersCount: teamPlayers.length,
+            };
+
+            const allowedRosterIds: string[] = [];
             rosterSnap.docs.forEach((d) => {
               const data = d.data() as any;
               const tid = typeof data?.teamId === 'string' ? data.teamId.trim() : '';
+
+              const sd = (data?.seasonData && typeof data.seasonData === 'object' ? data.seasonData : null) as any;
+              const hasSeasonData = Boolean(sd && typeof sd === 'object' && Object.keys(sd).length > 0);
+              const seasonsArr = Array.isArray(data?.seasons) ? (data.seasons as any[]) : null;
+              const hasSeasonsArr = Boolean(seasonsArr && seasonsArr.length > 0);
+
+              // Even within a season-scoped roster collection, stale/incorrect docs may exist.
+              // Only include players that explicitly belong to this season.
+              const hasExplicitSeasonMembership = (() => {
+                if (hasSeasonData) {
+                  return seasonKeyCandidates.some((k) => sd && typeof sd === 'object' && k in sd);
+                }
+                if (hasSeasonsArr) {
+                  return seasonKeyCandidates.some((k) => (seasonsArr as any[]).includes(k));
+                }
+                return false;
+              })();
 
               const isForThisTeam = tid
                 ? tid === teamId
@@ -134,15 +214,61 @@ export default function MatchAdminPage() {
 
               if (!isForThisTeam) return;
 
-              const existing = byId.get(d.id);
-              if (existing) {
-                byId.set(d.id, { ...existing, teamId: existing.teamId ?? tid ?? teamId } as Player);
+              if (!hasExplicitSeasonMembership) return;
+
+              allowedRosterIds.push(d.id);
+            });
+
+            if (allowedRosterIds.length !== rosterSnap.size) {
+              const missingTeamId = rosterSnap.docs
+                .filter((d) => {
+                  const data = d.data() as any;
+                  const tid = typeof data?.teamId === 'string' ? data.teamId.trim() : '';
+                  return !tid;
+                })
+                .slice(0, 5)
+                .map((d) => d.id);
+
+              const mismatchedTeamId = rosterSnap.docs
+                .filter((d) => {
+                  const data = d.data() as any;
+                  const tid = typeof data?.teamId === 'string' ? data.teamId.trim() : '';
+                  return tid && tid !== teamId;
+                })
+                .slice(0, 5)
+                .map((d) => ({ id: d.id, teamId: String((d.data() as any)?.teamId || '') }));
+
+              console.warn('[MatchAdminPage] roster filter debug', {
+                ...debugMeta,
+                allowedCount: allowedRosterIds.length,
+                exampleMissingTeamIdPlayerIds: missingTeamId,
+                exampleMismatchedTeamId: mismatchedTeamId,
+              });
+            }
+
+            const allowedSet = new Set(allowedRosterIds);
+            const byId = new Map<string, Player>();
+
+            // Build only from allowed roster members (prevents cross-season players from leaking in)
+            rosterSnap.docs.forEach((d) => {
+              if (!allowedSet.has(d.id)) return;
+              const data = d.data() as any;
+              const tid = typeof data?.teamId === 'string' ? data.teamId.trim() : '';
+
+              const fromTeam = teamPlayersById.get(d.id);
+              if (fromTeam) {
+                byId.set(d.id, { ...fromTeam, teamId: fromTeam.teamId ?? tid ?? teamId } as Player);
                 return;
               }
 
               // Build minimal player info from roster doc
-              const sd = (data?.seasonData && typeof data.seasonData === 'object' ? data.seasonData : {}) as any;
-              const seasonEntry = (sd?.[seasonDash] && typeof sd[seasonDash] === 'object' ? sd[seasonDash] : {}) as any;
+              const sd2 = (data?.seasonData && typeof data.seasonData === 'object' ? data.seasonData : {}) as any;
+              const seasonEntry = (() => {
+                for (const k of seasonKeyCandidates) {
+                  if (sd2?.[k] && typeof sd2[k] === 'object') return sd2[k];
+                }
+                return {};
+              })() as any;
               const name = (typeof data?.name === 'string' ? data.name : '') || (typeof seasonEntry?.name === 'string' ? seasonEntry.name : '') || '';
               const numberRaw = seasonEntry?.number ?? data?.number;
               const number = typeof numberRaw === 'number' && Number.isFinite(numberRaw) ? numberRaw : (Number(numberRaw) || 0);
@@ -170,7 +296,7 @@ export default function MatchAdminPage() {
             });
             return out;
           } catch {
-            return null;
+            return [];
           }
         };
 
@@ -186,6 +312,20 @@ export default function MatchAdminPage() {
 
             const raw = snap.data() as any;
             let matchData = { id: snap.id, ...raw } as MatchDetails;
+
+            const matchSeasonRaw = (matchData as any)?.season;
+            const matchSeason = typeof matchSeasonRaw === 'string' ? matchSeasonRaw.trim() : '';
+            const effectiveSeasonId = matchSeason || seasonId;
+
+            console.warn('[MatchAdminPage] match team ids', {
+              ownerUid,
+              competitionId,
+              roundId,
+              matchId,
+              effectiveSeasonId,
+              homeTeam: (matchData as any)?.homeTeam ?? null,
+              awayTeam: (matchData as any)?.awayTeam ?? null,
+            });
 
             const [homeTeamData, awayTeamData] = await Promise.all([
               fetchTeamData(matchData.homeTeam),
@@ -208,13 +348,49 @@ export default function MatchAdminPage() {
                 fetchPlayers(matchData.awayTeam),
               ]);
 
+              console.warn('[MatchAdminPage] fetched team players', {
+                ownerUid,
+                homeTeam: matchData.homeTeam,
+                awayTeam: matchData.awayTeam,
+                homeCount: home.length,
+                awayCount: away.length,
+              });
+
               const [homeRosterPlayers, awayRosterPlayers] = await Promise.all([
-                fetchRosterPlayersForTeam(matchData.homeTeam, home),
-                fetchRosterPlayersForTeam(matchData.awayTeam, away),
+                fetchRosterPlayersForTeam(matchData.homeTeam, home, effectiveSeasonId),
+                fetchRosterPlayersForTeam(matchData.awayTeam, away, effectiveSeasonId),
               ]);
 
-              setHomePlayers(homeRosterPlayers ?? home);
-              setAwayPlayers(awayRosterPlayers ?? away);
+              console.warn('[MatchAdminPage] roster filtered players', {
+                ownerUid,
+                seasonId: typeof effectiveSeasonId === 'string' ? effectiveSeasonId : null,
+                homeTeam: matchData.homeTeam,
+                awayTeam: matchData.awayTeam,
+                homeRosterCount: homeRosterPlayers.length,
+                awayRosterCount: awayRosterPlayers.length,
+              });
+
+              const homeSeasonPlayers = filterTeamPlayersBySeason(home, effectiveSeasonId);
+              const awaySeasonPlayers = filterTeamPlayersBySeason(away, effectiveSeasonId);
+
+              // If roster is incomplete (e.g. only a few docs) but team has many season players, prefer season-filtered team players.
+              const isRosterSuspiciouslySmall = (rosterCount: number, seasonCount: number) => {
+                if (rosterCount === 0) return false;
+                if (seasonCount === 0) return false;
+                // If roster is less than half of season players, treat it as incomplete.
+                return rosterCount < Math.max(5, Math.ceil(seasonCount * 0.5));
+              };
+
+              const useHomeRoster =
+                homeRosterPlayers.length > 0 && !isRosterSuspiciouslySmall(homeRosterPlayers.length, homeSeasonPlayers.length);
+              const useAwayRoster =
+                awayRosterPlayers.length > 0 && !isRosterSuspiciouslySmall(awayRosterPlayers.length, awaySeasonPlayers.length);
+
+              const nextHomePlayers = useHomeRoster ? homeRosterPlayers : homeSeasonPlayers;
+              const nextAwayPlayers = useAwayRoster ? awayRosterPlayers : awaySeasonPlayers;
+
+              setHomePlayers(nextHomePlayers);
+              setAwayPlayers(nextAwayPlayers);
             }
 
             setLoading(false);

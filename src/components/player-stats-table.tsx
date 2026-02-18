@@ -35,7 +35,7 @@ const NONE_SELECT_VALUE = "__none__";
 export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPlayers: Player[] }) {
   console.log(`PlayerStatsTable v3 (${teamId}): Received allPlayers`, allPlayers);
   const { control, watch, setValue } = useFormContext();
-  const { fields, append, prepend, remove } = useFieldArray({
+  const { fields, append, prepend, remove, update } = useFieldArray({
     control,
     name: 'playerStats',
   });
@@ -147,6 +147,11 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
   const teamPlayerIdsInStats = teamPlayerFields.map(f => (f as any).playerId);
   const availablePlayers = sortedAllPlayers.filter(p => !teamPlayerIdsInStats.includes(p.id));
 
+  const getWatchedIndexByPlayerId = (pid: string): number => {
+    const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
+    return stats.findIndex((row) => row && row.teamId === teamId && String(row.playerId || '') === pid);
+  };
+
   const starters = teamPlayerFields.filter(f => ((f as any).role ?? 'starter') === 'starter');
   const bench = teamPlayerFields.filter(f => (f as any).role === 'sub');
 
@@ -237,6 +242,26 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     }
 
     if (teamPlayerIdsInStats.includes(nextPlayerId) && currentPlayerId !== nextPlayerId) {
+      const otherIndex = getWatchedIndexByPlayerId(nextPlayerId);
+      if (otherIndex !== -1) {
+        const otherRow = watch(`playerStats.${otherIndex}` as any) as any;
+
+        const keepA = {
+          teamId: currentRow?.teamId,
+          role: currentRow?.role,
+          starterSlot: currentRow?.starterSlot,
+        };
+        const keepB = {
+          teamId: otherRow?.teamId,
+          role: otherRow?.role,
+          starterSlot: otherRow?.starterSlot,
+        };
+
+        update(globalIndex, { ...otherRow, ...keepA } as any);
+        update(otherIndex, { ...currentRow, ...keepB } as any);
+        return;
+      }
+
       toast.warning('同じ選手を複数枠に登録することはできません。');
       return;
     }
@@ -259,7 +284,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
       customStats: customStatHeaders.map((h: any) => ({ id: h.id, name: h.name, value: '' })),
     };
 
-    setValue(`playerStats.${globalIndex}` as any, { ...currentRow, ...base }, { shouldDirty: true });
+    update(globalIndex, { ...currentRow, ...base } as any);
   };
 
   const setStarterSlotPlayer = (slot: number, playerId: string) => {
@@ -275,6 +300,27 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     }
 
     if (teamPlayerIdsInStats.includes(nextPlayerId) && (existingInSlot as any)?.playerId !== nextPlayerId) {
+      const otherIndex = getWatchedIndexByPlayerId(nextPlayerId);
+      if (otherIndex !== -1 && existingInSlotIndex !== -1) {
+        const currentRow = watch(`playerStats.${existingInSlotIndex}` as any) as any;
+        const otherRow = watch(`playerStats.${otherIndex}` as any) as any;
+
+        const keepA = {
+          teamId: currentRow?.teamId,
+          role: currentRow?.role,
+          starterSlot: slot,
+        };
+        const keepB = {
+          teamId: otherRow?.teamId,
+          role: otherRow?.role,
+          starterSlot: otherRow?.starterSlot,
+        };
+
+        update(existingInSlotIndex, { ...otherRow, ...keepA } as any);
+        update(otherIndex, { ...currentRow, ...keepB } as any);
+        return;
+      }
+
       toast.warning('同じ選手を複数枠に登録することはできません。');
       return;
     }
@@ -301,7 +347,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
     if (existingInSlotIndex !== -1) {
       // preserve existing stats when swapping player
       const cur = watch(`playerStats.${existingInSlotIndex}` as any) as any;
-      setValue(`playerStats.${existingInSlotIndex}` as any, { ...cur, ...base }, { shouldDirty: true });
+      update(existingInSlotIndex, { ...cur, ...base } as any);
       return;
     }
 
@@ -499,7 +545,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
           {Array.from({ length: 11 }).map((_, slot) => {
             const slotField = starters.find((f) => (f as any).starterSlot === slot);
             const currentPlayerId = (slotField as any)?.playerId || '';
-            const options = sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
+            const options = slotField ? sortedAllPlayers : sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
 
             if (!slotField) {
               return (
@@ -576,7 +622,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
             const globalIndex = fields.findIndex((f) => f.id === (field as any).id);
             if (globalIndex === -1) return null;
             const currentPlayerId = String(watch(`playerStats.${globalIndex}.playerId`) || (field as any)?.playerId || '');
-            const options = sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
+            const options = sortedAllPlayers;
             return renderPlayerRow(field as any, {
               showTrash: true,
               header: (

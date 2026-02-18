@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase/admin";
 import { notFound } from 'next/navigation';
 import { MatchList } from '@/components/match-list';
+import { MatchListV2 } from '@/components/match-list-v2';
 import { ClubHeader } from '@/components/club-header';
 import { ClubFooter } from '@/components/club-footer';
 import { PartnerStripClient } from "@/components/partner-strip-client";
@@ -120,6 +121,9 @@ async function getMatchesForClub(clubId: string) {
       const homeBgColor = (profileData as any).homeBgColor as string | undefined;
       const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
       const mainTeamId = profileData.mainTeamId as string | undefined;
+      const resultsPageVariant = (profileData as any)?.displaySettings?.resultsPageVariant;
+      const resultsPageV2 = Boolean((profileData as any)?.displaySettings?.resultsPageV2);
+      const useResultsV2 = typeof resultsPageVariant === "string" ? resultsPageVariant === "v2" : resultsPageV2;
 
       if (!ownerUid) {
         console.error('[results:getMatchesForClub] ownerUid missing', { clubId, profileDocId: profileDoc.id });
@@ -302,7 +306,7 @@ async function getMatchesForClub(clubId: string) {
     // 4. Sort all matches by date
     enrichedMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
 
-    return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, latestSeason };
+    return { matches: enrichedMatches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, latestSeason, useResultsV2 };
     } catch (e) {
       console.error('[results:getMatchesForClub] unexpected error', { clubId }, e);
       throw e;
@@ -326,7 +330,7 @@ export default async function ResultsPage({
         notFound();
     }
 
-  const { matches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, latestSeason } = data as any;
+  const { matches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, latestSeason, useResultsV2 } = data as any;
 
   const pageForegroundClass = (() => {
     if (homeBgColor) {
@@ -341,14 +345,25 @@ export default async function ResultsPage({
     <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="flex-1">
-        <MatchList 
-          allMatches={matches} 
-          clubId={resolvedMainTeamId || mainTeamId || ownerUid} // 自チーム判定にはメインチームIDを優先（docIdへ解決）
-          clubSlug={clubId} // public clubId slug for URLs
-          clubName={clubName} 
-          initialSelectedSeason={latestSeason || undefined}
-          pageForegroundClass={pageForegroundClass}
-        />
+        {useResultsV2 ? (
+          <MatchListV2
+            allMatches={matches}
+            clubId={resolvedMainTeamId || mainTeamId || ownerUid} // 自チーム判定にはメインチームIDを優先（docIdへ解決）
+            clubSlug={clubId} // public clubId slug for URLs
+            clubName={clubName}
+            initialSelectedSeason={latestSeason || undefined}
+            pageForegroundClass={pageForegroundClass}
+          />
+        ) : (
+          <MatchList
+            allMatches={matches}
+            clubId={resolvedMainTeamId || mainTeamId || ownerUid} // 自チーム判定にはメインチームIDを優先（docIdへ解決）
+            clubSlug={clubId} // public clubId slug for URLs
+            clubName={clubName}
+            initialSelectedSeason={latestSeason || undefined}
+            pageForegroundClass={pageForegroundClass}
+          />
+        )}
       </div>
 
       <PartnerStripClient clubId={clubId} />

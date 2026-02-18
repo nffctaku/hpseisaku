@@ -26,7 +26,9 @@ export async function POST(request: Request) {
       return new NextResponse(JSON.stringify({ message: '認証されていません。' }), { status: 401 });
     }
 
+    const body = await request.json();
     const {
+      clubId,
       clubName,
       logoUrl,
       layoutType,
@@ -46,7 +48,7 @@ export async function POST(request: Request) {
       stadiumCapacity,
       stadiumPhotoUrl,
       clubTitles,
-    } = await request.json();
+    } = body as any;
 
     const clubProfilesRef = db.collection('club_profiles');
 
@@ -67,17 +69,25 @@ export async function POST(request: Request) {
       }
     }
 
+    const requestedClubId = typeof clubId === 'string' ? String(clubId).trim() : '';
+    const clubIdForUpdate = existingClubId || (requestedClubId ? requestedClubId : null);
+
+    console.log('[club/update] resolved clubIdForUpdate', { uid, existingClubId, requestedClubId, clubIdForUpdate });
+
     const updateData: Record<string, any> = {
-      logoUrl: logoUrl || null, // URLが空の場合はnullを保存
       ownerUid: uid,
     };
+
+    if (Object.prototype.hasOwnProperty.call(body, 'logoUrl')) {
+      updateData.logoUrl = typeof logoUrl === 'string' && logoUrl.length > 0 ? logoUrl : null;
+    }
 
     if (typeof clubName === 'string' && clubName.length > 0) {
       updateData.clubName = clubName;
     }
 
-    if (existingClubId) {
-      updateData.clubId = existingClubId;
+    if (clubIdForUpdate) {
+      updateData.clubId = clubIdForUpdate;
     }
 
     if (typeof layoutType === 'string' && layoutType.length > 0) {
@@ -105,13 +115,109 @@ export async function POST(request: Request) {
     }
 
     if (displaySettings && typeof displaySettings === 'object') {
-      const next: Record<string, any> = {};
       if (typeof (displaySettings as any).playerProfileLatest === 'boolean') {
-        next.playerProfileLatest = (displaySettings as any).playerProfileLatest;
+        updateData['displaySettings.playerProfileLatest'] = (displaySettings as any).playerProfileLatest;
       }
-      if (Object.keys(next).length > 0) {
-        updateData.displaySettings = next;
+      if (typeof (displaySettings as any).resultsPageV2 === 'boolean') {
+        updateData['displaySettings.resultsPageV2'] = (displaySettings as any).resultsPageV2;
       }
+      if (typeof (displaySettings as any).topPageV2 === 'boolean') {
+        updateData['displaySettings.topPageV2'] = (displaySettings as any).topPageV2;
+      }
+      if (typeof (displaySettings as any).newsPageV2 === 'boolean') {
+        updateData['displaySettings.newsPageV2'] = (displaySettings as any).newsPageV2;
+      }
+      if (typeof (displaySettings as any).tvPageV2 === 'boolean') {
+        updateData['displaySettings.tvPageV2'] = (displaySettings as any).tvPageV2;
+      }
+      if (typeof (displaySettings as any).clubPageV2 === 'boolean') {
+        updateData['displaySettings.clubPageV2'] = (displaySettings as any).clubPageV2;
+      }
+      if (typeof (displaySettings as any).transfersPageV2 === 'boolean') {
+        updateData['displaySettings.transfersPageV2'] = (displaySettings as any).transfersPageV2;
+      }
+      if (typeof (displaySettings as any).matchesPageV2 === 'boolean') {
+        updateData['displaySettings.matchesPageV2'] = (displaySettings as any).matchesPageV2;
+      }
+      if (typeof (displaySettings as any).tablePageV2 === 'boolean') {
+        updateData['displaySettings.tablePageV2'] = (displaySettings as any).tablePageV2;
+      }
+      if (typeof (displaySettings as any).statsPageV2 === 'boolean') {
+        updateData['displaySettings.statsPageV2'] = (displaySettings as any).statsPageV2;
+      }
+      if (typeof (displaySettings as any).squadPageV2 === 'boolean') {
+        updateData['displaySettings.squadPageV2'] = (displaySettings as any).squadPageV2;
+      }
+      if (typeof (displaySettings as any).partnerPageV2 === 'boolean') {
+        updateData['displaySettings.partnerPageV2'] = (displaySettings as any).partnerPageV2;
+      }
+
+      if (typeof (displaySettings as any).resultsPageVariant === 'string') {
+        updateData['displaySettings.resultsPageVariant'] = (displaySettings as any).resultsPageVariant;
+      }
+      if (typeof (displaySettings as any).topPageVariant === 'string') {
+        updateData['displaySettings.topPageVariant'] = (displaySettings as any).topPageVariant;
+      }
+      if (typeof (displaySettings as any).newsPageVariant === 'string') {
+        updateData['displaySettings.newsPageVariant'] = (displaySettings as any).newsPageVariant;
+      }
+      if (typeof (displaySettings as any).tvPageVariant === 'string') {
+        updateData['displaySettings.tvPageVariant'] = (displaySettings as any).tvPageVariant;
+      }
+      if (typeof (displaySettings as any).clubPageVariant === 'string') {
+        updateData['displaySettings.clubPageVariant'] = (displaySettings as any).clubPageVariant;
+      }
+      if (typeof (displaySettings as any).transfersPageVariant === 'string') {
+        updateData['displaySettings.transfersPageVariant'] = (displaySettings as any).transfersPageVariant;
+      }
+      if (typeof (displaySettings as any).matchesPageVariant === 'string') {
+        updateData['displaySettings.matchesPageVariant'] = (displaySettings as any).matchesPageVariant;
+      }
+      if (typeof (displaySettings as any).tablePageVariant === 'string') {
+        updateData['displaySettings.tablePageVariant'] = (displaySettings as any).tablePageVariant;
+      }
+      if (typeof (displaySettings as any).statsPageVariant === 'string') {
+        updateData['displaySettings.statsPageVariant'] = (displaySettings as any).statsPageVariant;
+      }
+      if (typeof (displaySettings as any).squadPageVariant === 'string') {
+        updateData['displaySettings.squadPageVariant'] = (displaySettings as any).squadPageVariant;
+      }
+      if (typeof (displaySettings as any).partnerPageVariant === 'string') {
+        updateData['displaySettings.partnerPageVariant'] = (displaySettings as any).partnerPageVariant;
+      }
+
+      if (typeof (displaySettings as any).menuShowNews === 'boolean') {
+        updateData['displaySettings.menuShowNews'] = (displaySettings as any).menuShowNews;
+      }
+      if (typeof (displaySettings as any).menuShowTv === 'boolean') {
+        updateData['displaySettings.menuShowTv'] = (displaySettings as any).menuShowTv;
+      }
+      if (typeof (displaySettings as any).menuShowClub === 'boolean') {
+        updateData['displaySettings.menuShowClub'] = (displaySettings as any).menuShowClub;
+      }
+      if (typeof (displaySettings as any).menuShowTransfers === 'boolean') {
+        updateData['displaySettings.menuShowTransfers'] = (displaySettings as any).menuShowTransfers;
+      }
+      if (typeof (displaySettings as any).menuShowMatches === 'boolean') {
+        updateData['displaySettings.menuShowMatches'] = (displaySettings as any).menuShowMatches;
+      }
+      if (typeof (displaySettings as any).menuShowTable === 'boolean') {
+        updateData['displaySettings.menuShowTable'] = (displaySettings as any).menuShowTable;
+      }
+      if (typeof (displaySettings as any).menuShowStats === 'boolean') {
+        updateData['displaySettings.menuShowStats'] = (displaySettings as any).menuShowStats;
+      }
+      if (typeof (displaySettings as any).menuShowSquad === 'boolean') {
+        updateData['displaySettings.menuShowSquad'] = (displaySettings as any).menuShowSquad;
+      }
+      if (typeof (displaySettings as any).menuShowPartner === 'boolean') {
+        updateData['displaySettings.menuShowPartner'] = (displaySettings as any).menuShowPartner;
+      }
+    }
+
+    const dsKeys = Object.keys(updateData).filter((k) => k.startsWith('displaySettings.'));
+    if (dsKeys.length > 0) {
+      console.log('[club/update] displaySettings updates', { uid, clubIdForUpdate, keys: dsKeys, values: dsKeys.map((k) => updateData[k]) });
     }
 
     // スポンサー情報（画像URLとリンク先URLの配列）
@@ -160,21 +266,63 @@ export async function POST(request: Request) {
     // ID が uid の doc を更新
     const clubDocRef = clubProfilesRef.doc(uid);
 
+    // 公開側が参照しやすい canonical doc: docId == clubId(slug)
+    const clubSlugDocRef = clubIdForUpdate ? clubProfilesRef.doc(clubIdForUpdate) : null;
+
     // 既存の ownerUid ベースの doc もあれば同じ内容で更新
     const ownerQuerySnapshot = await clubProfilesRef.where('ownerUid', '==', uid).get();
+
+    // clubId(slug) でヒットする doc もあれば更新（公開側が clubId で参照するケースのため）
+    const clubIdQuerySnapshot = clubIdForUpdate
+      ? await clubProfilesRef.where('clubId', '==', clubIdForUpdate).get()
+      : null;
 
     const writePromises: Promise<FirebaseFirestore.WriteResult>[] = [];
     writePromises.push(clubDocRef.set(updateData, { merge: true }));
 
+    if (clubSlugDocRef && clubSlugDocRef.id !== uid) {
+      writePromises.push(clubSlugDocRef.set(updateData, { merge: true }));
+    }
+
+    console.log('[club/update] write targets', {
+      uid,
+      uidDocId: clubDocRef.id,
+      clubSlugDocId: clubSlugDocRef ? clubSlugDocRef.id : null,
+    });
+
     ownerQuerySnapshot.forEach((docSnap) => {
+      // uid docは上で更新済み
       if (docSnap.id !== uid) {
         writePromises.push(docSnap.ref.set(updateData, { merge: true }));
       }
     });
 
+    if (clubIdQuerySnapshot) {
+      clubIdQuerySnapshot.forEach((docSnap) => {
+        if (docSnap.id !== uid) {
+          writePromises.push(docSnap.ref.set(updateData, { merge: true }));
+        }
+      });
+    }
+
     await Promise.all(writePromises);
 
-    return new NextResponse(JSON.stringify({ message: 'クラブ情報が正常に更新されました。' }), { status: 200 });
+    return new NextResponse(
+      JSON.stringify({
+        message: 'クラブ情報が正常に更新されました。',
+        debug: {
+          uid,
+          requestedClubId,
+          clubIdForUpdate,
+          displaySettingsKeys: dsKeys,
+          writeTargets: {
+            uidDocId: clubDocRef.id,
+            clubSlugDocId: clubSlugDocRef ? clubSlugDocRef.id : null,
+          },
+        },
+      }),
+      { status: 200 }
+    );
 
   } catch (error) {
     console.error('Club update error:', error);

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Loader2, Menu, Moon, Share2, Sun } from "lucide-react";
+import { Loader2, Menu, Moon, Share2, Sun, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
 import { toast } from "sonner";
@@ -75,6 +75,27 @@ export function ClubHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const [partnersEnabled, setPartnersEnabled] = useState(false);
+  const [menuSettings, setMenuSettings] = useState<{
+    menuShowNews: boolean;
+    menuShowTv: boolean;
+    menuShowClub: boolean;
+    menuShowTransfers: boolean;
+    menuShowMatches: boolean;
+    menuShowTable: boolean;
+    menuShowStats: boolean;
+    menuShowSquad: boolean;
+    menuShowPartner: boolean;
+  }>({
+    menuShowNews: true,
+    menuShowTv: true,
+    menuShowClub: true,
+    menuShowTransfers: true,
+    menuShowMatches: true,
+    menuShowTable: true,
+    menuShowStats: true,
+    menuShowSquad: true,
+    menuShowPartner: true,
+  });
   const pathname = usePathname();
   const { theme, resolvedTheme, setTheme } = useTheme();
 
@@ -94,17 +115,66 @@ export function ClubHeader({
     return isDark ? "text-white" : "text-black";
   })();
 
+  const menuIsDark = (() => {
+    if (headerBackgroundColor) {
+      const bgIsDark = isDarkColor(headerBackgroundColor);
+      if (bgIsDark != null) return bgIsDark;
+    }
+    return true;
+  })();
+
+  const menuTextClass = menuIsDark ? "text-white" : "text-black";
+  const menuBorderClass = menuIsDark ? "border-white/15" : "border-black/15";
+  const menuIconBgClass = menuIsDark ? "bg-white/5" : "bg-black/5";
+  const menuBgStyle = headerBackgroundColor
+    ? ({ backgroundColor: headerBackgroundColor } as const)
+    : ({ backgroundColor: "#000" } as const);
+
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
       try {
         const res = await fetch(`/api/public/club/${encodeURIComponent(clubId)}/partners-enabled`, {
           method: "GET",
+          cache: "no-store",
         });
         if (!res.ok) return;
         const json = (await res.json()) as any;
         if (cancelled) return;
         setPartnersEnabled(Boolean(json?.enabled));
+      } catch {
+        // ignore
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [clubId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/public/club/${encodeURIComponent(clubId)}/menu-settings`, {
+          method: "GET",
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as any;
+        if (cancelled) return;
+        const s = (json?.settings || {}) as any;
+        setMenuSettings({
+          menuShowNews: s.menuShowNews !== false,
+          menuShowTv: s.menuShowTv !== false,
+          menuShowClub: s.menuShowClub !== false,
+          menuShowTransfers: s.menuShowTransfers !== false,
+          menuShowMatches: s.menuShowMatches !== false,
+          menuShowTable: s.menuShowTable !== false,
+          menuShowStats: s.menuShowStats !== false,
+          menuShowSquad: s.menuShowSquad !== false,
+          menuShowPartner: s.menuShowPartner !== false,
+        });
       } catch {
         // ignore
       }
@@ -211,64 +281,80 @@ export function ClubHeader({
 
           {/* Desktop navigation */}
           <nav className="hidden sm:flex items-center gap-2.5 sm:gap-4 md:gap-6">
-            <Link
-              href={`/${clubId}/news`}
-              className={navLinkClass(pathname?.startsWith(`/${clubId}/news`) ?? false, isNavigating)}
-              onClick={() => setNavigatingTo(`/${clubId}/news`)}
-            >
-              News
-            </Link>
-            <Link
-              href={`/${clubId}/tv`}
-              className={navLinkClass(pathname?.startsWith(`/${clubId}/tv`) ?? false, isNavigating)}
-              onClick={() => setNavigatingTo(`/${clubId}/tv`)}
-            >
-              TV
-            </Link>
-            <Link
-              href={`/${clubId}/club`}
-              className={navLinkClass(pathname?.startsWith(`/${clubId}/club`) ?? false, isNavigating)}
-              onClick={() => setNavigatingTo(`/${clubId}/club`)}
-            >
-              Club
-            </Link>
-            <Link
-              href={`/${clubId}/transfers`}
-              className={navLinkClass(pathname?.startsWith(`/${clubId}/transfers`) ?? false, isNavigating)}
-              onClick={() => setNavigatingTo(`/${clubId}/transfers`)}
-            >
-              Transfers
-            </Link>
-            <Link
-              href={`/${clubId}/results`}
-              className={navLinkClass(pathname?.startsWith(`/${clubId}/results`) ?? false, isNavigating)}
-              onClick={() => setNavigatingTo(`/${clubId}/results`)}
-            >
-              Matches
-            </Link>
-            <Link
-              href={`/${clubId}/table`}
-              className={navLinkClass(pathname?.startsWith(`/${clubId}/table`) ?? false, isNavigating)}
-              onClick={() => setNavigatingTo(`/${clubId}/table`)}
-            >
-              Table
-            </Link>
-            <Link
-              href={`/${clubId}/stats`}
-              className={navLinkClass(pathname?.startsWith(`/${clubId}/stats`) ?? false, isNavigating)}
-              onClick={() => setNavigatingTo(`/${clubId}/stats`)}
-            >
-              Stats
-            </Link>
-            <Link
-              href={`/${clubId}/players`}
-              className={navLinkClass(pathname?.startsWith(`/${clubId}/players`) ?? false, isNavigating)}
-              onClick={() => setNavigatingTo(`/${clubId}/players`)}
-            >
-              Squad
-            </Link>
+            {menuSettings.menuShowNews && (
+              <Link
+                href={`/${clubId}/news`}
+                className={navLinkClass(pathname?.startsWith(`/${clubId}/news`) ?? false, isNavigating)}
+                onClick={() => setNavigatingTo(`/${clubId}/news`)}
+              >
+                News
+              </Link>
+            )}
+            {menuSettings.menuShowTv && (
+              <Link
+                href={`/${clubId}/tv`}
+                className={navLinkClass(pathname?.startsWith(`/${clubId}/tv`) ?? false, isNavigating)}
+                onClick={() => setNavigatingTo(`/${clubId}/tv`)}
+              >
+                TV
+              </Link>
+            )}
+            {menuSettings.menuShowClub && (
+              <Link
+                href={`/${clubId}/club`}
+                className={navLinkClass(pathname?.startsWith(`/${clubId}/club`) ?? false, isNavigating)}
+                onClick={() => setNavigatingTo(`/${clubId}/club`)}
+              >
+                Club
+              </Link>
+            )}
+            {menuSettings.menuShowTransfers && (
+              <Link
+                href={`/${clubId}/transfers`}
+                className={navLinkClass(pathname?.startsWith(`/${clubId}/transfers`) ?? false, isNavigating)}
+                onClick={() => setNavigatingTo(`/${clubId}/transfers`)}
+              >
+                Transfers
+              </Link>
+            )}
+            {menuSettings.menuShowMatches && (
+              <Link
+                href={`/${clubId}/results`}
+                className={navLinkClass(pathname?.startsWith(`/${clubId}/results`) ?? false, isNavigating)}
+                onClick={() => setNavigatingTo(`/${clubId}/results`)}
+              >
+                Matches
+              </Link>
+            )}
+            {menuSettings.menuShowTable && (
+              <Link
+                href={`/${clubId}/table`}
+                className={navLinkClass(pathname?.startsWith(`/${clubId}/table`) ?? false, isNavigating)}
+                onClick={() => setNavigatingTo(`/${clubId}/table`)}
+              >
+                Table
+              </Link>
+            )}
+            {menuSettings.menuShowStats && (
+              <Link
+                href={`/${clubId}/stats`}
+                className={navLinkClass(pathname?.startsWith(`/${clubId}/stats`) ?? false, isNavigating)}
+                onClick={() => setNavigatingTo(`/${clubId}/stats`)}
+              >
+                Stats
+              </Link>
+            )}
+            {menuSettings.menuShowSquad && (
+              <Link
+                href={`/${clubId}/players`}
+                className={navLinkClass(pathname?.startsWith(`/${clubId}/players`) ?? false, isNavigating)}
+                onClick={() => setNavigatingTo(`/${clubId}/players`)}
+              >
+                Squad
+              </Link>
+            )}
 
-            {partnersEnabled && (
+            {partnersEnabled && menuSettings.menuShowPartner && (
               <Link
                 href={`/${clubId}/partner`}
                 className={navLinkClass(pathname?.startsWith(`/${clubId}/partner`) ?? false, isNavigating)}
@@ -289,128 +375,110 @@ export function ClubHeader({
 
       {/* Mobile dropdown menu */}
       {menuOpen && (
-        <div className="sm:hidden border-t border-border/60 bg-black text-white">
-          <nav className="container mx-auto px-3 py-3 text-sm">
-            <div className="grid grid-cols-2 gap-1">
-              <Link
-                href={`/${clubId}/news`}
-                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
-                onClick={() => {
-                  setNavigatingTo(`/${clubId}/news`);
-                  setMenuOpen(false);
-                }}
-              >
-                News
-              </Link>
-              <Link
-                href={`/${clubId}/tv`}
-                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
-                onClick={() => {
-                  setNavigatingTo(`/${clubId}/tv`);
-                  setMenuOpen(false);
-                }}
-              >
-                TV
-              </Link>
-              <Link
-                href={`/${clubId}/club`}
-                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
-                onClick={() => {
-                  setNavigatingTo(`/${clubId}/club`);
-                  setMenuOpen(false);
-                }}
-              >
-                Club
-              </Link>
-              <Link
-                href={`/${clubId}/transfers`}
-                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
-                onClick={() => {
-                  setNavigatingTo(`/${clubId}/transfers`);
-                  setMenuOpen(false);
-                }}
-              >
-                Transfers
-              </Link>
-              <Link
-                href={`/${clubId}/results`}
-                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
-                onClick={() => {
-                  setNavigatingTo(`/${clubId}/results`);
-                  setMenuOpen(false);
-                }}
-              >
-                Matches
-              </Link>
-              <Link
-                href={`/${clubId}/table`}
-                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
-                onClick={() => {
-                  setNavigatingTo(`/${clubId}/table`);
-                  setMenuOpen(false);
-                }}
-              >
-                Table
-              </Link>
-              <Link
-                href={`/${clubId}/stats`}
-                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
-                onClick={() => {
-                  setNavigatingTo(`/${clubId}/stats`);
-                  setMenuOpen(false);
-                }}
-              >
-                Stats
-              </Link>
-              <Link
-                href={`/${clubId}/players`}
-                className="py-3 rounded hover:bg-white/10 transition-colors text-center"
-                onClick={() => {
-                  setNavigatingTo(`/${clubId}/players`);
-                  setMenuOpen(false);
-                }}
-              >
-                Squad
-              </Link>
+        <div className={`sm:hidden fixed inset-0 z-50 ${menuTextClass}`} style={menuBgStyle}>
+          <div className="h-full w-full overflow-y-auto">
+            <div className="container mx-auto px-4 pt-4 pb-8">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={`w-16 h-16 rounded-full overflow-hidden ${menuIconBgClass} flex items-center justify-center`}>
+                    {logoUrl ? (
+                      <Image
+                        src={logoUrl}
+                        alt={clubName || "Club emblem"}
+                        width={64}
+                        height={64}
+                        className="object-contain"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="text-sm font-semibold tracking-wide leading-tight truncate max-w-[12rem]">{clubName || ""}</div>
+                </div>
 
-              {partnersEnabled && (
-                <Link
-                  href={`/${clubId}/partner`}
-                  className="py-3 rounded hover:bg-white/10 transition-colors text-center"
-                  onClick={() => {
-                    setNavigatingTo(`/${clubId}/partner`);
-                    setMenuOpen(false);
-                  }}
+                <button
+                  type="button"
+                  className="p-2 hover:opacity-80"
+                  onClick={() => setMenuOpen(false)}
+                  aria-label="メニューを閉じる"
                 >
-                  Partner
-                </Link>
+                  <X className="w-6 h-6" strokeWidth={2.2} />
+                </button>
+              </div>
+
+              <nav className="mt-8">
+                <div className="flex flex-col">
+                  {[
+                    menuSettings.menuShowNews ? { href: `/${clubId}/news`, label: "News" } : null,
+                    menuSettings.menuShowTv ? { href: `/${clubId}/tv`, label: "TV" } : null,
+                    menuSettings.menuShowClub ? { href: `/${clubId}/club`, label: "Club" } : null,
+                    menuSettings.menuShowTransfers ? { href: `/${clubId}/transfers`, label: "Transfers" } : null,
+                    menuSettings.menuShowMatches ? { href: `/${clubId}/results`, label: "Matches" } : null,
+                    menuSettings.menuShowTable ? { href: `/${clubId}/table`, label: "Table" } : null,
+                    menuSettings.menuShowStats ? { href: `/${clubId}/stats`, label: "Stats" } : null,
+                    menuSettings.menuShowSquad ? { href: `/${clubId}/players`, label: "Squad" } : null,
+                    partnersEnabled && menuSettings.menuShowPartner ? { href: `/${clubId}/partner`, label: "Partner" } : null,
+                  ].filter(Boolean)
+                    .map((item) => (
+                      <Link
+                        key={(item as any).href}
+                        href={(item as any).href}
+                        className="py-3 text-lg font-black tracking-wide hover:opacity-80 transition-opacity"
+                        onClick={() => {
+                          setNavigatingTo((item as any).href);
+                          setMenuOpen(false);
+                        }}
+                      >
+                        {(item as any).label}
+                      </Link>
+                    ))}
+                </div>
+              </nav>
+
+              {snsLinks && (snsLinks.x || snsLinks.youtube || snsLinks.tiktok || snsLinks.instagram) && (
+                <div className={`mt-10 pt-6 border-t ${menuBorderClass} flex justify-center gap-4`}>
+                  {snsLinks.youtube && (
+                    <Link
+                      href={snsLinks.youtube}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
+                    >
+                      <FaYoutube className="w-5 h-5" />
+                    </Link>
+                  )}
+                  {snsLinks.x && (
+                    <Link
+                      href={snsLinks.x}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
+                    >
+                      <FaXTwitter className="w-4 h-4" />
+                    </Link>
+                  )}
+                  {snsLinks.tiktok && (
+                    <Link
+                      href={snsLinks.tiktok}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
+                    >
+                      <FaTiktok className="w-4 h-4" />
+                    </Link>
+                  )}
+                  {snsLinks.instagram && (
+                    <Link
+                      href={snsLinks.instagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
+                    >
+                      <FaInstagram className="w-4 h-4" />
+                    </Link>
+                  )}
+                </div>
               )}
             </div>
-            {snsLinks && (snsLinks.x || snsLinks.youtube || snsLinks.tiktok || snsLinks.instagram) && (
-              <div className="mt-3 pt-3 border-t border-border/60 flex justify-center gap-4 text-white">
-                {snsLinks.youtube && (
-                  <Link href={snsLinks.youtube} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center">
-                    <FaYoutube className="w-5 h-5" />
-                  </Link>
-                )}
-                {snsLinks.x && (
-                  <Link href={snsLinks.x} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center">
-                    <FaXTwitter className="w-4 h-4" />
-                  </Link>
-                )}
-                {snsLinks.tiktok && (
-                  <Link href={snsLinks.tiktok} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center">
-                    <FaTiktok className="w-4 h-4" />
-                  </Link>
-                )}
-                {snsLinks.instagram && (
-                  <Link href={snsLinks.instagram} target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center">
-                    <FaInstagram className="w-4 h-4" />
-                  </Link>
-                )}
-              </div>
-            )}
-          </nav>
+          </div>
         </div>
       )}
     </header>

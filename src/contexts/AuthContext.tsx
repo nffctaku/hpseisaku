@@ -18,6 +18,39 @@ export interface UserProfile extends User {
   directoryListed?: boolean;
   displaySettings?: {
     playerProfileLatest?: boolean;
+    resultsPageV2?: boolean;
+    topPageV2?: boolean;
+    newsPageV2?: boolean;
+    tvPageV2?: boolean;
+    clubPageV2?: boolean;
+    transfersPageV2?: boolean;
+    matchesPageV2?: boolean;
+    tablePageV2?: boolean;
+    statsPageV2?: boolean;
+    squadPageV2?: boolean;
+    partnerPageV2?: boolean;
+
+    resultsPageVariant?: string;
+    topPageVariant?: string;
+    newsPageVariant?: string;
+    tvPageVariant?: string;
+    clubPageVariant?: string;
+    transfersPageVariant?: string;
+    matchesPageVariant?: string;
+    tablePageVariant?: string;
+    statsPageVariant?: string;
+    squadPageVariant?: string;
+    partnerPageVariant?: string;
+
+    menuShowNews?: boolean;
+    menuShowTv?: boolean;
+    menuShowClub?: boolean;
+    menuShowTransfers?: boolean;
+    menuShowMatches?: boolean;
+    menuShowTable?: boolean;
+    menuShowStats?: boolean;
+    menuShowSquad?: boolean;
+    menuShowPartner?: boolean;
   };
 }
 
@@ -64,9 +97,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (profileDocSnap.exists()) {
       const profileData = profileDocSnap.data();
-      setUser(applyUserOverrides(authUser.uid, { ...authUser, ...profileData }) as UserProfile);
+      const hasClubLink = Boolean(
+        (profileData as any)?.clubId ||
+          (profileData as any)?.ownerUid ||
+          (profileData as any)?.clubName ||
+          (profileData as any)?.mainTeamId ||
+          (profileData as any)?.admins
+      );
+
+      // If this doc doesn't look like a club profile (e.g. admin user doc stub), fall through to other lookups.
+      if (!hasClubLink) {
+        console.warn('[AuthContext] club_profiles/{uid} exists but lacks club linkage; falling back', {
+          uid: authUser.uid,
+          keys: Object.keys(profileData || {}),
+        });
+      } else {
+        const resolvedOwnerUid = (profileData as any)?.ownerUid || authUser.uid;
+      setUser(
+        applyUserOverrides(authUser.uid, {
+          ...authUser,
+          ...profileData,
+          ownerUid: resolvedOwnerUid,
+        }) as UserProfile
+      );
       setClubProfileExists(true);
-      setOwnerUid(authUser.uid);
+      setOwnerUid(resolvedOwnerUid);
       try {
         await updateDoc(profileDocRef, { lastLoginAt: serverTimestamp() } as any);
       } catch (e) {
@@ -74,6 +129,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       console.log('[AuthContext] profile found by doc id, user set', { uid: authUser.uid, profileData });
       return;
+      }
     }
 
     // 2. Fallback: club_profiles document where ownerUid == uid (older schema)
