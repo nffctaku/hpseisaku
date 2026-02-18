@@ -60,47 +60,38 @@ async function getPlayersData(
   let gameTeamUsage: boolean = false;
 
   try {
-    const profilesQuery = db
-      .collection("club_profiles")
-      .where("clubId", "==", clubId);
-    const profileSnap = await profilesQuery.get();
+    const applyProfileData = (docId: string, data: any) => {
+      ownerUid = (data?.ownerUid as string) || docId;
+      clubName = data?.clubName || clubName;
+      logoUrl = data?.logoUrl || null;
+      homeBgColor = typeof data?.homeBgColor === 'string' ? data.homeBgColor : null;
+      sponsors = Array.isArray(data?.sponsors) ? data.sponsors : [];
+      snsLinks = data?.snsLinks || {};
+      legalPages = Array.isArray(data?.legalPages) ? data.legalPages : [];
+      gameTeamUsage = Boolean(data?.gameTeamUsage);
+    };
 
-    if (!profileSnap.empty) {
-      const doc = profileSnap.docs[0];
-      const data = doc.data() as any;
-      ownerUid = (data.ownerUid as string) || doc.id;
-      clubName = data.clubName || clubName;
-      logoUrl = data.logoUrl || null;
-      homeBgColor = typeof data.homeBgColor === 'string' ? data.homeBgColor : null;
-      sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
-      snsLinks = (data as any).snsLinks || {};
-      legalPages = Array.isArray(data.legalPages) ? data.legalPages : [];
-      gameTeamUsage = Boolean((data as any).gameTeamUsage);
+    // Prefer canonical doc id == clubId (slug) first.
+    const directSnap = await db.collection("club_profiles").doc(clubId).get();
+    if (directSnap.exists) {
+      applyProfileData(directSnap.id, directSnap.data() as any);
     } else {
-      const directSnap = await db.collection("club_profiles").doc(clubId).get();
-      if (directSnap.exists) {
-        const data = directSnap.data() as any;
-        ownerUid = (data.ownerUid as string) || directSnap.id;
-        clubName = data.clubName || clubName;
-        logoUrl = data.logoUrl || null;
-        homeBgColor = typeof data.homeBgColor === 'string' ? data.homeBgColor : null;
-        sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
-        snsLinks = (data as any).snsLinks || {};
-        legalPages = Array.isArray(data.legalPages) ? data.legalPages : [];
-        gameTeamUsage = Boolean((data as any).gameTeamUsage);
+      // Fall back to query by clubId field.
+      const profileSnap = await db
+        .collection("club_profiles")
+        .where("clubId", "==", clubId)
+        .limit(1)
+        .get();
+
+      if (!profileSnap.empty) {
+        const doc = profileSnap.docs[0];
+        applyProfileData(doc.id, doc.data() as any);
       } else {
+        // Last resort: treat clubId as ownerUid.
         const ownerSnap = await db.collection("club_profiles").where('ownerUid', '==', clubId).limit(1).get();
         if (!ownerSnap.empty) {
           const doc = ownerSnap.docs[0];
-          const data = doc.data() as any;
-          ownerUid = (data.ownerUid as string) || doc.id;
-          clubName = data.clubName || clubName;
-          logoUrl = data.logoUrl || null;
-          homeBgColor = typeof data.homeBgColor === 'string' ? data.homeBgColor : null;
-          sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
-          snsLinks = (data as any).snsLinks || {};
-          legalPages = Array.isArray(data.legalPages) ? data.legalPages : [];
-          gameTeamUsage = Boolean((data as any).gameTeamUsage);
+          applyProfileData(doc.id, doc.data() as any);
         }
       }
     }
@@ -130,10 +121,11 @@ async function getPlayersData(
 
   const allSeasons = Array.from(seasonIdSet).sort((a, b) => b.localeCompare(a));
 
-  const requestedSeason = typeof season === "string" ? season.trim() : "";
+  const requestedSeasonRaw = typeof season === "string" ? season.trim() : "";
+  const requestedSeasonSlash = requestedSeasonRaw ? (toSlashSeason(requestedSeasonRaw) || requestedSeasonRaw) : "";
   const activeSeason =
-    requestedSeason && allSeasons.includes(requestedSeason)
-      ? requestedSeason
+    requestedSeasonSlash && allSeasons.includes(requestedSeasonSlash)
+      ? requestedSeasonSlash
       : allSeasons.length
         ? allSeasons[0]
         : "";
@@ -239,7 +231,7 @@ async function getPlayersData(
     if (!rosterPlayerIdSet.has(pid)) return false;
     const rosterTeamId = rosterTeamIdByPlayerId?.get(pid);
     if (rosterTeamId) {
-      const teamId = typeof p?.teamId === "string" ? p.teamId : p?.__teamId;
+      const teamId = typeof p?.__teamId === "string" ? p.__teamId : (typeof p?.teamId === "string" ? p.teamId : "");
       return String(teamId || "") === rosterTeamId;
     }
     return true;
