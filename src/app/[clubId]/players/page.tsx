@@ -5,6 +5,7 @@ import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 export const revalidate = 60;
 export const dynamic = "force-dynamic";
@@ -49,10 +50,15 @@ async function getPlayersData(
   allSeasons: string[];
   activeSeason: string;
 } | null> {
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) return null;
+  if (resolved.displaySettings.menuShowSquad === false) return null;
+
   // club_profiles から clubId に対応するオーナーUIDとクラブ名・ロゴを取得
   let clubName = clubId;
   let logoUrl: string | null = null;
   let ownerUid: string | null = null;
+  let mainTeamId: string | null = null;
   let homeBgColor: string | null = null;
   let sponsors: any[] = [];
   let snsLinks: any = {};
@@ -63,7 +69,8 @@ async function getPlayersData(
     const applyProfileData = (docId: string, data: any) => {
       ownerUid = (data?.ownerUid as string) || docId;
       clubName = data?.clubName || clubName;
-      logoUrl = data?.logoUrl || null;
+      mainTeamId = typeof data?.mainTeamId === 'string' ? data.mainTeamId : null;
+      logoUrl = data?.logoUrl || data?.emblemUrl || data?.photoURL || null;
       homeBgColor = typeof data?.homeBgColor === 'string' ? data.homeBgColor : null;
       sponsors = Array.isArray(data?.sponsors) ? data.sponsors : [];
       snsLinks = data?.snsLinks || {};
@@ -93,6 +100,40 @@ async function getPlayersData(
           const doc = ownerSnap.docs[0];
           applyProfileData(doc.id, doc.data() as any);
         }
+      }
+    }
+    // If a main team is configured, prefer its display name/logo.
+    if (ownerUid && mainTeamId) {
+      try {
+        const mainTeamSnap = await db.doc(`clubs/${ownerUid}/teams/${mainTeamId}`).get();
+        if (mainTeamSnap.exists) {
+          const t = mainTeamSnap.data() as any;
+          clubName = (t?.name as string) || clubName;
+          logoUrl = (t?.logoUrl as string) || logoUrl;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Fallback: clubs/{ownerUid} may contain logo/name/colors.
+    if (ownerUid) {
+      try {
+        const clubSnap = await db.collection('clubs').doc(ownerUid).get();
+        if (clubSnap.exists) {
+          const c = clubSnap.data() as any;
+          if (!clubName || clubName === clubId) {
+            clubName = (c?.clubName as string) || clubName;
+          }
+          if (!logoUrl) {
+            logoUrl = (c?.logoUrl as string) || logoUrl;
+          }
+          if (!homeBgColor) {
+            homeBgColor = typeof c?.homeBgColor === 'string' ? c.homeBgColor : homeBgColor;
+          }
+        }
+      } catch {
+        // ignore
       }
     }
   } catch (e) {

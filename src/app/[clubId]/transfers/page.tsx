@@ -5,6 +5,7 @@ import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import { TransfersBalancePie } from "@/components/transfers-balance-pie";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 import type { TransferLog } from "@/types/transfer";
 import { formatMoneyWithSymbol } from "@/lib/money";
@@ -52,28 +53,10 @@ const formatFeesSummary = (fees: Record<string, number>): string => {
 };
 
 async function resolveClubProfile(clubId: string): Promise<any | null> {
-  try {
-    const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
-    const profilesSnap = await profilesQuery.get();
-    if (!profilesSnap.empty) {
-      return profilesSnap.docs[0].data();
-    }
-
-    const directSnap = await db.collection("club_profiles").doc(clubId).get();
-    if (directSnap.exists) {
-      return directSnap.data();
-    }
-
-    const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-    if (!ownerSnap.empty) {
-      return ownerSnap.docs[0].data();
-    }
-
-    return null;
-  } catch (e) {
-    console.error("Failed to resolve club profile for transfers page", e);
-    return null;
-  }
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) return null;
+  if (resolved.displaySettings.menuShowTransfers === false) return null;
+  return { ...(resolved.profileData as any), ownerUid: resolved.ownerUid };
 }
 
 async function resolveTeamId(ownerUid: string, preferredTeamId?: string | null): Promise<string | null> {

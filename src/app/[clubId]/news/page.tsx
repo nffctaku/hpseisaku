@@ -11,6 +11,7 @@ import PaginationControls from '@/components/pagination-controls';
 import { ClubHeader } from '@/components/club-header';
 import { ClubFooter } from '@/components/club-footer';
 import { PartnerStripClient } from "@/components/partner-strip-client";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 const NEWS_PER_PAGE = 9;
 
@@ -20,28 +21,12 @@ interface NewsPageProps {
 }
 
 async function getNewsData(clubId: string, page: number) {
-  const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
-  const profilesSnap = await profilesQuery.get();
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) return null;
+  if (resolved.displaySettings.menuShowNews === false) return null;
 
-  let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
-  if (!profilesSnap.empty) {
-    profileDoc = profilesSnap.docs[0];
-  } else {
-    // fallback: allow accessing by direct doc id (ownerUid) or by ownerUid field
-    const direct = await db.collection('club_profiles').doc(clubId).get();
-    if (direct.exists) {
-      profileDoc = direct;
-    } else {
-      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
-    }
-  }
-
-  if (!profileDoc) return null;
-
-  const profileData = profileDoc.data() as any;
-  const ownerUid = (profileData?.ownerUid as string | undefined) || profileDoc.id;
-  if (!ownerUid) return null;
+  const profileData = resolved.profileData as any;
+  const ownerUid = resolved.ownerUid;
 
   const newsCollectionRef = db.collection(`clubs/${ownerUid}/news`);
 

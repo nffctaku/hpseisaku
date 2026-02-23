@@ -75,6 +75,12 @@ export function ClubHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const [partnersEnabled, setPartnersEnabled] = useState(false);
+  const [resolvedClubName, setResolvedClubName] = useState<string | undefined>(clubName);
+  const [resolvedLogoUrl, setResolvedLogoUrl] = useState<string | null | undefined>(logoUrl);
+  const [resolvedSnsLinks, setResolvedSnsLinks] = useState<ClubHeaderProps['snsLinks']>(snsLinks);
+  const [resolvedHeaderBackgroundColor, setResolvedHeaderBackgroundColor] = useState<string | undefined>(
+    typeof headerBackgroundColor === 'string' ? headerBackgroundColor : undefined
+  );
   const [menuSettings, setMenuSettings] = useState<{
     menuShowNews: boolean;
     menuShowTv: boolean;
@@ -106,8 +112,8 @@ export function ClubHeader({
     if (headerForeground === "light") return "text-white";
     if (headerForeground === "dark") return "text-black";
 
-    if (headerBackgroundColor) {
-      const bgIsDark = isDarkColor(headerBackgroundColor);
+    if (resolvedHeaderBackgroundColor) {
+      const bgIsDark = isDarkColor(resolvedHeaderBackgroundColor);
       if (bgIsDark === true) return "text-white";
       if (bgIsDark === false) return "text-black";
     }
@@ -116,8 +122,8 @@ export function ClubHeader({
   })();
 
   const menuIsDark = (() => {
-    if (headerBackgroundColor) {
-      const bgIsDark = isDarkColor(headerBackgroundColor);
+    if (resolvedHeaderBackgroundColor) {
+      const bgIsDark = isDarkColor(resolvedHeaderBackgroundColor);
       if (bgIsDark != null) return bgIsDark;
     }
     return true;
@@ -126,9 +132,76 @@ export function ClubHeader({
   const menuTextClass = menuIsDark ? "text-white" : "text-black";
   const menuBorderClass = menuIsDark ? "border-white/15" : "border-black/15";
   const menuIconBgClass = menuIsDark ? "bg-white/5" : "bg-black/5";
-  const menuBgStyle = headerBackgroundColor
-    ? ({ backgroundColor: headerBackgroundColor } as const)
+  const menuBgStyle = resolvedHeaderBackgroundColor
+    ? ({ backgroundColor: resolvedHeaderBackgroundColor } as const)
     : ({ backgroundColor: "#000" } as const);
+
+  useEffect(() => {
+    setResolvedClubName(clubName);
+  }, [clubName]);
+
+  useEffect(() => {
+    setResolvedLogoUrl(logoUrl);
+  }, [logoUrl]);
+
+  useEffect(() => {
+    setResolvedSnsLinks(snsLinks);
+  }, [snsLinks]);
+
+  useEffect(() => {
+    setResolvedHeaderBackgroundColor(typeof headerBackgroundColor === 'string' ? headerBackgroundColor : undefined);
+  }, [headerBackgroundColor]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const needsFallback =
+      !resolvedClubName ||
+      resolvedClubName.trim().length === 0 ||
+      resolvedClubName === 'クラブ名未設定' ||
+      resolvedClubName === clubId ||
+      !resolvedLogoUrl;
+
+    if (!needsFallback) return;
+
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/club-summary/${encodeURIComponent(clubId)}`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as any;
+        if (cancelled) return;
+
+        const profile = (json?.profile || {}) as any;
+        const nextName = typeof profile?.clubName === 'string' ? profile.clubName : undefined;
+        const nextLogo = typeof profile?.logoUrl === 'string' ? profile.logoUrl : undefined;
+        const nextBg = typeof profile?.homeBgColor === 'string' ? profile.homeBgColor : undefined;
+        const nextSns = (profile?.snsLinks || json?.snsLinks) as any;
+
+        if (nextName && (!resolvedClubName || resolvedClubName === clubId)) {
+          setResolvedClubName(nextName);
+        }
+        if (nextLogo && !resolvedLogoUrl) {
+          setResolvedLogoUrl(nextLogo);
+        }
+        if (nextBg && !resolvedHeaderBackgroundColor) {
+          setResolvedHeaderBackgroundColor(nextBg);
+        }
+        if (nextSns && !resolvedSnsLinks) {
+          setResolvedSnsLinks(nextSns);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [clubId, resolvedClubName, resolvedLogoUrl, resolvedHeaderBackgroundColor, resolvedSnsLinks]);
 
   useEffect(() => {
     let cancelled = false;
@@ -193,7 +266,7 @@ export function ClubHeader({
       const url = typeof window !== "undefined" ? window.location.href : "";
       if (!url) return;
 
-      const title = clubName || "クラブ";
+      const title = resolvedClubName || clubName || "クラブ";
       const text = `${title}のHP`;
 
       if (typeof (navigator as any)?.share === "function") {
@@ -225,17 +298,17 @@ export function ClubHeader({
   return (
     <header
       className={`w-full border-b border-border/60 relative z-20 ${computedForeground} ${
-        headerBackgroundColor ? "" : "bg-background/80 backdrop-blur"
+        resolvedHeaderBackgroundColor ? "" : "bg-background/80 backdrop-blur"
       }`}
-      style={headerBackgroundColor ? { backgroundColor: headerBackgroundColor } : undefined}
+      style={resolvedHeaderBackgroundColor ? { backgroundColor: resolvedHeaderBackgroundColor } : undefined}
     >
       <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <Link href={`/${clubId}`} className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center overflow-hidden">
-            {logoUrl ? (
+            {resolvedLogoUrl ? (
               <Image
-                src={logoUrl}
-                alt={clubName || "Club emblem"}
+                src={resolvedLogoUrl}
+                alt={resolvedClubName || clubName || "Club emblem"}
                 width={48}
                 height={48}
                 className="object-contain"
@@ -246,7 +319,7 @@ export function ClubHeader({
           </Link>
           <div className="flex flex-col min-w-0">
             <span className="text-xs sm:text-sm md:text-lg font-semibold leading-tight max-w-[8rem] xs:max-w-[10rem] sm:max-w-none truncate">
-              {clubName || "クラブ名未設定"}
+              {resolvedClubName || clubName || "クラブ名未設定"}
             </span>
           </div>
         </div>
@@ -272,8 +345,11 @@ export function ClubHeader({
           {/* Mobile hamburger */}
           <button
             type="button"
-            className="sm:hidden p-2 flex items-center justify-center hover:opacity-80"
-            onClick={() => setMenuOpen((prev) => !prev)}
+            className="sm:hidden p-2 flex items-center justify-center hover:opacity-80 relative z-30"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen((prev) => !prev);
+            }}
             aria-label="メニューを開く"
           >
             <Menu className="w-5 h-5" strokeWidth={2.2} />
@@ -375,23 +451,23 @@ export function ClubHeader({
 
       {/* Mobile dropdown menu */}
       {menuOpen && (
-        <div className={`sm:hidden fixed inset-0 z-50 ${menuTextClass}`} style={menuBgStyle}>
+        <div className={`sm:hidden fixed inset-0 z-50 ${menuTextClass} pointer-events-auto`} style={menuBgStyle}>
           <div className="h-full w-full overflow-y-auto">
             <div className="container mx-auto px-4 pt-4 pb-8">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className={`w-16 h-16 rounded-full overflow-hidden ${menuIconBgClass} flex items-center justify-center`}>
-                    {logoUrl ? (
+                    {resolvedLogoUrl ? (
                       <Image
-                        src={logoUrl}
-                        alt={clubName || "Club emblem"}
+                        src={resolvedLogoUrl}
+                        alt={resolvedClubName || clubName || "Club emblem"}
                         width={64}
                         height={64}
                         className="object-contain"
                       />
                     ) : null}
                   </div>
-                  <div className="text-sm font-semibold tracking-wide leading-tight truncate max-w-[12rem]">{clubName || ""}</div>
+                  <div className="text-sm font-semibold tracking-wide leading-tight truncate max-w-[12rem]">{resolvedClubName || clubName || ""}</div>
                 </div>
 
                 <button
@@ -433,11 +509,11 @@ export function ClubHeader({
                 </div>
               </nav>
 
-              {snsLinks && (snsLinks.x || snsLinks.youtube || snsLinks.tiktok || snsLinks.instagram) && (
+              {resolvedSnsLinks && (resolvedSnsLinks.x || resolvedSnsLinks.youtube || resolvedSnsLinks.tiktok || resolvedSnsLinks.instagram) && (
                 <div className={`mt-10 pt-6 border-t ${menuBorderClass} flex justify-center gap-4`}>
-                  {snsLinks.youtube && (
+                  {resolvedSnsLinks.youtube && (
                     <Link
-                      href={snsLinks.youtube}
+                      href={resolvedSnsLinks.youtube}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
@@ -445,9 +521,9 @@ export function ClubHeader({
                       <FaYoutube className="w-5 h-5" />
                     </Link>
                   )}
-                  {snsLinks.x && (
+                  {resolvedSnsLinks.x && (
                     <Link
-                      href={snsLinks.x}
+                      href={resolvedSnsLinks.x}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
@@ -455,9 +531,9 @@ export function ClubHeader({
                       <FaXTwitter className="w-4 h-4" />
                     </Link>
                   )}
-                  {snsLinks.tiktok && (
+                  {resolvedSnsLinks.tiktok && (
                     <Link
-                      href={snsLinks.tiktok}
+                      href={resolvedSnsLinks.tiktok}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
@@ -465,9 +541,9 @@ export function ClubHeader({
                       <FaTiktok className="w-4 h-4" />
                     </Link>
                   )}
-                  {snsLinks.instagram && (
+                  {resolvedSnsLinks.instagram && (
                     <Link
-                      href={snsLinks.instagram}
+                      href={resolvedSnsLinks.instagram}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}

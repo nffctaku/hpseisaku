@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { db } from "@/lib/firebase/admin";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 type PartnerCategory = "top" | "official";
 
@@ -37,36 +38,13 @@ const DEFAULT_CATEGORIES: PartnerCategoryDef[] = [
 ];
 
 async function getClubInfo(clubId: string) {
-  const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
-  const profilesSnap = await profilesQuery.get();
-
-  const clubProfileDoc = !profilesSnap.empty ? profilesSnap.docs[0] : null;
-  const directSnap = clubProfileDoc ? null : await db.collection("club_profiles").doc(clubId).get();
-  const ownerSnap = clubProfileDoc || directSnap?.exists
-    ? null
-    : await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-
-  if (!clubProfileDoc && !directSnap?.exists && ownerSnap?.empty) return null;
-
-  const fallbackDoc = ownerSnap && !ownerSnap.empty ? ownerSnap.docs[0] : null;
-  const profileData = (clubProfileDoc ? clubProfileDoc.data() : (directSnap?.exists ? (directSnap!.data() as any) : (fallbackDoc!.data() as any)))!;
-  const ownerUid = (profileData as any).ownerUid || (clubProfileDoc ? clubProfileDoc.id : (directSnap?.exists ? directSnap!.id : fallbackDoc!.id));
-  if (!ownerUid) return null;
-
-  const mainTeamId = (profileData as any)?.mainTeamId;
-  let mainTeamData: any = null;
-  if (mainTeamId) {
-    const mainTeamSnap = await db.collection(`clubs/${ownerUid}/teams`).doc(mainTeamId).get();
-    if (mainTeamSnap.exists) {
-      mainTeamData = mainTeamSnap.data();
-    }
-  }
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) return null;
+  if (resolved.displaySettings.menuShowPartner === false) return null;
 
   return {
-    ...profileData,
-    ownerUid,
-    clubName: (mainTeamData as any)?.name || (profileData as any).clubName,
-    logoUrl: (mainTeamData as any)?.logoUrl || (profileData as any).logoUrl,
+    ...(resolved.profileData as any),
+    ownerUid: resolved.ownerUid,
   } as any;
 }
 

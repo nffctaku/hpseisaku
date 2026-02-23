@@ -54,6 +54,8 @@ export default function AdminHomePage() {
   const [hasCompetition, setHasCompetition] = useState(false);
   const [hasMatch, setHasMatch] = useState(false);
 
+  const isPro = user?.plan === "pro";
+
   const OGP_CACHE_BUSTER = "20260122";
   const SHARE_TEXT = "FootChronでチームHPを公開しました";
 
@@ -225,6 +227,7 @@ export default function AdminHomePage() {
     { href: "/admin/news", label: "ニュース管理", icon: Newspaper },
 
     { href: "/admin/tv", label: "TV管理", icon: Tv },
+    { href: "/admin/design", label: "デザイン", icon: LayoutGrid, disabled: !isPro },
     { href: "/admin/club/info", label: "クラブ情報", icon: Home },
     { href: "/admin/settings", label: "設定", icon: Settings },
 
@@ -410,6 +413,7 @@ export default function AdminHomePage() {
             );
           })}
         </div>
+
       </div>
     </div>
   );

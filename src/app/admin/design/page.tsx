@@ -113,13 +113,14 @@ export default function AdminDesignPage() {
       // Ensure UI reflects canonical persisted values even if user profile is stale
       if (clubInfo?.id) {
         try {
-          const res2 = await fetch(`/api/public/club/${encodeURIComponent(clubInfo.id)}/menu-settings`, {
+          const res2 = await fetch(`/api/public/club/${encodeURIComponent(clubInfo.id)}/menu-settings?debug=1`, {
             method: "GET",
             cache: "no-store",
           });
           if (res2.ok) {
             const json2 = (await res2.json()) as any;
             const s2 = (json2?.settings || {}) as any;
+            const dbg = (json2?.debug || {}) as any;
             setMenuShowNews(s2.menuShowNews !== false);
             setMenuShowTv(s2.menuShowTv !== false);
             setMenuShowClub(s2.menuShowClub !== false);
@@ -129,6 +130,12 @@ export default function AdminDesignPage() {
             setMenuShowStats(s2.menuShowStats !== false);
             setMenuShowSquad(s2.menuShowSquad !== false);
             setMenuShowPartner(s2.menuShowPartner !== false);
+
+            const ds = (dbg?.rawDisplaySettings || {}) as any;
+            const dsKeys = Object.keys(ds);
+            toast(
+              `menu-settings debug: docId=${dbg?.profileDocId || ""} storedClubId=${dbg?.storedClubId || ""} storedOwnerUid=${dbg?.storedOwnerUid || ""} dsKeys=${dsKeys.slice(0, 8).join(",")}${dsKeys.length > 8 ? "..." : ""}`
+            );
           }
         } catch {
           // ignore

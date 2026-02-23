@@ -5,11 +5,6 @@ export const runtime = "nodejs";
 
 async function resolveClubProfile(clubId: string): Promise<any | null> {
   try {
-    const directSnap = await db.collection("club_profiles").doc(clubId).get();
-    if (directSnap.exists) {
-      return directSnap;
-    }
-
     const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
     const profileSnap = await profilesQuery.get();
 
@@ -20,6 +15,11 @@ async function resolveClubProfile(clubId: string): Promise<any | null> {
     const ownerSnap = await db.collection("club_profiles").where("ownerUid", "==", clubId).limit(1).get();
     if (!ownerSnap.empty) {
       return ownerSnap.docs[0];
+    }
+
+    const directSnap = await db.collection("club_profiles").doc(clubId).get();
+    if (directSnap.exists) {
+      return directSnap;
     }
 
     return null;

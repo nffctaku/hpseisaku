@@ -1,4 +1,4 @@
-import { db, getOwnerUidByClubId } from "@/lib/firebase/admin";
+import { db } from "@/lib/firebase/admin";
 import { notFound } from 'next/navigation';
 
 import { ClubHeader } from "@/components/club-header";
@@ -7,6 +7,7 @@ import { PartnerStripClient } from "@/components/partner-strip-client";
 import Image from "next/image";
 import Link from "next/link";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 interface ClubInfoPageProps {
   params: { clubId: string };
@@ -19,28 +20,10 @@ interface ClubTitleItem {
 }
 
 async function getClubInfo(clubId: string) {
-  const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
-  const profilesSnap = await profilesQuery.get();
-
-  if (!profilesSnap.empty) {
-    const doc = profilesSnap.docs[0];
-    return { ...(doc.data() as any), ownerUid: (doc.data() as any)?.ownerUid || doc.id };
-  }
-
-  // fallback: allow accessing by direct doc id (ownerUid) or by ownerUid field
-  const direct = await db.collection('club_profiles').doc(clubId).get();
-  if (direct.exists) {
-    const data = direct.data() as any;
-    return { ...data, ownerUid: data?.ownerUid || direct.id };
-  }
-
-  const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-  if (!ownerSnap.empty) {
-    const doc = ownerSnap.docs[0];
-    return { ...(doc.data() as any), ownerUid: (doc.data() as any)?.ownerUid || doc.id };
-  }
-
-  return null;
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) return null;
+  if (resolved.displaySettings.menuShowClub === false) return null;
+  return { ...(resolved.profileData as any), ownerUid: resolved.ownerUid };
 }
 
 export default async function ClubInfoPage({ params }: ClubInfoPageProps) {

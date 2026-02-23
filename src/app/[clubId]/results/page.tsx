@@ -6,6 +6,7 @@ import { ClubHeader } from '@/components/club-header';
 import { ClubFooter } from '@/components/club-footer';
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import { toSlashSeason } from "@/lib/season";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 function parseColorToRgb(input: string): { r: number; g: number; b: number } | null {
   const v = input.trim();
@@ -86,33 +87,12 @@ function getSeasonFromMatchDate(matchDate: string): string | null {
 
 async function getMatchesForClub(clubId: string) {
     try {
-      let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
-      try {
-        const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
-        const profilesSnap = await profilesQuery.get();
-        if (!profilesSnap.empty) {
-          profileDoc = profilesSnap.docs[0];
-        } else {
-          const direct = await db.collection('club_profiles').doc(clubId).get();
-          if (direct.exists) {
-            profileDoc = direct;
-          } else {
-            const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-            if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
-          }
-        }
-      } catch (e) {
-        console.error('[results:getMatchesForClub] failed to resolve club profile', { clubId }, e);
-        throw e;
-      }
+      const resolved = await resolvePublicClubProfile(clubId);
+      if (!resolved) return null;
+      if (resolved.displaySettings.menuShowMatches === false) return null;
 
-      if (!profileDoc) {
-        console.error('[results:getMatchesForClub] club profile not found', { clubId });
-        return null;
-      }
-
-      const profileData = profileDoc.data() as any;
-      const ownerUid = (profileData?.ownerUid as string | undefined) || profileDoc.id;
+      const profileData = resolved.profileData as any;
+      const ownerUid = resolved.ownerUid;
       const clubName = profileData.clubName || 'Unknown Club';
       const logoUrl = profileData.logoUrl || null;
       const snsLinks = (profileData as any).snsLinks ?? {};

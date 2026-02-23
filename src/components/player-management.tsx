@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PlayerForm } from "./player-form";
-import type { PlayerFormValues } from "./player-form.schema";
+import { POSITIONS, type PlayerFormValues } from "./player-form.schema";
 import { Player, PlayerSeasonData } from "@/types/player";
 import { columns } from "./players-columns";
 import { PlayersDataTable } from "./players-data-table";
@@ -72,6 +72,18 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const planTier = getPlanTier(user?.plan);
   const maxPlayers = getPlanLimit("players_per_team", planTier);
   const maxPlayerPhotos = getPlanLimit("player_photos_per_team", planTier);
+
+  const normalizeBasePosition = (input: unknown): (typeof POSITIONS)[number] | null => {
+    const raw = typeof input === "string" ? input.trim() : "";
+    if (!raw) return null;
+    const up = raw.toUpperCase();
+    if ((POSITIONS as readonly string[]).includes(up)) return up as any;
+    if (up === "GK" || up === "GOALKEEPER" || up === "KEEPER") return "GK";
+    if (up === "DF" || up === "DEF" || up === "DEFENDER" || up === "CB" || up === "RB" || up === "LB") return "DF";
+    if (up === "MF" || up === "MID" || up === "MIDFIELDER" || up === "AM" || up === "RM" || up === "LM" || up === "CM" || up === "DM") return "MF";
+    if (up === "FW" || up === "FWD" || up === "FORWARD" || up === "STRIKER" || up === "ST" || up === "CF" || up === "RW" || up === "LW") return "FW";
+    return null;
+  };
 
   const invalidatePlayerStatsCache = async (playerId: string) => {
     if (!user) return;
@@ -288,6 +300,13 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       return;
     }
 
+    const normalizedPosition = normalizeBasePosition((values as any)?.position);
+    if (!normalizedPosition) {
+      toast.error("ポジションが不正です（GK/DF/MF/FW から選択してください）。");
+      return;
+    }
+    const valuesNormalized = { ...(values as any), position: normalizedPosition } as PlayerFormValues;
+
     try {
       await setDoc(
         doc(db, 'club_profiles', clubUid),
@@ -334,17 +353,17 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         teamId,
         selectedSeason,
         editingPlayerId: editingPlayer?.id ?? null,
-        position: values.position,
-        number: values.number,
-        photoUrl: values.photoUrl,
+        position: valuesNormalized.position,
+        number: valuesNormalized.number,
+        photoUrl: valuesNormalized.photoUrl,
       });
       const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
 
-      const paramsNormalized = values.params
+      const paramsNormalized = valuesNormalized.params
         ? {
-            overall: values.params.overall,
-            items: Array.isArray(values.params.items)
-              ? values.params.items.map((i: any) => ({
+            overall: valuesNormalized.params.overall,
+            items: Array.isArray(valuesNormalized.params.items)
+              ? valuesNormalized.params.items.map((i: any) => ({
                   label: typeof i?.label === "string" ? i.label : "",
                   value: typeof i?.value === "number" ? i.value : undefined,
                 }))
@@ -352,8 +371,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           }
         : undefined;
 
-      const manualStatsNormalized = Array.isArray(values.manualCompetitionStats)
-        ? values.manualCompetitionStats
+      const manualStatsNormalized = Array.isArray(valuesNormalized.manualCompetitionStats)
+        ? valuesNormalized.manualCompetitionStats
             .filter((r: any) => typeof r?.competitionId === "string" && r.competitionId.trim().length > 0)
             .map((r: any) => ({
               competitionId: r.competitionId,
@@ -368,14 +387,14 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         : undefined;
 
       const contractEndDate =
-        typeof (values as any)?.contractEndYear === "number" &&
-        Number.isFinite((values as any)?.contractEndYear) &&
-        typeof (values as any)?.contractEndMonth === "number" &&
-        Number.isFinite((values as any)?.contractEndMonth)
-          ? `${String((values as any)?.contractEndYear).padStart(4, "0")}-${String((values as any)?.contractEndMonth).padStart(2, "0")}`
+        typeof (valuesNormalized as any)?.contractEndYear === "number" &&
+        Number.isFinite((valuesNormalized as any)?.contractEndYear) &&
+        typeof (valuesNormalized as any)?.contractEndMonth === "number" &&
+        Number.isFinite((valuesNormalized as any)?.contractEndMonth)
+          ? `${String((valuesNormalized as any)?.contractEndYear).padStart(4, "0")}-${String((valuesNormalized as any)?.contractEndMonth).padStart(2, "0")}`
           : undefined;
 
-      const snsLinksRaw = (values as any)?.snsLinks;
+      const snsLinksRaw = (valuesNormalized as any)?.snsLinks;
       const snsLinksClean = {
         x: typeof snsLinksRaw?.x === "string" ? snsLinksRaw.x : "",
         youtube: typeof snsLinksRaw?.youtube === "string" ? snsLinksRaw.youtube : "",
@@ -384,26 +403,26 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       } as any;
 
       const seasonPayload: PlayerSeasonData = {
-        number: values.number,
-        position: values.position as any,
+        number: valuesNormalized.number,
+        position: valuesNormalized.position as any,
         mainPosition: (values as any).mainPosition,
         subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
-        nationality: values.nationality,
-        age: values.age,
+        nationality: valuesNormalized.nationality,
+        age: valuesNormalized.age,
         tenureYears: (values as any).tenureYears,
-        height: values.height,
+        height: valuesNormalized.height,
         weight: (values as any).weight,
         profile: (values as any).profile,
         preferredFoot: (values as any).preferredFoot,
         annualSalary: (values as any).annualSalary,
         annualSalaryCurrency: (values as any).annualSalaryCurrency,
         contractEndDate,
-        photoUrl: values.photoUrl,
+        photoUrl: valuesNormalized.photoUrl,
         snsLinks: snsLinksClean,
         params: paramsNormalized as any,
         showParamsOnPublic: (values as any).showParamsOnPublic,
         manualCompetitionStats: manualStatsNormalized as any,
-        isPublished: values.isPublished,
+        isPublished: valuesNormalized.isPublished,
       };
 
       const seasonPayloadClean = (stripUndefinedDeep(seasonPayload) || {}) as any;
@@ -415,12 +434,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const nextSeasons = currentSeasons.includes(selectedSeason) ? currentSeasons : [...currentSeasons, selectedSeason];
         const playerDocRef = doc(playersColRef, editingPlayer.id);
         const updatePayload = stripUndefinedDeep({
-          name: values.name,
-          position: values.position as any,
+          name: valuesNormalized.name,
+          position: valuesNormalized.position as any,
           mainPosition: (values as any).mainPosition,
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
-          number: values.number as any,
-          photoUrl: values.photoUrl,
+          number: valuesNormalized.number as any,
+          photoUrl: valuesNormalized.photoUrl,
           tenureYears: (values as any).tenureYears,
           seasons: nextSeasons,
           [`seasonData.${selectedSeasonDash}`]: seasonPayloadClean,
@@ -434,17 +453,17 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster`, editingPlayer.id);
         const rosterPayload = stripUndefinedDeep({
-          name: values.name,
+          name: valuesNormalized.name,
           teamId,
           seasons: nextSeasons,
           seasonData: {
             [selectedSeasonDash]: seasonPayloadClean,
           },
-          number: values.number as any,
-          position: values.position as any,
+          number: valuesNormalized.number as any,
+          position: valuesNormalized.position as any,
           mainPosition: (values as any).mainPosition,
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
-          photoUrl: values.photoUrl,
+          photoUrl: valuesNormalized.photoUrl,
           tenureYears: (values as any).tenureYears,
         });
         console.log("[PlayerManagement] write roster", {
@@ -458,7 +477,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         );
       } else {
         const createPayload = stripUndefinedDeep({
-          ...values,
+          ...valuesNormalized,
           seasons: [selectedSeason],
           seasonData: {
             [selectedSeasonDash]: seasonPayloadClean,

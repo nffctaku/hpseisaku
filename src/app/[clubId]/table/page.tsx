@@ -5,6 +5,7 @@ import { ClubHeader } from '@/components/club-header';
 import { ClubFooter } from '@/components/club-footer';
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import { SeasonSelect } from "./season-select";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 interface TablePageProps {
   params: { clubId: string };
@@ -12,37 +13,12 @@ interface TablePageProps {
 }
 
 async function getCompetitionsForClub(clubId: string) {
-  let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) return null;
+  if (resolved.displaySettings.menuShowTable === false) return null;
 
-  // 1. Try to resolve club_profiles by clubId field
-  const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
-  const profilesSnap = await profilesQuery.get();
-
-  if (!profilesSnap.empty) {
-    profileDoc = profilesSnap.docs[0];
-  } else {
-    // 2. Fallback: use clubId as the document ID
-    const directRef = db.collection('club_profiles').doc(clubId);
-    const directSnap = await directRef.get();
-    if (directSnap.exists) {
-      profileDoc = directSnap;
-    } else {
-      // 3. Fallback: clubId might be an ownerUid
-      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
-    }
-  }
-
-  if (!profileDoc) {
-    return null;
-  }
-
-  const profileData = profileDoc.data();
-  if (!profileData) {
-    return null;
-  }
-
-  const ownerUid = (profileData as any).ownerUid || profileDoc.id;
+  const profileData = resolved.profileData as any;
+  const ownerUid = resolved.ownerUid;
   const clubName = (profileData as any).clubName || 'Unknown Club';
   const logoUrl = (profileData as any).logoUrl || null;
   const homeBgColor = (profileData as any).homeBgColor || null;
@@ -50,10 +26,6 @@ async function getCompetitionsForClub(clubId: string) {
   const snsLinks = (profileData as any).snsLinks || {};
   const legalPages = (profileData as any).legalPages || [];
   const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
-
-  if (!ownerUid) {
-    return null;
-  }
 
   const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
   const competitionsSnap = await competitionsQuery.get();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -80,6 +80,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
   const [activeTab, setActiveTab] = useState<'players' | 'staff'>('players');
   const [seasonPickerOpen, setSeasonPickerOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+  const [resolvedHeadingColor, setResolvedHeadingColor] = useState<string | null>(null);
 
   const baseTabBtn = useMemo(
     () =>
@@ -92,31 +93,93 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
     setSeasonPickerOpen(false);
   };
 
+  const normalizePosition = (input: unknown): string => {
+    const raw = typeof input === 'string' ? input.trim() : '';
+    if (!raw) return 'OTHER';
+    const up = raw.toUpperCase();
+    if (up === 'GK' || up === 'GOALKEEPER' || up === 'KEEPER') return 'GK';
+    if (up === 'DF' || up === 'DEF' || up === 'DEFENDER') return 'DF';
+    if (up === 'MF' || up === 'MID' || up === 'MIDFIELDER') return 'MF';
+    if (up === 'FW' || up === 'ST' || up === 'CF' || up === 'FWD' || up === 'FORWARD' || up === 'STRIKER') return 'FW';
+    if (up.includes('GK')) return 'GK';
+    if (up.includes('DF') || up.includes('DEF')) return 'DF';
+    if (up.includes('MF') || up.includes('MID')) return 'MF';
+    if (up.includes('FW') || up.includes('FWD') || up.includes('ST') || up.includes('CF')) return 'FW';
+    return raw;
+  };
+
   const groupedPlayers = players.reduce((acc, player) => {
-    const { position } = player;
-    if (!acc[position]) {
-      acc[position] = [];
+    const key = normalizePosition((player as any)?.position);
+    if (!acc[key]) {
+      acc[key] = [];
     }
-    acc[position].push(player);
+    acc[key].push(player);
     return acc;
   }, {} as Record<string, Player[]>);
 
   const positionOrder = ['GK', 'DF', 'MF', 'FW'];
-  const sortedGroupedPlayers = positionOrder.reduce((acc, position) => {
-    if (groupedPlayers[position]) {
-      acc[position] = groupedPlayers[position];
-    }
-    return acc;
-  }, {} as Record<string, Player[]>);
+  const sortedGroupedPlayers = (() => {
+    const out: Record<string, Player[]> = {};
+    positionOrder.forEach((position) => {
+      if (groupedPlayers[position]) {
+        out[position] = groupedPlayers[position];
+      }
+    });
+    Object.keys(groupedPlayers)
+      .filter((k) => !positionOrder.includes(k))
+      .sort((a, b) => a.localeCompare(b, 'ja'))
+      .forEach((k) => {
+        out[k] = groupedPlayers[k];
+      });
+    return out;
+  })();
 
   const positionHeadingClass = (() => {
-    if (typeof accentColor === "string" && accentColor.trim().length > 0) {
-      const bgIsDark = isDarkColor(accentColor);
-      if (bgIsDark === true) return "text-white border-white";
-      if (bgIsDark === false) return "text-black border-black";
-    }
-    return "text-white border-white";
+    // Keep borders via inline style (resolvedHeadingColor). Class is only for base typography.
+    return "text-2xl font-bold border-b-2 pb-2 mb-6";
   })();
+
+  useEffect(() => {
+    const bg = typeof accentColor === 'string' && accentColor.trim().length > 0 ? accentColor : null;
+    if (bg) {
+      const bgIsDark = isDarkColor(bg);
+      if (bgIsDark === true) {
+        setResolvedHeadingColor('#ffffff');
+        return;
+      }
+      if (bgIsDark === false) {
+        setResolvedHeadingColor('#000000');
+        return;
+      }
+    }
+
+    // Fallback: decide by theme background color.
+    try {
+      if (typeof window === 'undefined') return;
+      const root = document.documentElement;
+      const styles = window.getComputedStyle(root);
+      const bgVar = styles.getPropertyValue('--background') || '';
+      const value = bgVar.trim();
+      // Tailwind/shadcn uses HSL vars like: "0 0% 100%".
+      const hslMatch = value.match(/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%$/);
+      if (hslMatch) {
+        const l = Number(hslMatch[3]);
+        if (Number.isFinite(l)) {
+          setResolvedHeadingColor(l < 50 ? '#ffffff' : '#000000');
+          return;
+        }
+      }
+
+      // Last resort: infer from `dark` class.
+      const isDark = root.classList.contains('dark');
+      setResolvedHeadingColor(isDark ? '#ffffff' : '#000000');
+      return;
+    } catch {
+      // ignore
+    }
+
+    setResolvedHeadingColor('#000000');
+  }, [accentColor]);
 
 
   return (
@@ -218,7 +281,16 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
         <div className="space-y-12">
           {Object.entries(sortedGroupedPlayers).map(([position, players]) => (
             <section key={position}>
-              <h2 className={`text-2xl font-bold border-b-2 pb-2 mb-6 ${positionHeadingClass}`}>{position}</h2>
+              <h2
+                className={positionHeadingClass}
+                style={
+                  resolvedHeadingColor
+                    ? { color: resolvedHeadingColor, borderBottomColor: resolvedHeadingColor }
+                    : undefined
+                }
+              >
+                {position}
+              </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 gap-y-2 sm:gap-4">
                 {players.map(player => (
                   <Link href={`/${clubId}/players/${player.id}${activeSeason ? `?season=${activeSeason}` : ''}`} key={player.id} className="block">

@@ -14,6 +14,7 @@ import { PublicPlayerOverallBySeasonChart } from "@/components/public-player-ove
 import { PublicPlayerSeasonSummaries } from "@/components/public-player-season-summaries";
 import { cache, Suspense } from "react";
 import type { CSSProperties } from "react";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 export const revalidate = 300;
 
@@ -1203,9 +1204,13 @@ export default async function PlayerPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string; playerId: string }>;
-  searchParams: Promise<{ season?: string; legacy?: string }>; 
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { clubId, playerId } = await params;
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved || resolved.displaySettings.menuShowSquad === false) {
+    notFound();
+  }
   const { season: urlSeason, legacy } = await searchParams;
   const result = await getPlayer(clubId, playerId);
   if (!result) return notFound();

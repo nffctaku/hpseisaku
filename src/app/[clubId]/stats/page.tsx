@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -397,9 +397,48 @@ function PublicPlayerStatsView({
 export default function ClubStatsPage() {
   const params = useParams();
   const clubId = params?.clubId as string | undefined;
+  const router = useRouter();
+  const [pageAllowed, setPageAllowed] = useState<boolean | null>(null);
   const [ownerUid, setOwnerUid] = useState<string | null>(null);
   const [loadingOwner, setLoadingOwner] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const cid = typeof clubId === "string" ? clubId.trim() : "";
+      if (!cid) return;
+      try {
+        const res = await fetch(`/api/public/club/${encodeURIComponent(cid)}/menu-settings`, {
+          method: "GET",
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          if (cancelled) return;
+          setPageAllowed(true);
+          return;
+        }
+        const json = (await res.json()) as any;
+        const allowed = (json?.settings?.menuShowStats ?? true) !== false;
+        if (cancelled) return;
+        setPageAllowed(allowed);
+        if (!allowed) {
+          router.replace(`/${cid}`);
+        }
+      } catch {
+        if (cancelled) return;
+        setPageAllowed(true);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [clubId, router]);
+
+  if (pageAllowed === false) {
+    return null;
+  }
   const [clubName, setClubName] = useState<string>("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [snsLinks, setSnsLinks] = useState<{ x?: string; youtube?: string; tiktok?: string; instagram?: string }>({});

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { PartnerStripClient } from "@/components/partner-strip-client";
+import { notFound } from 'next/navigation';
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | undefined): number {
   const md: any = (m as any)?.matchDate;
@@ -36,6 +38,16 @@ function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | u
 
 interface PageProps {
   params: { clubId: string };
+}
+
+async function getPageProfile(clubId: string) {
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) return null;
+  if (resolved.displaySettings.menuShowMatches === false) return null;
+  return {
+    ownerUid: resolved.ownerUid,
+    profile: resolved.profileData as any,
+  };
 }
 
 type MatchIndexRow = {
@@ -174,23 +186,20 @@ async function getClubMatches(clubId: string): Promise<{
   gameTeamUsage: boolean;
   groupedMatches: Record<string, MatchDetails[]>;
 }> {
-  let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
-
-  const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
-  const profilesSnap = await profilesQuery.get();
-  if (!profilesSnap.empty) {
-    profileDoc = profilesSnap.docs[0];
-  } else {
-    const directSnap = await db.collection('club_profiles').doc(clubId).get();
-    if (directSnap.exists) {
-      profileDoc = directSnap;
-    } else {
-      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
-    }
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) {
+    return {
+      clubName: 'クラブ',
+      logoUrl: null,
+      snsLinks: {},
+      sponsors: [],
+      legalPages: [],
+      homeBgColor: undefined,
+      gameTeamUsage: false,
+      groupedMatches: {},
+    };
   }
-
-  if (!profileDoc) {
+  if (resolved.displaySettings.menuShowMatches === false) {
     return {
       clubName: 'クラブ',
       logoUrl: null,
@@ -203,8 +212,8 @@ async function getClubMatches(clubId: string): Promise<{
     };
   }
 
-  const profileData = profileDoc.data() as any;
-  const ownerUid = (profileData as any).ownerUid || profileDoc.id;
+  const profileData = resolved.profileData as any;
+  const ownerUid = resolved.ownerUid;
   const clubName = (profileData as any).clubName || 'クラブ';
   const logoUrl = (profileData as any).logoUrl || null;
   const snsLinks = (profileData as any).snsLinks || {};
@@ -212,18 +221,6 @@ async function getClubMatches(clubId: string): Promise<{
   const legalPages = Array.isArray((profileData as any).legalPages) ? (profileData as any).legalPages : [];
   const homeBgColor = typeof (profileData as any).homeBgColor === "string" ? (profileData as any).homeBgColor : undefined;
   const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
-  if (!ownerUid) {
-    return {
-      clubName,
-      logoUrl,
-      snsLinks,
-      sponsors,
-      legalPages,
-      homeBgColor,
-      gameTeamUsage,
-      groupedMatches: {},
-    };
-  }
 
   // Fast-path: use public_match_index if present
   const indexRef = db.collection(`clubs/${ownerUid}/public_match_index`);
@@ -397,7 +394,17 @@ const MatchItem = ({ clubId, match }: { clubId: string; match: MatchDetails }) =
 
 export default async function ClubMatchesPage({ params }: PageProps) {
   const { clubId } = params;
+  if (clubId === 'admin') {
+    notFound();
+  }
+
   const { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, groupedMatches } = await getClubMatches(clubId);
+  if (!groupedMatches || Object.keys(groupedMatches).length === 0) {
+    const pageProfile = await getPageProfile(clubId);
+    if (!pageProfile) {
+      notFound();
+    }
+  }
   const competitionNames = Object.keys(groupedMatches);
 
   return (

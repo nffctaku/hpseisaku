@@ -8,6 +8,7 @@ import { notFound } from 'next/navigation';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import NewsActions from './NewsActions';
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 export const revalidate = 0;
 
@@ -18,33 +19,10 @@ function toCloudinaryPadded16x9(url: string, width: number) {
 }
 
 async function getArticle(clubId: string, newsId: string): Promise<NewsArticle | null> {
-  const profileQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
-  const profileSnapshot = await profileQuery.get();
-
-  let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
-  if (!profileSnapshot.empty) {
-    profileDoc = profileSnapshot.docs[0];
-  } else {
-    const direct = await db.collection('club_profiles').doc(clubId).get();
-    if (direct.exists) {
-      profileDoc = direct;
-    } else {
-      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
-    }
-  }
-
-  if (!profileDoc) {
-    console.error(`No club profile found for clubId: ${clubId}`);
-    return null;
-  }
-
-  const profileData = profileDoc.data() as any;
-  const ownerUid = (profileData?.ownerUid as string | undefined) || profileDoc.id;
-  if (!ownerUid) {
-    console.error(`ownerUid not found in club profile for clubId: ${clubId}`);
-    return null;
-  }
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) return null;
+  if (resolved.displaySettings.menuShowNews === false) return null;
+  const ownerUid = resolved.ownerUid;
 
   const docRef = db.collection(`clubs/${ownerUid}/news`).doc(newsId);
   const docSnap = await docRef.get();
@@ -67,50 +45,29 @@ async function getArticle(clubId: string, newsId: string): Promise<NewsArticle |
   } as NewsArticle;
 }
 
- async function getOtherNews(clubId: string, currentNewsId: string, limit: number): Promise<NewsArticle[]> {
-   const profileQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
-   const profileSnapshot = await profileQuery.get();
+async function getOtherNews(clubId: string, currentNewsId: string, limit: number): Promise<NewsArticle[]> {
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) return [];
+  if (resolved.displaySettings.menuShowNews === false) return [];
+  const ownerUid = resolved.ownerUid;
 
-   let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
-   if (!profileSnapshot.empty) {
-     profileDoc = profileSnapshot.docs[0];
-   } else {
-     const direct = await db.collection('club_profiles').doc(clubId).get();
-     if (direct.exists) {
-       profileDoc = direct;
-     } else {
-       const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-       if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
-     }
-   }
+  const newsRef = db.collection(`clubs/${ownerUid}/news`);
+  const snap = await newsRef.orderBy('publishedAt', 'desc').limit(limit + 3).get();
+  const items = snap.docs
+    .filter((d) => d.id !== currentNewsId)
+    .slice(0, limit)
+    .map((d) => {
+      const data = d.data() as any;
+      return {
+        id: d.id,
+        title: data.title,
+        imageUrl: data.imageUrl,
+        publishedAt: data.publishedAt,
+      } as NewsArticle;
+    });
 
-   if (!profileDoc) {
-     return [];
-   }
-
-   const profileData = profileDoc.data() as any;
-   const ownerUid = (profileData?.ownerUid as string | undefined) || profileDoc.id;
-   if (!ownerUid) {
-     return [];
-   }
-
-   const newsRef = db.collection(`clubs/${ownerUid}/news`);
-   const snap = await newsRef.orderBy('publishedAt', 'desc').limit(limit + 3).get();
-   const items = snap.docs
-     .filter((d) => d.id !== currentNewsId)
-     .slice(0, limit)
-     .map((d) => {
-       const data = d.data() as any;
-       return {
-         id: d.id,
-         title: data.title,
-         imageUrl: data.imageUrl,
-         publishedAt: data.publishedAt,
-       } as NewsArticle;
-     });
-
-   return items;
- }
+  return items;
+}
 
  function OtherNewsCard({ article, clubId }: { article: NewsArticle; clubId: string }) {
    const publishedDate = article.publishedAt?.toDate ? article.publishedAt.toDate() : null;
