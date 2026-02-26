@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { toDashSeason } from "@/lib/season";
-import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc, getDocs, writeBatch } from "firebase/firestore";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -66,6 +66,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const [players, setPlayers] = useState<Player[]>([]);
   const [legacyPlayers, setLegacyPlayers] = useState<Player[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
+  const [csvPreview, setCsvPreview] = useState<Array<{ rowNumber: number; data: any; error?: string }>>([]);
+  const [csvFileName, setCsvFileName] = useState<string>("");
+  const [importingCsv, setImportingCsv] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<Player | null>(null);
 
@@ -83,6 +87,109 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     if (up === "MF" || up === "MID" || up === "MIDFIELDER" || up === "AM" || up === "RM" || up === "LM" || up === "CM" || up === "DM") return "MF";
     if (up === "FW" || up === "FWD" || up === "FORWARD" || up === "STRIKER" || up === "ST" || up === "CF" || up === "RW" || up === "LW") return "FW";
     return null;
+  };
+
+  const parseCsv = (text: string): string[][] => {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = "";
+    let inQuotes = false;
+
+    const pushField = () => {
+      row.push(field);
+      field = "";
+    };
+    const pushRow = () => {
+      if (row.length === 1 && row[0] === "") {
+        row = [];
+        return;
+      }
+      rows.push(row);
+      row = [];
+    };
+
+    const s = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (ch === '"') {
+        const next = s[i + 1];
+        if (inQuotes && next === '"') {
+          field += '"';
+          i++;
+          continue;
+        }
+        inQuotes = !inQuotes;
+        continue;
+      }
+      if (!inQuotes && ch === ",") {
+        pushField();
+        continue;
+      }
+      if (!inQuotes && ch === "\n") {
+        pushField();
+        pushRow();
+        continue;
+      }
+      field += ch;
+    }
+    pushField();
+    pushRow();
+    return rows;
+  };
+
+  const normalizePreferredFoot = (input: unknown): 'left' | 'right' | 'both' | undefined => {
+    const raw = typeof input === 'string' ? input.trim() : '';
+    if (!raw) return undefined;
+    if (raw === '右') return 'right';
+    if (raw === '左') return 'left';
+    if (raw === '両') return 'both';
+    const up = raw.toLowerCase();
+    if (up === 'right') return 'right';
+    if (up === 'left') return 'left';
+    if (up === 'both') return 'both';
+    return undefined;
+  };
+
+  const normalizeNumberValue = (input: unknown): number | null => {
+    if (typeof input === 'number' && Number.isFinite(input)) return input;
+    const raw = typeof input === 'string' ? input.trim() : '';
+    if (!raw) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    return n;
+  };
+
+  const readCsvFile = async (file: File): Promise<string> => {
+    try {
+      return await file.text();
+    } catch {
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('failed to read file'));
+        reader.readAsText(file);
+      });
+    }
+  };
+
+  const downloadCsvTemplate = () => {
+    try {
+      const header = ["選手名", "背番号", "Pos.(GK,DF,MF,FW)", "国籍/出身", "身長", "体重", "利き足(右,左,両)", "年齢"];
+      const example = ["山田太郎", "10", "FW", "日本", "178", "72", "右", "24"];
+      const csv = `${header.join(",")}\n${example.join(",")}\n`;
+      const withBom = `\uFEFF${csv}`;
+      const blob = new Blob([withBom], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "players_template.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("テンプレートのダウンロードに失敗しました。");
+    }
   };
 
   const invalidatePlayerStatsCache = async (playerId: string) => {
@@ -592,33 +699,356 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     setIsDialogOpen(true);
   };
 
+  const openCsvDialog = () => {
+    if (Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers) {
+      toast.error(`現在のプランでは1チームあたり選手は最大${maxPlayers}人まで登録できます。`);
+      return;
+    }
+    setCsvFileName("");
+    setCsvPreview([]);
+    setIsCsvDialogOpen(true);
+  };
+
+  const handleCsvSelected = async (file: File) => {
+    setCsvFileName(file.name);
+    setCsvPreview([]);
+
+    const text = await readCsvFile(file);
+    const rawRows = parseCsv(text).map((r) => r.map((c) => (typeof c === 'string' ? c.trim() : c)));
+    const firstNonEmpty = rawRows.findIndex((r) => r.some((c) => String(c || '').trim() !== ''));
+    const rows = firstNonEmpty >= 0 ? rawRows.slice(firstNonEmpty) : [];
+    if (rows.length === 0) {
+      toast.error('CSVの内容が空です。');
+      return;
+    }
+
+    const normalizeHeaderCell = (v: unknown): string => {
+      const raw = typeof v === 'string' ? v : '';
+      return raw.replace(/\s+/g, '').trim().toLowerCase();
+    };
+
+    const headerLike = rows[0].some((c) => {
+      const key = normalizeHeaderCell(c);
+      const known = [
+        'name',
+        'number',
+        'position',
+        'nationality',
+        'height',
+        'weight',
+        'foot',
+        'age',
+        '選手名',
+        '背番号',
+        'pos.(gk,df,mf,fw)',
+        'pos',
+        'ポジション',
+        '国籍/出身',
+        '身長',
+        '体重',
+        '利き足(右,左,両)',
+        '利き足',
+        '年齢',
+      ].map((s) => normalizeHeaderCell(s));
+      return known.includes(key);
+    });
+    const header = headerLike ? rows[0].map((c) => String(c || '').trim()) : [];
+    const dataRows = headerLike ? rows.slice(1) : rows;
+
+    const toCanonicalKey = (headerCell: string): string => {
+      const k = normalizeHeaderCell(headerCell);
+      if (k === 'name' || k === normalizeHeaderCell('選手名')) return 'name';
+      if (k === 'number' || k === normalizeHeaderCell('背番号')) return 'number';
+      if (k === 'position' || k === 'pos' || k === normalizeHeaderCell('ポジション') || k === normalizeHeaderCell('Pos.(GK,DF,MF,FW)')) return 'position';
+      if (k === 'nationality' || k === normalizeHeaderCell('国籍/出身')) return 'nationality';
+      if (k === 'height' || k === normalizeHeaderCell('身長')) return 'height';
+      if (k === 'weight' || k === normalizeHeaderCell('体重')) return 'weight';
+      if (k === 'foot' || k === normalizeHeaderCell('利き足') || k === normalizeHeaderCell('利き足(右,左,両)')) return 'foot';
+      if (k === 'age' || k === normalizeHeaderCell('年齢')) return 'age';
+      return '';
+    };
+
+    const idx = (key: string): number => {
+      if (!headerLike) return -1;
+      const canonical = key.toLowerCase();
+      for (let i = 0; i < header.length; i++) {
+        if (toCanonicalKey(header[i]) === canonical) return i;
+      }
+      return -1;
+    };
+
+    const getCell = (row: string[], key: string, fallbackIndex: number): string => {
+      const i = idx(key);
+      if (i >= 0) return String(row[i] ?? '').trim();
+      return String(row[fallbackIndex] ?? '').trim();
+    };
+
+    const preview = dataRows
+      .map((r, i) => {
+        const rowNumber = (headerLike ? 2 : 1) + i;
+        const name = getCell(r, 'name', 0);
+        const numberRaw = getCell(r, 'number', 1);
+        const positionRaw = getCell(r, 'position', 2);
+
+        const nationality = getCell(r, 'nationality', 3);
+        const heightRaw = getCell(r, 'height', 4);
+        const weightRaw = getCell(r, 'weight', 5);
+        const footRaw = getCell(r, 'foot', 6);
+        const ageRaw = getCell(r, 'age', 7);
+
+        if (!name) {
+          return { rowNumber, data: { name, numberRaw, positionRaw }, error: '選手名が空です' };
+        }
+        const n = normalizeNumberValue(numberRaw);
+        if (n === null) {
+          return { rowNumber, data: { name, numberRaw, positionRaw }, error: '背番号が不正です' };
+        }
+        const pos = normalizeBasePosition(positionRaw);
+        if (!pos) {
+          return { rowNumber, data: { name, numberRaw, positionRaw }, error: 'Posが不正です（GK/DF/MF/FW）' };
+        }
+
+        const height = normalizeNumberValue(heightRaw);
+        if (heightRaw && height === null) {
+          return { rowNumber, data: { name, numberRaw, positionRaw }, error: '身長が不正です' };
+        }
+        const weight = normalizeNumberValue(weightRaw);
+        if (weightRaw && weight === null) {
+          return { rowNumber, data: { name, numberRaw, positionRaw }, error: '体重が不正です' };
+        }
+        const age = normalizeNumberValue(ageRaw);
+        if (ageRaw && age === null) {
+          return { rowNumber, data: { name, numberRaw, positionRaw }, error: '年齢が不正です' };
+        }
+
+        const preferredFoot = normalizePreferredFoot(footRaw);
+        if (footRaw && !preferredFoot) {
+          return { rowNumber, data: { name, numberRaw, positionRaw }, error: '利き足が不正です（右/左/両）' };
+        }
+
+        return {
+          rowNumber,
+          data: {
+            name,
+            number: n,
+            position: pos,
+            nationality: nationality || undefined,
+            height: height ?? undefined,
+            weight: weight ?? undefined,
+            preferredFoot,
+            age: age ?? undefined,
+          },
+        };
+      })
+      .filter((p) => {
+        const d = p.data || {};
+        return Boolean(String((d as any)?.name || '').trim() || String((d as any)?.numberRaw || '').trim() || String((d as any)?.positionRaw || '').trim());
+      });
+
+    if (preview.length === 0) {
+      toast.error('CSVの内容が空です。');
+      return;
+    }
+
+    setCsvPreview(preview);
+  };
+
+  const handleImportCsv = async () => {
+    if (!clubUid || !teamId) return;
+    if (!selectedSeason) {
+      toast.error('シーズンが選択されていません。');
+      return;
+    }
+    if (!csvPreview || csvPreview.length === 0) {
+      toast.error('CSVが選択されていません。');
+      return;
+    }
+    const hasError = csvPreview.some((p) => Boolean(p.error));
+    if (hasError) {
+      toast.error('エラー行があります。内容を修正してから再度お試しください。');
+      return;
+    }
+
+    const rows = csvPreview.map((p) => p.data).filter(Boolean);
+    if (Number.isFinite(maxPlayers) && filteredPlayers.length + rows.length > maxPlayers) {
+      toast.error(`現在のプランでは1チームあたり選手は最大${maxPlayers}人まで登録できます。`);
+      return;
+    }
+
+    const selectedSeasonDash = toDashSeason(selectedSeason);
+    setImportingCsv(true);
+    try {
+      const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
+      const batch = writeBatch(db);
+      const ids: string[] = [];
+
+      for (const r of rows) {
+        const docRef = doc(playersColRef);
+        ids.push(docRef.id);
+
+        const seasonPayload: PlayerSeasonData = {
+          number: (r as any).number,
+          position: (r as any).position,
+          nationality: (r as any).nationality,
+          age: (r as any).age,
+          height: (r as any).height,
+          weight: (r as any).weight,
+          preferredFoot: (r as any).preferredFoot,
+          isPublished: true,
+        };
+
+        const seasonPayloadClean = (stripUndefinedDeep(seasonPayload) || {}) as any;
+        const playerPayload = stripUndefinedDeep({
+          name: (r as any).name,
+          number: (r as any).number,
+          position: (r as any).position,
+          nationality: (r as any).nationality,
+          age: (r as any).age,
+          height: (r as any).height,
+          weight: (r as any).weight,
+          preferredFoot: (r as any).preferredFoot,
+          seasons: [selectedSeason],
+          seasonData: {
+            [selectedSeasonDash]: seasonPayloadClean,
+          },
+        });
+        batch.set(docRef, (playerPayload || {}) as any, { merge: true });
+
+        const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeasonDash}/roster`, docRef.id);
+        const rosterPayload = stripUndefinedDeep({
+          ...(playerPayload || {}),
+          teamId,
+          seasons: [selectedSeason],
+          seasonData: {
+            [selectedSeasonDash]: seasonPayloadClean,
+          },
+          number: (r as any).number,
+          position: (r as any).position,
+        });
+        batch.set(rosterDocRef, (rosterPayload || {}) as any, { merge: true });
+      }
+
+      await batch.commit();
+
+      await Promise.all(ids.map((id) => invalidatePlayerStatsCache(id)));
+
+      toast.success(`${rows.length}人の選手を追加しました。`);
+      setIsCsvDialogOpen(false);
+      setCsvPreview([]);
+      setCsvFileName("");
+    } catch (e: any) {
+      toast.error(e?.message || 'CSVインポートに失敗しました。');
+    } finally {
+      setImportingCsv(false);
+    }
+  };
+
   return (
     <>
       <div className="mt-6">
         <div className="mb-4 w-full">
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button
-                onClick={openAddDialog}
-                disabled={Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers}
-                className="w-full bg-white text-gray-900 hover:bg-gray-100 border border-border"
-              >
-                選手を追加
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh]">
-              <DialogHeader>
-                <DialogTitle>{editingPlayer ? '選手を編集' : '選手を追加'}</DialogTitle>
-              </DialogHeader>
-              <PlayerForm
-                key={playerFormKey}
-                onSubmit={handleFormSubmit}
-                defaultValues={seasonDefaults || editingPlayer || undefined}
-                defaultSeason={selectedSeason}
-                ownerUid={user?.uid ?? null}
-              />
-            </DialogContent>
-          </Dialog>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  onClick={openAddDialog}
+                  disabled={Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers}
+                  className="w-full bg-white text-gray-900 hover:bg-gray-100 border border-border"
+                >
+                  選手を追加
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh]">
+                <DialogHeader>
+                  <DialogTitle>{editingPlayer ? '選手を編集' : '選手を追加'}</DialogTitle>
+                </DialogHeader>
+                <PlayerForm
+                  key={playerFormKey}
+                  onSubmit={handleFormSubmit}
+                  defaultValues={seasonDefaults || editingPlayer || undefined}
+                  defaultSeason={selectedSeason}
+                  ownerUid={user?.uid ?? null}
+                />
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isCsvDialogOpen} onOpenChange={setIsCsvDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  onClick={openCsvDialog}
+                  disabled={Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers}
+                  className="w-full bg-white text-gray-900 hover:bg-gray-100 border border-border"
+                >
+                  CSVで追加（準備中）
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh]">
+                <DialogHeader>
+                  <DialogTitle>CSVで選手を追加</DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-3">
+                  <div className="text-sm text-muted-foreground">
+                    必須：name（選手名）, number（背番号）, position（GK/DF/MF/FW）
+                  </div>
+
+                  <Button type="button" variant="outline" onClick={downloadCsvTemplate} className="w-full bg-white text-gray-900 border border-border hover:bg-gray-100">
+                    テンプレートCSVをダウンロード
+                  </Button>
+
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      accept=".csv,text/csv"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        await handleCsvSelected(f);
+                      }}
+                    />
+                    {csvFileName ? <div className="text-xs text-muted-foreground">{csvFileName}</div> : null}
+                  </div>
+
+                  {csvPreview.length > 0 ? (
+                    <div className="rounded-md border bg-white p-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold">プレビュー</div>
+                        <div className="text-xs text-muted-foreground">
+                          {csvPreview.filter((p) => !p.error).length}件OK / {csvPreview.filter((p) => p.error).length}件エラー
+                        </div>
+                      </div>
+
+                      <div className="mt-2 space-y-1">
+                        {csvPreview.slice(0, 10).map((p) => (
+                          <div key={`${p.rowNumber}`} className="flex items-start justify-between gap-2 text-xs">
+                            <div className="min-w-0">
+                              <div className="truncate">
+                                {p.data?.name} #{p.data?.number} {p.data?.position}
+                              </div>
+                              {p.error ? <div className="text-red-600">{p.rowNumber}行目: {p.error}</div> : null}
+                            </div>
+                          </div>
+                        ))}
+                        {csvPreview.length > 10 ? (
+                          <div className="text-xs text-muted-foreground">…他{csvPreview.length - 10}件</div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <Button
+                    type="button"
+                    disabled={importingCsv || csvPreview.length === 0 || csvPreview.some((p) => Boolean(p.error))}
+                    onClick={handleImportCsv}
+                    className="w-full"
+                  >
+                    {importingCsv ? '取り込み中...' : '取り込みを実行'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <PlayersDataTable columns={columns(openEditDialog, setDeletingPlayer)} data={filteredPlayers} />
