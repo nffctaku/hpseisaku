@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import { Loader2, Menu, Moon, Share2, Sun, X } from "lucide-react";
@@ -64,6 +65,16 @@ function isDarkColor(input: string): boolean | null {
   return luminance < 0.5;
 }
 
+function hasAnySnsLink(v: ClubHeaderProps["snsLinks"] | undefined): boolean {
+  if (!v) return false;
+  return Boolean(
+    (typeof v.x === "string" && v.x.trim()) ||
+      (typeof v.youtube === "string" && v.youtube.trim()) ||
+      (typeof v.tiktok === "string" && v.tiktok.trim()) ||
+      (typeof v.instagram === "string" && v.instagram.trim())
+  );
+}
+
 export function ClubHeader({
   clubId,
   clubName,
@@ -104,6 +115,11 @@ export function ClubHeader({
   });
   const pathname = usePathname();
   const { theme, resolvedTheme, setTheme } = useTheme();
+
+  const portalTarget = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    return document.body;
+  }, []);
 
   const isNavigating = navigatingTo != null;
   const isDark = (resolvedTheme || theme) === "dark";
@@ -160,7 +176,8 @@ export function ClubHeader({
       resolvedClubName.trim().length === 0 ||
       resolvedClubName === 'クラブ名未設定' ||
       resolvedClubName === clubId ||
-      !resolvedLogoUrl;
+      !resolvedLogoUrl ||
+      !hasAnySnsLink(resolvedSnsLinks);
 
     if (!needsFallback) return;
 
@@ -189,7 +206,7 @@ export function ClubHeader({
         if (nextBg && !resolvedHeaderBackgroundColor) {
           setResolvedHeaderBackgroundColor(nextBg);
         }
-        if (nextSns && !resolvedSnsLinks) {
+        if (nextSns && !hasAnySnsLink(resolvedSnsLinks)) {
           setResolvedSnsLinks(nextSns);
         }
       } catch {
@@ -224,6 +241,31 @@ export function ClubHeader({
       cancelled = true;
     };
   }, [clubId]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prevOverflow = document?.body?.style?.overflow;
+    try {
+      document.body.style.overflow = "hidden";
+    } catch {
+      // ignore
+    }
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      try {
+        if (typeof prevOverflow === "string") document.body.style.overflow = prevOverflow;
+        else document.body.style.overflow = "";
+      } catch {
+        // ignore
+      }
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -450,113 +492,122 @@ export function ClubHeader({
       </div>
 
       {/* Mobile dropdown menu */}
-      {menuOpen && (
-        <div className={`sm:hidden fixed inset-0 z-50 ${menuTextClass} pointer-events-auto`} style={menuBgStyle}>
-          <div className="h-full w-full overflow-y-auto">
-            <div className="container mx-auto px-4 pt-4 pb-8">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className={`w-16 h-16 rounded-full overflow-hidden ${menuIconBgClass} flex items-center justify-center`}>
-                    {resolvedLogoUrl ? (
-                      <Image
-                        src={resolvedLogoUrl}
-                        alt={resolvedClubName || clubName || "Club emblem"}
-                        width={64}
-                        height={64}
-                        className="object-contain"
-                      />
-                    ) : null}
+      {menuOpen && portalTarget
+        ? createPortal(
+            <div
+              className={`sm:hidden fixed inset-0 z-[9999] ${menuTextClass} pointer-events-auto`}
+              style={menuBgStyle}
+              onClick={() => setMenuOpen(false)}
+            >
+              <div className="h-full w-full overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                <div className="container mx-auto px-4 pt-4 pb-8">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-16 h-16 rounded-full overflow-hidden ${menuIconBgClass} flex items-center justify-center`}>
+                        {resolvedLogoUrl ? (
+                          <Image
+                            src={resolvedLogoUrl}
+                            alt={resolvedClubName || clubName || "Club emblem"}
+                            width={64}
+                            height={64}
+                            className="object-contain"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="text-sm font-semibold tracking-wide leading-tight truncate max-w-[12rem]">{resolvedClubName || clubName || ""}</div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="p-2 hover:opacity-80"
+                      onClick={() => setMenuOpen(false)}
+                      aria-label="メニューを閉じる"
+                    >
+                      <X className="w-6 h-6" strokeWidth={2.2} />
+                    </button>
                   </div>
-                  <div className="text-sm font-semibold tracking-wide leading-tight truncate max-w-[12rem]">{resolvedClubName || clubName || ""}</div>
-                </div>
 
-                <button
-                  type="button"
-                  className="p-2 hover:opacity-80"
-                  onClick={() => setMenuOpen(false)}
-                  aria-label="メニューを閉じる"
-                >
-                  <X className="w-6 h-6" strokeWidth={2.2} />
-                </button>
+                  <nav className="mt-8">
+                    <div className="flex flex-col">
+                      {[
+                        menuSettings.menuShowNews ? { href: `/${clubId}/news`, label: "News" } : null,
+                        menuSettings.menuShowTv ? { href: `/${clubId}/tv`, label: "TV" } : null,
+                        menuSettings.menuShowClub ? { href: `/${clubId}/club`, label: "Club" } : null,
+                        menuSettings.menuShowTransfers ? { href: `/${clubId}/transfers`, label: "Transfers" } : null,
+                        menuSettings.menuShowMatches ? { href: `/${clubId}/results`, label: "Matches" } : null,
+                        menuSettings.menuShowTable ? { href: `/${clubId}/table`, label: "Table" } : null,
+                        menuSettings.menuShowStats ? { href: `/${clubId}/stats`, label: "Stats" } : null,
+                        menuSettings.menuShowSquad ? { href: `/${clubId}/players`, label: "Squad" } : null,
+                        partnersEnabled && menuSettings.menuShowPartner ? { href: `/${clubId}/partner`, label: "Partner" } : null,
+                      ]
+                        .filter(Boolean)
+                        .map((item) => (
+                          <Link
+                            key={(item as any).href}
+                            href={(item as any).href}
+                            className="py-3 text-lg font-black tracking-wide hover:opacity-80 transition-opacity"
+                            onClick={() => {
+                              setNavigatingTo((item as any).href);
+                              setMenuOpen(false);
+                            }}
+                          >
+                            {(item as any).label}
+                          </Link>
+                        ))}
+                    </div>
+                  </nav>
+
+                  {resolvedSnsLinks &&
+                    (resolvedSnsLinks.x || resolvedSnsLinks.youtube || resolvedSnsLinks.tiktok || resolvedSnsLinks.instagram) && (
+                      <div className={`mt-10 pt-6 border-t ${menuBorderClass} flex justify-center gap-4`}>
+                        {resolvedSnsLinks.youtube && (
+                          <Link
+                            href={resolvedSnsLinks.youtube}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
+                          >
+                            <FaYoutube className="w-5 h-5" />
+                          </Link>
+                        )}
+                        {resolvedSnsLinks.x && (
+                          <Link
+                            href={resolvedSnsLinks.x}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
+                          >
+                            <FaXTwitter className="w-4 h-4" />
+                          </Link>
+                        )}
+                        {resolvedSnsLinks.tiktok && (
+                          <Link
+                            href={resolvedSnsLinks.tiktok}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
+                          >
+                            <FaTiktok className="w-4 h-4" />
+                          </Link>
+                        )}
+                        {resolvedSnsLinks.instagram && (
+                          <Link
+                            href={resolvedSnsLinks.instagram}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
+                          >
+                            <FaInstagram className="w-4 h-4" />
+                          </Link>
+                        )}
+                      </div>
+                    )}
+                </div>
               </div>
-
-              <nav className="mt-8">
-                <div className="flex flex-col">
-                  {[
-                    menuSettings.menuShowNews ? { href: `/${clubId}/news`, label: "News" } : null,
-                    menuSettings.menuShowTv ? { href: `/${clubId}/tv`, label: "TV" } : null,
-                    menuSettings.menuShowClub ? { href: `/${clubId}/club`, label: "Club" } : null,
-                    menuSettings.menuShowTransfers ? { href: `/${clubId}/transfers`, label: "Transfers" } : null,
-                    menuSettings.menuShowMatches ? { href: `/${clubId}/results`, label: "Matches" } : null,
-                    menuSettings.menuShowTable ? { href: `/${clubId}/table`, label: "Table" } : null,
-                    menuSettings.menuShowStats ? { href: `/${clubId}/stats`, label: "Stats" } : null,
-                    menuSettings.menuShowSquad ? { href: `/${clubId}/players`, label: "Squad" } : null,
-                    partnersEnabled && menuSettings.menuShowPartner ? { href: `/${clubId}/partner`, label: "Partner" } : null,
-                  ].filter(Boolean)
-                    .map((item) => (
-                      <Link
-                        key={(item as any).href}
-                        href={(item as any).href}
-                        className="py-3 text-lg font-black tracking-wide hover:opacity-80 transition-opacity"
-                        onClick={() => {
-                          setNavigatingTo((item as any).href);
-                          setMenuOpen(false);
-                        }}
-                      >
-                        {(item as any).label}
-                      </Link>
-                    ))}
-                </div>
-              </nav>
-
-              {resolvedSnsLinks && (resolvedSnsLinks.x || resolvedSnsLinks.youtube || resolvedSnsLinks.tiktok || resolvedSnsLinks.instagram) && (
-                <div className={`mt-10 pt-6 border-t ${menuBorderClass} flex justify-center gap-4`}>
-                  {resolvedSnsLinks.youtube && (
-                    <Link
-                      href={resolvedSnsLinks.youtube}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
-                    >
-                      <FaYoutube className="w-5 h-5" />
-                    </Link>
-                  )}
-                  {resolvedSnsLinks.x && (
-                    <Link
-                      href={resolvedSnsLinks.x}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
-                    >
-                      <FaXTwitter className="w-4 h-4" />
-                    </Link>
-                  )}
-                  {resolvedSnsLinks.tiktok && (
-                    <Link
-                      href={resolvedSnsLinks.tiktok}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
-                    >
-                      <FaTiktok className="w-4 h-4" />
-                    </Link>
-                  )}
-                  {resolvedSnsLinks.instagram && (
-                    <Link
-                      href={resolvedSnsLinks.instagram}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center`}
-                    >
-                      <FaInstagram className="w-4 h-4" />
-                    </Link>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+            </div>,
+            portalTarget
+          )
+        : null}
     </header>
   );
 }
