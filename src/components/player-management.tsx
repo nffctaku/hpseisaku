@@ -437,16 +437,18 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
     if (isNewPhoto) {
       try {
-        const playersSnap = await getDocs(collection(db, `clubs/${clubUid}/teams/${teamId}/players`));
+        const rosterSnap = await getDocs(collection(db, `clubs/${clubUid}/seasons/${selectedSeasonDash}/roster`));
         let count = 0;
-        playersSnap.forEach((d) => {
+        rosterSnap.forEach((d) => {
           const p = d.data() as any;
-          const url = typeof p?.photoUrl === 'string' ? p.photoUrl.trim() : '';
+          const seasonUrl = typeof p?.seasonData?.[selectedSeasonDash]?.photoUrl === "string" ? p.seasonData[selectedSeasonDash].photoUrl.trim() : "";
+          const fallbackUrl = typeof p?.photoUrl === "string" ? p.photoUrl.trim() : "";
+          const url = seasonUrl || fallbackUrl;
           if (url) count += 1;
         });
 
         if (Number.isFinite(maxPlayerPhotos) && count >= maxPlayerPhotos) {
-          toast.error(`現在のプランでは選手画像は1チームあたり最大${maxPlayerPhotos}枚まで登録できます。`);
+          toast.error(`現在のプランでは選手画像は1シーズンあたり最大${maxPlayerPhotos}枚まで登録できます。`);
           return;
         }
       } catch {
