@@ -8,6 +8,7 @@ import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, array
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { MoreHorizontal } from "lucide-react";
 import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
 import {
   Dialog,
@@ -26,6 +27,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PlayerForm } from "./player-form";
 import { POSITIONS, type PlayerFormValues } from "./player-form.schema";
 import { Player, PlayerSeasonData } from "@/types/player";
@@ -174,7 +181,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
   const downloadCsvTemplate = () => {
     try {
-      const header = ["選手名", "背番号", "Pos.(GK,DF,MF,FW)", "国籍/出身", "身長", "体重", "利き足(右,左,両)", "年齢"];
+      const header = ["選手名", "背番号", "Pos.", "国籍（出身）", "身長", "体重", "利き足", "年齢"];
       const example = ["山田太郎", "10", "FW", "日本", "178", "72", "右", "24"];
       const csv = `${header.join(",")}\n${example.join(",")}\n`;
       const withBom = `\uFEFF${csv}`;
@@ -668,7 +675,17 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       });
       if (remaining.length === 0) {
         await deleteDoc(playerDocRef);
-        await deleteDoc(rosterDocRef);
+
+        const rosterSeasonKeys = [selectedSeasonSlash, selectedSeasonDash, ...seasons]
+          .map((s) => toDashSeason(String(s || "").trim()))
+          .filter((s) => typeof s === "string" && s.trim().length > 0)
+          .filter((s, i, arr) => arr.indexOf(s) === i);
+
+        await Promise.all(
+          rosterSeasonKeys.map((s) =>
+            deleteDoc(doc(db, `clubs/${clubUid}/seasons/${s}/roster`, deletingPlayer.id)).catch(() => null)
+          )
+        );
       } else {
         await updateDoc(playerDocRef, {
           seasons: arrayRemove(selectedSeasonSlash, selectedSeasonDash),
@@ -726,7 +743,14 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
     const normalizeHeaderCell = (v: unknown): string => {
       const raw = typeof v === 'string' ? v : '';
-      return raw.replace(/\s+/g, '').trim().toLowerCase();
+      return raw
+        .replace(/\s+/g, '')
+        .trim()
+        .toLowerCase()
+        .replace(/[()\uFF08\uFF09\uFF5F\uFF60（）\[\]{}<>＜＞「」『』【】]/g, '')
+        .replace(/[.。・,:;：；]/g, '')
+        .replace(/[\\/／]/g, '')
+        .replace(/[-_]/g, '');
     };
 
     const headerLike = rows[0].some((c) => {
@@ -743,13 +767,20 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         '選手名',
         '背番号',
         'pos.(gk,df,mf,fw)',
+        'pos.',
+        'pos',
         'pos',
         'ポジション',
         '国籍/出身',
+        '国籍（出身）',
+        '国籍(出身)',
+        '国籍出身',
+        '国籍',
         '身長',
         '体重',
         '利き足(右,左,両)',
         '利き足',
+        '利き足右左両',
         '年齢',
       ].map((s) => normalizeHeaderCell(s));
       return known.includes(key);
@@ -761,8 +792,23 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       const k = normalizeHeaderCell(headerCell);
       if (k === 'name' || k === normalizeHeaderCell('選手名')) return 'name';
       if (k === 'number' || k === normalizeHeaderCell('背番号')) return 'number';
-      if (k === 'position' || k === 'pos' || k === normalizeHeaderCell('ポジション') || k === normalizeHeaderCell('Pos.(GK,DF,MF,FW)')) return 'position';
-      if (k === 'nationality' || k === normalizeHeaderCell('国籍/出身')) return 'nationality';
+      if (
+        k === 'position' ||
+        k === 'pos' ||
+        k === 'pos.' ||
+        k === normalizeHeaderCell('ポジション') ||
+        k === normalizeHeaderCell('Pos.(GK,DF,MF,FW)') ||
+        k === normalizeHeaderCell('Pos.')
+      )
+        return 'position';
+      if (
+        k === 'nationality' ||
+        k === normalizeHeaderCell('国籍/出身') ||
+        k === normalizeHeaderCell('国籍（出身）') ||
+        k === normalizeHeaderCell('国籍(出身)') ||
+        k === normalizeHeaderCell('国籍')
+      )
+        return 'nationality';
       if (k === 'height' || k === normalizeHeaderCell('身長')) return 'height';
       if (k === 'weight' || k === normalizeHeaderCell('体重')) return 'weight';
       if (k === 'foot' || k === normalizeHeaderCell('利き足') || k === normalizeHeaderCell('利き足(右,左,両)')) return 'foot';
@@ -949,13 +995,13 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     <>
       <div className="mt-6">
         <div className="mb-4 w-full">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-2">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button
                   onClick={openAddDialog}
                   disabled={Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers}
-                  className="w-full bg-white text-gray-900 hover:bg-gray-100 border border-border"
+                  className="w-full bg-blue-600 text-white hover:bg-blue-700 border border-blue-700"
                 >
                   選手を追加
                 </Button>
@@ -980,7 +1026,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                   type="button"
                   onClick={openCsvDialog}
                   disabled={Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers}
-                  className="w-full bg-white text-gray-900 hover:bg-gray-100 border border-border"
+                  className="w-full bg-white/10 text-white hover:bg-white/15 border border-white/15"
                 >
                   CSVで追加（準備中）
                 </Button>
@@ -1053,7 +1099,64 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           </div>
         </div>
 
-        <PlayersDataTable columns={columns(openEditDialog, setDeletingPlayer)} data={filteredPlayers} />
+        <div className="sm:hidden space-y-3">
+          {filteredPlayers.length === 0 ? (
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+              選手がいません。
+            </div>
+          ) : (
+            filteredPlayers.map((p) => {
+              const photoUrl = typeof (p as any)?.photoUrl === "string" ? String((p as any).photoUrl).trim() : "";
+              const numberText = (p as any)?.number != null ? String((p as any).number) : "-";
+              const posText = typeof (p as any)?.position === "string" ? String((p as any).position).trim().toUpperCase() : "";
+              return (
+                <div
+                  key={p.id}
+                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur"
+                >
+                  <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-white/10">
+                    {photoUrl ? (
+                      <Image src={photoUrl} alt={p.name || ""} fill className="object-cover" />
+                    ) : (
+                      <div className="h-full w-full" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-3">
+                      <div className="w-[3ch] text-sm font-semibold tabular-nums text-white/90">{numberText}</div>
+                      <div className="w-[3ch] text-sm font-semibold text-white/80">{posText || "-"}</div>
+                      <div className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{p.name}</div>
+                    </div>
+                  </div>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/80"
+                        aria-label="操作"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-white text-gray-900">
+                      <DropdownMenuItem onClick={() => openEditDialog(p)}>編集</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive" onClick={() => setDeletingPlayer(p)}>削除</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              );
+            })
+          )}
+
+          {filteredPlayers.length > 0 ? (
+            <div className="text-xs text-white/50">※並び替えはPC表示で行えます。</div>
+          ) : null}
+        </div>
+
+        <div className="hidden sm:block">
+          <PlayersDataTable columns={columns(openEditDialog, setDeletingPlayer)} data={filteredPlayers} />
+        </div>
       </div>
 
       <AlertDialog open={!!deletingPlayer} onOpenChange={() => setDeletingPlayer(null)}>

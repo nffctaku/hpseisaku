@@ -153,24 +153,35 @@ async function getMatchesForClub(clubId: string) {
       throw e;
     }
 
-    const publicSeasonIdSet = new Set<string>();
-    const loadPublicSeasonsFrom = async (clubDocId: string) => {
+    // NOTE: clubs/{ownerUid}/seasons と clubs/{clubId}/seasons の両方を見てマージする。
+    // 同じシーズンが両方に存在する場合、片方でも isPublic === false があれば非公開扱い。
+    const seasonVisibility = new Map<string, boolean>();
+    const loadSeasonsFrom = async (clubDocId: string) => {
       const snap = await db.collection(`clubs/${clubDocId}/seasons`).get();
       snap.docs.forEach((doc) => {
         const data = doc.data() as any;
-        if (data?.isPublic === false) return;
         const seasonIdRaw = typeof doc.id === 'string' ? doc.id.trim() : '';
         const seasonId = seasonIdRaw ? toSlashSeason(seasonIdRaw) : '';
-        if (seasonId) publicSeasonIdSet.add(seasonId);
+        if (!seasonId) return;
+
+        const isPublic = data?.isPublic !== false;
+        if (seasonVisibility.has(seasonId)) {
+          if (!isPublic) seasonVisibility.set(seasonId, false);
+        } else {
+          seasonVisibility.set(seasonId, isPublic);
+        }
       });
     };
 
-    await loadPublicSeasonsFrom(ownerUid);
+    await loadSeasonsFrom(ownerUid);
     if (ownerUid !== clubId) {
-      await loadPublicSeasonsFrom(clubId);
+      await loadSeasonsFrom(clubId);
     }
 
-    const publicSeasons = Array.from(publicSeasonIdSet);
+    const publicSeasons = Array.from(seasonVisibility.entries())
+      .filter(([, isPublic]) => isPublic)
+      .map(([season]) => season);
+    const publicSeasonIdSet = new Set<string>(publicSeasons);
     const latestSeason = publicSeasons.length > 0 ? publicSeasons.slice().sort().reverse()[0] : null;
 
     const nestedMatches = await Promise.all(

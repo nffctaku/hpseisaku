@@ -107,12 +107,20 @@ export async function GET(request: Request) {
                playerSeasons.includes(toDashSeason(seasonId));
       });
 
-    const rosterPlayers = teamPlayers.length > seasonRosterPlayers.length ? teamPlayers : seasonRosterPlayers;
+    const teamPlayerIds = new Set(playersSnap.docs.map((d) => d.id));
+
+    const seasonRosterPlayersFiltered = seasonRosterPlayers.filter((p) => teamPlayerIds.has(String((p as any)?.id || "").trim()));
+
+    const rosterPlayers = teamPlayers.length > seasonRosterPlayersFiltered.length ? teamPlayers : seasonRosterPlayersFiltered;
 
     const players = await Promise.all(
       rosterPlayers.map(async (p) => {
         const playerDocSnap = await db.doc(`clubs/${ownerUid}/teams/${teamId}/players/${p.id}`).get().catch(() => null as any);
         const playerDoc = playerDocSnap?.exists ? (playerDocSnap.data() as any) : null;
+
+        if (!playerDocSnap?.exists) {
+          return null;
+        }
 
         // 昨シーズンのスタッツを取得
         const prevSeason = getPreviousSeason(seasonId);
@@ -240,6 +248,8 @@ export async function GET(request: Request) {
       })
     );
 
+    const playersClean = players.filter(Boolean);
+
     return new NextResponse(
       JSON.stringify({
         seasonId,
@@ -249,7 +259,7 @@ export async function GET(request: Request) {
           clubName: profile?.clubName || "",
           logoUrl: profile?.logoUrl || null,
         },
-        players,
+        players: playersClean,
         transfersIn,
         transfersOut,
       }),

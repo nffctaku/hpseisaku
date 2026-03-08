@@ -144,14 +144,23 @@ async function getPlayersData(
 
   // シーズン一覧は clubs/{ownerUid}/seasons と clubs/{clubId}/seasons の両方を見てマージする
   // (ownerUid 側に1件でも存在すると fallback しない仕様だと、シーズンが分散している場合に1つしか表示されない)
-  const seasonIdSet = new Set<string>();
+  // NOTE: 同じシーズンが両方に存在する場合、片方でも isPublic === false があれば非公開扱いにする。
+  // (片方が未設定(undefined)だと「公開」とみなされてしまい、管理画面の公開スイッチが反映されない症状になる)
+  const seasonVisibility = new Map<string, boolean>();
   const loadSeasonsFrom = async (clubDocId: string) => {
     const snap = await db.collection(`clubs/${clubDocId}/seasons`).get();
     snap.docs.forEach((doc) => {
       const data = doc.data() as any;
-      if (data?.isPublic === false) return;
       const normalized = toSlashSeason(doc.id);
-      if (normalized) seasonIdSet.add(normalized);
+      if (!normalized) return;
+
+      const isPublic = data?.isPublic !== false;
+      if (seasonVisibility.has(normalized)) {
+        // Once any source marks it non-public, keep it hidden.
+        if (!isPublic) seasonVisibility.set(normalized, false);
+      } else {
+        seasonVisibility.set(normalized, isPublic);
+      }
     });
   };
 
@@ -160,7 +169,10 @@ async function getPlayersData(
     await loadSeasonsFrom(clubId);
   }
 
-  const allSeasons = Array.from(seasonIdSet).sort((a, b) => b.localeCompare(a));
+  const allSeasons = Array.from(seasonVisibility.entries())
+    .filter(([, isPublic]) => isPublic)
+    .map(([season]) => season)
+    .sort((a, b) => b.localeCompare(a));
 
   const requestedSeasonRaw = typeof season === "string" ? season.trim() : "";
   const requestedSeasonSlash = requestedSeasonRaw ? (toSlashSeason(requestedSeasonRaw) || requestedSeasonRaw) : "";
