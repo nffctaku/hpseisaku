@@ -46,6 +46,10 @@ export default function AdminHomePage() {
   const clubId = clubInfo.id || user?.clubId || user?.uid || null;
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
 
+  const adsenseClient = (process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "").trim();
+  const adsenseSlotAdminHome = (process.env.NEXT_PUBLIC_ADSENSE_SLOT_ADMIN_HOME || "").trim();
+  const shouldShowAdminHomeAd = Boolean(adsenseClient && adsenseSlotAdminHome);
+
   const SHOW_TUTORIAL = false;
 
   const [tutorialLoading, setTutorialLoading] = useState(false);
@@ -118,6 +122,16 @@ export default function AdminHomePage() {
     };
     void run();
   }, [user?.uid]);
+
+  useEffect(() => {
+    if (!shouldShowAdminHomeAd) return;
+    const w = window as any;
+    try {
+      w.adsbygoogle = w.adsbygoogle || [];
+      w.adsbygoogle.push({});
+    } catch {
+    }
+  }, [shouldShowAdminHomeAd]);
 
   const getHpUrl = () => {
     if (!clubId) return "";
@@ -413,6 +427,19 @@ export default function AdminHomePage() {
             );
           })}
         </div>
+
+        {shouldShowAdminHomeAd ? (
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-3">
+            <ins
+              className="adsbygoogle"
+              style={{ display: "block" }}
+              data-ad-client={adsenseClient}
+              data-ad-slot={adsenseSlotAdminHome}
+              data-ad-format="auto"
+              data-full-width-responsive="true"
+            />
+          </div>
+        ) : null}
 
       </div>
     </div>

@@ -4,6 +4,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { Analytics } from "@vercel/analytics/react";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import Script from "next/script";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -53,8 +54,21 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const adsenseClient = (process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "").trim();
+  const shouldLoadAdsense = Boolean(adsenseClient);
+
   return (
     <html lang="ja" suppressHydrationWarning translate="no" className="notranslate">
+      <head>
+        {shouldLoadAdsense ? (
+          <Script
+            async
+            strategy="afterInteractive"
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(adsenseClient)}`}
+            crossOrigin="anonymous"
+          />
+        ) : null}
+      </head>
       <body className="antialiased notranslate" translate="no">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
