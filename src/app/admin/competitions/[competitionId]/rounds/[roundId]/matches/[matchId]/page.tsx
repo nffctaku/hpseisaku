@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
@@ -18,6 +18,7 @@ import { MatchEventsPreview } from '@/components/match-events-preview';
 export default function MatchAdminPage() {
   const { user, ownerUid: ownerUidFromContext } = useAuth();
   const params = useParams();
+  const searchParams = useSearchParams();
   const { competitionId, roundId, matchId } = params;
 
   const ownerUid = ownerUidFromContext || user?.uid;
@@ -28,6 +29,12 @@ export default function MatchAdminPage() {
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
   const [resolvedMatchDocPath, setResolvedMatchDocPath] = useState<string | null>(null);
   const [seasonId, setSeasonId] = useState<string | null>(null);
+  const [debugPanel, setDebugPanel] = useState<any>(null);
+
+  const debugEnabled =
+    searchParams?.get('debug') === '1' ||
+    searchParams?.get('debug') === 'true' ||
+    searchParams?.get('debug') === 'yes';
 
   useEffect(() => {
     if (!user || !ownerUid || typeof competitionId !== 'string' || typeof roundId !== 'string') return;
@@ -154,12 +161,16 @@ export default function MatchAdminPage() {
           return out;
         };
 
-        const fetchRosterPlayersForTeam = async (teamId: string, teamPlayers: Player[], effectiveSeason: string | null): Promise<Player[]> => {
-          if (!ownerUid) return [];
+        const fetchRosterPlayersForTeam = async (
+          teamId: string,
+          teamPlayers: Player[],
+          effectiveSeason: string | null
+        ): Promise<{ players: Player[]; debug: any }> => {
+          if (!ownerUid) return { players: [], debug: { reason: 'noOwnerUid' } };
           const rawSeason = typeof effectiveSeason === 'string' ? effectiveSeason.trim() : '';
-          if (!rawSeason) return [];
+          if (!rawSeason) return { players: [], debug: { reason: 'noSeason' } };
           const seasonDash = toDashSeason(rawSeason);
-          if (!seasonDash) return [];
+          if (!seasonDash) return { players: [], debug: { reason: 'badSeason', rawSeason } };
           const seasonSlash = toSlashSeason(rawSeason);
           const seasonKeyCandidates = Array.from(
             new Set(
@@ -170,7 +181,21 @@ export default function MatchAdminPage() {
           );
           try {
             const rosterSnap = await getDocs(collection(db, `clubs/${ownerUid}/seasons/${seasonDash}/roster`));
-            if (rosterSnap.empty) return [];
+            if (rosterSnap.empty) {
+              return {
+                players: [],
+                debug: {
+                  teamId,
+                  seasonId: rawSeason,
+                  seasonDash,
+                  rosterCount: 0,
+                  teamPlayersCount: teamPlayers.length,
+                  allowedCount: 0,
+                  skipped: { notThisTeam: 0, noSeasonMembership: 0, missingFromTeam: 0 },
+                  examples: { notThisTeam: [], noSeasonMembership: [], missingFromTeam: [] },
+                },
+              };
+            }
             const teamPlayerIdSet = new Set(teamPlayers.map((p) => p.id));
             const teamPlayersById = new Map<string, Player>();
             for (const p of teamPlayers) {
@@ -187,6 +212,16 @@ export default function MatchAdminPage() {
             };
 
             const allowedRosterIds: string[] = [];
+            const skipped = {
+              notThisTeam: 0,
+              noSeasonMembership: 0,
+              missingFromTeam: 0,
+            };
+            const examples = {
+              notThisTeam: [] as string[],
+              noSeasonMembership: [] as string[],
+              missingFromTeam: [] as string[],
+            };
             rosterSnap.docs.forEach((d) => {
               const data = d.data() as any;
               const tid = typeof data?.teamId === 'string' ? data.teamId.trim() : '';
@@ -212,9 +247,23 @@ export default function MatchAdminPage() {
                 ? tid === teamId
                 : teamPlayerIdSet.has(d.id); // legacy roster without teamId
 
-              if (!isForThisTeam) return;
+              if (!isForThisTeam) {
+                skipped.notThisTeam += 1;
+                if (examples.notThisTeam.length < 5) examples.notThisTeam.push(d.id);
+                return;
+              }
 
-              if (!hasExplicitSeasonMembership) return;
+              if (!hasExplicitSeasonMembership) {
+                skipped.noSeasonMembership += 1;
+                if (examples.noSeasonMembership.length < 5) examples.noSeasonMembership.push(d.id);
+                return;
+              }
+
+              if (!teamPlayersById.has(d.id)) {
+                skipped.missingFromTeam += 1;
+                if (examples.missingFromTeam.length < 5) examples.missingFromTeam.push(d.id);
+                return;
+              }
 
               allowedRosterIds.push(d.id);
             });
@@ -260,29 +309,7 @@ export default function MatchAdminPage() {
                 byId.set(d.id, { ...fromTeam, teamId: fromTeam.teamId ?? tid ?? teamId } as Player);
                 return;
               }
-
-              // Build minimal player info from roster doc
-              const sd2 = (data?.seasonData && typeof data.seasonData === 'object' ? data.seasonData : {}) as any;
-              const seasonEntry = (() => {
-                for (const k of seasonKeyCandidates) {
-                  if (sd2?.[k] && typeof sd2[k] === 'object') return sd2[k];
-                }
-                return {};
-              })() as any;
-              const name = (typeof data?.name === 'string' ? data.name : '') || (typeof seasonEntry?.name === 'string' ? seasonEntry.name : '') || '';
-              const numberRaw = seasonEntry?.number ?? data?.number;
-              const number = typeof numberRaw === 'number' && Number.isFinite(numberRaw) ? numberRaw : (Number(numberRaw) || 0);
-              const position = (seasonEntry?.position ?? data?.position) as any;
-              const photoURL = (seasonEntry?.photoUrl ?? data?.photoUrl ?? data?.photoURL) as any;
-
-              byId.set(d.id, {
-                id: d.id,
-                name: name || '-',
-                number,
-                position: typeof position === 'string' ? position : undefined,
-                photoURL: typeof photoURL === 'string' ? photoURL : undefined,
-                teamId: tid || teamId,
-              });
+              return;
             });
 
             const out = Array.from(byId.values());
@@ -294,9 +321,21 @@ export default function MatchAdminPage() {
               const bn = typeof b?.name === 'string' ? b.name : '';
               return an.localeCompare(bn, 'ja');
             });
-            return out;
+            return {
+              players: out,
+              debug: {
+                teamId,
+                seasonId: rawSeason,
+                seasonDash,
+                rosterCount: rosterSnap.size,
+                teamPlayersCount: teamPlayers.length,
+                allowedCount: allowedRosterIds.length,
+                skipped,
+                examples,
+              },
+            };
           } catch {
-            return [];
+            return { players: [], debug: { reason: 'error' } };
           }
         };
 
@@ -366,31 +405,42 @@ export default function MatchAdminPage() {
                 seasonId: typeof effectiveSeasonId === 'string' ? effectiveSeasonId : null,
                 homeTeam: matchData.homeTeam,
                 awayTeam: matchData.awayTeam,
-                homeRosterCount: homeRosterPlayers.length,
-                awayRosterCount: awayRosterPlayers.length,
+                homeRosterCount: homeRosterPlayers.players.length,
+                awayRosterCount: awayRosterPlayers.players.length,
               });
 
               const homeSeasonPlayers = filterTeamPlayersBySeason(home, effectiveSeasonId);
               const awaySeasonPlayers = filterTeamPlayersBySeason(away, effectiveSeasonId);
 
-              // If roster is incomplete (e.g. only a few docs) but team has many season players, prefer season-filtered team players.
-              const isRosterSuspiciouslySmall = (rosterCount: number, seasonCount: number) => {
-                if (rosterCount === 0) return false;
-                if (seasonCount === 0) return false;
-                // If roster is less than half of season players, treat it as incomplete.
-                return rosterCount < Math.max(5, Math.ceil(seasonCount * 0.5));
-              };
-
-              const useHomeRoster =
-                homeRosterPlayers.length > 0 && !isRosterSuspiciouslySmall(homeRosterPlayers.length, homeSeasonPlayers.length);
-              const useAwayRoster =
-                awayRosterPlayers.length > 0 && !isRosterSuspiciouslySmall(awayRosterPlayers.length, awaySeasonPlayers.length);
-
-              const nextHomePlayers = useHomeRoster ? homeRosterPlayers : homeSeasonPlayers;
-              const nextAwayPlayers = useAwayRoster ? awayRosterPlayers : awaySeasonPlayers;
+              const nextHomePlayers = homeRosterPlayers.players.length > 0 ? homeRosterPlayers.players : homeSeasonPlayers;
+              const nextAwayPlayers = awayRosterPlayers.players.length > 0 ? awayRosterPlayers.players : awaySeasonPlayers;
 
               setHomePlayers(nextHomePlayers);
               setAwayPlayers(nextAwayPlayers);
+
+              if (debugEnabled) {
+                setDebugPanel({
+                  ownerUid,
+                  competitionId,
+                  roundId,
+                  matchId,
+                  effectiveSeasonId,
+                  home: {
+                    teamId: matchData.homeTeam,
+                    teamPlayersCount: home.length,
+                    seasonPlayersCount: homeSeasonPlayers.length,
+                    rosterPlayersCount: homeRosterPlayers.players.length,
+                    rosterDebug: homeRosterPlayers.debug,
+                  },
+                  away: {
+                    teamId: matchData.awayTeam,
+                    teamPlayersCount: away.length,
+                    seasonPlayersCount: awaySeasonPlayers.length,
+                    rosterPlayersCount: awayRosterPlayers.players.length,
+                    rosterDebug: awayRosterPlayers.debug,
+                  },
+                });
+              }
             }
 
             setLoading(false);
@@ -455,6 +505,20 @@ export default function MatchAdminPage() {
           ← 試合管理へ戻る
         </Link>
       </div>
+      {debugEnabled && debugPanel ? (
+        <div className="mb-4 rounded-lg border bg-white p-3 text-xs text-gray-900">
+          <div className="font-semibold">DEBUG</div>
+          <pre className="mt-2 whitespace-pre-wrap break-words text-[10px] leading-snug text-gray-700">
+            {(() => {
+              try {
+                return JSON.stringify(debugPanel, null, 2);
+              } catch {
+                return String(debugPanel);
+              }
+            })()}
+          </pre>
+        </div>
+      ) : null}
       <div className="bg-card border rounded-lg p-6">
         <div className="flex flex-col sm:flex-row sm:justify-center sm:items-center gap-6 mb-6">
           <div className="flex items-center justify-between sm:justify-center sm:w-1/3">
