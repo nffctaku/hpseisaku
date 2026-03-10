@@ -382,9 +382,9 @@ async function getPlayersData(
     ? players.filter((p: any) => {
         if (rosterPlayerIdSet) {
           const pid = String(p?.id || "");
-          const inRoster = pid ? rosterPlayerIdSet.has(pid) : false;
-          if (inRoster) return filterByRoster(p);
-          return filterBySeasonMembership(p);
+          if (!pid) return false;
+          if (!rosterPlayerIdSet.has(pid)) return false;
+          return filterByRoster(p);
         }
         return filterBySeasonMembership(p);
       })
