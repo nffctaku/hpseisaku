@@ -36,7 +36,8 @@ interface Staff {
 
 async function getPlayersData(
   clubId: string,
-  season?: string
+  season?: string,
+  debug?: boolean
 ): Promise<{
   clubName: string;
   logoUrl: string | null;
@@ -49,6 +50,7 @@ async function getPlayersData(
   staff: Staff[];
   allSeasons: string[];
   activeSeason: string;
+  debugInfo?: any;
 } | null> {
   const resolved = await resolvePublicClubProfile(clubId);
   if (!resolved) return null;
@@ -282,6 +284,26 @@ async function getPlayersData(
       staff: [],
       allSeasons: displaySeasons,
       activeSeason: "",
+      ...(debug
+        ? {
+            debugInfo: {
+              baseClubDocId,
+              requestedSeason: requestedSeasonSlash || "",
+              activeSeason: "",
+              allSeasons: displaySeasons,
+              roster: { loaded: false, count: 0 },
+              counts: {
+                teamsPlayers: players.length,
+                teamsStaff: staff.length,
+                afterSeasonMembershipPlayers: 0,
+                afterRosterDisambiguationPlayers: 0,
+                afterPublishedPlayers: 0,
+                afterSeasonMembershipStaff: 0,
+                afterPublishedStaff: 0,
+              },
+            },
+          }
+        : {}),
     };
   }
 
@@ -289,6 +311,23 @@ async function getPlayersData(
   // seasons/seasonData のキー表記は slash/dash が混在するので両方許容する
   const activeSeasonDash = activeSeason ? toDashSeason(activeSeason) : "";
   const activeSeasonSlash = activeSeason ? toSlashSeason(activeSeason) : "";
+  const activeSeasonKeys = [activeSeason, activeSeasonSlash, activeSeasonDash].filter(
+    (v): v is string => typeof v === "string" && v.trim().length > 0
+  );
+
+  const isPublishedForActiveSeason = (entity: any): boolean => {
+    const seasonData = entity?.seasonData && typeof entity.seasonData === "object" ? (entity.seasonData as any) : null;
+    if (seasonData) {
+      for (const k of activeSeasonKeys) {
+        const v = seasonData?.[k];
+        if (v && typeof v === "object" && typeof v.isPublished === "boolean") {
+          return v.isPublished;
+        }
+      }
+    }
+    return entity?.isPublished !== false;
+  };
+
   const filterBySeasonMembership = (p: any) => {
     const seasons = Array.isArray(p?.seasons) ? (p.seasons as string[]) : [];
     const seasonData = p?.seasonData && typeof p.seasonData === "object" ? (p.seasonData as any) : null;
@@ -313,20 +352,46 @@ async function getPlayersData(
     return true;
   };
 
+  const counts: any = debug
+    ? {
+        teamsPlayers: players.length,
+        teamsStaff: staff.length,
+        afterSeasonMembershipPlayers: 0,
+        afterRosterDisambiguationPlayers: 0,
+        afterPublishedPlayers: 0,
+        afterSeasonMembershipStaff: 0,
+        afterPublishedStaff: 0,
+      }
+    : null;
+
   let filteredPlayers = activeSeason
     ? players.filter((p: any) => {
-        if (rosterPlayerIdSet) return filterByRoster(p);
+        if (rosterPlayerIdSet) {
+          const pid = String(p?.id || "");
+          const inRoster = pid ? rosterPlayerIdSet.has(pid) : false;
+          if (inRoster) return filterByRoster(p);
+          return filterBySeasonMembership(p);
+        }
         return filterBySeasonMembership(p);
       })
     : players;
+
+  if (counts) {
+    counts.afterRosterDisambiguationPlayers = filteredPlayers.length;
+    counts.afterSeasonMembershipPlayers = players.filter((p: any) => filterBySeasonMembership(p)).length;
+  }
 
   // If roster exists but results in zero players, fall back to season membership filtering.
   if (activeSeason && rosterPlayerIdSet && filteredPlayers.length === 0) {
     filteredPlayers = players.filter((p: any) => filterBySeasonMembership(p));
   }
 
-  // HP非表示フラグ（isPublished === false）は一覧から除外
-  filteredPlayers = filteredPlayers.filter((p) => p.isPublished !== false);
+  // HP非表示フラグ（active season の seasonData.isPublished を優先）
+  filteredPlayers = filteredPlayers.filter((p) => isPublishedForActiveSeason(p));
+
+  if (counts) {
+    counts.afterPublishedPlayers = filteredPlayers.length;
+  }
 
   // 背番号でソート（重複しても一旦そのまま）
   filteredPlayers.sort((a, b) => (a.number || 0) - (b.number || 0));
@@ -338,7 +403,13 @@ async function getPlayersData(
   };
 
   let filteredStaff = activeSeason ? staff.filter((s: any) => filterStaffBySeasonMembership(s)) : staff;
-  filteredStaff = filteredStaff.filter((s) => (s as any)?.isPublished !== false);
+  if (counts) {
+    counts.afterSeasonMembershipStaff = filteredStaff.length;
+  }
+  filteredStaff = filteredStaff.filter((s) => isPublishedForActiveSeason(s));
+  if (counts) {
+    counts.afterPublishedStaff = filteredStaff.length;
+  }
   filteredStaff.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ja'));
 
   return {
@@ -353,6 +424,21 @@ async function getPlayersData(
     staff: filteredStaff,
     allSeasons: displaySeasons,
     activeSeason,
+    ...(debug
+      ? {
+          debugInfo: {
+            baseClubDocId,
+            requestedSeason: requestedSeasonSlash || "",
+            activeSeason,
+            allSeasons: displaySeasons,
+            roster: {
+              loaded: Boolean(rosterPlayerIdSet),
+              count: rosterPlayerIdSet ? rosterPlayerIdSet.size : 0,
+            },
+            counts,
+          },
+        }
+      : {}),
   };
 }
 
@@ -369,18 +455,22 @@ export default async function PlayersPage({
     typeof resolvedSearchParams.season === "string"
       ? resolvedSearchParams.season
       : undefined;
+  const debug =
+    resolvedSearchParams.debug === "1" ||
+    resolvedSearchParams.debug === "true" ||
+    resolvedSearchParams.debug === "yes";
 
   if (clubId === "admin") {
     notFound();
   }
 
-  const data = await getPlayersData(clubId, season);
+  const data = await getPlayersData(clubId, season, debug);
 
   if (!data) {
     notFound();
   }
 
-  const { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, gameTeamUsage, players, staff, allSeasons, activeSeason } = data;
+  const { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, gameTeamUsage, players, staff, allSeasons, activeSeason, debugInfo } = data;
 
   return (
     <main
@@ -395,7 +485,8 @@ export default async function PlayersPage({
         staff={staff}
         allSeasons={allSeasons}
         activeSeason={activeSeason}
-        accentColor={homeBgColor}
+        debugInfo={debugInfo}
+        accentColor={typeof homeBgColor === 'string' ? homeBgColor : null}
       />
       <PartnerStripClient clubId={clubId} />
       <ClubFooter

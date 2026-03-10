@@ -66,7 +66,7 @@ function isDarkColor(input: string): boolean | null {
   return luminance < 0.5;
 }
 
-export function PlayerList({ clubId, clubName, players, staff, allSeasons, activeSeason, accentColor }: {
+export function PlayerList({ clubId, clubName, players, staff, allSeasons, activeSeason, accentColor, debugInfo }: {
   clubId: string;
   clubName: string;
   players: Player[];
@@ -74,6 +74,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
   allSeasons: string[];
   activeSeason: string;
   accentColor?: string | null;
+  debugInfo?: any;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -116,6 +117,16 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
     acc[key].push(player);
     return acc;
   }, {} as Record<string, Player[]>);
+
+  const debugText = useMemo(() => {
+    const d = debugInfo;
+    if (!d) return "";
+    try {
+      return JSON.stringify(d, null, 2);
+    } catch {
+      return String(d);
+    }
+  }, [debugInfo]);
 
   const positionOrder = ['GK', 'DF', 'MF', 'FW'];
   const sortedGroupedPlayers = (() => {
@@ -184,6 +195,12 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {debugInfo ? (
+        <div className="mb-4 rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="text-xs font-semibold text-white/80">DEBUG</div>
+          <pre className="mt-2 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">{debugText}</pre>
+        </div>
+      ) : null}
       <div className="mb-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {allSeasons.length > 0 && (
