@@ -128,6 +128,41 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
     }
   }, [debugInfo]);
 
+  const debugExcludedSummary = useMemo(() => {
+    const excluded = debugInfo?.excluded;
+    if (!excluded) return null;
+
+    const flatten = (items: any[]) =>
+      (Array.isArray(items) ? items : []).map((x) => {
+        const name = typeof x?.name === 'string' ? x.name : '';
+        const id = typeof x?.id === 'string' ? x.id : '';
+        const teamId = typeof x?.teamId === 'string' ? x.teamId : '';
+        const reason = typeof x?.reason === 'string' ? x.reason : '';
+        const seasons = Array.isArray(x?.seasons) ? x.seasons : [];
+        const seasonDataKeys = Array.isArray(x?.seasonDataKeys) ? x.seasonDataKeys : [];
+        const rosterTeamId = typeof x?.rosterTeamId === 'string' ? x.rosterTeamId : '';
+        const playerTeamId = typeof x?.playerTeamId === 'string' ? x.playerTeamId : '';
+        return {
+          name,
+          id,
+          teamId,
+          reason,
+          seasons,
+          seasonDataKeys,
+          rosterTeamId,
+          playerTeamId,
+        };
+      });
+
+    return {
+      playersNotInSeason: flatten(excluded?.players?.notInSeason),
+      playersRosterMismatch: flatten(excluded?.players?.rosterMismatch),
+      playersUnpublished: flatten(excluded?.players?.unpublished),
+      staffNotInSeason: flatten(excluded?.staff?.notInSeason),
+      staffUnpublished: flatten(excluded?.staff?.unpublished),
+    };
+  }, [debugInfo]);
+
   const positionOrder = ['GK', 'DF', 'MF', 'FW'];
   const sortedGroupedPlayers = (() => {
     const out: Record<string, Player[]> = {};
@@ -198,6 +233,50 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
       {debugInfo ? (
         <div className="mb-4 rounded-xl border border-white/10 bg-white/5 p-3">
           <div className="text-xs font-semibold text-white/80">DEBUG</div>
+          {debugExcludedSummary ? (
+            <div className="mt-2 space-y-2">
+              {debugExcludedSummary.playersNotInSeason.length > 0 ? (
+                <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                  <div className="text-[11px] font-semibold text-white/80">除外(選手): シーズン未所属</div>
+                  <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">
+                    {JSON.stringify(debugExcludedSummary.playersNotInSeason, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
+              {debugExcludedSummary.playersRosterMismatch.length > 0 ? (
+                <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                  <div className="text-[11px] font-semibold text-white/80">除外(選手): roster不一致</div>
+                  <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">
+                    {JSON.stringify(debugExcludedSummary.playersRosterMismatch, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
+              {debugExcludedSummary.playersUnpublished.length > 0 ? (
+                <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                  <div className="text-[11px] font-semibold text-white/80">除外(選手): 非公開</div>
+                  <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">
+                    {JSON.stringify(debugExcludedSummary.playersUnpublished, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
+              {debugExcludedSummary.staffNotInSeason.length > 0 ? (
+                <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                  <div className="text-[11px] font-semibold text-white/80">除外(スタッフ): シーズン未所属</div>
+                  <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">
+                    {JSON.stringify(debugExcludedSummary.staffNotInSeason, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
+              {debugExcludedSummary.staffUnpublished.length > 0 ? (
+                <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                  <div className="text-[11px] font-semibold text-white/80">除外(スタッフ): 非公開</div>
+                  <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">
+                    {JSON.stringify(debugExcludedSummary.staffUnpublished, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <pre className="mt-2 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">{debugText}</pre>
         </div>
       ) : null}

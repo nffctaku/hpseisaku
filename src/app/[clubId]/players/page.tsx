@@ -364,6 +364,20 @@ async function getPlayersData(
       }
     : null;
 
+  const debugExcluded: any = debug
+    ? {
+        players: {
+          notInSeason: [] as any[],
+          rosterMismatch: [] as any[],
+          unpublished: [] as any[],
+        },
+        staff: {
+          notInSeason: [] as any[],
+          unpublished: [] as any[],
+        },
+      }
+    : null;
+
   let filteredPlayers = activeSeason
     ? players.filter((p: any) => {
         if (rosterPlayerIdSet) {
@@ -412,6 +426,73 @@ async function getPlayersData(
   }
   filteredStaff.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ja'));
 
+  if (debugExcluded) {
+    const getSeasonDataKeys = (entity: any) => {
+      const sd = entity?.seasonData && typeof entity.seasonData === 'object' ? (entity.seasonData as any) : null;
+      if (!sd) return [];
+      try {
+        return Object.keys(sd);
+      } catch {
+        return [];
+      }
+    };
+
+    const add = (arr: any[], entity: any, extra: any) => {
+      if (arr.length >= 50) return;
+      arr.push({
+        id: String(entity?.id || ''),
+        name: String(entity?.name || ''),
+        teamId: typeof entity?.__teamId === 'string' ? entity.__teamId : (typeof entity?.teamId === 'string' ? entity.teamId : ''),
+        seasons: Array.isArray(entity?.seasons) ? entity.seasons : [],
+        seasonDataKeys: getSeasonDataKeys(entity),
+        ...extra,
+      });
+    };
+
+    for (const p of players as any[]) {
+      const inSeason = filterBySeasonMembership(p);
+      if (!inSeason) {
+        add(debugExcluded.players.notInSeason, p, { reason: 'notInSeason' });
+        continue;
+      }
+
+      if (rosterPlayerIdSet) {
+        const pid = String(p?.id || '');
+        const inRoster = pid ? rosterPlayerIdSet.has(pid) : false;
+        if (inRoster) {
+          const ok = filterByRoster(p);
+          if (!ok) {
+            const rosterTeamId = rosterTeamIdByPlayerId?.get(pid) || '';
+            const playerTeamId = typeof p?.__teamId === 'string' ? p.__teamId : (typeof p?.teamId === 'string' ? p.teamId : '');
+            add(debugExcluded.players.rosterMismatch, p, {
+              reason: 'rosterMismatch',
+              rosterTeamId,
+              playerTeamId,
+            });
+            continue;
+          }
+        }
+      }
+
+      const pub = isPublishedForActiveSeason(p);
+      if (!pub) {
+        add(debugExcluded.players.unpublished, p, { reason: 'unpublished' });
+      }
+    }
+
+    for (const s of staff as any[]) {
+      const inSeason = filterStaffBySeasonMembership(s);
+      if (!inSeason) {
+        add(debugExcluded.staff.notInSeason, s, { reason: 'notInSeason' });
+        continue;
+      }
+      const pub = isPublishedForActiveSeason(s);
+      if (!pub) {
+        add(debugExcluded.staff.unpublished, s, { reason: 'unpublished' });
+      }
+    }
+  }
+
   return {
     clubName,
     logoUrl,
@@ -436,6 +517,7 @@ async function getPlayersData(
               count: rosterPlayerIdSet ? rosterPlayerIdSet.size : 0,
             },
             counts,
+            excluded: debugExcluded,
           },
         }
       : {}),
