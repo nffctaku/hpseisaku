@@ -300,8 +300,10 @@ export default function ClubPageContent({
                         </div>
                         <MatchSection 
                             nextMatch={clubInfo.nextMatch} 
+                            upcomingMatches={(clubInfo as any).upcomingMatches || []}
                             recentMatches={(clubInfo as any).recentMatches || []}
                             mainTeamId={(clubInfo as any).profile?.mainTeamId || null}
+                            backgroundColor={homeBgColor || null}
                             clubSlug={clubId}
                         />
                         <div className="lg:hidden">

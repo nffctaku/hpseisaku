@@ -2,6 +2,13 @@ import { MatchDetails } from "@/types/match";
 import { format, isValid, parseISO } from 'date-fns';
 import Link from 'next/link';
 import Image from 'next/image';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel';
 
 function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | undefined): number {
   const md: any = (m as any)?.matchDate;
@@ -20,7 +27,6 @@ function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | u
     const iso = parseISO(normalized);
     base = isValid(iso) ? iso : new Date(normalized);
   }
-
   const baseMs = base instanceof Date && !Number.isNaN(base.getTime()) ? base.getTime() : Number.POSITIVE_INFINITY;
 
   const rawTime = typeof m?.matchTime === 'string' ? m.matchTime.trim() : '';
@@ -29,6 +35,104 @@ function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | u
   const hh = Math.min(23, Math.max(0, Number(tm[1])));
   const mm = Math.min(59, Math.max(0, Number(tm[2])));
   return baseMs + (hh * 60 + mm) * 60 * 1000;
+}
+
+function UpcomingMatchesCarousel({
+  matches,
+  mainTeamId,
+  backgroundColor,
+}: {
+  matches: MatchDetails[];
+  mainTeamId?: string | null;
+  backgroundColor?: string | null;
+}) {
+  const list = (Array.isArray(matches) ? matches : []).filter(Boolean).slice(0, 3);
+  if (list.length === 0) return null;
+
+  return (
+    <div
+      className="w-full overflow-visible rounded-lg"
+      style={{ backgroundColor: backgroundColor || '#8b1b3a' }}
+    >
+      <div className="px-4 py-8">
+        <div className="text-center text-white font-black tracking-widest text-3xl">GAME SCHEDULE</div>
+      </div>
+
+      <div className="pb-2 translate-y-6">
+        <Carousel className="w-full">
+          <CarouselContent className="-ml-4">
+            {list.map((m) => {
+              const matchDate = new Date(m.matchDate);
+              const dateLabel = Number.isFinite(matchDate.getTime()) ? format(matchDate, 'M.d') : '';
+              const weekday = Number.isFinite(matchDate.getTime()) ? format(matchDate, 'EEE') : '';
+              const timeLabel = m.matchTime ? String(m.matchTime) : '';
+
+              const isHome = Boolean(mainTeamId && m.homeTeam === mainTeamId);
+              const opponentName = isHome ? m.awayTeamName : m.homeTeamName;
+              const opponentLogo = isHome ? m.awayTeamLogo : m.homeTeamLogo;
+
+              return (
+                <CarouselItem key={m.id} className="pl-4 basis-full">
+                  <div className="mx-auto w-full max-w-[360px] px-4">
+                    <div className="rounded-xl bg-white shadow-sm overflow-hidden">
+                    <div className="px-4 pt-3 pb-2 text-[11px] text-muted-foreground line-clamp-1">
+                      {m.competitionName || ''}{m.roundName ? ` ${m.roundName}` : ''}
+                    </div>
+                    <div className="border-t" />
+
+                    <div className="px-4 py-4 grid grid-cols-[auto_1fr_auto_1fr_auto] items-center gap-x-3">
+                      <div className="text-4xl font-black text-gray-900 leading-none">{dateLabel}</div>
+                      <div className="flex flex-col">
+                        <div className="text-[11px] text-gray-700 font-semibold">{weekday}</div>
+                        <div className="text-[12px] text-gray-900 font-semibold">{timeLabel}</div>
+                      </div>
+                      <div className="text-center text-sm font-semibold text-gray-700">VS</div>
+                      <div className="min-w-0 text-right">
+                        <div className="text-sm font-bold text-gray-900 truncate">{opponentName}</div>
+                      </div>
+                      {opponentLogo ? (
+                        <Image
+                          src={opponentLogo}
+                          alt={opponentName}
+                          width={56}
+                          height={56}
+                          className="h-14 w-14 rounded-full object-contain bg-white"
+                        />
+                      ) : (
+                        <div className="h-14 w-14 rounded-full bg-gray-100" />
+                      )}
+                    </div>
+
+                    <div className="border-t" />
+
+                    <div className="px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <div className="text-sm font-bold text-gray-900 line-clamp-1">{opponentName}</div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-full bg-gray-200 text-gray-500 text-xs font-semibold px-4 py-2 cursor-not-allowed select-none">
+                          チケット
+                        </div>
+                      </div>
+                    </div>
+                    </div>
+                  </div>
+                </CarouselItem>
+              );
+            })}
+          </CarouselContent>
+
+          <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-white/85 text-gray-900 border-none hover:bg-white" />
+          <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-white/85 text-gray-900 border-none hover:bg-white" />
+        </Carousel>
+      </div>
+
+      <div className="h-6" />
+    </div>
+  );
 }
 
 function TeamDisplay({ logo, name }: { logo?: string, name: string }) {
@@ -186,18 +290,34 @@ function NextMatch({ match }: { match: MatchDetails | null }) {
 
 interface MatchSectionProps {
   nextMatch: MatchDetails | null;
+  upcomingMatches?: MatchDetails[];
   recentMatches?: MatchDetails[];
   mainTeamId?: string | null;
   clubSlug: string;
+  backgroundColor?: string | null;
 }
 
-export function MatchSection({ nextMatch, recentMatches = [], mainTeamId, clubSlug }: MatchSectionProps) {
+export function MatchSection({
+  nextMatch,
+  upcomingMatches = [],
+  recentMatches = [],
+  mainTeamId,
+  clubSlug,
+  backgroundColor,
+}: MatchSectionProps) {
+  const upcoming = (Array.isArray(upcomingMatches) ? upcomingMatches : []).slice(0, 3);
   return (
     <section className="pt-0 pb-8 md:pb-12">
       <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 w-full lg:min-h-[520px] flex flex-col">
         <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center">MATCHES</h2>
         <RecentMatchesStrip matches={recentMatches} mainTeamId={mainTeamId} clubSlug={clubSlug} />
-        <NextMatch match={nextMatch} />
+        <div className="mt-4">
+          {upcoming.length > 0 ? (
+            <UpcomingMatchesCarousel matches={upcoming} mainTeamId={mainTeamId} backgroundColor={backgroundColor} />
+          ) : (
+            <NextMatch match={nextMatch} />
+          )}
+        </div>
       </div>
     </section>
   );
