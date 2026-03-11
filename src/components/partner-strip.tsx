@@ -135,13 +135,11 @@ export async function PartnerStrip(props: { clubId: string; maxCategories?: numb
   if (filtered.length === 0) return null;
 
   return (
-    <div className="w-full bg-black">
+    <div className="w-full bg-white">
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-white font-black tracking-wide">PARTNER</div>
-          <Link href={`/${encodeURIComponent(clubId)}/partner`} className="text-xs text-white/80 hover:text-white">
-            一覧
-          </Link>
+          <div className="text-gray-900 font-black tracking-wide">PARTNER</div>
+          <div />
         </div>
 
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">

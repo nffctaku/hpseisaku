@@ -52,16 +52,11 @@ export function PartnerStripClient(props: { clubId: string; className?: string }
 
   return (
     <div className={className}>
-      <div className="w-full bg-gray-900">
+      <div className="w-full bg-white">
         <div className="container mx-auto px-4 py-8">
           <div className="relative flex items-center justify-end gap-3">
-            <div className="absolute left-1/2 -translate-x-1/2 text-white font-black tracking-wide">PARTNER</div>
-            <Link
-              href={`/${encodeURIComponent(clubId)}/partner`}
-              className="text-xs text-white/80 hover:text-white"
-            >
-              一覧
-            </Link>
+            <div className="absolute left-1/2 -translate-x-1/2 text-gray-900 font-black tracking-wide">PARTNER</div>
+            <div />
           </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-center gap-3">

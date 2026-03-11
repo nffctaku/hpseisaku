@@ -24,6 +24,30 @@ interface HeroProps {
   isLoading?: boolean;
 }
 
+function resolvePublishedDate(input: any): Date | null {
+  if (!input) return null;
+  if (input instanceof Date) return input;
+  if (typeof input?.toDate === 'function') {
+    try {
+      const d = input.toDate();
+      return d instanceof Date ? d : null;
+    } catch {
+      return null;
+    }
+  }
+  const t = Date.parse(String(input));
+  return Number.isFinite(t) ? new Date(t) : null;
+}
+
+function formatRelativeDays(d: Date | null): string {
+  if (!d) return '';
+  const ms = Date.now() - d.getTime();
+  if (!Number.isFinite(ms)) return '';
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+  if (days <= 0) return '0d';
+  return `${days}d`;
+}
+
 export function Hero({ news, maxSlides, isLoading }: HeroProps) {
 
   if (isLoading) {
@@ -59,10 +83,10 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
 
   return (
     <Carousel className="w-full">
-      <CarouselContent>
+      <CarouselContent className="!-ml-0">
         {items.map((item, index) => (
-          <CarouselItem key={item.id}>
-            <div className="relative w-full aspect-video bg-muted">
+          <CarouselItem key={item.id} className="!pl-0">
+            <div className="relative w-full h-[70vh] bg-muted">
               {item.imageUrl ? (
                 <Image
                   src={toCloudinaryPadded16x9(item.imageUrl, 1600)}
@@ -74,19 +98,25 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
               ) : (
                 <div className="w-full h-full bg-gray-700" />
               )}
-              <div className="absolute left-0 right-0 bottom-0 h-44 md:h-52 bg-gradient-to-t from-black/70 via-black/30 to-transparent md:from-black/45 md:via-black/20 flex items-end p-4 md:p-8 lg:p-12">
+              <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+              <div className="absolute left-0 right-0 bottom-0 p-4">
                 <div className="text-white">
-                  <p className="text-sm text-gray-300">ニュース</p>
-                  <h2 className="mt-2 text-xl md:text-4xl lg:text-5xl font-bold leading-tight line-clamp-2 md:line-clamp-3">{item.title}</h2>
-                  <p className="mt-3 text-sm font-semibold tracking-wider">CONTINUE READING →</p>
+                  <h2 className="text-2xl font-black leading-tight tracking-tight line-clamp-3">
+                    {item.title}
+                  </h2>
+                  <div className="mt-3 text-xs text-white/80 flex items-center gap-3">
+                    <span>{formatRelativeDays(resolvePublishedDate((item as any).publishedAt))}</span>
+                    <span className="opacity-60">|</span>
+                    <span>{String((item as any).category || 'news')}</span>
+                  </div>
                 </div>
               </div>
             </div>
           </CarouselItem>
         ))}
       </CarouselContent>
-      <CarouselPrevious className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 text-white border-none hover:bg-black/70" />
-      <CarouselNext className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 text-white border-none hover:bg-black/70" />
+      <CarouselPrevious className="absolute left-3 top-1/2 -translate-y-1/2 z-10 bg-black/45 text-white border-none hover:bg-black/65" />
+      <CarouselNext className="absolute right-3 top-1/2 -translate-y-1/2 z-10 bg-black/45 text-white border-none hover:bg-black/65" />
     </Carousel>
   );
 }
