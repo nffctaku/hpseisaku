@@ -346,14 +346,14 @@ export function ClubHeader({
     >
       <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href={`/${clubId}`} className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center overflow-hidden">
+          <Link href={`/${clubId}`} className="w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 rounded-full flex items-center justify-center overflow-hidden">
             {resolvedLogoUrl ? (
               <Image
                 src={resolvedLogoUrl}
                 alt={resolvedClubName || clubName || "Club emblem"}
-                width={48}
-                height={48}
-                className="object-contain"
+                width={72}
+                height={72}
+                className="w-full h-full object-contain"
               />
             ) : (
               <span className="text-xs text-muted-foreground">LOGO</span>

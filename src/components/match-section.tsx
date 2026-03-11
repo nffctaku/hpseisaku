@@ -1,5 +1,6 @@
 import { MatchDetails } from "@/types/match";
 import { format, isValid, parseISO } from 'date-fns';
+import { ja } from 'date-fns/locale';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -9,6 +10,46 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel';
+
+function resolveRgb(input: string): { r: number; g: number; b: number } | null {
+  const raw = (input || '').trim();
+  if (!raw) return null;
+
+  const hex = raw.replace('#', '');
+  if (/^[0-9a-fA-F]{3}$/.test(hex)) {
+    const r = parseInt(hex[0] + hex[0], 16);
+    const g = parseInt(hex[1] + hex[1], 16);
+    const b = parseInt(hex[2] + hex[2], 16);
+    return { r, g, b };
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return { r, g, b };
+  }
+
+  const m = raw.match(/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i);
+  if (m?.[1] && m?.[2] && m?.[3]) {
+    const r = Math.max(0, Math.min(255, Number(m[1])));
+    const g = Math.max(0, Math.min(255, Number(m[2])));
+    const b = Math.max(0, Math.min(255, Number(m[3])));
+    return { r, g, b };
+  }
+  return null;
+}
+
+function resolveReadableTextColor(background: string | null | undefined): string {
+  const rgb = background ? resolveRgb(background) : null;
+  if (!rgb) return '#ffffff';
+
+  const srgb = [rgb.r, rgb.g, rgb.b].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+  return luminance > 0.5 ? '#000000' : '#ffffff';
+}
 
 function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | undefined): number {
   const md: any = (m as any)?.matchDate;
@@ -49,88 +90,105 @@ function UpcomingMatchesCarousel({
   const list = (Array.isArray(matches) ? matches : []).filter(Boolean).slice(0, 3);
   if (list.length === 0) return null;
 
+  const badgeBg = backgroundColor || '#991b1b';
+  const badgeText = resolveReadableTextColor(badgeBg);
+
   return (
-    <div
-      className="w-full overflow-visible rounded-lg"
-      style={{ backgroundColor: backgroundColor || '#8b1b3a' }}
-    >
-      <div className="px-4 py-8">
-        <div className="text-center text-white font-black tracking-widest text-3xl">GAME SCHEDULE</div>
-      </div>
+    <div className="w-full">
+      <Carousel className="w-full">
+        <CarouselContent className="-ml-4">
+          {list.map((m) => {
+            const matchDate = new Date(m.matchDate);
+            const dateLabel = Number.isFinite(matchDate.getTime())
+              ? format(matchDate, 'yyyy年M月d日(EEE)', { locale: ja })
+              : '';
+            const timeLabel = m.matchTime ? String(m.matchTime) : '';
 
-      <div className="pb-2 translate-y-6">
-        <Carousel className="w-full">
-          <CarouselContent className="-ml-4">
-            {list.map((m) => {
-              const matchDate = new Date(m.matchDate);
-              const dateLabel = Number.isFinite(matchDate.getTime()) ? format(matchDate, 'M.d') : '';
-              const weekday = Number.isFinite(matchDate.getTime()) ? format(matchDate, 'EEE') : '';
-              const timeLabel = m.matchTime ? String(m.matchTime) : '';
+            const isHome = Boolean(mainTeamId && m.homeTeam === mainTeamId);
+            const opponentName = isHome ? m.awayTeamName : m.homeTeamName;
+            const opponentLogo = isHome ? m.awayTeamLogo : m.homeTeamLogo;
+            const isPracticeMatch = (m.competitionName || '').includes('練習試合');
+            const roundNameText = (m.roundName || '').toString().trim();
+            const isSingleRound = m.roundId === 'single' || roundNameText === '単発';
 
-              const isHome = Boolean(mainTeamId && m.homeTeam === mainTeamId);
-              const opponentName = isHome ? m.awayTeamName : m.homeTeamName;
-              const opponentLogo = isHome ? m.awayTeamLogo : m.homeTeamLogo;
+            return (
+              <CarouselItem key={m.id} className="pl-4 basis-full">
+                <div className="w-full px-0 sm:px-2">
+                  <div className="w-full rounded-xl bg-gray-50 border border-black/5 shadow-sm overflow-hidden">
+                    <div className="px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {m.competitionLogoUrl ? (
+                          <Image
+                            src={m.competitionLogoUrl}
+                            alt=""
+                            width={28}
+                            height={28}
+                            className="h-7 w-7 object-contain"
+                          />
+                        ) : (
+                          <div className="h-7 w-7" />
+                        )}
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-gray-900">今後の試合</div>
+                          <div className="mt-0.5 text-sm font-semibold text-gray-700 truncate">
+                            {dateLabel}{timeLabel ? ` ${timeLabel}` : ''}
+                          </div>
+                        </div>
+                      </div>
 
-              return (
-                <CarouselItem key={m.id} className="pl-4 basis-full">
-                  <div className="mx-auto w-full max-w-[360px] px-4">
-                    <div className="rounded-xl bg-white shadow-sm overflow-hidden">
-                    <div className="px-4 pt-3 pb-2 text-[11px] text-muted-foreground line-clamp-1">
-                      {m.competitionName || ''}{m.roundName ? ` ${m.roundName}` : ''}
+                      <div
+                        className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{ backgroundColor: badgeBg, color: badgeText }}
+                      >
+                        {isHome ? 'H' : 'A'}
+                      </div>
                     </div>
+
                     <div className="border-t" />
 
-                    <div className="px-4 py-4 grid grid-cols-[auto_1fr_auto_1fr_auto] items-center gap-x-3">
-                      <div className="text-4xl font-black text-gray-900 leading-none">{dateLabel}</div>
-                      <div className="flex flex-col">
-                        <div className="text-[11px] text-gray-700 font-semibold">{weekday}</div>
-                        <div className="text-[12px] text-gray-900 font-semibold">{timeLabel}</div>
-                      </div>
-                      <div className="text-center text-sm font-semibold text-gray-700">VS</div>
-                      <div className="min-w-0 text-right">
-                        <div className="text-sm font-bold text-gray-900 truncate">{opponentName}</div>
-                      </div>
+                    <div className="px-4 py-5 flex items-center gap-4">
                       {opponentLogo ? (
                         <Image
                           src={opponentLogo}
                           alt={opponentName}
-                          width={56}
-                          height={56}
-                          className="h-14 w-14 rounded-full object-contain bg-white"
+                          width={72}
+                          height={72}
+                          className="h-[72px] w-[72px] rounded-full object-contain bg-white"
                         />
                       ) : (
-                        <div className="h-14 w-14 rounded-full bg-gray-100" />
+                        <div className="h-[72px] w-[72px] rounded-full bg-gray-100" />
                       )}
-                    </div>
 
-                    <div className="border-t" />
-
-                    <div className="px-4 py-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <div className="text-sm font-bold text-gray-900 line-clamp-1">{opponentName}</div>
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold text-gray-500 truncate">
+                          {(m.competitionName || '').toString()}
+                        </div>
+                        <div className="mt-0.5 text-xl font-black leading-tight text-gray-900 truncate">
+                          {opponentName}
+                        </div>
+                        {!isPracticeMatch && !isSingleRound && roundNameText ? (
+                          <div className="mt-0.5 text-sm text-gray-600 truncate">
+                            {roundNameText}
                           </div>
-                        </div>
-
-                        <div className="rounded-full bg-gray-200 text-gray-500 text-xs font-semibold px-4 py-2 cursor-not-allowed select-none">
-                          チケット
-                        </div>
+                        ) : null}
                       </div>
                     </div>
+
+                    <div className="px-4 pb-4 flex justify-center">
+                      <div className="rounded-full bg-red-600 text-white px-5 py-2 text-xs font-bold text-center opacity-40 grayscale cursor-not-allowed select-none">
+                        チケット
+                      </div>
                     </div>
                   </div>
-                </CarouselItem>
-              );
-            })}
-          </CarouselContent>
+                </div>
+              </CarouselItem>
+            );
+          })}
+        </CarouselContent>
 
-          <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-white/85 text-gray-900 border-none hover:bg-white" />
-          <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-white/85 text-gray-900 border-none hover:bg-white" />
-        </Carousel>
-      </div>
-
-      <div className="h-6" />
+        <CarouselPrevious className="absolute left-[-10px] sm:left-[-16px] top-1/2 -translate-y-1/2 z-10 bg-white/85 text-gray-900 border-none hover:bg-white" />
+        <CarouselNext className="absolute right-[-10px] sm:right-[-16px] top-1/2 -translate-y-1/2 z-10 bg-white/85 text-gray-900 border-none hover:bg-white" />
+      </Carousel>
     </div>
   );
 }
@@ -308,7 +366,7 @@ export function MatchSection({
   const upcoming = (Array.isArray(upcomingMatches) ? upcomingMatches : []).slice(0, 3);
   return (
     <section className="pt-0 pb-8 md:pb-12">
-      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 w-full lg:min-h-[520px] flex flex-col">
+      <div className="bg-gray-100 border border-black/5 rounded-lg shadow-sm p-4 md:p-6 w-full lg:min-h-[520px] flex flex-col">
         <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center">MATCHES</h2>
         <RecentMatchesStrip matches={recentMatches} mainTeamId={mainTeamId} clubSlug={clubSlug} />
         <div className="mt-4">

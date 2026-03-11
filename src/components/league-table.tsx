@@ -310,22 +310,6 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
             : 'bg-white text-gray-900 p-2 sm:p-3 rounded-2xl shadow-sm border border-black/10 lg:min-h-[520px]'
       }
     >
-      {selectedCompetition && (
-        <div className="flex items-center gap-2 mb-2">
-          {selectedCompetition.logoUrl && (
-            <Image
-              src={selectedCompetition.logoUrl}
-              alt={selectedCompetition.name}
-              width={22}
-              height={22}
-              className="rounded-full object-contain"
-            />
-          )}
-          <h3 className="text-xs sm:text-sm font-semibold truncate">
-            {selectedCompetition.name}
-          </h3>
-        </div>
-      )}
       {loading ? (
         <div className="flex justify-center items-center h-48">
           <Loader2 className="h-8 w-8 animate-spin" />
@@ -345,8 +329,24 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
           >
             <TableHeader className={variant === 'table' ? "[&_tr]:border-0" : undefined}>
               <TableRow className={variant === 'table' ? "border-0" : undefined}>
-                <TableHead className="w-[24px] px-2 py-1 sm:w-[32px] sm:px-2 sm:py-1">#</TableHead>
-                <TableHead className="px-2 py-1 sm:px-2 sm:py-1">Club</TableHead>
+                <TableHead className="px-2 py-1 sm:px-2 sm:py-1">
+                  {selectedCompetition ? (
+                    <div className="flex items-center gap-2 min-w-0">
+                      {selectedCompetition.logoUrl ? (
+                        <Image
+                          src={selectedCompetition.logoUrl}
+                          alt={selectedCompetition.name}
+                          width={28}
+                          height={28}
+                          className="flex-shrink-0 h-7 w-7 rounded-full object-contain"
+                        />
+                      ) : null}
+                      <span className="font-semibold truncate">{selectedCompetition.name}</span>
+                    </div>
+                  ) : (
+                    'Club'
+                  )}
+                </TableHead>
                 <TableHead className="w-[36px] text-right tabular-nums px-2 py-1 sm:w-auto sm:px-2 sm:py-1">試</TableHead>
 
                 {variant === 'table' ? (
@@ -372,29 +372,6 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
             <TableBody>
               {standings.map((team) => (
                 <TableRow key={team.id} className={variant === 'table' ? "border-0" : undefined}>
-                  <TableCell className="font-medium px-2 py-1 sm:px-2 sm:py-1 relative">
-                    {(() => {
-                      const rule = rankLabels.find((r) => team.rank >= r.from && team.rank <= r.to);
-                      if (!rule) return null;
-                      const colorClass =
-                        rule.color === "green"
-                          ? "bg-emerald-500"
-                          : rule.color === "red"
-                            ? "bg-red-500"
-                            : rule.color === "orange"
-                              ? "bg-orange-500"
-                              : rule.color === "blue"
-                                ? "bg-blue-500"
-                                : "bg-yellow-400";
-                      return (
-                        <span
-                          className={`absolute left-0 top-0 bottom-0 ${colorClass}`}
-                          style={{ width: "4px", top: "1px", bottom: "1px" }}
-                        />
-                      );
-                    })()}
-                    {team.rank}
-                  </TableCell>
                   <TableCell className="px-2 py-1 sm:px-2 sm:py-1">
                     <div className="flex items-center gap-1.5">
                       {team.logoUrl ? (
