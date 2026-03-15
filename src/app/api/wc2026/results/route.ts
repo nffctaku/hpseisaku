@@ -4,6 +4,12 @@ import { getAuth } from "firebase-admin/auth";
 
 export const runtime = "nodejs";
 
+type OfficialResultsDoc = {
+  results?: Record<string, { homeScore: string; awayScore: string }>;
+  updatedBy?: string;
+  updatedAt?: any;
+};
+
 async function getUidFromRequest(request: Request): Promise<string | null> {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
@@ -13,6 +19,27 @@ async function getUidFromRequest(request: Request): Promise<string | null> {
     return decodedToken.uid;
   } catch {
     return null;
+  }
+}
+
+export async function GET() {
+  try {
+    if (typeof (db as any)?.collection !== "function") {
+      return new NextResponse(
+        JSON.stringify({
+          message: "Firebase Admin が初期化できていません。FIREBASE_SERVICE_ACCOUNT_BASE64 を本番環境の環境変数に設定してください。",
+        }),
+        { status: 500 }
+      );
+    }
+
+    const snap = await db.collection("wc2026_official_results").doc("v1").get();
+    const doc = (snap.exists ? (snap.data() as OfficialResultsDoc) : null) ?? null;
+    const results = (doc?.results && typeof doc.results === "object" ? doc.results : {}) as any;
+    return NextResponse.json({ ok: true, results });
+  } catch (e) {
+    console.error("/api/wc2026/results GET error", e);
+    return new NextResponse(JSON.stringify({ message: "サーバーエラーが発生しました。" }), { status: 500 });
   }
 }
 

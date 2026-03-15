@@ -60,24 +60,36 @@ export function MatchesTab({
   const [officialResults, setOfficialResults] = useState<ResultsByMatchId>({});
 
   useEffect(() => {
-    const load = () => {
+    let disposed = false;
+
+    const loadFromLocal = () => {
       const parsed = safeParseJson<ResultsByMatchId>(localStorage.getItem(WC2026_RESULTS_STORAGE_KEY));
-      if (!parsed || typeof parsed !== "object") {
-        setOfficialResults({});
-        return;
+      if (!parsed || typeof parsed !== "object") return {};
+      return parsed;
+    };
+
+    const loadFromServer = async () => {
+      try {
+        const res = await fetch("/api/wc2026/results", { method: "GET" });
+        const data = (await res.json().catch(() => null)) as any;
+        if (!res.ok) throw new Error(data?.message || "結果の取得に失敗しました");
+        const results = (data?.results && typeof data.results === "object" ? data.results : {}) as ResultsByMatchId;
+        if (!disposed) setOfficialResults(results);
+      } catch (e) {
+        console.error("[wc2026 matches-tab] load official results failed", e);
+        if (!disposed) setOfficialResults(loadFromLocal());
       }
-      setOfficialResults(parsed);
     };
 
-    load();
+    void loadFromServer();
+    const id = window.setInterval(() => {
+      void loadFromServer();
+    }, 30000);
 
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== WC2026_RESULTS_STORAGE_KEY) return;
-      load();
+    return () => {
+      disposed = true;
+      window.clearInterval(id);
     };
-
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const lockedMatchIds = useMemo(() => {

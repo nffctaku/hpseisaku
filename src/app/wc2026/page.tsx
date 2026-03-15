@@ -9,7 +9,6 @@ import { WC2026_KNOCKOUT_MATCHES } from "@/lib/wc2026/knockout";
 import {
   computeGroupStandings,
   dateTokenOfKickoffLabel,
-  loadResultsFromLocalStorage,
   WC2026_RESULTS_STORAGE_KEY,
   type ResultsByMatchId,
   toScoreNumber,
@@ -19,15 +18,41 @@ export default function Wc2026Page() {
   const [results, setResults] = useState<ResultsByMatchId>({});
 
   useEffect(() => {
-    setResults(loadResultsFromLocalStorage());
+    let disposed = false;
 
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== WC2026_RESULTS_STORAGE_KEY) return;
-      setResults(loadResultsFromLocalStorage());
+    const loadFromLocal = () => {
+      try {
+        const raw = localStorage.getItem(WC2026_RESULTS_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as ResultsByMatchId;
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return {};
+      }
     };
 
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    const loadFromServer = async () => {
+      try {
+        const res = await fetch("/api/wc2026/results", { method: "GET" });
+        const data = (await res.json().catch(() => null)) as any;
+        if (!res.ok) throw new Error(data?.message || "結果の取得に失敗しました");
+        const next = (data?.results && typeof data.results === "object" ? data.results : {}) as ResultsByMatchId;
+        if (!disposed) setResults(next);
+      } catch (e) {
+        console.error("/wc2026 results fetch error", e);
+        if (!disposed) setResults(loadFromLocal());
+      }
+    };
+
+    void loadFromServer();
+    const id = window.setInterval(() => {
+      void loadFromServer();
+    }, 30000);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(id);
+    };
   }, []);
 
   const standingsByGroup = useMemo(() => {
