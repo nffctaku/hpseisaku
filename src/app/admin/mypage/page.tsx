@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { db } from "@/lib/firebase";
-import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
 
 type UserPointsDoc = {
   points?: number;
@@ -21,8 +20,6 @@ type RankingRow = {
   points: number;
   displayName: string;
 };
-
-const USER_POINTS_COLLECTION = "user_points" as const;
 
 function normalizePoints(v: unknown): number {
   if (typeof v !== "number") return 0;
@@ -46,36 +43,36 @@ export default function AdminMyPage() {
     const run = async () => {
       if (!user?.uid) return;
 
-      const snap = await getDoc(doc(db, USER_POINTS_COLLECTION, user.uid));
-      const data = (snap.exists() ? (snap.data() as UserPointsDoc) : null) ?? null;
+      const current = auth.currentUser;
+      if (!current) return;
 
-      setMyPoints(normalizePoints(data?.points));
-      setMyMatchPoints(normalizePoints(data?.matchPoints));
-      setMyGroupPoints(normalizePoints(data?.groupPoints));
-    };
-
-    void run();
-  }, [user?.uid]);
-
-  useEffect(() => {
-    const run = async () => {
-      const q = query(collection(db, USER_POINTS_COLLECTION), orderBy("points", "desc"), limit(50));
-      const snap = await getDocs(q);
-
-      const rows: RankingRow[] = snap.docs.map((d) => {
-        const data = d.data() as UserPointsDoc;
-        return {
-          uid: d.id,
-          points: normalizePoints(data?.points),
-          displayName: (typeof data?.displayName === "string" && data.displayName.trim()) || fallbackName(d.id),
-        };
+      const idToken = await current.getIdToken();
+      const res = await fetch("/api/wc2026/user-points?limit=50", {
+        headers: { Authorization: `Bearer ${idToken}` },
       });
+
+      const data = (await res.json().catch(() => null)) as any;
+      if (!res.ok) {
+        throw new Error(data?.message || "ポイント取得に失敗しました");
+      }
+
+      setMyPoints(normalizePoints(data?.me?.points));
+      setMyMatchPoints(normalizePoints(data?.me?.matchPoints));
+      setMyGroupPoints(normalizePoints(data?.me?.groupPoints));
+
+      const rows: RankingRow[] = Array.isArray(data?.ranking)
+        ? data.ranking.map((r: any) => ({
+            uid: String(r?.uid || ""),
+            points: normalizePoints(r?.points),
+            displayName: (typeof r?.displayName === "string" && r.displayName.trim()) || fallbackName(String(r?.uid || "")),
+          }))
+        : [];
 
       setRanking(rows);
     };
 
     void run();
-  }, []);
+  }, [user?.uid]);
 
   const myRank = useMemo(() => {
     if (!user?.uid) return null;

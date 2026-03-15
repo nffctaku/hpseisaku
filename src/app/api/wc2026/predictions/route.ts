@@ -18,6 +18,15 @@ async function getUidFromRequest(request: Request): Promise<string | null> {
 
 export async function POST(request: Request) {
   try {
+    if (typeof (db as any)?.collection !== "function") {
+      return new NextResponse(
+        JSON.stringify({
+          message: "Firebase Admin が初期化できていません。FIREBASE_SERVICE_ACCOUNT_BASE64 を本番環境の環境変数に設定してください。",
+        }),
+        { status: 500 }
+      );
+    }
+
     const uid = await getUidFromRequest(request);
     if (!uid) {
       return new NextResponse(JSON.stringify({ message: "認証されていません。" }), { status: 401 });

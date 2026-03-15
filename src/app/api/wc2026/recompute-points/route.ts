@@ -16,6 +16,15 @@ type PredictionsDoc = {
 
 export async function POST(request: Request) {
   try {
+    if (typeof (db as any)?.collection !== "function") {
+      return new NextResponse(
+        JSON.stringify({
+          message: "Firebase Admin が初期化できていません。FIREBASE_SERVICE_ACCOUNT_BASE64 を本番環境の環境変数に設定してください。",
+        }),
+        { status: 500 }
+      );
+    }
+
     const resultsSnap = await db.collection("wc2026_official_results").doc("v1").get();
     const resultsDoc = (resultsSnap.exists ? (resultsSnap.data() as OfficialResultsDoc) : null) ?? null;
     const officialResults = (resultsDoc?.results && typeof resultsDoc.results === "object" ? resultsDoc.results : {}) as any;
