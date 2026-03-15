@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Target, Users, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { WC2026_GROUPS, WC2026_MATCHES } from "./_components/data";
-import { GroupsTab } from "./_components/groups-tab";
-import { MatchesTab } from "./_components/matches-tab";
 import { auth } from "@/lib/firebase";
 import {
   STORAGE_KEYS,
@@ -15,13 +13,20 @@ import {
   resolveTeamAbbrev,
   safeParseJson,
   type GroupPredictions,
+  type Match,
   type PredictionsByMatchId,
+  type Team,
 } from "./_components/model";
+
+const MatchesTab = dynamic(() => import("./_components/matches-tab").then((m) => m.MatchesTab), { ssr: false });
+const GroupsTab = dynamic(() => import("./_components/groups-tab").then((m) => m.GroupsTab), { ssr: false });
 
 export default function Wc2026SandboxPage() {
   const [activeTab, setActiveTab] = useState<string>("matches");
   const [matchPredictions, setMatchPredictions] = useState<PredictionsByMatchId>({});
   const [groupPredictions, setGroupPredictions] = useState<GroupPredictions>({});
+  const [matches, setMatches] = useState<Match[] | null>(null);
+  const [groups, setGroups] = useState<Record<string, Team[]> | null>(null);
   const [saving, setSaving] = useState(false);
   const debug = typeof window !== "undefined" && window.location.search.includes("debug=1");
   const [hydrated, setHydrated] = useState(false);
@@ -53,6 +58,28 @@ export default function Wc2026SandboxPage() {
     }
 
     setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    const run = async () => {
+      try {
+        const mod = await import("./_components/data");
+        if (disposed) return;
+        setMatches(mod.WC2026_MATCHES);
+        setGroups(mod.WC2026_GROUPS);
+      } catch (e) {
+        console.error("[wc2026 sandbox] failed to load data", e);
+        if (!disposed) {
+          setMatches([]);
+          setGroups({});
+        }
+      }
+    };
+    void run();
+    return () => {
+      disposed = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -160,23 +187,31 @@ export default function Wc2026SandboxPage() {
         </TabsList>
 
         <TabsContent value="matches" className="mt-3">
-          <MatchesTab
-            matches={WC2026_MATCHES}
-            matchPredictions={matchPredictions}
-            setMatchPredictions={setMatchPredictions}
-            clampScoreInput={clampScoreInput}
-            resolveTeamAbbrev={resolveTeamAbbrev}
-          />
+          {matches ? (
+            <MatchesTab
+              matches={matches}
+              matchPredictions={matchPredictions}
+              setMatchPredictions={setMatchPredictions}
+              clampScoreInput={clampScoreInput}
+              resolveTeamAbbrev={resolveTeamAbbrev}
+            />
+          ) : (
+            <div className="rounded-lg border bg-white text-gray-900 p-4 text-sm">読み込み中...</div>
+          )}
         </TabsContent>
 
         <TabsContent value="groups" className="mt-3">
-          <GroupsTab
-            groups={WC2026_GROUPS}
-            groupPredictions={groupPredictions}
-            setGroupPredictions={setGroupPredictions}
-            resolveTeamAbbrev={resolveTeamAbbrev}
-            matchPredictions={matchPredictions}
-          />
+          {groups ? (
+            <GroupsTab
+              groups={groups}
+              groupPredictions={groupPredictions}
+              setGroupPredictions={setGroupPredictions}
+              resolveTeamAbbrev={resolveTeamAbbrev}
+              matchPredictions={matchPredictions}
+            />
+          ) : (
+            <div className="rounded-lg border bg-white text-gray-900 p-4 text-sm">読み込み中...</div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
