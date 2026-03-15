@@ -30,8 +30,20 @@ export default function Wc2026SandboxPage() {
   const [saving, setSaving] = useState(false);
   const debug = typeof window !== "undefined" && window.location.search.includes("debug=1");
   const [hydrated, setHydrated] = useState(false);
+  const [bootStage, setBootStage] = useState<string>("init");
+  const [bootError, setBootError] = useState<string | null>(null);
+  const [bootEvents, setBootEvents] = useState<string[]>([]);
+
+  const pushBootEvent = (msg: string) => {
+    if (!debug) return;
+    setBootEvents((prev) => {
+      const next = [...prev, msg];
+      return next.length > 30 ? next.slice(next.length - 30) : next;
+    });
+  };
 
   useEffect(() => {
+    setBootStage("load-localstorage");
     const rawMatch = localStorage.getItem(STORAGE_KEYS.match);
     const rawGroup = localStorage.getItem(STORAGE_KEYS.group);
     const fromStorageMatch = safeParseJson<PredictionsByMatchId>(rawMatch);
@@ -58,29 +70,73 @@ export default function Wc2026SandboxPage() {
     }
 
     setHydrated(true);
+    setBootStage("hydrated");
+    pushBootEvent("hydrated");
   }, []);
 
   useEffect(() => {
     let disposed = false;
+    setBootStage("import-data");
+    pushBootEvent("import-data:start");
+
+    const timeoutId = window.setTimeout(() => {
+      if (disposed) return;
+      setBootError("データ読み込みがタイムアウトしました（端末側のJSエラー/チャンク取得失敗の可能性）");
+      pushBootEvent("import-data:timeout");
+    }, 10000);
+
     const run = async () => {
       try {
         const mod = await import("./_components/data");
         if (disposed) return;
         setMatches(mod.WC2026_MATCHES);
         setGroups(mod.WC2026_GROUPS);
+        setBootStage("ready");
+        pushBootEvent(`import-data:ok matches=${mod.WC2026_MATCHES.length}`);
       } catch (e) {
         console.error("[wc2026 sandbox] failed to load data", e);
         if (!disposed) {
-          setMatches([]);
-          setGroups({});
+          setBootError(String((e as any)?.message || e));
+          setBootStage("error");
+          pushBootEvent("import-data:error");
         }
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     };
     void run();
     return () => {
       disposed = true;
+      window.clearTimeout(timeoutId);
     };
   }, []);
+
+  useEffect(() => {
+    if (!debug) return;
+
+    const onError = (event: ErrorEvent) => {
+      const msg = event?.message || "(unknown error)";
+      pushBootEvent(`window.error: ${msg}`);
+      if (!bootError) setBootError(msg);
+      setBootStage("error");
+    };
+
+    const onUnhandled = (event: PromiseRejectionEvent) => {
+      const msg = String((event as any)?.reason?.message || (event as any)?.reason || "(unhandled rejection)");
+      pushBootEvent(`unhandledrejection: ${msg}`);
+      if (!bootError) setBootError(msg);
+      setBootStage("error");
+    };
+
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onUnhandled);
+    pushBootEvent("debug-listeners:on");
+
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onUnhandled);
+    };
+  }, [debug, bootError]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -187,7 +243,15 @@ export default function Wc2026SandboxPage() {
         </TabsList>
 
         <TabsContent value="matches" className="mt-3">
-          {matches ? (
+          {bootError ? (
+            <div className="rounded-lg border bg-white text-gray-900 p-4 text-sm space-y-2">
+              <div className="font-bold">読み込みに失敗しました</div>
+              <div className="text-xs text-gray-700 break-words whitespace-pre-wrap">{bootError}</div>
+              {debug ? (
+                <pre className="rounded-md border bg-gray-50 p-3 text-xs whitespace-pre-wrap break-words">{JSON.stringify({ bootStage, bootEvents }, null, 2)}</pre>
+              ) : null}
+            </div>
+          ) : matches ? (
             <MatchesTab
               matches={matches}
               matchPredictions={matchPredictions}
@@ -201,7 +265,15 @@ export default function Wc2026SandboxPage() {
         </TabsContent>
 
         <TabsContent value="groups" className="mt-3">
-          {groups ? (
+          {bootError ? (
+            <div className="rounded-lg border bg-white text-gray-900 p-4 text-sm space-y-2">
+              <div className="font-bold">読み込みに失敗しました</div>
+              <div className="text-xs text-gray-700 break-words whitespace-pre-wrap">{bootError}</div>
+              {debug ? (
+                <pre className="rounded-md border bg-gray-50 p-3 text-xs whitespace-pre-wrap break-words">{JSON.stringify({ bootStage, bootEvents }, null, 2)}</pre>
+              ) : null}
+            </div>
+          ) : groups ? (
             <GroupsTab
               groups={groups}
               groupPredictions={groupPredictions}
