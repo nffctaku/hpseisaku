@@ -69,6 +69,14 @@ export default function Wc2026ResultsAdminPage() {
         throw new Error((data as any)?.message || "反映に失敗しました");
       }
       toast.success("Firestoreへ反映しました");
+
+      const recomputeRes = await fetch("/api/wc2026/recompute-points", { method: "POST" });
+      if (recomputeRes.ok) {
+        toast.success("再集計が完了しました");
+      } else {
+        const data = await recomputeRes.json().catch(() => null);
+        toast.error((data as any)?.message || "再集計に失敗しました");
+      }
     } catch (e: any) {
       toast.error(e?.message || "反映に失敗しました");
     } finally {

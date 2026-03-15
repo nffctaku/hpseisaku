@@ -1,37 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 export default function Wc2026RecomputePage() {
-  const searchParams = useSearchParams();
-  const tokenFromQuery = searchParams.get("token") || "";
-
-  const [token, setToken] = useState<string>(tokenFromQuery);
   const [running, setRunning] = useState(false);
   const [resultText, setResultText] = useState<string>("");
 
-  const masked = useMemo(() => {
-    if (!token) return "";
-    if (token.length <= 6) return "******";
-    return `${token.slice(0, 3)}******${token.slice(-3)}`;
-  }, [token]);
-
   const run = async () => {
-    if (!token.trim()) {
-      toast.error("token を入力してください");
-      return;
-    }
-
     setRunning(true);
     setResultText("");
     try {
-      const res = await fetch(`/api/wc2026/recompute-points?token=${encodeURIComponent(token.trim())}`, {
+      const res = await fetch(`/api/wc2026/recompute-points`, {
         method: "POST",
       });
 
@@ -64,15 +47,9 @@ export default function Wc2026RecomputePage() {
       <Card>
         <CardHeader>
           <CardTitle>実行</CardTitle>
-          <CardDescription>token を知っている人だけ実行できます（ログイン不要）</CardDescription>
+          <CardDescription>公式結果と全ユーザー予想からポイントを一括再集計します</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="space-y-1">
-            <div className="text-sm font-semibold">token</div>
-            <Input value={token} onChange={(e) => setToken(e.target.value)} placeholder="?token=... またはここに貼り付け" />
-            <div className="text-xs text-muted-foreground">現在: {masked || "-"}</div>
-          </div>
-
           <Button type="button" onClick={run} disabled={running}>
             {running ? "実行中..." : "再集計を実行"}
           </Button>

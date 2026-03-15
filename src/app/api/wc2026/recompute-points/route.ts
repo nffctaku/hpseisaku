@@ -14,20 +14,8 @@ type PredictionsDoc = {
   groupPredictions?: Record<string, string[]>;
 };
 
-function normalizeToken(input: string | null) {
-  return (input || "").trim();
-}
-
 export async function POST(request: Request) {
   try {
-    const url = new URL(request.url);
-    const token = normalizeToken(url.searchParams.get("token"));
-    const expected = normalizeToken(process.env.WC2026_RECOMPUTE_TOKEN || "");
-
-    if (!expected || token !== expected) {
-      return new NextResponse(JSON.stringify({ message: "Forbidden" }), { status: 403 });
-    }
-
     const resultsSnap = await db.collection("wc2026_official_results").doc("v1").get();
     const resultsDoc = (resultsSnap.exists ? (resultsSnap.data() as OfficialResultsDoc) : null) ?? null;
     const officialResults = (resultsDoc?.results && typeof resultsDoc.results === "object" ? resultsDoc.results : {}) as any;
