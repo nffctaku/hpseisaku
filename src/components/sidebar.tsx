@@ -21,6 +21,7 @@ import {
   BookOpen,
   Mail,
   LayoutGrid,
+  User,
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -136,6 +137,7 @@ export function Sidebar() {
   };
 
   const navItems: Array<{ href: string; label: string; icon: any; external?: boolean; disabled?: boolean }> = [
+    { href: `/admin/mypage`, label: 'マイページ', icon: User },
     { href: `/admin/club/info`, label: 'クラブ情報', icon: Settings },
     { href: `/admin/news`, label: 'ニュース管理', icon: Newspaper },
     { href: `/admin/tv`, label: 'TV管理', icon: Tv },
