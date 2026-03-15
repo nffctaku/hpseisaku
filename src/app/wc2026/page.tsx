@@ -227,38 +227,69 @@ export default function Wc2026Page() {
                 <CardDescription>GS順位から自動反映（3位枠は上位8チームから自動割当）</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {thirdQualifiers.map((t, idx) => (
-                    <div key={t.groupKey} className="rounded-lg border bg-gray-50 px-3 py-2 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="font-semibold">3{t.groupKey}</div>
-                        <div className="text-gray-500">#{idx + 1}</div>
-                      </div>
-                      <div className="mt-1 truncate">{t.teamName}</div>
-                      <div className="mt-1 text-[11px] text-gray-500">Pts {t.pts} / GD {t.gd} / GF {t.gf}</div>
-                    </div>
-                  ))}
-                </div>
+                {(() => {
+                  const labelOf = (m: (typeof WC2026_KNOCKOUT_MATCHES)[number], slot: (typeof m)["home"]) => {
+                    if (slot.kind === "placement") return placementMap.get(slot.placement) ?? slot.placement;
+                    if (slot.kind === "third") return resolvedThirdSlots.get(slot.groups) ?? `3${slot.groups}`;
+                    if (slot.kind === "winner") return `W${slot.matchId}`;
+                    return `L${slot.matchId}`;
+                  };
 
-                <div className="space-y-2">
-                  {WC2026_KNOCKOUT_MATCHES.map((m) => {
-                    const labelOf = (slot: (typeof m)["home"]) => {
-                      if (slot.kind === "placement") return placementMap.get(slot.placement) ?? slot.placement;
-                      if (slot.kind === "third") return resolvedThirdSlots.get(slot.groups) ?? `3${slot.groups}`;
-                      if (slot.kind === "winner") return `W${slot.matchId}`;
-                      return `L${slot.matchId}`;
-                    };
+                  const inSet = (set: Set<string>) => (m: (typeof WC2026_KNOCKOUT_MATCHES)[number]) => set.has(m.id);
 
-                    return (
-                      <div key={m.id} className="flex items-start justify-between gap-3 rounded-lg border bg-gray-50 px-3 py-2">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold truncate">{labelOf(m.home)} vs {labelOf(m.away)}</div>
-                          <div className="text-[11px] text-gray-500">{m.kickoffLabel} / {m.id}</div>
+                  const best32Ids = new Set([
+                    "M73",
+                    "M74",
+                    "M75",
+                    "M76",
+                    "M77",
+                    "M78",
+                    "M79",
+                    "M80",
+                    "M81",
+                    "M82",
+                    "M83",
+                    "M84",
+                    "M85",
+                    "M86",
+                    "M87",
+                    "M88",
+                  ]);
+                  const best16Ids = new Set(["M89", "M90", "M91", "M92", "M93", "M94", "M95", "M96"]);
+                  const qfIds = new Set(["M97", "M98", "M99", "M100"]);
+                  const sfIds = new Set(["M101", "M102"]);
+                  const finalIds = new Set(["M104"]);
+                  const thirdPlaceIds = new Set(["M103"]);
+
+                  const sections: { title: string; matches: (typeof WC2026_KNOCKOUT_MATCHES) }[] = [
+                    { title: "ベスト32", matches: WC2026_KNOCKOUT_MATCHES.filter(inSet(best32Ids)) },
+                    { title: "ベスト16", matches: WC2026_KNOCKOUT_MATCHES.filter(inSet(best16Ids)) },
+                    { title: "準々決勝", matches: WC2026_KNOCKOUT_MATCHES.filter(inSet(qfIds)) },
+                    { title: "準決勝", matches: WC2026_KNOCKOUT_MATCHES.filter(inSet(sfIds)) },
+                    { title: "3位決定戦", matches: WC2026_KNOCKOUT_MATCHES.filter(inSet(thirdPlaceIds)) },
+                    { title: "決勝", matches: WC2026_KNOCKOUT_MATCHES.filter(inSet(finalIds)) },
+                  ];
+
+                  return (
+                    <div className="space-y-4">
+                      {sections.map((s) => (
+                        <div key={s.title} className="space-y-2">
+                          <div className="text-sm font-bold text-gray-800">{s.title}</div>
+                          <div className="space-y-2">
+                            {s.matches.map((m) => (
+                              <div key={m.id} className="flex items-start justify-between gap-3 rounded-lg border bg-gray-50 px-3 py-2">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold truncate">{labelOf(m, m.home)} vs {labelOf(m, m.away)}</div>
+                                  <div className="text-[11px] text-gray-500">{m.kickoffLabel} / {m.id}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>
