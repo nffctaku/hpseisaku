@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase/admin";
 import { computeWc2026Points } from "@/lib/wc2026/points";
+import admin from "firebase-admin";
 
 export const runtime = "nodejs";
 
@@ -25,11 +26,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const firestoreProjectId = (admin.app()?.options as any)?.projectId ?? null;
+
     const resultsSnap = await db.collection("wc2026_official_results").doc("v1").get();
     const resultsDoc = (resultsSnap.exists ? (resultsSnap.data() as OfficialResultsDoc) : null) ?? null;
     const officialResults = (resultsDoc?.results && typeof resultsDoc.results === "object" ? resultsDoc.results : {}) as any;
 
     const predsSnap = await db.collection("wc2026_predictions").get();
+    const predictionsCount = typeof (predsSnap as any)?.size === "number" ? (predsSnap as any).size : predsSnap.docs.length;
 
     let processed = 0;
     let updated = 0;
@@ -79,7 +83,7 @@ export async function POST(request: Request) {
       await batch.commit();
     }
 
-    return NextResponse.json({ ok: true, processed, updated });
+    return NextResponse.json({ ok: true, processed, updated, predictionsCount, firestoreProjectId });
   } catch (e) {
     console.error("/api/wc2026/recompute-points POST error", e);
     return new NextResponse(JSON.stringify({ message: "サーバーエラーが発生しました。" }), { status: 500 });

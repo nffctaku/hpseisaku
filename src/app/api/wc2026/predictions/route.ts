@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase/admin";
 import { getAuth } from "firebase-admin/auth";
+import admin from "firebase-admin";
 
 export const runtime = "nodejs";
 
@@ -53,7 +54,10 @@ export async function POST(request: Request) {
       { merge: true }
     );
 
-    return NextResponse.json({ ok: true });
+    const snap = await db.collection("wc2026_predictions").doc(uid).get();
+    const firestoreProjectId = (admin.app()?.options as any)?.projectId ?? null;
+
+    return NextResponse.json({ ok: true, uid, exists: snap.exists, firestoreProjectId });
   } catch (e) {
     console.error("/api/wc2026/predictions POST error", e);
     return new NextResponse(JSON.stringify({ message: "サーバーエラーが発生しました。" }), { status: 500 });

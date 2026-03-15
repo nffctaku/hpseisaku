@@ -9,10 +9,12 @@ import { toast } from "sonner";
 export default function Wc2026RecomputePage() {
   const [running, setRunning] = useState(false);
   const [resultText, setResultText] = useState<string>("");
+  const [summary, setSummary] = useState<{ ok?: boolean; processed?: number; updated?: number } | null>(null);
 
   const run = async () => {
     setRunning(true);
     setResultText("");
+    setSummary(null);
     try {
       const res = await fetch(`/api/wc2026/recompute-points`, {
         method: "POST",
@@ -23,6 +25,11 @@ export default function Wc2026RecomputePage() {
         throw new Error((data as any)?.message || "再集計に失敗しました");
       }
 
+      setSummary({
+        ok: Boolean((data as any)?.ok),
+        processed: typeof (data as any)?.processed === "number" ? (data as any).processed : undefined,
+        updated: typeof (data as any)?.updated === "number" ? (data as any).updated : undefined,
+      });
       setResultText(JSON.stringify(data, null, 2));
       toast.success("再集計が完了しました");
     } catch (e: any) {
@@ -54,8 +61,14 @@ export default function Wc2026RecomputePage() {
             {running ? "実行中..." : "再集計を実行"}
           </Button>
 
+          {summary ? (
+            <div className="text-sm text-muted-foreground">
+              ok: {String(summary.ok)} / processed: {summary.processed ?? "-"} / updated: {summary.updated ?? "-"}
+            </div>
+          ) : null}
+
           {resultText ? (
-            <pre className="whitespace-pre-wrap break-words rounded-lg bg-gray-50 border p-3 text-xs leading-relaxed">
+            <pre className="whitespace-pre-wrap break-words rounded-lg bg-gray-100 border p-3 text-xs leading-relaxed text-gray-900">
               {resultText}
             </pre>
           ) : null}

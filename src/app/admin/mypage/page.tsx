@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { auth } from "@/lib/firebase";
+import { toast } from "sonner";
 
 type UserPointsDoc = {
   points?: number;
@@ -40,26 +41,10 @@ export default function AdminMyPage() {
   const [ranking, setRanking] = useState<RankingRow[]>([]);
 
   useEffect(() => {
-    const run = async () => {
-      if (!user?.uid) return;
+    let disposed = false;
+    let lastToastAt = 0;
 
-      const current = auth.currentUser;
-      if (!current) return;
-
-      const idToken = await current.getIdToken();
-      const res = await fetch("/api/wc2026/user-points?limit=50", {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-
-      const data = (await res.json().catch(() => null)) as any;
-      if (!res.ok) {
-        throw new Error(data?.message || "ポイント取得に失敗しました");
-      }
-
-      setMyPoints(normalizePoints(data?.me?.points));
-      setMyMatchPoints(normalizePoints(data?.me?.matchPoints));
-      setMyGroupPoints(normalizePoints(data?.me?.groupPoints));
-
+    const parseAndSet = (data: any) => {
       const rows: RankingRow[] = Array.isArray(data?.ranking)
         ? data.ranking.map((r: any) => ({
             uid: String(r?.uid || ""),
@@ -67,11 +52,57 @@ export default function AdminMyPage() {
             displayName: (typeof r?.displayName === "string" && r.displayName.trim()) || fallbackName(String(r?.uid || "")),
           }))
         : [];
-
       setRanking(rows);
+      setMyPoints(normalizePoints(data?.me?.points));
+      setMyMatchPoints(normalizePoints(data?.me?.matchPoints));
+      setMyGroupPoints(normalizePoints(data?.me?.groupPoints));
     };
 
-    void run();
+    const run = async (withAuth: boolean) => {
+      try {
+        const headers: Record<string, string> = {};
+        if (withAuth) {
+          const current = auth.currentUser;
+          if (!current) return;
+          const idToken = await current.getIdToken();
+          headers.Authorization = `Bearer ${idToken}`;
+        }
+
+        const res = await fetch("/api/wc2026/user-points?limit=50", { headers });
+        const data = (await res.json().catch(() => null)) as any;
+        if (!res.ok) {
+          throw new Error(data?.message || "ポイント取得に失敗しました");
+        }
+
+        if (!disposed) {
+          parseAndSet(data);
+        }
+      } catch (e: any) {
+        console.error("/admin/mypage fetch error", e);
+        const now = Date.now();
+        if (now - lastToastAt > 3000) {
+          lastToastAt = now;
+          toast.error(e?.message || "ポイント取得に失敗しました");
+        }
+      }
+    };
+
+    void run(false);
+
+    if (user?.uid) {
+      const unsubscribe = auth.onAuthStateChanged((u) => {
+        if (!u) return;
+        void run(true);
+      });
+      return () => {
+        disposed = true;
+        unsubscribe();
+      };
+    }
+
+    return () => {
+      disposed = true;
+    };
   }, [user?.uid]);
 
   const myRank = useMemo(() => {
@@ -118,7 +149,7 @@ export default function AdminMyPage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card id="ranking" className="lg:col-span-2">
           <CardHeader>
             <CardTitle>参加ユーザーランキング</CardTitle>
             <CardDescription>上位50</CardDescription>
@@ -127,19 +158,28 @@ export default function AdminMyPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[60px]">#</TableHead>
-                  <TableHead>ユーザー</TableHead>
-                  <TableHead className="text-right">ポイント</TableHead>
+                  <TableHead className="w-[60px] text-muted-foreground">#</TableHead>
+                  <TableHead className="text-muted-foreground">ユーザー</TableHead>
+                  <TableHead className="text-right text-muted-foreground">ポイント</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {ranking.map((r, idx) => {
                   const highlight = user?.uid && r.uid === user.uid;
                   return (
-                    <TableRow key={r.uid} className={highlight ? "bg-sky-50" : undefined}>
-                      <TableCell className="font-semibold">{idx + 1}</TableCell>
-                      <TableCell className="truncate">{r.displayName}</TableCell>
-                      <TableCell className="text-right font-bold">{r.points}</TableCell>
+                    <TableRow
+                      key={r.uid}
+                      className={highlight ? "bg-sky-50 text-gray-900" : "text-gray-100"}
+                    >
+                      <TableCell className={highlight ? "font-semibold text-gray-900" : "font-semibold text-gray-100"}>
+                        {idx + 1}
+                      </TableCell>
+                      <TableCell className={highlight ? "truncate text-gray-900" : "truncate text-gray-100"}>
+                        {r.displayName}
+                      </TableCell>
+                      <TableCell className={highlight ? "text-right font-bold text-gray-900" : "text-right font-bold text-gray-100"}>
+                        {r.points}
+                      </TableCell>
                     </TableRow>
                   );
                 })}

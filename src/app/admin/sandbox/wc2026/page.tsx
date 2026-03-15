@@ -23,30 +23,71 @@ export default function Wc2026SandboxPage() {
   const [matchPredictions, setMatchPredictions] = useState<PredictionsByMatchId>({});
   const [groupPredictions, setGroupPredictions] = useState<GroupPredictions>({});
   const [saving, setSaving] = useState(false);
+  const debug = typeof window !== "undefined" && window.location.search.includes("debug=1");
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const fromStorageMatch = safeParseJson<PredictionsByMatchId>(localStorage.getItem(STORAGE_KEYS.match));
-    const fromStorageGroup = safeParseJson<GroupPredictions>(localStorage.getItem(STORAGE_KEYS.group));
+    const rawMatch = localStorage.getItem(STORAGE_KEYS.match);
+    const rawGroup = localStorage.getItem(STORAGE_KEYS.group);
+    const fromStorageMatch = safeParseJson<PredictionsByMatchId>(rawMatch);
+    const fromStorageGroup = safeParseJson<GroupPredictions>(rawGroup);
+
+    if (debug) {
+      console.log("[wc2026 sandbox] load", {
+        matchKey: STORAGE_KEYS.match,
+        matchLen: rawMatch?.length ?? 0,
+        groupKey: STORAGE_KEYS.group,
+        groupLen: rawGroup?.length ?? 0,
+      });
+    }
 
     if (fromStorageMatch && typeof fromStorageMatch === "object") {
       setMatchPredictions(fromStorageMatch);
+    } else if (rawMatch) {
+      console.error("[wc2026 sandbox] failed to parse match predictions", { key: STORAGE_KEYS.match, raw: rawMatch });
     }
     if (fromStorageGroup && typeof fromStorageGroup === "object") {
       setGroupPredictions(fromStorageGroup);
+    } else if (rawGroup) {
+      console.error("[wc2026 sandbox] failed to parse group predictions", { key: STORAGE_KEYS.group, raw: rawGroup });
     }
+
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
+    if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEYS.match, JSON.stringify(matchPredictions));
-    } catch {
+      const json = JSON.stringify(matchPredictions);
+      localStorage.setItem(STORAGE_KEYS.match, json);
+      if (debug) {
+        const roundtrip = localStorage.getItem(STORAGE_KEYS.match);
+        console.log("[wc2026 sandbox] saved match", {
+          key: STORAGE_KEYS.match,
+          len: json.length,
+          ok: roundtrip === json,
+        });
+      }
+    } catch (e) {
+      console.error("[wc2026 sandbox] failed to save match predictions", e);
     }
   }, [matchPredictions]);
 
   useEffect(() => {
+    if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEYS.group, JSON.stringify(groupPredictions));
-    } catch {
+      const json = JSON.stringify(groupPredictions);
+      localStorage.setItem(STORAGE_KEYS.group, json);
+      if (debug) {
+        const roundtrip = localStorage.getItem(STORAGE_KEYS.group);
+        console.log("[wc2026 sandbox] saved group", {
+          key: STORAGE_KEYS.group,
+          len: json.length,
+          ok: roundtrip === json,
+        });
+      }
+    } catch (e) {
+      console.error("[wc2026 sandbox] failed to save group predictions", e);
     }
   }, [groupPredictions]);
 
