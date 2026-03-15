@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ export default function Wc2026SandboxPage() {
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [groups, setGroups] = useState<Record<string, Team[]> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<string>("-");
   const debug = typeof window !== "undefined" && window.location.search.includes("debug=1");
   const [hydrated, setHydrated] = useState(false);
   const [bootStage, setBootStage] = useState<string>("init");
@@ -41,6 +42,11 @@ export default function Wc2026SandboxPage() {
       return next.length > 30 ? next.slice(next.length - 30) : next;
     });
   };
+
+  const autoSaveTimerRef = useRef<number | null>(null);
+  const lastAutoSavedRef = useRef<string>("");
+  const autoSaveInFlightRef = useRef<boolean>(false);
+  const lastAutoSaveToastAtRef = useRef<number>(0);
 
   useEffect(() => {
     setBootStage("load-localstorage");
@@ -184,6 +190,84 @@ export default function Wc2026SandboxPage() {
     setGroupPredictions({});
   };
 
+  useEffect(() => {
+    if (!hydrated) return;
+    if (bootError) return;
+
+    if (!auth.currentUser) {
+      setAutoSaveStatus("未ログイン");
+      return;
+    }
+
+    let payload = "";
+    try {
+      payload = JSON.stringify({ matchPredictions, groupPredictions });
+    } catch (e) {
+      console.error("[wc2026 sandbox] autosave stringify failed", e);
+      setAutoSaveStatus("保存エラー");
+      return;
+    }
+
+    if (payload === lastAutoSavedRef.current) {
+      if (!autoSaveInFlightRef.current) setAutoSaveStatus("保存済み");
+      return;
+    }
+
+    setAutoSaveStatus("保存待ち...");
+
+    if (autoSaveTimerRef.current) {
+      window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+
+    autoSaveTimerRef.current = window.setTimeout(async () => {
+      if (!auth.currentUser) {
+        setAutoSaveStatus("未ログイン");
+        return;
+      }
+      if (autoSaveInFlightRef.current) return;
+
+      autoSaveInFlightRef.current = true;
+      setAutoSaveStatus("保存中...");
+      try {
+        const idToken = await auth.currentUser.getIdToken();
+        const res = await fetch("/api/wc2026/predictions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: payload,
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error((data as any)?.message || "自動保存に失敗しました");
+        }
+
+        lastAutoSavedRef.current = payload;
+        setAutoSaveStatus("保存済み");
+      } catch (e: any) {
+        console.error("[wc2026 sandbox] autosave failed", e);
+        setAutoSaveStatus("保存エラー");
+        const now = Date.now();
+        if (now - lastAutoSaveToastAtRef.current > 15000) {
+          lastAutoSaveToastAtRef.current = now;
+          toast.error(e?.message || "自動保存に失敗しました");
+        }
+      } finally {
+        autoSaveInFlightRef.current = false;
+      }
+    }, 900);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        window.clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [bootError, groupPredictions, hydrated, matchPredictions]);
+
   const handleSaveToFirestore = async () => {
     if (!auth.currentUser) {
       toast.error("ログインしていません");
@@ -218,6 +302,7 @@ export default function Wc2026SandboxPage() {
         <div>
           <div className="text-2xl font-bold tracking-tight">W杯2026 予想プラットフォーム</div>
           <div className="mt-1 text-sm text-gray-400">テストページ（/admin/sandbox/wc2026）</div>
+          <div className="mt-1 text-xs text-gray-400">自動保存: {autoSaveStatus}</div>
         </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" onClick={handleSaveToFirestore} disabled={saving}>
