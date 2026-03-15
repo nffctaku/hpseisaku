@@ -42,16 +42,17 @@ export async function GET(request: Request) {
     }
 
     const uid = await getUidFromRequest(request);
-    if (!uid) {
-      return new NextResponse(JSON.stringify({ message: "認証されていません。" }), { status: 401 });
-    }
 
     const url = new URL(request.url);
     const limitParam = Number(url.searchParams.get("limit") || "50");
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(1, Math.trunc(limitParam)), 200) : 50;
 
-    const mySnap = await db.collection("user_points").doc(uid).get();
-    const myData = (mySnap.exists ? (mySnap.data() as UserPointsDoc) : null) ?? null;
+    const myData = uid
+      ? await (async () => {
+          const mySnap = await db.collection("user_points").doc(uid).get();
+          return ((mySnap.exists ? (mySnap.data() as UserPointsDoc) : null) ?? null) as UserPointsDoc | null;
+        })()
+      : null;
 
     const rankingSnap = await db.collection("user_points").orderBy("points", "desc").limit(limit).get();
     const ranking = rankingSnap.docs.map((d) => {
@@ -67,12 +68,14 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      me: {
-        uid,
-        points: normalizePoints(myData?.points),
-        matchPoints: normalizePoints(myData?.matchPoints),
-        groupPoints: normalizePoints(myData?.groupPoints),
-      },
+      me: uid
+        ? {
+            uid,
+            points: normalizePoints(myData?.points),
+            matchPoints: normalizePoints(myData?.matchPoints),
+            groupPoints: normalizePoints(myData?.groupPoints),
+          }
+        : null,
       ranking,
     });
   } catch (e) {
