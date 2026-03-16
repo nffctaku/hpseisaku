@@ -1,9 +1,51 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BarChart3, ClipboardList, Crown, RefreshCw, Target, Trophy } from "lucide-react";
 
+type CountdownParts = {
+  done: boolean;
+  totalMs: number;
+  days: number;
+  hours: number;
+  minutes: number;
+};
+
+function computeCountdownParts(target: Date, now: Date): CountdownParts {
+  const diffMs = target.getTime() - now.getTime();
+  if (Number.isNaN(diffMs)) {
+    return { done: true, totalMs: 0, days: 0, hours: 0, minutes: 0 };
+  }
+  if (diffMs <= 0) {
+    return { done: true, totalMs: 0, days: 0, hours: 0, minutes: 0 };
+  }
+
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes - days * 60 * 24) / 60);
+  const minutes = totalMinutes - days * 60 * 24 - hours * 60;
+
+  return { done: false, totalMs: diffMs, days, hours, minutes };
+}
+
 export default function Wc2026TopPage() {
+  const openingMatchKickoff = useMemo(() => new Date("2026-06-11T04:00:00+09:00"), []);
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => {
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const countdown = useMemo(() => computeCountdownParts(openingMatchKickoff, now), [openingMatchKickoff, now]);
+
   const items = [
     {
       title: "予想する",
@@ -53,6 +95,19 @@ export default function Wc2026TopPage() {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">WC2026 予想プラットフォーム</h1>
             <div className="text-sm text-slate-300">
               予想・結果・ランキング・管理画面へのショートカット
+            </div>
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+              <div className="text-xs text-slate-300">開幕戦まで</div>
+              {countdown.done ? (
+                <div className="mt-1 text-lg font-bold text-white">開幕</div>
+              ) : (
+                <div className="mt-1 text-lg font-bold text-white">
+                  {countdown.days}日 {countdown.hours}時間 {countdown.minutes}分
+                </div>
+              )}
+              <div className="mt-1 text-[11px] text-slate-400">
+                日本時間: {openingMatchKickoff.toLocaleString()}
+              </div>
             </div>
           </div>
         </div>
