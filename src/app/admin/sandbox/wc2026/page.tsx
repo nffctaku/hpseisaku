@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Target, Users, RotateCcw } from "lucide-react";
@@ -13,18 +14,23 @@ import {
   resolveTeamAbbrev,
   safeParseJson,
   type GroupPredictions,
+  type KnockoutPredictions,
   type Match,
   type PredictionsByMatchId,
   type Team,
 } from "./_components/model";
 
 const MatchesTab = dynamic(() => import("./_components/matches-tab").then((m) => m.MatchesTab), { ssr: false });
-const GroupsTab = dynamic(() => import("./_components/groups-tab").then((m) => m.GroupsTab), { ssr: false });
+const GroupsTab = dynamic(() => import("./_components/groups-tab").then((m) => m.GroupsTab), { ssr: false }) as any;
 
 export default function Wc2026SandboxPage() {
   const [activeTab, setActiveTab] = useState<string>("matches");
   const [matchPredictions, setMatchPredictions] = useState<PredictionsByMatchId>({});
   const [groupPredictions, setGroupPredictions] = useState<GroupPredictions>({});
+  const [knockoutPredictions, setKnockoutPredictions] = useState<KnockoutPredictions>({
+    championTeamId: "",
+    top4TeamIds: ["", "", "", ""],
+  });
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [groups, setGroups] = useState<Record<string, Team[]> | null>(null);
   const [saving, setSaving] = useState(false);
@@ -52,8 +58,10 @@ export default function Wc2026SandboxPage() {
     setBootStage("load-localstorage");
     const rawMatch = localStorage.getItem(STORAGE_KEYS.match);
     const rawGroup = localStorage.getItem(STORAGE_KEYS.group);
+    const rawKnockout = localStorage.getItem(STORAGE_KEYS.knockout);
     const fromStorageMatch = safeParseJson<PredictionsByMatchId>(rawMatch);
     const fromStorageGroup = safeParseJson<GroupPredictions>(rawGroup);
+    const fromStorageKnockout = safeParseJson<KnockoutPredictions>(rawKnockout);
 
     if (debug) {
       console.log("[wc2026 sandbox] load", {
@@ -61,6 +69,8 @@ export default function Wc2026SandboxPage() {
         matchLen: rawMatch?.length ?? 0,
         groupKey: STORAGE_KEYS.group,
         groupLen: rawGroup?.length ?? 0,
+        knockoutKey: STORAGE_KEYS.knockout,
+        knockoutLen: rawKnockout?.length ?? 0,
       });
     }
 
@@ -73,6 +83,17 @@ export default function Wc2026SandboxPage() {
       setGroupPredictions(fromStorageGroup);
     } else if (rawGroup) {
       console.error("[wc2026 sandbox] failed to parse group predictions", { key: STORAGE_KEYS.group, raw: rawGroup });
+    }
+
+    if (fromStorageKnockout && typeof fromStorageKnockout === "object") {
+      const championTeamId = typeof fromStorageKnockout.championTeamId === "string" ? fromStorageKnockout.championTeamId : "";
+      const top4TeamIds = Array.isArray(fromStorageKnockout.top4TeamIds) ? fromStorageKnockout.top4TeamIds.map((x) => String(x || "")) : [];
+      setKnockoutPredictions({
+        championTeamId,
+        top4TeamIds: [...top4TeamIds, "", "", "", ""].slice(0, 4),
+      });
+    } else if (rawKnockout) {
+      console.error("[wc2026 sandbox] failed to parse knockout predictions", { key: STORAGE_KEYS.knockout, raw: rawKnockout });
     }
 
     setHydrated(true);
@@ -180,14 +201,34 @@ export default function Wc2026SandboxPage() {
     }
   }, [groupPredictions]);
 
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      const json = JSON.stringify(knockoutPredictions);
+      localStorage.setItem(STORAGE_KEYS.knockout, json);
+      if (debug) {
+        const roundtrip = localStorage.getItem(STORAGE_KEYS.knockout);
+        console.log("[wc2026 sandbox] saved knockout", {
+          key: STORAGE_KEYS.knockout,
+          len: json.length,
+          ok: roundtrip === json,
+        });
+      }
+    } catch (e) {
+      console.error("[wc2026 sandbox] failed to save knockout predictions", e);
+    }
+  }, [knockoutPredictions]);
+
   const handleReset = () => {
     try {
       localStorage.removeItem(STORAGE_KEYS.match);
       localStorage.removeItem(STORAGE_KEYS.group);
+      localStorage.removeItem(STORAGE_KEYS.knockout);
     } catch {
     }
     setMatchPredictions({});
     setGroupPredictions({});
+    setKnockoutPredictions({ championTeamId: "", top4TeamIds: ["", "", "", ""] });
   };
 
   useEffect(() => {
@@ -201,7 +242,7 @@ export default function Wc2026SandboxPage() {
 
     let payload = "";
     try {
-      payload = JSON.stringify({ matchPredictions, groupPredictions });
+      payload = JSON.stringify({ matchPredictions, groupPredictions, knockoutPredictions });
     } catch (e) {
       console.error("[wc2026 sandbox] autosave stringify failed", e);
       setAutoSaveStatus("保存エラー");
@@ -266,7 +307,7 @@ export default function Wc2026SandboxPage() {
         autoSaveTimerRef.current = null;
       }
     };
-  }, [bootError, groupPredictions, hydrated, matchPredictions]);
+  }, [bootError, groupPredictions, hydrated, knockoutPredictions, matchPredictions]);
 
   const handleSaveToFirestore = async () => {
     if (!auth.currentUser) {
@@ -282,7 +323,7 @@ export default function Wc2026SandboxPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ matchPredictions, groupPredictions }),
+        body: JSON.stringify({ matchPredictions, groupPredictions, knockoutPredictions }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -305,6 +346,13 @@ export default function Wc2026SandboxPage() {
           <div className="mt-1 text-xs text-gray-400">自動保存: {autoSaveStatus}</div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            asChild
+            type="button"
+            className="bg-blue-600 text-white hover:bg-blue-500 focus-visible:ring-blue-400"
+          >
+            <Link href="/wc2026/top">WC2026 TOPへ</Link>
+          </Button>
           <Button type="button" variant="outline" onClick={handleSaveToFirestore} disabled={saving}>
             Firestoreに保存
           </Button>
@@ -365,6 +413,8 @@ export default function Wc2026SandboxPage() {
               setGroupPredictions={setGroupPredictions}
               resolveTeamAbbrev={resolveTeamAbbrev}
               matchPredictions={matchPredictions}
+              knockoutPredictions={knockoutPredictions}
+              setKnockoutPredictions={setKnockoutPredictions}
             />
           ) : (
             <div className="rounded-lg border bg-white text-gray-900 p-4 text-sm">読み込み中...</div>

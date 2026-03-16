@@ -21,9 +21,15 @@ export type PredictionsByMatchId = Record<string, MatchPrediction>;
 
 export type GroupPredictions = Record<string, string[]>;
 
+export type KnockoutPredictions = {
+  championTeamId: string;
+  top4TeamIds: string[];
+};
+
 export const STORAGE_KEYS = {
   match: "wc2026:matchPredictions:v2",
   group: "wc2026:groupPredictions:v2",
+  knockout: "wc2026:knockoutPredictions:v1",
 } as const;
 
 export function safeParseJson<T>(raw: string | null): T | null {

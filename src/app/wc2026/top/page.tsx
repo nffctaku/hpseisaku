@@ -12,23 +12,25 @@ type CountdownParts = {
   days: number;
   hours: number;
   minutes: number;
+  seconds: number;
 };
 
 function computeCountdownParts(target: Date, now: Date): CountdownParts {
   const diffMs = target.getTime() - now.getTime();
   if (Number.isNaN(diffMs)) {
-    return { done: true, totalMs: 0, days: 0, hours: 0, minutes: 0 };
+    return { done: true, totalMs: 0, days: 0, hours: 0, minutes: 0, seconds: 0 };
   }
   if (diffMs <= 0) {
-    return { done: true, totalMs: 0, days: 0, hours: 0, minutes: 0 };
+    return { done: true, totalMs: 0, days: 0, hours: 0, minutes: 0, seconds: 0 };
   }
 
-  const totalMinutes = Math.floor(diffMs / 60000);
-  const days = Math.floor(totalMinutes / (60 * 24));
-  const hours = Math.floor((totalMinutes - days * 60 * 24) / 60);
-  const minutes = totalMinutes - days * 60 * 24 - hours * 60;
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const days = Math.floor(totalSeconds / (60 * 60 * 24));
+  const hours = Math.floor((totalSeconds - days * 60 * 60 * 24) / (60 * 60));
+  const minutes = Math.floor((totalSeconds - days * 60 * 60 * 24 - hours * 60 * 60) / 60);
+  const seconds = totalSeconds - days * 60 * 60 * 24 - hours * 60 * 60 - minutes * 60;
 
-  return { done: false, totalMs: diffMs, days, hours, minutes };
+  return { done: false, totalMs: diffMs, days, hours, minutes, seconds };
 }
 
 export default function Wc2026TopPage() {
@@ -102,7 +104,7 @@ export default function Wc2026TopPage() {
                 <div className="mt-1 text-lg font-bold text-white">開幕</div>
               ) : (
                 <div className="mt-1 text-lg font-bold text-white">
-                  {countdown.days}日 {countdown.hours}時間 {countdown.minutes}分
+                  {countdown.days}日 {countdown.hours}時間 {countdown.minutes}分 {countdown.seconds}秒
                 </div>
               )}
               <div className="mt-1 text-[11px] text-slate-400">

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { WC2026_GROUPS, WC2026_MATCHES } from "@/lib/wc2026/data";
 import { WC2026_KNOCKOUT_MATCHES } from "@/lib/wc2026/knockout";
 import {
@@ -138,9 +140,18 @@ export default function Wc2026Page() {
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-4">
-      <div>
-        <div className="text-2xl font-bold tracking-tight">W杯2026 大会結果</div>
-        <div className="mt-1 text-sm text-gray-400">/wc2026</div>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <div className="text-2xl font-bold tracking-tight">W杯2026 大会結果</div>
+          <div className="mt-1 text-sm text-gray-400">/wc2026</div>
+        </div>
+        <Button
+          asChild
+          type="button"
+          className="bg-blue-600 text-white hover:bg-blue-500 focus-visible:ring-blue-400"
+        >
+          <Link href="/wc2026/top">WC2026 TOPへ</Link>
+        </Button>
       </div>
 
       <Tabs defaultValue="table" className="w-full">

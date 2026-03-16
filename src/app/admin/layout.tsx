@@ -25,6 +25,8 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  const isPlainAdminPage = (pathname || '').startsWith('/admin/mypage');
+
   const allowHorizontalScroll = (pathname || '').includes('/booklet');
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -75,7 +77,13 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white px-4">
+      <div
+        className={
+          isPlainAdminPage
+            ? "min-h-screen flex flex-col items-center justify-center bg-white text-gray-900 px-4"
+            : "min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white px-4"
+        }
+      >
         <Image
           src="/favicon.png"
           alt="読み込み中"
@@ -84,7 +92,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
           className="animate-pulse"
           priority
         />
-        <div className="mt-3 text-sm text-gray-300">読み込み中</div>
+        <div className={isPlainAdminPage ? "mt-3 text-sm text-gray-600" : "mt-3 text-sm text-gray-300"}>読み込み中</div>
       </div>
     );
   }
@@ -92,16 +100,58 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   // 未ログイン時は、管理画面の代わりにログイン画面を表示
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white px-4">
+      <div className={isPlainAdminPage ? "min-h-screen flex items-center justify-center bg-white text-gray-900 px-4" : "min-h-screen flex items-center justify-center bg-gray-900 text-white px-4"}>
         <div className="max-w-sm w-full text-center space-y-4">
           <h1 className="text-2xl font-bold">ログインまたは新規作成</h1>
-          <p className="text-sm text-gray-300">
+          <p className={isPlainAdminPage ? "text-sm text-gray-600" : "text-sm text-gray-300"}>
             Googleアカウントでログインすると、この画面からクラブや大会の管理を始められます。
           </p>
           <div className="flex justify-center mt-4">
             <AuthButton />
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (isPlainAdminPage) {
+    return (
+      <div className="min-h-screen bg-white text-gray-900">
+        <Dialog open={tosOpen} onOpenChange={() => {}}>
+          <DialogContent
+            className="sm:max-w-lg"
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
+            <DialogHeader>
+              <DialogTitle>利用規約への同意</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 text-sm text-slate-700">
+              <p>サービスの利用を開始するには、利用規約に同意してください。</p>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  checked={tosChecked}
+                  onCheckedChange={(v) => setTosChecked(Boolean(v))}
+                  className="border-slate-400 bg-white data-[state=checked]:bg-sky-600 data-[state=checked]:text-white"
+                />
+                <p className="leading-relaxed">
+                  <Link href="/terms" className="underline text-sky-700 hover:text-sky-800" target="_blank" rel="noreferrer">
+                    利用規約
+                  </Link>
+                  <span>と</span>
+                  <Link href="/privacy" className="underline text-sky-700 hover:text-sky-800" target="_blank" rel="noreferrer">
+                    プライバシーポリシー
+                  </Link>
+                  <span>に同意します。</span>
+                </p>
+              </div>
+              <Button type="button" className="w-full" disabled={!tosChecked || tosLoading} onClick={handleAcceptTos}>
+                同意して開始
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        {children}
       </div>
     );
   }

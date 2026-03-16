@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase";
 import { toast } from "sonner";
+import { Crown } from "lucide-react";
 
 type UserPointsDoc = {
   points?: number;
@@ -39,6 +39,21 @@ export default function AdminMyPage() {
   const [myMatchPoints, setMyMatchPoints] = useState<number>(0);
   const [myGroupPoints, setMyGroupPoints] = useState<number>(0);
   const [ranking, setRanking] = useState<RankingRow[]>([]);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlBg = html.style.backgroundColor;
+    const prevBodyBg = body.style.backgroundColor;
+
+    html.style.backgroundColor = "#ffffff";
+    body.style.backgroundColor = "#ffffff";
+
+    return () => {
+      html.style.backgroundColor = prevHtmlBg;
+      body.style.backgroundColor = prevBodyBg;
+    };
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -111,82 +126,187 @@ export default function AdminMyPage() {
     return idx >= 0 ? idx + 1 : null;
   }, [ranking, user?.uid]);
 
+  const top3 = useMemo(() => ranking.slice(0, 3), [ranking]);
+
+  const badgeClass = (rank: number) => {
+    if (rank === 1) return "bg-amber-500 text-white";
+    if (rank === 2) return "bg-slate-400 text-white";
+    return "bg-orange-700 text-white";
+  };
+
+  const avatarBg = (rank: number) => {
+    if (rank === 1) return "bg-amber-100 text-amber-800";
+    if (rank === 2) return "bg-slate-100 text-slate-800";
+    return "bg-orange-100 text-orange-800";
+  };
+
+  const initials = (name: string) => {
+    const s = (name || "-").trim();
+    if (!s) return "-";
+    return s.slice(0, 1).toUpperCase();
+  };
+
   if (loading) {
     return null;
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">マイページ</h1>
-          <div className="mt-1 text-sm text-muted-foreground">/admin/mypage</div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="sticky top-0 z-20 border-b bg-white/80 backdrop-blur">
+        <div className="mx-auto w-full max-w-md px-4 h-12 flex items-center justify-between">
+          <Link href="/wc2026/top" className="text-xl leading-none text-gray-900" aria-label="back">
+            ←
+          </Link>
+          <div className="text-sm font-semibold text-gray-900">ユーザーランキング</div>
+          <Link href="/admin" className="text-xs font-semibold text-blue-600">管理</Link>
         </div>
-        <Link href="/admin" className="text-sm text-muted-foreground hover:text-foreground">
-          管理画面トップへ
-        </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>獲得ポイント</CardTitle>
-            <CardDescription>ログインユーザーの合計ポイント</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold">{myPoints}</div>
-            <div className="mt-3 rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-700 space-y-1">
-              <div className="flex items-center justify-between">
-                <div className="font-semibold">試合予想</div>
-                <div className="font-bold">{myMatchPoints}P</div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="font-semibold">GS 1位/2位</div>
-                <div className="font-bold">{myGroupPoints}P</div>
-              </div>
-            </div>
-            <div className="mt-2 text-sm text-muted-foreground">ランキング: {myRank ?? "-"} 位</div>
-          </CardContent>
-        </Card>
+      <div className="mx-auto w-full max-w-md px-4 py-4 space-y-4">
+        <div className="rounded-2xl bg-white px-4 py-4">
+          <div className="text-sm text-gray-500">/admin/mypage</div>
+          <div className="mt-2 text-3xl font-bold tracking-tight text-gray-900">マイページ</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button asChild type="button" className="bg-blue-600 text-white hover:bg-blue-500 focus-visible:ring-blue-400">
+              <Link href="/wc2026/top" className="whitespace-nowrap">WC2026 TOPへ</Link>
+            </Button>
+            <Button asChild type="button" variant="outline">
+              <Link href="#ranking" className="whitespace-nowrap">ランキングへ</Link>
+            </Button>
+          </div>
+        </div>
 
-        <Card id="ranking" className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>参加ユーザーランキング</CardTitle>
-            <CardDescription>上位50</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[60px] text-muted-foreground">#</TableHead>
-                  <TableHead className="text-muted-foreground">ユーザー</TableHead>
-                  <TableHead className="text-right text-muted-foreground">ポイント</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ranking.map((r, idx) => {
-                  const highlight = user?.uid && r.uid === user.uid;
-                  return (
-                    <TableRow
-                      key={r.uid}
-                      className={highlight ? "bg-sky-50 text-gray-900" : "text-gray-100"}
+        <div className="rounded-2xl bg-white px-4 py-4">
+          <div className="text-sm font-semibold text-gray-900">獲得ポイント</div>
+          <div className="mt-1 text-xs text-gray-500">ログインユーザーの合計ポイント</div>
+
+          <div className="mt-3 flex items-end justify-between">
+            <div className="text-5xl font-bold text-gray-900">{myPoints}</div>
+            <div className="text-sm text-gray-500">ランキング: {myRank ?? "-"} 位</div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="rounded-xl bg-gray-50 px-3 py-2">
+              <div className="text-xs text-gray-500">試合予想</div>
+              <div className="mt-1 text-lg font-bold text-gray-900">{myMatchPoints}P</div>
+            </div>
+            <div className="rounded-xl bg-gray-50 px-3 py-2">
+              <div className="text-xs text-gray-500">GS 1位/2位</div>
+              <div className="mt-1 text-lg font-bold text-gray-900">{myGroupPoints}P</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="ranking" className="rounded-2xl bg-white overflow-hidden">
+          <div className="relative px-4 pt-4 pb-3">
+            <div className="absolute inset-0 -z-10 bg-gradient-to-b from-sky-50 via-white to-white" />
+            <div className="absolute -right-10 top-6 h-24 w-24 rounded-full bg-sky-300/60" />
+            <div className="absolute left-8 top-14 h-6 w-6 rounded-full bg-red-300/60" />
+            <div className="absolute left-20 top-24 h-3 w-3 rounded-full bg-slate-300/60" />
+
+            <div className="text-sm font-semibold text-gray-900">ユーザーランキング</div>
+            <div className="mt-1 text-xs text-gray-500">上位50</div>
+
+            <div className="mt-3 rounded-lg bg-sky-100 px-3 py-2 text-sm text-sky-900">
+              コミュニティメンバー: {ranking.length.toLocaleString()}人
+            </div>
+          </div>
+
+          <div className="px-4 pb-3">
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { r: top3[1], rank: 2 },
+                { r: top3[0], rank: 1 },
+                { r: top3[2], rank: 3 },
+              ]
+                .filter((x) => x.r)
+                .map(({ r, rank }) => (
+                  <div
+                    key={r!.uid}
+                    className={
+                      rank === 1
+                        ? "relative rounded-xl border bg-white px-2 py-3 text-center ring-2 ring-yellow-300"
+                        : "rounded-xl border bg-white px-2 py-3 text-center"
+                    }
+                  >
+                    {rank === 1 ? (
+                      <div className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-yellow-200 px-2 py-0.5 text-xs font-bold text-yellow-900">
+                        <span className="inline-flex items-center gap-1">
+                          <Crown className="h-3 w-3" />
+                          1位
+                        </span>
+                      </div>
+                    ) : null}
+                    <div className="flex items-center justify-center">
+                      <div
+                        className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold ${badgeClass(rank)}`}
+                      >
+                        #{rank}
+                      </div>
+                    </div>
+                    <div
+                      className={`mx-auto mt-2 h-14 w-14 rounded-full flex items-center justify-center text-xl font-bold ${avatarBg(rank)}`}
                     >
-                      <TableCell className={highlight ? "font-semibold text-gray-900" : "font-semibold text-gray-100"}>
-                        {idx + 1}
-                      </TableCell>
-                      <TableCell className={highlight ? "truncate text-gray-900" : "truncate text-gray-100"}>
-                        {r.displayName}
-                      </TableCell>
-                      <TableCell className={highlight ? "text-right font-bold text-gray-900" : "text-right font-bold text-gray-100"}>
-                        {r.points}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                      {initials(r!.displayName)}
+                    </div>
+                    <div className="mt-2 text-sm font-semibold truncate text-gray-900">{r!.displayName}</div>
+                    <div className="mt-1 text-xs font-bold text-gray-900">{r!.points}P</div>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          <div className="divide-y">
+            {ranking.map((r, idx) => {
+              const rank = idx + 1;
+              const highlight = user?.uid && r.uid === user.uid;
+              const isTop3 = rank <= 3;
+
+              return (
+                <div key={r.uid} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0 flex items-center gap-3">
+                    <div
+                      className={
+                        isTop3
+                          ? `h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-xs font-bold ${badgeClass(rank)}`
+                          : "h-7 w-7 shrink-0 rounded-full bg-gray-100 text-gray-800 flex items-center justify-center text-xs font-bold"
+                      }
+                    >
+                      {rank === 1 ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span>1</span>
+                          <Crown className="h-3 w-3" />
+                        </span>
+                      ) : (
+                        rank
+                      )}
+                    </div>
+                    <div
+                      className={
+                        highlight
+                          ? "h-9 w-9 shrink-0 rounded-full bg-sky-100 text-sky-900 flex items-center justify-center text-base font-bold"
+                          : "h-9 w-9 shrink-0 rounded-full bg-gray-100 text-gray-800 flex items-center justify-center text-base font-bold"
+                      }
+                    >
+                      {initials(r.displayName)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-gray-900">{r.displayName}</div>
+                      {highlight ? (
+                        <div className="text-xs font-semibold text-sky-700">あなた</div>
+                      ) : (
+                        <div className="text-xs text-gray-400">&nbsp;</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className={highlight ? "shrink-0 text-sm font-bold text-sky-900" : "shrink-0 text-sm font-bold text-gray-900"}>
+                    {r.points}P
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

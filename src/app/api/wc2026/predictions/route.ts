@@ -36,6 +36,7 @@ export async function POST(request: Request) {
     const body = (await request.json().catch(() => null)) as any;
     const matchPredictions = body?.matchPredictions;
     const groupPredictions = body?.groupPredictions;
+    const knockoutPredictions = body?.knockoutPredictions;
 
     if (!matchPredictions || typeof matchPredictions !== "object") {
       return new NextResponse(JSON.stringify({ message: "matchPredictions が不正です。" }), { status: 400 });
@@ -44,11 +45,23 @@ export async function POST(request: Request) {
       return new NextResponse(JSON.stringify({ message: "groupPredictions が不正です。" }), { status: 400 });
     }
 
+    let sanitizedKnockout: { championTeamId?: string; top4TeamIds?: string[] } | null = null;
+    if (typeof knockoutPredictions !== "undefined") {
+      if (!knockoutPredictions || typeof knockoutPredictions !== "object") {
+        return new NextResponse(JSON.stringify({ message: "knockoutPredictions が不正です。" }), { status: 400 });
+      }
+      const championTeamId = typeof knockoutPredictions?.championTeamId === "string" ? knockoutPredictions.championTeamId : "";
+      const top4TeamIdsRaw = knockoutPredictions?.top4TeamIds;
+      const top4TeamIds = Array.isArray(top4TeamIdsRaw) ? top4TeamIdsRaw.map((x) => String(x || "")).slice(0, 4) : [];
+      sanitizedKnockout = { championTeamId, top4TeamIds };
+    }
+
     await db.collection("wc2026_predictions").doc(uid).set(
       {
         uid,
         matchPredictions,
         groupPredictions,
+        ...(sanitizedKnockout ? { knockoutPredictions: sanitizedKnockout } : {}),
         updatedAt: new Date(),
       },
       { merge: true }
