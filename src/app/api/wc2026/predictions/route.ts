@@ -33,6 +33,9 @@ export async function POST(request: Request) {
       return new NextResponse(JSON.stringify({ message: "認証されていません。" }), { status: 401 });
     }
 
+    const userRecord = await getAuth().getUser(uid).catch(() => null);
+    const displayName = (userRecord?.displayName || "").trim();
+
     const body = (await request.json().catch(() => null)) as any;
     const matchPredictions = body?.matchPredictions;
     const groupPredictions = body?.groupPredictions;
@@ -59,6 +62,7 @@ export async function POST(request: Request) {
     await db.collection("wc2026_predictions").doc(uid).set(
       {
         uid,
+        ...(displayName ? { displayName } : {}),
         matchPredictions,
         groupPredictions,
         ...(sanitizedKnockout ? { knockoutPredictions: sanitizedKnockout } : {}),

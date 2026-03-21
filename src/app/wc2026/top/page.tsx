@@ -64,7 +64,7 @@ export default function Wc2026TopPage() {
     {
       title: "ランキング",
       description: "参加ユーザーランキング",
-      href: "/admin/mypage#ranking",
+      href: "/wc2026/ranking",
       icon: BarChart3,
     },
     {

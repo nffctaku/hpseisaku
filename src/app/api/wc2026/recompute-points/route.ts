@@ -11,6 +11,7 @@ type OfficialResultsDoc = {
 
 type PredictionsDoc = {
   uid?: string;
+  displayName?: string;
   matchPredictions?: Record<string, { homeScore: string; awayScore: string; reason?: string }>;
   groupPredictions?: Record<string, string[]>;
 };
@@ -46,6 +47,8 @@ export async function POST(request: Request) {
       const data = docSnap.data() as PredictionsDoc;
       const uid = docSnap.id;
 
+      const displayName = (typeof data?.displayName === "string" && data.displayName.trim()) || uid;
+
       const matchPredictions = (data?.matchPredictions && typeof data.matchPredictions === "object" ? data.matchPredictions : {}) as any;
       const groupPredictions = (data?.groupPredictions && typeof data.groupPredictions === "object" ? data.groupPredictions : {}) as any;
 
@@ -62,7 +65,7 @@ export async function POST(request: Request) {
           points: computed.totalPoints,
           matchPoints: computed.matchPoints,
           groupPoints: computed.groupPoints,
-          displayName: uid,
+          displayName,
           updatedAt: new Date(),
           source: "wc2026_batch",
         },

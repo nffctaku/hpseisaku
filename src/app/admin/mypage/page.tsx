@@ -79,10 +79,22 @@ export default function AdminMyPage() {
   useEffect(() => {
     let disposed = false;
 
+    const getToken = async () => {
+      const anyUser = user as any;
+      if (anyUser && typeof anyUser.getIdToken === "function") {
+        return (await anyUser.getIdToken()) as string;
+      }
+      const current = auth.currentUser;
+      if (current) {
+        return await current.getIdToken();
+      }
+      return null;
+    };
+
     const run = async () => {
       try {
-        if (!auth.currentUser) return;
-        const idToken = await auth.currentUser.getIdToken();
+        const idToken = await getToken();
+        if (!idToken) return;
         const res = await fetch("/api/wc2026/mypage", {
           headers: {
             Authorization: `Bearer ${idToken}`,
@@ -97,12 +109,19 @@ export default function AdminMyPage() {
         }
       } catch (e: any) {
         console.error("/admin/mypage wc2026/mypage fetch error", e);
+        toast.error(e?.message || "マイページ情報の取得に失敗しました");
       }
     };
 
     void run();
+
+    const unsubscribe = auth.onAuthStateChanged((u) => {
+      if (!u) return;
+      void run();
+    });
     return () => {
       disposed = true;
+      unsubscribe();
     };
   }, [user?.uid]);
 
@@ -325,14 +344,27 @@ export default function AdminMyPage() {
           <div className={`text-sm ${themeSubtleClass}`}>/admin/mypage</div>
 
           <div className="mt-3 flex items-center gap-3">
-            <div className={theme === "default" ? "h-14 w-14 rounded-full bg-gray-700 flex items-center justify-center text-lg font-bold text-white" : "h-14 w-14 rounded-full bg-gray-100 flex items-center justify-center text-lg font-bold text-gray-900"}>
-              {initials(mypage?.profile?.displayName || user?.displayName || user?.uid || "-")}
+            <div
+              className={
+                theme === "default"
+                  ? "h-14 w-14 overflow-hidden rounded-full bg-gray-700 flex items-center justify-center text-lg font-bold text-white"
+                  : "h-14 w-14 overflow-hidden rounded-full bg-gray-100 flex items-center justify-center text-lg font-bold text-gray-900"
+              }
+            >
+              {mypage?.profile?.photoURL ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={mypage.profile.photoURL} alt="" className="h-full w-full object-cover" />
+              ) : (
+                initials(mypage?.profile?.displayName || user?.displayName || user?.uid || "-")
+              )}
             </div>
             <div className="min-w-0">
               <div className={`text-2xl font-bold tracking-tight ${themeMutedTitle} truncate`}>
                 {mypage?.profile?.displayName || user?.displayName || user?.uid || "-"}
               </div>
-              <div className={`mt-1 text-xs ${themeSubtleClass} truncate`}>{mypage?.profile?.uid || user?.uid || ""}</div>
+              <div className={`mt-1 text-xs ${themeSubtleClass} truncate`}>
+                {mypage?.profile?.displayName || user?.displayName || ""}
+              </div>
             </div>
           </div>
 

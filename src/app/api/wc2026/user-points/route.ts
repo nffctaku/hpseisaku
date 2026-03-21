@@ -12,6 +12,10 @@ type UserPointsDoc = {
   updatedAt?: any;
 };
 
+type PredictionsDoc = {
+  displayName?: string;
+};
+
 async function getUidFromRequest(request: Request): Promise<string | null> {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
@@ -55,14 +59,44 @@ export async function GET(request: Request) {
       : null;
 
     const rankingSnap = await db.collection("user_points").orderBy("points", "desc").limit(limit).get();
-    const ranking = rankingSnap.docs.map((d) => {
+
+    const baseRows = rankingSnap.docs.map((d) => {
       const data = d.data() as UserPointsDoc;
+      const rawName = typeof data?.displayName === "string" ? data.displayName.trim() : "";
       return {
         uid: d.id,
         points: normalizePoints(data?.points),
         matchPoints: normalizePoints(data?.matchPoints),
         groupPoints: normalizePoints(data?.groupPoints),
-        displayName: (typeof data?.displayName === "string" && data.displayName.trim()) || d.id,
+        displayName: rawName,
+      };
+    });
+
+    const needFallbackUids = baseRows
+      .filter((r) => !r.displayName || r.displayName === r.uid)
+      .map((r) => r.uid);
+
+    let fallbackMap = new Map<string, string>();
+    if (needFallbackUids.length > 0) {
+      const refs = needFallbackUids.map((id) => db.collection("wc2026_predictions").doc(id));
+      const snaps = await db.getAll(...refs);
+      fallbackMap = new Map(
+        snaps
+          .filter((s) => s.exists)
+          .map((s) => {
+            const data = s.data() as PredictionsDoc;
+            const name = typeof data?.displayName === "string" ? data.displayName.trim() : "";
+            return [s.id, name] as const;
+          })
+          .filter(([, name]) => Boolean(name))
+      );
+    }
+
+    const ranking = baseRows.map((r) => {
+      const fallbackName = fallbackMap.get(r.uid);
+      return {
+        ...r,
+        displayName: r.displayName || fallbackName || r.uid,
       };
     });
 

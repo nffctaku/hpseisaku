@@ -22,7 +22,7 @@ const LIMIT_TABLE: Record<LimitKey, Record<PlanTier, number>> = {
   videos_per_club: { free: 10, pro: Number.POSITIVE_INFINITY, officia: Number.POSITIVE_INFINITY },
   competitions_per_club: { free: 1, pro: 8, officia: Number.POSITIVE_INFINITY },
   players_per_team: { free: 30, pro: 30, officia: Number.POSITIVE_INFINITY },
-  player_photos_per_team: { free: 20, pro: 30, officia: Number.POSITIVE_INFINITY },
+  player_photos_per_team: { free: 20, pro: 200, officia: Number.POSITIVE_INFINITY },
   staff_per_season: { free: 30, pro: Number.POSITIVE_INFINITY, officia: Number.POSITIVE_INFINITY },
 };
 

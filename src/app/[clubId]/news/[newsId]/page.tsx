@@ -15,7 +15,8 @@ export const revalidate = 0;
 function toCloudinaryPadded16x9(url: string, width: number) {
   if (!url) return url;
   if (!url.includes('/image/upload/')) return url;
-  return url.replace('/image/upload/', `/image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_auto/`);
+  return url.replace('/image/upload/', `
+    image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_auto/`);
 }
 
 async function getArticle(clubId: string, newsId: string): Promise<NewsArticle | null> {
