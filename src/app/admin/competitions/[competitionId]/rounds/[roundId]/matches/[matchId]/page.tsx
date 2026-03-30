@@ -240,7 +240,9 @@ export default function MatchAdminPage() {
                 if (hasSeasonsArr) {
                   return seasonKeyCandidates.some((k) => (seasonsArr as any[]).includes(k));
                 }
-                return false;
+                // Legacy roster docs may not have seasonData/seasons.
+                // Since they live under season-scoped roster collection, treat them as belonging to this season.
+                return true;
               })();
 
               const isForThisTeam = tid
