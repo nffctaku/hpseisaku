@@ -44,10 +44,14 @@ const formSchema = z.object({
         teamId: z.string(),
         type: z.enum(['goal', 'og', 'card', 'substitution', 'note']),
         playerId: z.string().optional(),
+        playerName: z.string().optional(),
         assistPlayerId: z.string().optional(),
+        assistPlayerName: z.string().optional(),
         cardColor: z.enum(['yellow', 'red']).optional(),
         inPlayerId: z.string().optional(),
+        inPlayerName: z.string().optional(),
         outPlayerId: z.string().optional(),
+        outPlayerName: z.string().optional(),
         text: z.string().optional(),
       })
     )
@@ -428,34 +432,54 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           };
         });
 
-      const sanitizedEvents = (data.events || []).map((ev) => {
+      const sanitizedEvents = (data.events || []).map((ev: any) => {
         const {
           id,
           minute,
           teamId,
           type,
           playerId,
+          playerName,
           assistPlayerId,
+          assistPlayerName,
           cardColor,
           inPlayerId,
+          inPlayerName,
           outPlayerId,
+          outPlayerName,
           text,
         } = ev;
 
         const base: any = { id, minute, teamId, type };
+        
+        // Always preserve custom player names if they exist
         if (playerId) {
           base.playerId = playerId;
-          const name = playerNameMap.get(playerId);
-          if (name) base.playerName = name;
+          if (playerName) {
+            base.playerName = playerName;
+          } else {
+            const name = playerNameMap.get(playerId);
+            if (name) base.playerName = name;
+          }
         }
         if (assistPlayerId) {
           base.assistPlayerId = assistPlayerId;
-          const aName = playerNameMap.get(assistPlayerId);
-          if (aName) base.assistPlayerName = aName;
+          if (assistPlayerName) {
+            base.assistPlayerName = assistPlayerName;
+          } else {
+            const aName = playerNameMap.get(assistPlayerId);
+            if (aName) base.assistPlayerName = aName;
+          }
         }
         if (cardColor) base.cardColor = cardColor;
-        if (inPlayerId) base.inPlayerId = inPlayerId;
-        if (outPlayerId) base.outPlayerId = outPlayerId;
+        if (inPlayerId) {
+          base.inPlayerId = inPlayerId;
+          if (inPlayerName) base.inPlayerName = inPlayerName;
+        }
+        if (outPlayerId) {
+          base.outPlayerId = outPlayerId;
+          if (outPlayerName) base.outPlayerName = outPlayerName;
+        }
         if (text) base.text = text;
         return base;
       });
@@ -465,6 +489,72 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         playerStats: normalizedPlayerStats,
         events: sanitizedEvents,
       });
+
+      // Check if any event exceeds 90 minutes and automatically set matchDuration to 120
+      const hasEventBeyond90 = (data.events || []).some((ev: any) => {
+        const minute = ev.minute;
+        let baseMinute = 0;
+        
+        if (typeof minute === 'number') {
+          // Handle decimal representation (e.g., 45.001 for "45+1")
+          baseMinute = Math.floor(minute);
+        } else {
+          // Handle string representation (e.g., "45+1" or "95")
+          const minuteStr = String(minute);
+          if (minuteStr.includes('+')) {
+            const parts = minuteStr.split('+');
+            baseMinute = parseInt(parts[0], 10) || 0;
+          } else {
+            baseMinute = parseInt(minuteStr, 10) || 0;
+          }
+        }
+        
+        return baseMinute > 90;
+      });
+
+      if (hasEventBeyond90) {
+        (payload as any).matchDuration = 120;
+      } else {
+        // If no events beyond 90, keep current matchDuration or default to 90
+        (payload as any).matchDuration = match.matchDuration || 90;
+      }
+
+      // Count yellow and red cards from events and update team stats
+      const homeYellowCards = (data.events || []).filter((ev: any) => 
+        ev.type === 'card' && ev.teamId === match.homeTeam && ev.cardColor === 'yellow'
+      ).length;
+      const awayYellowCards = (data.events || []).filter((ev: any) => 
+        ev.type === 'card' && ev.teamId === match.awayTeam && ev.cardColor === 'yellow'
+      ).length;
+      const homeRedCards = (data.events || []).filter((ev: any) => 
+        ev.type === 'card' && ev.teamId === match.homeTeam && ev.cardColor === 'red'
+      ).length;
+      const awayRedCards = (data.events || []).filter((ev: any) => 
+        ev.type === 'card' && ev.teamId === match.awayTeam && ev.cardColor === 'red'
+      ).length;
+
+      // Update team stats with card counts
+      const existingTeamStats = match.teamStats || [];
+      const updatedTeamStats = existingTeamStats.map((stat: any) => {
+        if (stat.id === 'yellowCards' || stat.name === 'イエロー') {
+          return {
+            ...stat,
+            homeValue: homeYellowCards,
+            awayValue: awayYellowCards,
+          };
+        }
+        if (stat.id === 'redCards' || stat.name === 'レッド') {
+          return {
+            ...stat,
+            homeValue: homeRedCards,
+            awayValue: awayRedCards,
+          };
+        }
+        return stat;
+      });
+
+      (payload as any).teamStats = updatedTeamStats;
+
       await setDoc(matchDocRef, payload, { merge: true });
 
       const eventsColRef = collection(
@@ -487,13 +577,14 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           if (ev.outPlayerId) {
             const outDocId = `sub-${ev.id}-out`;
             desiredSubDocIds.add(outDocId);
+            const outPlayerName = ev.outPlayerName || playerNameMap.get(ev.outPlayerId) || '';
             batch.set(
               doc(eventsColRef, outDocId),
               {
                 ...base,
                 type: 'sub_out',
                 playerId: ev.outPlayerId,
-                playerName: playerNameMap.get(ev.outPlayerId) || '',
+                playerName: outPlayerName,
               },
               { merge: true }
             );
@@ -502,13 +593,14 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           if (ev.inPlayerId) {
             const inDocId = `sub-${ev.id}-in`;
             desiredSubDocIds.add(inDocId);
+            const inPlayerName = ev.inPlayerName || playerNameMap.get(ev.inPlayerId) || '';
             batch.set(
               doc(eventsColRef, inDocId),
               {
                 ...base,
                 type: 'sub_in',
                 playerId: ev.inPlayerId,
-                playerName: playerNameMap.get(ev.inPlayerId) || '',
+                playerName: inPlayerName,
               },
               { merge: true }
             );
@@ -624,7 +716,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
 
   return (
     <FormProvider {...methods}>
-      <Card>
+      <Card className={view === 'events' ? "border-0 shadow-none" : ""}>
         {view === 'events' ? null : (
           <CardHeader>
             <CardTitle>
@@ -632,7 +724,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
             </CardTitle>
           </CardHeader>
         )}
-        <CardContent>
+        <CardContent className={view === 'events' ? "p-0" : ""}>
           <form
             onSubmit={methods.handleSubmit(onSubmit, (errors) => {
               console.error('SquadRegistrationForm: validation errors', errors);
@@ -646,10 +738,42 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                   <TabsTrigger value="away">{match.awayTeamName}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="home">
-                  <PlayerStatsTable teamId={match.homeTeam} allPlayers={homePlayers} />
+                  {homePlayers.length === 0 && awayPlayers.length > 0 && (
+                    <div className="mb-4 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-xs text-blue-800">相手チームの情報は入力しなくても問題ありません</p>
+                    </div>
+                  )}
+                  <div className="mb-4">
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        applyDefaultSquad();
+                      }}
+                      className="w-full bg-orange-500 text-white hover:bg-orange-600"
+                    >
+                      登録済みのラインナップを反映する
+                    </Button>
+                  </div>
+                  <PlayerStatsTable teamId={match.homeTeam} allPlayers={homePlayers} matchDuration={match.matchDuration} />
                 </TabsContent>
                 <TabsContent value="away">
-                  <PlayerStatsTable teamId={match.awayTeam} allPlayers={awayPlayers} />
+                  {awayPlayers.length === 0 && homePlayers.length > 0 && (
+                    <div className="mb-4 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-xs text-blue-800">相手チームの情報は入力しなくても問題ありません</p>
+                    </div>
+                  )}
+                  <div className="mb-4">
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        applyDefaultSquad();
+                      }}
+                      className="w-full bg-orange-500 text-white hover:bg-orange-600"
+                    >
+                      登録済みのラインナップを反映する
+                    </Button>
+                  </div>
+                  <PlayerStatsTable teamId={match.awayTeam} allPlayers={awayPlayers} matchDuration={match.matchDuration} />
                 </TabsContent>
               </Tabs>
             ) : null}
@@ -664,59 +788,23 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
               </div>
             ) : null}
             {(view === 'player' || view === 'both') ? (
-            <div className="mt-8 flex flex-wrap items-center justify-between gap-2">
+            <div className="mt-8 flex flex-col items-center gap-2">
               <Button
                 type="button"
+                variant="outline"
                 size="sm"
                 onClick={() => {
                   setAsDefaultSquad();
                 }}
                 disabled={settingDefault}
-                className="bg-blue-600 text-white hover:bg-blue-700 h-8 px-2 py-1 text-xs"
+                className="bg-orange-500 text-white hover:bg-orange-600 border-orange-500"
               >
-                {settingDefault ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                <div className="flex flex-col items-center">
-                  <span className="text-xs">このメンバーを今後</span>
-                  <span className="text-xs">デフォルト設定</span>
-                </div>
+                {settingDefault ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                ラインナップを登録
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  applyDefaultSquad();
-                }}
-                className="bg-white text-gray-900 hover:bg-gray-100 border border-border h-8 px-2 py-1 text-xs"
-              >
-                デフォルトを反映
-              </Button>
-              <Button
-                type="submit"
-                disabled={saving}
-                className="bg-emerald-600 text-white hover:bg-emerald-700 h-8 px-3 text-xs"
-              >
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                保存
-              </Button>
-              <div className="text-xs text-muted-foreground">
-                {savedIndicatorVisible ? '自動保存しました' : null}
-              </div>
+              <p className="text-xs text-gray-500">今後「登録済みのラインナップを反映する」から登録したメンバーをまとめて反映できます</p>
             </div>
-          ) : (
-            <div className="mt-8 flex justify-end">
-              <Button
-                type="submit"
-                disabled={saving}
-                className="bg-emerald-600 text-white hover:bg-emerald-700"
-              >
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                保存
-              </Button>
-              <div className="ml-3 self-center text-xs text-muted-foreground">
-                {savedIndicatorVisible ? '自動保存しました' : null}
-              </div>
-            </div>
-          )}
+          ) : null}
           </form>
         </CardContent>
       </Card>

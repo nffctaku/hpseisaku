@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import * as React from "react";
+import { SystemAnnouncement } from "@/components/system-announcement";
 
 export default function LandingPage() {
   const { user } = useAuth();
@@ -31,6 +32,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <SystemAnnouncement />
       <main className="flex-grow">
         <section className="relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-end px-2 sm:px-4 py-2">

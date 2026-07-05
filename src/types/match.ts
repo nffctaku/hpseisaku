@@ -15,15 +15,15 @@ export interface Team {
 
 export interface MatchEvent {
   id: string;
-  type: 'goal' | 'og' | 'yellow' | 'red' | 'sub_in' | 'sub_out';
+  type: 'goal' | 'og' | 'card' | 'substitution' | 'note';
   minute: number;
-  playerId: string;
-  playerName: string;
   teamId: string;
-  assistPlayerId?: string | null;
-  assistPlayerName?: string | null;
-  substitutionReason?: string;
-  timestamp: any;
+  playerId?: string;
+  assistPlayerId?: string;
+  cardColor?: 'yellow' | 'red';
+  inPlayerId?: string;
+  outPlayerId?: string;
+  text?: string;
 }
 
 export interface CustomStat {
@@ -90,4 +90,6 @@ export interface MatchDetails {
   playerStats?: PlayerStats[];
   homeSquad?: { starters: string[]; substitutes: string[] };
   awaySquad?: { starters: string[]; substitutes: string[] };
+  events?: MatchEvent[];
+  matchDuration?: number; // 試合時間（分）。デフォルト90、延長戦の場合120など
 }

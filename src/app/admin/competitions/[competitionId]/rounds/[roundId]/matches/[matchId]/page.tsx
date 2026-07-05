@@ -30,6 +30,8 @@ export default function MatchAdminPage() {
   const [resolvedMatchDocPath, setResolvedMatchDocPath] = useState<string | null>(null);
   const [seasonId, setSeasonId] = useState<string | null>(null);
   const [debugPanel, setDebugPanel] = useState<any>(null);
+  const [competitionName, setCompetitionName] = useState<string>('');
+  const [roundName, setRoundName] = useState<string>('');
 
   const debugEnabled =
     searchParams?.get('debug') === '1' ||
@@ -52,6 +54,14 @@ export default function MatchAdminPage() {
         const compSeason = typeof compSeasonRaw === 'string' ? compSeasonRaw.trim() : '';
         const s = roundSeason || compSeason;
         setSeasonId(s ? s : null);
+        
+        // Set competition name and round name
+        if (compSnap.exists()) {
+          setCompetitionName((compSnap.data() as any)?.name || '');
+        }
+        if (roundSnap.exists()) {
+          setRoundName((roundSnap.data() as any)?.name || '');
+        }
       } catch {
         if (cancelled) return;
         setSeasonId(null);
@@ -521,58 +531,51 @@ export default function MatchAdminPage() {
           </pre>
         </div>
       ) : null}
-      <div className="bg-card border rounded-lg p-6">
-        <div className="flex flex-col sm:flex-row sm:justify-center sm:items-center gap-6 mb-6">
-          <div className="flex items-center justify-between sm:justify-center sm:w-1/3">
-            <div className="flex flex-col items-center gap-2">
+      <div className="bg-white border rounded-lg p-6">
+        <div className="grid grid-cols-3 items-start gap-6 mb-6">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-[72px] w-[72px] flex items-center justify-center flex-shrink-0">
               {match.homeTeamLogo && (
                 <Image
                   src={match.homeTeamLogo}
                   alt={match.homeTeamName}
-                  width={56}
-                  height={56}
-                  className="rounded-full object-contain"
+                  width={72}
+                  height={72}
+                  className="rounded-full object-cover"
                 />
               )}
-              <h2 className="text-base sm:text-2xl font-bold text-center leading-tight max-w-[10ch] break-words min-h-[2.5rem] sm:min-h-0">
-                {match.homeTeamName}
-              </h2>
             </div>
-
-            <div className="flex flex-col items-center justify-center px-2 sm:hidden">
-              <p className="text-xs text-muted-foreground">
-                {new Date(match.matchDate).toLocaleDateString("ja-JP", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                  weekday: "long",
-                })}
-              </p>
-              <div className="text-4xl font-bold">
-                {typeof match.scoreHome === "number" ? match.scoreHome : "-"}
-                <span className="mx-3">-</span>
-                {typeof match.scoreAway === "number" ? match.scoreAway : "-"}
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center gap-2 sm:hidden">
-              {match.awayTeamLogo && (
-                <Image
-                  src={match.awayTeamLogo}
-                  alt={match.awayTeamName}
-                  width={56}
-                  height={56}
-                  className="rounded-full object-contain"
-                />
+            <h2 className="text-sm font-bold text-center leading-tight text-gray-900 whitespace-nowrap">
+              {match.homeTeamName}
+            </h2>
+            <div className="text-xs space-y-1 text-left">
+              {(match as any).events && (match as any).events.filter((e: any) => e.teamId === match.homeTeam && (e.type === 'goal' || e.type === 'og')).length > 0 && (
+                (match as any).events
+                  .filter((e: any) => e.teamId === match.homeTeam && (e.type === 'goal' || e.type === 'og'))
+                  .sort((a: any, b: any) => (a.minute ?? 0) - (b.minute ?? 0))
+                  .map((event: any) => {
+                    const getPlayerName = (playerId: string | undefined, playerName?: string) => {
+                      if (!playerId) return "";
+                      if (playerName) return playerName;
+                      const player = [...homePlayers, ...awayPlayers].find(p => p.id === playerId);
+                      return player?.name || "";
+                    };
+                    const scorer = getPlayerName(event.playerId, event.playerName);
+                    return (
+                      <div key={event.id} className="text-gray-600">
+                        {event.minute}' {scorer}{event.type === 'og' ? ' (OG)' : ''}
+                      </div>
+                    );
+                  })
               )}
-              <h2 className="text-base sm:text-2xl font-bold text-center leading-tight max-w-[10ch] break-words min-h-[2.5rem] sm:min-h-0">
-                {match.awayTeamName}
-              </h2>
             </div>
           </div>
 
-          <div className="hidden sm:flex flex-col items-center justify-center px-4">
-            <p className="text-sm text-muted-foreground">
+          <div className="flex flex-col items-center justify-center">
+            <p className="text-xs sm:text-sm text-gray-600 text-center whitespace-nowrap">
+              {competitionName} - {roundName}
+            </p>
+            <p className="text-xs sm:text-sm text-gray-600 text-center whitespace-nowrap">
               {new Date(match.matchDate).toLocaleDateString("ja-JP", {
                 year: "numeric",
                 month: "long",
@@ -580,33 +583,56 @@ export default function MatchAdminPage() {
                 weekday: "long",
               })}
             </p>
-            <div className="text-5xl font-bold">
-              {typeof match.scoreHome === "number" ? match.scoreHome : "-"}
-              <span className="mx-4">-</span>
-              {typeof match.scoreAway === "number" ? match.scoreAway : "-"}
+            <div className="text-4xl sm:text-5xl font-bold text-gray-900 flex items-center justify-center gap-4">
+              <span>{typeof match.scoreHome === "number" ? match.scoreHome : "-"}</span>
+              <span>-</span>
+              <span>{typeof match.scoreAway === "number" ? match.scoreAway : "-"}</span>
             </div>
           </div>
 
-          <div className="hidden sm:flex flex-col items-center gap-2 w-1/3">
-            {match.awayTeamLogo && (
-              <Image
-                src={match.awayTeamLogo}
-                alt={match.awayTeamName}
-                width={72}
-                height={72}
-                className="rounded-full object-contain"
-              />
-            )}
-            <h2 className="text-2xl font-bold text-center">{match.awayTeamName}</h2>
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-[72px] w-[72px] flex items-center justify-center flex-shrink-0">
+              {match.awayTeamLogo && (
+                <Image
+                  src={match.awayTeamLogo}
+                  alt={match.awayTeamName}
+                  width={72}
+                  height={72}
+                  className="rounded-full object-cover"
+                />
+              )}
+            </div>
+            <h2 className="text-sm font-bold text-center text-gray-900 whitespace-nowrap">{match.awayTeamName}</h2>
+            <div className="text-xs space-y-1 text-left">
+                {(match as any).events && (match as any).events.filter((e: any) => e.teamId === match.awayTeam && (e.type === 'goal' || e.type === 'og')).length > 0 && (
+                  (match as any).events
+                    .filter((e: any) => e.teamId === match.awayTeam && (e.type === 'goal' || e.type === 'og'))
+                    .sort((a: any, b: any) => (a.minute ?? 0) - (b.minute ?? 0))
+                    .map((event: any) => {
+                      const getPlayerName = (playerId: string | undefined, playerName?: string) => {
+                        if (!playerId) return "";
+                        if (playerName) return playerName;
+                        const player = [...homePlayers, ...awayPlayers].find(p => p.id === playerId);
+                        return player?.name || "";
+                      };
+                      const scorer = getPlayerName(event.playerId, event.playerName);
+                      return (
+                        <div key={event.id} className="text-gray-600">
+                          {event.minute}' {scorer}{event.type === 'og' ? ' (OG)' : ''}
+                        </div>
+                      );
+                    })
+                )}
+            </div>
           </div>
         </div>
       </div>
 
-      <Tabs defaultValue="match-stats" className="mt-8">
+      <Tabs defaultValue="player-stats" className="mt-8">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="match-stats" className="px-2 text-xs sm:px-3 sm:text-sm">試合スタッツ</TabsTrigger>
-          <TabsTrigger value="player-stats" className="px-2 text-xs sm:px-3 sm:text-sm">選手スタッツ</TabsTrigger>
+          <TabsTrigger value="player-stats" className="px-2 text-xs sm:px-3 sm:text-sm">ラインナップ</TabsTrigger>
           <TabsTrigger value="match-events" className="px-2 text-xs sm:px-3 sm:text-sm">試合イベント</TabsTrigger>
+          <TabsTrigger value="match-stats" className="px-2 text-xs sm:px-3 sm:text-sm">試合スタッツ</TabsTrigger>
         </TabsList>
         <TabsContent value="match-stats">
           <MatchTeamStatsForm 

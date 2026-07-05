@@ -45,6 +45,7 @@ export default function FriendlyMatchAdminPage() {
   const [editingTime, setEditingTime] = useState<string>("");
   const [editingScoreHome, setEditingScoreHome] = useState<string>("");
   const [editingScoreAway, setEditingScoreAway] = useState<string>("");
+  const [editingMatchDuration, setEditingMatchDuration] = useState<string>("90");
   const [savingMeta, setSavingMeta] = useState(false);
 
   useEffect(() => {
@@ -53,6 +54,7 @@ export default function FriendlyMatchAdminPage() {
     setEditingTime((match as any).matchTime || "");
     setEditingScoreHome(typeof match.scoreHome === 'number' ? String(match.scoreHome) : "");
     setEditingScoreAway(typeof match.scoreAway === 'number' ? String(match.scoreAway) : "");
+    setEditingMatchDuration((match as any).matchDuration ? String(match.matchDuration) : "90");
   }, [match]);
 
   useEffect(() => {
@@ -170,6 +172,31 @@ export default function FriendlyMatchAdminPage() {
 
     const scoreHome = editingScoreHome === '' ? null : Number(editingScoreHome);
     const scoreAway = editingScoreAway === '' ? null : Number(editingScoreAway);
+    const matchDuration = editingMatchDuration === '' ? 90 : Number(editingMatchDuration);
+
+    // Check if any event exceeds 90 minutes and automatically set matchDuration to 120
+    const hasEventBeyond90 = events.some((ev: any) => {
+      const minute = ev.minute;
+      let baseMinute = 0;
+      
+      if (typeof minute === 'number') {
+        // Handle decimal representation (e.g., 45.001 for "45+1")
+        baseMinute = Math.floor(minute);
+      } else {
+        // Handle string representation (e.g., "45+1" or "95")
+        const minuteStr = String(minute);
+        if (minuteStr.includes('+')) {
+          const parts = minuteStr.split('+');
+          baseMinute = parseInt(parts[0], 10) || 0;
+        } else {
+          baseMinute = parseInt(minuteStr, 10) || 0;
+        }
+      }
+      
+      return baseMinute > 90;
+    });
+
+    const finalMatchDuration = hasEventBeyond90 ? 120 : matchDuration;
 
     if (scoreHome !== null && (Number.isNaN(scoreHome) || scoreHome < 0 || scoreHome > 99)) {
       toast.error('ホームのスコアが不正です。');
@@ -177,6 +204,10 @@ export default function FriendlyMatchAdminPage() {
     }
     if (scoreAway !== null && (Number.isNaN(scoreAway) || scoreAway < 0 || scoreAway > 99)) {
       toast.error('アウェイのスコアが不正です。');
+      return;
+    }
+    if (Number.isNaN(finalMatchDuration) || finalMatchDuration < 30 || finalMatchDuration > 180) {
+      toast.error('試合時間が不正です。');
       return;
     }
 
@@ -188,6 +219,7 @@ export default function FriendlyMatchAdminPage() {
         matchTime: editingTime || null,
         scoreHome,
         scoreAway,
+        matchDuration: finalMatchDuration,
         updatedAt: serverTimestamp(),
       } as any);
       toast.success('保存しました。');
@@ -199,6 +231,7 @@ export default function FriendlyMatchAdminPage() {
               matchTime: editingTime || null,
               scoreHome,
               scoreAway,
+              matchDuration: finalMatchDuration,
             } as any)
           : prev
       );
@@ -307,6 +340,19 @@ export default function FriendlyMatchAdminPage() {
                 value={editingTime}
                 onChange={(e) => setEditingTime(e.target.value)}
                 className="bg-white text-gray-900"
+              />
+            </div>
+            <div className="col-span-2 sm:col-span-2">
+              <div className="text-xs text-muted-foreground mb-1">試合時間（分）</div>
+              <Input
+                type="number"
+                min={30}
+                max={180}
+                inputMode="numeric"
+                value={editingMatchDuration}
+                onChange={(e) => setEditingMatchDuration(e.target.value)}
+                className="bg-white text-gray-900"
+                placeholder="90"
               />
             </div>
             <div className="col-span-1 sm:col-span-1">

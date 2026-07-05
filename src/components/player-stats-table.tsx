@@ -21,18 +21,9 @@ const ratingOptions = (() => {
   const above = all.slice(pivot + 1); // 7.1..10.0
   return [...below, '7.0', ...above];
 })();
-const starterMinutesOptions = (() => {
-  // 90 を中心に表示したい
-  // 上: 1..89 (昇順), 中央: 90, 下: 91..145, 0 は末尾
-  const above = Array.from({ length: 89 }, (_, i) => String(i + 1)); // 1, 2, ..., 89
-  const center = ['90'];
-  const below = Array.from({ length: 55 }, (_, i) => String(91 + i)); // 91..145
-  return [...above, ...center, ...below, '0'];
-})();
-const benchMinutesOptions = Array.from({ length: 146 }, (_, i) => i.toString());
 const NONE_SELECT_VALUE = "__none__";
 
-export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPlayers: Player[] }) {
+export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { teamId: string, allPlayers: Player[], matchDuration?: number }) {
   console.log(`PlayerStatsTable v3 (${teamId}): Received allPlayers`, allPlayers);
   const { control, watch, setValue } = useFormContext();
   const { fields, append, prepend, remove, update } = useFieldArray({
@@ -72,6 +63,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
   const derivedStarterMinutes = useMemo(() => {
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
     const outMinuteByPlayerId = new Map<string, number>();
+    const halfTime = matchDuration / 2; // 90分の場合45分、120分の場合60分
 
     events
       .filter((ev: any) => ev?.type === 'substitution')
@@ -79,51 +71,131 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
         const outId = typeof ev?.outPlayerId === 'string' ? ev.outPlayerId : '';
         if (!outId) return;
         if (ev?.teamId !== teamId) return;
-        const m = typeof ev?.minute === 'number' ? ev.minute : Number(ev?.minute);
-        if (!Number.isFinite(m)) return;
-        const minute = Math.max(0, Math.floor(m));
+        
+        // Parse minute string (e.g., "45+9" -> base: 45, stoppage: 9)
+        const minuteStr = typeof ev?.minute === 'string' ? ev.minute : String(ev?.minute);
+        let baseMinute = 0;
+        let stoppageMinute = 0;
+        
+        if (minuteStr.includes('+')) {
+          const parts = minuteStr.split('+');
+          baseMinute = parseInt(parts[0], 10) || 0;
+          stoppageMinute = parseInt(parts[1], 10) || 0;
+        } else {
+          baseMinute = parseInt(minuteStr, 10) || 0;
+        }
+
+        // Apply new calculation rules
+        let calculatedMinute: number;
+        
+        if (baseMinute === halfTime && stoppageMinute > 0) {
+          // First half stoppage time substitution
+          // OUT player → playing time is halfTime minutes
+          calculatedMinute = halfTime;
+        } else if (baseMinute === matchDuration && stoppageMinute > 0) {
+          // Second half stoppage time substitution
+          // OUT player → playing time is matchDuration minutes (considered full time)
+          calculatedMinute = matchDuration;
+        } else {
+          // Normal time substitution: use base minute as before
+          const m = typeof ev?.minute === 'number' ? ev.minute : Number(ev?.minute);
+          calculatedMinute = Number.isFinite(m) ? Math.max(0, Math.floor(m)) : 0;
+        }
 
         const cur = outMinuteByPlayerId.get(outId);
         if (typeof cur === 'number') {
-          outMinuteByPlayerId.set(outId, Math.min(cur, minute));
+          outMinuteByPlayerId.set(outId, Math.min(cur, calculatedMinute));
         } else {
-          outMinuteByPlayerId.set(outId, minute);
+          outMinuteByPlayerId.set(outId, calculatedMinute);
         }
       });
 
     return outMinuteByPlayerId;
-  }, [teamId, watchedEvents]);
+  }, [teamId, watchedEvents, matchDuration]);
 
-  // Reflect substitution OUT minute to starter minutesPlayed automatically
+  // Calculate bench player minutes (IN substitutions)
+  const derivedBenchMinutes = useMemo(() => {
+    const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
+    const inMinuteByPlayerId = new Map<string, number>();
+    const halfTime = matchDuration / 2; // 90分の場合45分、120分の場合60分
+
+    events
+      .filter((ev: any) => ev?.type === 'substitution')
+      .forEach((ev: any) => {
+        const inId = typeof ev?.inPlayerId === 'string' ? ev.inPlayerId : '';
+        if (!inId) return;
+        if (ev?.teamId !== teamId) return;
+        
+        // Parse minute string (e.g., "45+9" -> base: 45, stoppage: 9)
+        const minuteStr = typeof ev?.minute === 'string' ? ev.minute : String(ev?.minute);
+        let baseMinute = 0;
+        let stoppageMinute = 0;
+        
+        if (minuteStr.includes('+')) {
+          const parts = minuteStr.split('+');
+          baseMinute = parseInt(parts[0], 10) || 0;
+          stoppageMinute = parseInt(parts[1], 10) || 0;
+        } else {
+          baseMinute = parseInt(minuteStr, 10) || 0;
+        }
+
+        // Apply new calculation rules for IN players
+        let calculatedMinute: number;
+        
+        if (baseMinute === halfTime && stoppageMinute > 0) {
+          // First half stoppage time substitution
+          // IN player → playing time is halfTime minutes (halfTime to matchDuration)
+          calculatedMinute = halfTime;
+        } else if (baseMinute === matchDuration && stoppageMinute > 0) {
+          // Second half stoppage time substitution
+          // IN player → playing time is fixed at 1 minute
+          calculatedMinute = 1;
+        } else {
+          // Normal time substitution: use base minute
+          // Playing time = matchDuration - baseMinute
+          calculatedMinute = Math.max(0, matchDuration - baseMinute);
+        }
+
+        inMinuteByPlayerId.set(inId, calculatedMinute);
+      });
+
+    return inMinuteByPlayerId;
+  }, [teamId, watchedEvents, matchDuration]);
+
+  // Automatically calculate and update minutesPlayed based on substitution events and matchDuration
   useEffect(() => {
     const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
     stats.forEach((ps, idx) => {
       if (!ps) return;
       if (ps.teamId !== teamId) return;
-      if ((ps.role ?? 'starter') !== 'starter') return;
+      
       const pid = typeof ps.playerId === 'string' ? ps.playerId : '';
       if (!pid) return;
 
-      // If the player has a substitution OUT event, enforce minutesPlayed to that minute.
-      // Otherwise, allow manual selection (only initialize to 90 when it's missing).
-      const hasOut = derivedStarterMinutes.has(pid);
-      const desired = hasOut ? (derivedStarterMinutes.get(pid) as number) : undefined;
-
+      const role = ps.role ?? 'starter';
       const curRaw = ps.minutesPlayed;
       const cur = typeof curRaw === 'number' && Number.isFinite(curRaw) ? curRaw : Number(curRaw);
       const curNum = Number.isFinite(cur) ? cur : undefined;
 
-      if (hasOut) {
-        if (curNum === desired) return;
-        setValue(`playerStats.${idx}.minutesPlayed` as any, desired as number, { shouldDirty: true });
+      let desired: number;
+
+      // For starters: check if they have a substitution OUT event
+      if (role === 'starter') {
+        const hasOut = derivedStarterMinutes.has(pid);
+        desired = hasOut ? (derivedStarterMinutes.get(pid) as number) : matchDuration;
+      }
+      // For bench: check if they have a substitution IN event
+      else if (role === 'sub') {
+        const hasIn = derivedBenchMinutes.has(pid);
+        desired = hasIn ? (derivedBenchMinutes.get(pid) as number) : 0;
+      } else {
         return;
       }
 
-      if (curRaw === undefined || curRaw === null || curRaw === '') {
-        setValue(`playerStats.${idx}.minutesPlayed` as any, 90, { shouldDirty: false });
-      }
+      if (curNum === desired) return;
+      setValue(`playerStats.${idx}.minutesPlayed` as any, desired, { shouldDirty: true });
     });
-  }, [derivedStarterMinutes, teamId, watchedPlayerStats, setValue]);
+  }, [derivedStarterMinutes, derivedBenchMinutes, matchDuration, teamId, watchedPlayerStats, setValue]);
 
   const sortedAllPlayers = [...allPlayers].sort((a, b) => {
     const an = typeof (a as any)?.number === 'number' && Number.isFinite((a as any).number) ? (a as any).number : Number.POSITIVE_INFINITY;
@@ -219,7 +291,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
       teamId,
       role,
       rating: undefined,
-      minutesPlayed: role === 'starter' ? 90 : 0,
+      minutesPlayed: role === 'starter' ? matchDuration : 0,
       goals: 0,
       assists: 0,
       yellowCards: 0,
@@ -336,7 +408,7 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
       role: 'starter',
       starterSlot: slot,
       rating: undefined,
-      minutesPlayed: 90,
+      minutesPlayed: matchDuration,
       goals: 0,
       assists: 0,
       yellowCards: 0,
@@ -436,21 +508,14 @@ export function PlayerStatsTable({ teamId, allPlayers }: { teamId: string, allPl
 
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[10px] text-gray-500">出場分</span>
-                <Select
+                <Input
+                  type="number"
+                  min="0"
+                  max="90"
+                  readOnly
                   value={watch(minutesFieldName)?.toString() ?? ""}
-                  onValueChange={(val) => setValue(minutesFieldName, parseInt(val, 10))}
-                >
-                  <SelectTrigger size="sm" className="w-20 bg-white text-gray-900 shadow-none focus-visible:ring-0">
-                    <SelectValue placeholder="-" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(role === 'starter' ? starterMinutesOptions : benchMinutesOptions).map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {m}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  className="h-8 w-20 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
+                />
               </div>
 
               <div className="flex flex-col items-center gap-1">

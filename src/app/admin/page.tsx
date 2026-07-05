@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClub } from "@/contexts/ClubContext";
 import { db } from "@/lib/firebase";
+import { SystemAnnouncement } from "@/components/system-announcement";
 import {
   ArrowLeftRight,
   BookOpen,
@@ -289,6 +290,7 @@ export default function AdminHomePage() {
 
   return (
     <div className="w-full mx-auto py-4 sm:py-6">
+      <SystemAnnouncement />
       <div className="sm:hidden">
         <div className="mb-5 flex items-center gap-2">
           <h1 className="text-xl font-bold tracking-tight">管理画面トップ</h1>

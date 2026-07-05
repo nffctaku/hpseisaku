@@ -11,9 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Trash2, PlusCircle, Loader2 } from 'lucide-react';
+import { Trash2, PlusCircle, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useEffect, useRef, useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const formSchema = z.object({
   teamStats: z.array(
@@ -42,17 +44,25 @@ type TeamStatsTemplateDoc = {
 };
 
 const defaultStats: Omit<TeamStat, 'homeValue' | 'awayValue'>[] = [
-  { id: 'shots', name: 'シュート' },
-  { id: 'shotsOnTarget', name: '枠内シュート' },
   { id: 'possession', name: 'ボール支配率' },
+  { id: 'shots', name: 'シュート数' },
+  { id: 'shotsOnTarget', name: '枠内シュート' },
+  { id: 'corners', name: 'コーナーキック' },
+  { id: 'yellowCards', name: 'イエロー' },
+  { id: 'redCards', name: 'レッド' },
+];
+
+const defaultStatIds = defaultStats.map(s => s.id);
+
+const presetStats = [
   { id: 'passes', name: 'パス' },
   { id: 'passAccuracy', name: 'パス成功率' },
   { id: 'fouls', name: 'ファウル' },
-  { id: 'yellowCards', name: 'イエローカード' },
-  { id: 'redCards', name: 'レッドカード' },
   { id: 'offsides', name: 'オフサイド' },
-  { id: 'corners', name: 'コーナーキック' },
 ];
+
+const presetStatIds = presetStats.map(s => s.id);
+const lockedStatIds = [...defaultStatIds, ...presetStatIds];
 
 export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matchDocPath }: MatchTeamStatsFormProps) {
   const { user, ownerUid: ownerUidFromContext } = useAuth();
@@ -62,6 +72,9 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
   const [isTemplateSaving, setIsTemplateSaving] = useState(false);
   const [templateStats, setTemplateStats] = useState<Array<{ id: string; name: string }> | null>(null);
   const [savedIndicatorVisible, setSavedIndicatorVisible] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState<string>('');
+  const [customStatName, setCustomStatName] = useState<string>('');
   const initializedMatchIdRef = useRef<string | null>(null);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveReadyRef = useRef(false);
@@ -187,7 +200,7 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
       const templateRef = doc(db, `clubs/${ownerUid}/competitions/${competitionId}/settings`, 'teamStatsTemplate');
       await setDoc(templateRef, { stats } satisfies TeamStatsTemplateDoc, { merge: true });
       setTemplateStats(stats);
-      toast.success('デフォルトに設定しました。');
+      toast.success('スタッツ項目を保存しました。');
     } catch (e) {
       console.error('Error saving teamStatsTemplate:', e);
       toast.error('デフォルトの保存に失敗しました。');
@@ -210,7 +223,49 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
       toast.warning('スタッツ項目は最大15個です。');
       return;
     }
-    append({ id: `custom_${Date.now()}`, name: '', homeValue: '', awayValue: '' });
+    setSelectedPreset('');
+    setCustomStatName('');
+    setShowAddDialog(true);
+  };
+
+  const handleConfirmAddStat = () => {
+    if (selectedPreset === 'custom') {
+      const name = customStatName.trim();
+      if (!name) {
+        toast.error('項目名を入力してください。');
+        return;
+      }
+      if (name.length > 8) {
+        toast.error('項目名は最大8文字です。');
+        return;
+      }
+      // Check for duplicates
+      const existingNames = fields.map((f) => (f as any).name);
+      if (existingNames.includes(name)) {
+        toast.error('この項目名は既に追加されています。');
+        return;
+      }
+      append({ id: `custom_${Date.now()}`, name, homeValue: '', awayValue: '' });
+    } else if (selectedPreset) {
+      const preset = presetStats.find((p) => p.id === selectedPreset);
+      if (preset) {
+        // Check for duplicates
+        const existingNames = fields.map((f) => (f as any).name);
+        if (existingNames.includes(preset.name)) {
+          toast.error('この項目名は既に追加されています。');
+          return;
+        }
+        append({ id: preset.id, name: preset.name, homeValue: '', awayValue: '' });
+      }
+    }
+    setShowAddDialog(false);
+    setSelectedPreset('');
+    setCustomStatName('');
+  };
+
+  const getAvailablePresets = () => {
+    const existingNames = fields.map((f) => (f as any).name);
+    return presetStats.filter((p) => !existingNames.includes(p.name));
   };
 
   const onSubmit = async (data: FormValues) => {
@@ -301,30 +356,13 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
     <Card className="mt-4 bg-white text-gray-900">
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle>チーム別データ</CardTitle>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-            <div className="flex items-center gap-2">
-                {match.homeTeamLogo && <img src={match.homeTeamLogo} alt={match.homeTeamName} className="w-6 h-6 object-contain" />}
-                <span className="font-semibold">{match.homeTeamName}</span>
-            </div>
-            <div className="flex items-center gap-2">
-                {match.awayTeamLogo && <img src={match.awayTeamLogo} alt={match.awayTeamName} className="w-6 h-6 object-contain" />}
-                <span className="font-semibold">{match.awayTeamName}</span>
-            </div>
-        </div>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end pb-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleSetAsDefault}
-            disabled={isTemplateLoading || isTemplateSaving || isSaving}
-          >
-            {isTemplateSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            デフォルトに設定
-          </Button>
-        </div>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="flex justify-between items-center mb-2">
+            {match.homeTeamLogo && <img src={match.homeTeamLogo} alt={match.homeTeamName} className="w-8 h-8 object-contain" />}
+            {match.awayTeamLogo && <img src={match.awayTeamLogo} alt={match.awayTeamName} className="w-8 h-8 object-contain" />}
+          </div>
           {fields.map((field, index) => {
             const statId = (field as any).id as string;
             const homeVal = toComparable(String(form.watch(`teamStats.${index}.homeValue`) ?? ''));
@@ -357,7 +395,8 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                         {...field}
                         placeholder="項目名"
                         maxLength={8}
-                        className="w-full text-center text-xs bg-white text-gray-900"
+                        disabled={lockedStatIds.includes(statId)}
+                        className="w-full text-center text-xs bg-white text-gray-900 disabled:opacity-70"
                       />
                     )}
                   />
@@ -376,37 +415,89 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                   )}
                 />
 
-                <div className="flex items-center justify-end">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => remove(index)}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
+                {!defaultStatIds.includes(statId) && (
+                  <div className="flex items-center justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => remove(index)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                )}
               </div>
             );
           })}
 
-          <div className="flex justify-between items-center pt-4">
-            <Button type="button" variant="outline" size="sm" onClick={handleAddStat}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              項目を追加
-            </Button>
+          <div className="flex flex-col items-center gap-2 pt-4">
+            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddStat} className="bg-green-500 text-white hover:bg-green-600 border-green-500">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  項目を追加
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>項目を追加</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">項目を選択</label>
+                    <Select value={selectedPreset} onValueChange={setSelectedPreset}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="項目を選択してください" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getAvailablePresets().map((preset) => (
+                          <SelectItem key={preset.id} value={preset.id}>
+                            {preset.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="custom">その他(自由入力)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedPreset === 'custom' && (
+                    <div>
+                      <label className="text-sm font-medium">項目名</label>
+                      <Input
+                        value={customStatName}
+                        onChange={(e) => setCustomStatName(e.target.value)}
+                        placeholder="項目名を入力"
+                        maxLength={8}
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
+                  <div className="flex justify-end">
+                    <Button onClick={handleConfirmAddStat} disabled={!selectedPreset} className="bg-green-500 text-white hover:bg-green-600">
+                      追加
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
             <div className="text-xs text-muted-foreground">
               {savedIndicatorVisible ? '自動保存しました' : null}
             </div>
-            <Button
-              type="submit"
-              disabled={isSaving}
-              className="bg-emerald-600 text-white hover:bg-emerald-700"
-            >
-              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : '更新'}
-            </Button>
           </div>
         </form>
+        <div className="flex flex-col items-center gap-2 pt-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSetAsDefault}
+            disabled={isTemplateLoading || isTemplateSaving || isSaving}
+            className="bg-orange-500 text-white hover:bg-orange-600 border-orange-500"
+          >
+            {isTemplateSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            スタッツ項目を保存する
+          </Button>
+          <p className="text-xs text-gray-500">今後の試合で保存したスタッツ項目が自動的に適用されます</p>
+        </div>
       </CardContent>
     </Card>
   );
