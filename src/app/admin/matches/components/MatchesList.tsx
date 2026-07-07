@@ -39,7 +39,7 @@ export function MatchesList(props: { matches: EnrichedMatch[]; perspectiveTeamId
     <div className="space-y-6">
       {groupedEntries.map(([dateGroup, matchesInGroup]) => (
         <div key={dateGroup}>
-          <h2 className="font-semibold text-lg mb-3 text-muted-foreground">{dateGroup}</h2>
+          <h2 className="font-semibold text-sm mb-3 text-muted-foreground">{dateGroup}</h2>
           <div className="space-y-3">
             {matchesInGroup.map((match) => {
               const matchKey = getMatchKey(match);

@@ -13,6 +13,7 @@ interface ClubInfo {
 
 interface ClubContextType {
   clubInfo: ClubInfo;
+  mainTeamId: string | null;
   fetchClubInfo: () => void;
 }
 
@@ -21,6 +22,7 @@ const ClubContext = createContext<ClubContextType | undefined>(undefined);
 export function ClubProvider({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const [clubInfo, setClubInfo] = useState<ClubInfo>({ id: null, logoUrl: null, clubName: null });
+  const [mainTeamId, setMainTeamId] = useState<string | null>(null);
 
   const fetchClubInfo = useCallback(async () => {
     if (user && !loading) {
@@ -66,6 +68,7 @@ export function ClubProvider({ children }: { children: ReactNode }) {
           clubData,
           teamData,
           resolvedClubId,
+          mainTeamId,
         });
 
         setClubInfo({
@@ -83,6 +86,7 @@ export function ClubProvider({ children }: { children: ReactNode }) {
             (clubProfileData as any).photoURL ||
             null,
         });
+        setMainTeamId(mainTeamId);
       } catch (error) {
         console.error("Error fetching club info for context:", error);
       }
@@ -94,7 +98,7 @@ export function ClubProvider({ children }: { children: ReactNode }) {
   }, [fetchClubInfo]);
 
   return (
-    <ClubContext.Provider value={{ clubInfo, fetchClubInfo }}>
+    <ClubContext.Provider value={{ clubInfo, mainTeamId, fetchClubInfo }}>
       {children}
     </ClubContext.Provider>
   );

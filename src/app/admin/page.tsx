@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useClub } from "@/contexts/ClubContext";
 import { db } from "@/lib/firebase";
 import { SystemAnnouncement } from "@/components/system-announcement";
+import { Input } from "@/components/ui/input";
 import {
   ArrowLeftRight,
   BookOpen,
@@ -20,15 +21,12 @@ import {
   Tv,
   Trophy,
   Users,
-  ClipboardList,
-  BarChart3,
   LayoutGrid,
-  NotebookPen,
-  CheckCircle2,
-  Circle,
-  Copy,
-  Loader2,
+  Search,
+  Eye,
   Share2,
+  History,
+  Copy,
 } from "lucide-react";
 import { collection, doc, getDoc, getDocs, limit, query, setDoc, where } from "firebase/firestore";
 import { toast } from "sonner";
@@ -46,18 +44,13 @@ export default function AdminHomePage() {
 
   const clubId = clubInfo.id || user?.clubId || user?.uid || null;
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [draftNewsCount, setDraftNewsCount] = useState(0);
+  const [unreadMailCount, setUnreadMailCount] = useState(0);
 
   const adsenseClient = (process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "").trim();
   const adsenseSlotAdminHome = (process.env.NEXT_PUBLIC_ADSENSE_SLOT_ADMIN_HOME || "").trim();
   const shouldShowAdminHomeAd = Boolean(adsenseClient && adsenseSlotAdminHome);
-
-  const SHOW_TUTORIAL = false;
-
-  const [tutorialLoading, setTutorialLoading] = useState(false);
-  const [hasTeam, setHasTeam] = useState(false);
-  const [hasPlayer, setHasPlayer] = useState(false);
-  const [hasCompetition, setHasCompetition] = useState(false);
-  const [hasMatch, setHasMatch] = useState(false);
 
   const isPro = user?.plan === "pro";
 
@@ -134,6 +127,44 @@ export default function AdminHomePage() {
     }
   }, [shouldShowAdminHomeAd]);
 
+  // Fetch draft news count
+  useEffect(() => {
+    const clubUid = user?.uid;
+    if (!clubUid) return;
+
+    const run = async () => {
+      try {
+        const newsSnap = await getDocs(query(
+          collection(db, `clubs/${clubUid}/news`),
+          where("status", "==", "draft")
+        ));
+        setDraftNewsCount(newsSnap.size);
+      } catch {
+        setDraftNewsCount(0);
+      }
+    };
+    void run();
+  }, [user?.uid]);
+
+  // Fetch unread mail count (notifications)
+  useEffect(() => {
+    const clubUid = user?.uid;
+    if (!clubUid) return;
+
+    const run = async () => {
+      try {
+        const notificationsSnap = await getDocs(query(
+          collection(db, `clubs/${clubUid}/notifications`),
+          where("read", "==", false)
+        ));
+        setUnreadMailCount(notificationsSnap.size);
+      } catch {
+        setUnreadMailCount(0);
+      }
+    };
+    void run();
+  }, [user?.uid]);
+
   const getHpUrl = () => {
     if (!clubId) return "";
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -154,67 +185,6 @@ export default function AdminHomePage() {
     }
   };
 
-  useEffect(() => {
-    const clubUid = user?.uid;
-    if (!clubUid) return;
-
-    const run = async () => {
-      setTutorialLoading(true);
-      try {
-        const teamsSnap = await getDocs(query(collection(db, `clubs/${clubUid}/teams`), limit(1)));
-        const hasAnyTeam = teamsSnap.size > 0;
-        setHasTeam(hasAnyTeam);
-
-        let hasAnyPlayer = false;
-        if (hasAnyTeam) {
-          const teamId = teamsSnap.docs[0].id;
-          const playersSnap = await getDocs(query(collection(db, `clubs/${clubUid}/teams/${teamId}/players`), limit(1)));
-          hasAnyPlayer = playersSnap.size > 0;
-        }
-        setHasPlayer(hasAnyPlayer);
-
-        const competitionsSnap = await getDocs(query(collection(db, `clubs/${clubUid}/competitions`), limit(1)));
-        const hasAnyCompetition = competitionsSnap.size > 0;
-        setHasCompetition(hasAnyCompetition);
-
-        let hasAnyMatch = false;
-
-        const friendlySnap = await getDocs(query(collection(db, `clubs/${clubUid}/friendly_matches`), limit(1)));
-        if (friendlySnap.size > 0) {
-          hasAnyMatch = true;
-        }
-
-        if (!hasAnyMatch) {
-          const legacySnap = await getDocs(query(collection(db, `clubs/${clubUid}/matches`), limit(1)));
-          if (legacySnap.size > 0) {
-            hasAnyMatch = true;
-          }
-        }
-
-        if (!hasAnyMatch && hasAnyCompetition) {
-          const compId = competitionsSnap.docs[0].id;
-          const roundsSnap = await getDocs(query(collection(db, `clubs/${clubUid}/competitions/${compId}/rounds`), limit(1)));
-          if (roundsSnap.size > 0) {
-            const roundId = roundsSnap.docs[0].id;
-            const matchesSnap = await getDocs(
-              query(collection(db, `clubs/${clubUid}/competitions/${compId}/rounds/${roundId}/matches`), limit(1))
-            );
-            if (matchesSnap.size > 0) {
-              hasAnyMatch = true;
-            }
-          }
-        }
-
-        setHasMatch(hasAnyMatch);
-      } catch {
-      } finally {
-        setTutorialLoading(false);
-      }
-    };
-
-    void run();
-  }, [user?.uid]);
-
   const bookletHref = useMemo(() => {
     return mainTeamId ? `/admin/teams/${mainTeamId}/booklet` : "/admin/teams";
   }, [mainTeamId]);
@@ -223,35 +193,43 @@ export default function AdminHomePage() {
     return mainTeamId ? `/admin/teams/${mainTeamId}/transfers` : "/admin/teams";
   }, [mainTeamId]);
 
-  const TransfersIcon = ({ className }: { className?: string }) => {
-    return (
-      <ArrowLeftRight className={className} />
-    );
+  const navItemsBySection = {
+    frequent: [
+      { href: "/admin/teams", label: "チーム管理", icon: Users },
+      { href: "/admin/players", label: "選手管理", icon: Shield },
+      { href: "/admin/matches", label: "試合管理", icon: Calendar },
+      { href: "/admin/news", label: "ニュース管理", icon: Newspaper, badge: draftNewsCount > 0 ? { text: `下書${draftNewsCount}`, color: "orange" } : undefined },
+    ],
+    content: [
+      { href: "/admin/design", label: "デザイン", icon: LayoutGrid, disabled: !isPro },
+      { href: "/admin/tv", label: "TV管理", icon: Tv },
+      { href: "/admin/club/info", label: "クラブ情報", icon: Home },
+      { href: bookletHref, label: "選手名鑑", icon: BookOpen },
+    ],
+    analysis: [
+      { href: "/admin/competitions", label: "大会管理", icon: Trophy },
+      { href: "/admin/analysis", label: "分析管理", icon: LineChart },
+      { href: transfersHref, label: "移籍管理", icon: ArrowLeftRight },
+      { href: "/admin/settings", label: "変更履歴", icon: History },
+    ],
+    account: [
+      { href: "/admin/plan", label: "プラン", icon: CreditCard },
+      { href: "/admin/club", label: "メール", icon: Mail, badge: unreadMailCount > 0 ? { text: String(unreadMailCount), color: "red" } : undefined },
+    ],
   };
 
-  const navItems: Array<{ href: string; label: string; icon: any; external?: boolean; disabled?: boolean }> = [
-    { href: "/admin/teams", label: "チーム登録", icon: Shield },
-    { href: "/admin/players", label: "選手管理", icon: Users },
-    { href: "/admin/competitions", label: "大会管理", icon: Trophy },
-    { href: "/admin/matches", label: "試合管理", icon: Calendar },
-
-    { href: "/admin/friendly-matches", label: "単発試合", icon: Calendar },
-    { href: "/admin/analysis", label: "分析管理", icon: LineChart },
-    { href: transfersHref, label: "移籍管理", icon: TransfersIcon },
-    { href: bookletHref, label: "選手名鑑", icon: BookOpen },
-    { href: "/admin/news", label: "ニュース管理", icon: Newspaper },
-
-    { href: "/admin/tv", label: "TV管理", icon: Tv },
-    { href: "/admin/design", label: "デザイン", icon: LayoutGrid, disabled: !isPro },
-    { href: "/admin/club/info", label: "クラブ情報", icon: Home },
-    { href: "/admin/settings", label: "設定", icon: Settings },
-
-    { href: "/admin/plan", label: "プラン", icon: CreditCard },
-    { href: "/admin/club", label: "管理者情報", icon: LayoutGrid },
-    { href: "https://forms.gle/YkvqAt14GivwrurBA", label: "問合せ", icon: Mail, external: true },
-  ];
-
-  const visibleItems = navItems;
+  const filteredNavItemsBySection = useMemo(() => {
+    const filterItems = (items: any[]) => {
+      if (!searchQuery.trim()) return items;
+      return items.filter(item => item.label.toLowerCase().includes(searchQuery.toLowerCase()));
+    };
+    return {
+      frequent: filterItems(navItemsBySection.frequent),
+      content: filterItems(navItemsBySection.content),
+      analysis: filterItems(navItemsBySection.analysis),
+      account: filterItems(navItemsBySection.account),
+    };
+  }, [searchQuery, navItemsBySection]);
 
   const handleShareHp = async () => {
     try {
@@ -289,187 +267,158 @@ export default function AdminHomePage() {
   };
 
   return (
-    <div className="w-full mx-auto py-4 sm:py-6">
+    <div className="w-full mx-auto py-4 sm:py-6 px-4 md:px-0 min-h-screen">
       <SystemAnnouncement />
-      <div className="sm:hidden">
-        <div className="mb-5 flex items-center gap-2">
-          <h1 className="text-xl font-bold tracking-tight">管理画面トップ</h1>
+      
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <p className="text-sm text-gray-400">こんにちは</p>
+          <p className="text-lg font-semibold text-white">{clubInfo?.clubName || "チーム"}さん</p>
         </div>
-
-        {SHOW_TUTORIAL ? (
-          <div className="mb-4 rounded-xl border bg-white p-4 text-gray-900">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">はじめての方（4ステップ）</div>
-              {tutorialLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
-            </div>
-
-            <div className="mt-3 space-y-2">
-              <TutorialStep
-                done={hasTeam}
-                title="1. チーム登録"
-                href="/admin/teams"
-                cta="チーム登録へ"
-              />
-              <TutorialStep
-                done={hasPlayer}
-                title="2. 選手登録"
-                href="/admin/players"
-                cta="選手管理へ"
-              />
-              <TutorialStep
-                done={hasCompetition}
-                title="3. 大会登録"
-                href="/admin/competitions"
-                cta="大会管理へ"
-              />
-              <TutorialStep
-                done={hasMatch}
-                title="4. 試合登録"
-                href="/admin/matches"
-                cta="試合管理へ"
-              />
-            </div>
-          </div>
-        ) : null}
-
-        {clubId && (
-          <div className="mb-4 grid grid-cols-2 gap-3">
-            <a
-              href={`/${clubId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex w-full items-center justify-center rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
-            >
-              HPを見る
-            </a>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4 py-3 text-sm font-semibold text-gray-900 border border-gray-200 hover:bg-gray-50"
-                >
-                  <Share2 className="h-4 w-4" />
-                  HPをシェア
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-48 bg-white text-gray-900 border border-gray-200 shadow-lg"
-              >
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    handleShareHpOnX();
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <FaXTwitter className="h-4 w-4" />
-                    <span className="text-sm">Xでシェア</span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={async (e) => {
-                    e.preventDefault();
-                    await handleShareHp();
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <Copy className="h-4 w-4" />
-                    <span className="text-sm">URLをコピー</span>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
-
-        <div className="grid grid-cols-4 gap-3">
-          {visibleItems.map((item) => {
-            const Icon = item.icon;
-
-            const content = (
-              <div
-                className={
-                  item.disabled
-                    ? "w-full aspect-square overflow-hidden rounded-xl border bg-gray-100 text-gray-400 flex flex-col items-center justify-center p-3"
-                    : "w-full aspect-square overflow-hidden rounded-xl border bg-white text-gray-900 hover:bg-gray-50 transition-colors flex flex-col items-center justify-center p-3"
-                }
-              >
-                <Icon className="h-7 w-7" />
-                <div className="mt-2 w-[6em] text-[10px] leading-tight text-center break-words">{item.label}</div>
-              </div>
-            );
-
-            if (item.disabled) {
-              return (
-                <div key={item.label} className="block w-full">
-                  {content}
-                </div>
-              );
-            }
-
-            if (item.external) {
-              return (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full"
-                >
-                  {content}
-                </a>
-              );
-            }
-
-            return (
-              <Link key={item.label} href={item.href} className="block w-full">
-                {content}
-              </Link>
-            );
-          })}
+        <div className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-medium">
+          公開中
         </div>
-
-        {shouldShowAdminHomeAd ? (
-          <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-3">
-            <ins
-              className="adsbygoogle"
-              style={{ display: "block" }}
-              data-ad-client={adsenseClient}
-              data-ad-slot={adsenseSlotAdminHome}
-              data-ad-format="auto"
-              data-full-width-responsive="true"
-            />
-          </div>
-        ) : null}
-
       </div>
+
+      {/* Action Buttons */}
+      {clubId && (
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <a
+            href={`/${clubId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Eye className="h-4 w-4" />
+            HPを見る
+          </a>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-4 py-3 text-sm font-semibold text-gray-900 border border-gray-200 hover:bg-gray-50"
+              >
+                <Share2 className="h-4 w-4" />
+                HPをシェア
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-48 bg-white text-gray-900 border border-gray-200 shadow-lg"
+            >
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  handleShareHpOnX();
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <FaXTwitter className="h-4 w-4" />
+                  <span className="text-sm">Xでシェア</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={async (e) => {
+                  e.preventDefault();
+                  await handleShareHp();
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Copy className="h-4 w-4" />
+                  <span className="text-sm">URLをコピー</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="relative mb-6">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          type="text"
+          placeholder="機能を検索"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10 bg-white border-gray-200"
+        />
+      </div>
+
+      {/* Sections */}
+      <div className="space-y-8">
+        {/* よく使う機能 */}
+        <Section title="よく使う機能" items={filteredNavItemsBySection.frequent} />
+        
+        {/* コンテンツ */}
+        <Section title="コンテンツ" items={filteredNavItemsBySection.content} />
+        
+        {/* 記録・分析 */}
+        <Section title="記録・分析" items={filteredNavItemsBySection.analysis} />
+        
+        {/* アカウント */}
+        <Section title="アカウント" items={filteredNavItemsBySection.account} />
+      </div>
+
+      {shouldShowAdminHomeAd ? (
+        <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-3">
+          <ins
+            className="adsbygoogle"
+            style={{ display: "block" }}
+            data-ad-client={adsenseClient}
+            data-ad-slot={adsenseSlotAdminHome}
+            data-ad-format="auto"
+            data-full-width-responsive="true"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function TutorialStep({ done, title, href, cta }: { done: boolean; title: string; href: string; cta: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border bg-gray-50 px-3 py-2">
-      <div className="flex items-center gap-2 min-w-0">
-        {done ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-        ) : (
-          <Circle className="h-4 w-4 text-muted-foreground" />
-        )}
-        <div className="text-xs font-medium truncate">{title}</div>
-      </div>
+function Section({ title, items }: { title: string; items: Array<{ href: string; label: string; icon: any; disabled?: boolean; badge?: { text: string; color: string } }> }) {
+  if (items.length === 0) return null;
 
-      <Link
-        href={href}
-        className={
-          done
-            ? "text-[11px] text-muted-foreground hover:underline whitespace-nowrap"
-            : "text-[11px] text-blue-700 hover:underline whitespace-nowrap"
-        }
-      >
-        {cta}
-      </Link>
+  return (
+    <div>
+      <h3 className="text-sm text-gray-400 mb-3">{title}</h3>
+      <div className="grid grid-cols-2 gap-3">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const content = (
+            <div className="relative">
+              {item.badge && (
+                <div className={`absolute -top-1 -right-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                  item.badge.color === 'orange' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  {item.badge.text}
+                </div>
+              )}
+              <div
+                className={`bg-white rounded-xl p-4 flex flex-col items-center justify-center gap-2 ${
+                  item.disabled
+                    ? "opacity-50 cursor-not-allowed"
+                    : "hover:shadow-md transition-shadow cursor-pointer"
+                }`}
+              >
+                <Icon className="h-6 w-6 text-gray-700" />
+                <span className="text-sm font-medium text-gray-900 text-center">{item.label}</span>
+              </div>
+            </div>
+          );
+
+          if (item.disabled) {
+            return <div key={item.label}>{content}</div>;
+          }
+
+          return (
+            <Link key={item.label} href={item.href} className="block">
+              {content}
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useClub } from '@/contexts/ClubContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
@@ -14,14 +15,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MatchTeamStatsForm } from '@/components/match-team-stats-form';
 import { SquadRegistrationForm } from '@/components/squad-registration-form';
 import { MatchEventsPreview } from '@/components/match-events-preview';
+import { formatMinute } from '@/lib/formatMinute';
 
 export default function MatchAdminPage() {
   const { user, ownerUid: ownerUidFromContext } = useAuth();
+  const { mainTeamId } = useClub();
   const params = useParams();
   const searchParams = useSearchParams();
   const { competitionId, roundId, matchId } = params;
 
   const ownerUid = ownerUidFromContext || user?.uid;
+  const myTeamId = mainTeamId;
 
   const [match, setMatch] = useState<MatchDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,6 +36,7 @@ export default function MatchAdminPage() {
   const [debugPanel, setDebugPanel] = useState<any>(null);
   const [competitionName, setCompetitionName] = useState<string>('');
   const [roundName, setRoundName] = useState<string>('');
+  const [roundMatches, setRoundMatches] = useState<any[]>([]);
 
   const debugEnabled =
     searchParams?.get('debug') === '1' ||
@@ -72,6 +77,61 @@ export default function MatchAdminPage() {
       cancelled = true;
     };
   }, [user, ownerUid, competitionId, roundId]);
+
+  useEffect(() => {
+    console.log('Competition matches useEffect called:', { user, ownerUid, competitionId, roundId, matchId, myTeamId });
+    if (!user || !ownerUid || typeof competitionId !== 'string' || typeof roundId !== 'string' || typeof matchId !== 'string' || !myTeamId) {
+      console.log('Early return from useEffect: missing required values', { myTeamId });
+      return;
+    }
+    let cancelled = false;
+    const fetchCompetitionMatches = async () => {
+      try {
+        console.log('Fetching all rounds in competition...');
+        // Fetch all rounds in the competition
+        const roundsRef = collection(db, `clubs/${ownerUid}/competitions/${competitionId}/rounds`);
+        const roundsSnap = await getDocs(roundsRef);
+        if (cancelled) return;
+        
+        console.log(`Found ${roundsSnap.docs.length} rounds`);
+        const allMatches: any[] = [];
+        
+        // Fetch matches from each round
+        for (const roundDoc of roundsSnap.docs) {
+          const roundId = roundDoc.id;
+          const matchesRef = collection(db, `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches`);
+          const matchesSnap = await getDocs(matchesRef);
+          const matches = matchesSnap.docs.map(doc => ({ id: doc.id, roundId, ...doc.data() }));
+          allMatches.push(...matches);
+        }
+        
+        console.log(`Total matches fetched: ${allMatches.length}`);
+        
+        // Filter to only include matches where my team is playing
+        const myTeamMatches = allMatches.filter((m: any) => 
+          m.homeTeam === myTeamId || m.awayTeam === myTeamId
+        );
+        
+        console.log('Team filter debug:', { myTeamId, totalMatches: allMatches.length, filteredMatches: myTeamMatches.length });
+        console.log('Filtered matches:', myTeamMatches.map(m => ({ id: m.id, homeTeam: m.homeTeam, awayTeam: m.awayTeam, roundId: m.roundId })));
+        
+        // Sort by matchDate ascending
+        myTeamMatches.sort((a: any, b: any) => {
+          const dateA = new Date(a.matchDate || 0).getTime();
+          const dateB = new Date(b.matchDate || 0).getTime();
+          return dateA - dateB;
+        });
+        
+        setRoundMatches(myTeamMatches);
+      } catch (error) {
+        console.error('Error fetching competition matches:', error);
+      }
+    };
+    fetchCompetitionMatches();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, ownerUid, competitionId, roundId, matchId, myTeamId]);
 
   useEffect(() => {
     if (!user || !ownerUid || typeof matchId !== 'string' || typeof competitionId !== 'string' || typeof roundId !== 'string') {
@@ -144,31 +204,8 @@ export default function MatchAdminPage() {
         };
 
         const filterTeamPlayersBySeason = (players: Player[], rawSeason: string | null): Player[] => {
-          const s = typeof rawSeason === 'string' ? rawSeason.trim() : '';
-          if (!s) return [];
-          const dash = toDashSeason(s);
-          const slash = toSlashSeason(s);
-          const keys = Array.from(new Set([s, dash, slash].filter((x) => typeof x === 'string' && x.trim().length > 0)));
-
-          const strict = (players || []).filter((p: any) => {
-            const seasons = Array.isArray(p?.seasons) ? (p.seasons as any[]) : null;
-            if (seasons && keys.some((k) => seasons.includes(k))) return true;
-            const sd = p?.seasonData && typeof p.seasonData === 'object' ? (p.seasonData as any) : null;
-            if (sd && keys.some((k) => sd[k])) return true;
-            return false;
-          });
-
-          const out = strict;
-
-          out.sort((a, b) => {
-            const na = typeof a?.number === 'number' && Number.isFinite(a.number) ? a.number : 9999;
-            const nb = typeof b?.number === 'number' && Number.isFinite(b.number) ? b.number : 9999;
-            if (na !== nb) return na - nb;
-            const an = typeof a?.name === 'string' ? a.name : '';
-            const bn = typeof b?.name === 'string' ? b.name : '';
-            return an.localeCompare(bn, 'ja');
-          });
-          return out;
+          // Disable season filtering to ensure all players are loaded
+          return players || [];
         };
 
         const fetchRosterPlayersForTeam = async (
@@ -241,8 +278,9 @@ export default function MatchAdminPage() {
               const seasonsArr = Array.isArray(data?.seasons) ? (data.seasons as any[]) : null;
               const hasSeasonsArr = Boolean(seasonsArr && seasonsArr.length > 0);
 
-              // Even within a season-scoped roster collection, stale/incorrect docs may exist.
-              // Only include players that explicitly belong to this season.
+              // Relaxed season membership check - include if:
+              // 1. Has explicit season membership (strict check), OR
+              // 2. Has no season data (legacy roster in season-scoped collection)
               const hasExplicitSeasonMembership = (() => {
                 if (hasSeasonData) {
                   return seasonKeyCandidates.some((k) => sd && typeof sd === 'object' && k in sd);
@@ -265,10 +303,16 @@ export default function MatchAdminPage() {
                 return;
               }
 
+              // Relax season membership check - always include if team matches
+              // This fixes the issue where registered players don't show up
               if (!hasExplicitSeasonMembership) {
-                skipped.noSeasonMembership += 1;
-                if (examples.noSeasonMembership.length < 5) examples.noSeasonMembership.push(d.id);
-                return;
+                // Include players without season data (legacy roster)
+                // Only skip if they have seasons data but none match
+                if (hasSeasonsArr) {
+                  skipped.noSeasonMembership += 1;
+                  if (examples.noSeasonMembership.length < 5) examples.noSeasonMembership.push(d.id);
+                  return;
+                }
               }
 
               if (!teamPlayersById.has(d.id)) {
@@ -506,7 +550,26 @@ export default function MatchAdminPage() {
 
   return (
     <div className="container mx-auto max-w-4xl py-6 sm:py-10">
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex gap-2">
+          {(() => {
+            const currentIndex = roundMatches.findIndex(m => m.id === matchId);
+            const prevMatch = currentIndex > 0 ? roundMatches[currentIndex - 1] : null;
+            
+            return prevMatch ? (
+              <Link
+                href={`/admin/competitions/${competitionId}/rounds/${prevMatch.roundId}/matches/${prevMatch.id}`}
+                className="inline-flex items-center rounded-md border bg-white px-3 py-2 text-xs text-gray-900 shadow-sm hover:bg-gray-50"
+              >
+                ← 前の試合
+              </Link>
+            ) : (
+              <span className="inline-flex items-center rounded-md border bg-gray-100 px-3 py-2 text-xs text-gray-400 shadow-sm cursor-not-allowed">
+                ← 前の試合
+              </span>
+            );
+          })()}
+        </div>
         <Link
           href={(() => {
             const s = typeof seasonId === "string" ? seasonId.trim() : "";
@@ -514,8 +577,27 @@ export default function MatchAdminPage() {
           })()}
           className="inline-flex items-center rounded-md border bg-white px-3 py-2 text-xs text-gray-900 shadow-sm hover:bg-gray-50"
         >
-          ← 試合管理へ戻る
+          試合管理へ戻る
         </Link>
+        <div className="flex gap-2">
+          {(() => {
+            const currentIndex = roundMatches.findIndex(m => m.id === matchId);
+            const nextMatch = currentIndex < roundMatches.length - 1 ? roundMatches[currentIndex + 1] : null;
+            
+            return nextMatch ? (
+              <Link
+                href={`/admin/competitions/${competitionId}/rounds/${nextMatch.roundId}/matches/${nextMatch.id}`}
+                className="inline-flex items-center rounded-md border bg-white px-3 py-2 text-xs text-gray-900 shadow-sm hover:bg-gray-50"
+              >
+                次の試合 →
+              </Link>
+            ) : (
+              <span className="inline-flex items-center rounded-md border bg-gray-100 px-3 py-2 text-xs text-gray-400 shadow-sm cursor-not-allowed">
+                次の試合 →
+              </span>
+            );
+          })()}
+        </div>
       </div>
       {debugEnabled && debugPanel ? (
         <div className="mb-4 rounded-lg border bg-white p-3 text-xs text-gray-900">
@@ -563,7 +645,7 @@ export default function MatchAdminPage() {
                     const scorer = getPlayerName(event.playerId, event.playerName);
                     return (
                       <div key={event.id} className="text-gray-600">
-                        {event.minute}' {scorer}{event.type === 'og' ? ' (OG)' : ''}
+                        {formatMinute(event.minute)}' {scorer}{event.type === 'og' ? ' (OG)' : ''}
                       </div>
                     );
                   })
@@ -618,7 +700,7 @@ export default function MatchAdminPage() {
                       const scorer = getPlayerName(event.playerId, event.playerName);
                       return (
                         <div key={event.id} className="text-gray-600">
-                          {event.minute}' {scorer}{event.type === 'og' ? ' (OG)' : ''}
+                          {formatMinute(event.minute)}' {scorer}{event.type === 'og' ? ' (OG)' : ''}
                         </div>
                       );
                     })

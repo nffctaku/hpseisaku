@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Trash2, Plus, ArrowLeftRight, AlertCircle } from "lucide-react";
 import { FaFutbol } from "react-icons/fa";
 import { Player, MatchDetails } from "@/types/match";
+import { formatMinute } from "@/lib/formatMinute";
 
 // 時間プルダウン用オプション
 // 表示順: 0..45, 45+1..45+10, 46..89, 90, 90+1..90+10, 91..104, 105+1..105+10, 106..119, 120, 120+1..120+10
@@ -63,20 +64,6 @@ for (let extra = 1; extra <= 10; extra++) {
   const value = 120 + extra / 1000; // 120.001-120.010
   minuteOptions.push({ value, label: `120+${extra}` });
 }
-
-const formatMinute = (minute: any) => {
-  const n = typeof minute === 'number' ? minute : Number(minute);
-  if (!Number.isFinite(n)) return '';
-  if (Number.isInteger(n)) return `${n}`;
-
-  const base = Math.floor(n);
-  const extra = Math.round((n - base) * 1000);
-  if (base === 45 && extra >= 1) return `45+${extra}`;
-  if (base === 90 && extra >= 1) return `90+${extra}`;
-  if (base === 105 && extra >= 1) return `105+${extra}`;
-  if (base === 120 && extra >= 1) return `120+${extra}`;
-  return `${n}`;
-};
 
 interface MatchEventsTableProps {
   match: MatchDetails;

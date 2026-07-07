@@ -44,12 +44,12 @@ type TeamStatsTemplateDoc = {
 };
 
 const defaultStats: Omit<TeamStat, 'homeValue' | 'awayValue'>[] = [
-  { id: 'possession', name: 'ボール支配率' },
-  { id: 'shots', name: 'シュート数' },
+  { id: 'shots', name: 'シュート' },
   { id: 'shotsOnTarget', name: '枠内シュート' },
-  { id: 'corners', name: 'コーナーキック' },
+  { id: 'possession', name: '支配率' },
   { id: 'yellowCards', name: 'イエロー' },
   { id: 'redCards', name: 'レッド' },
+  { id: 'cornerKicks', name: 'コーナーキック' },
 ];
 
 const defaultStatIds = defaultStats.map(s => s.id);
@@ -173,17 +173,19 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
   };
 
   useEffect(() => {
-    if (templateStats === null) return;
-
-    const sameMatchAlreadyInitialized = initializedMatchIdRef.current === match.id;
-    if (sameMatchAlreadyInitialized && form.formState.isDirty) return;
+    // Only rebuild when match ID changes, not on other updates
+    const matchIdChanged = initializedMatchIdRef.current !== match.id;
+    if (!matchIdChanged) return;
 
     const existingStats = match.teamStats || [];
-    const statsFromTemplate = templateStats;
-    replace(buildStatsForForm(existingStats, statsFromTemplate));
+    const statsFromTemplate = templateStats ?? [];
+    const newStats = buildStatsForForm(existingStats, statsFromTemplate);
+    
+    replace(newStats);
+    
     initializedMatchIdRef.current = match.id;
     autosaveReadyRef.current = true;
-  }, [match, replace, templateStats, form.formState.isDirty]);
+  }, [match.id, replace]);
 
   const handleSetAsDefault = async () => {
     if (!ownerUid || !competitionId) return toast.error('ユーザー情報が見つかりません。');
@@ -365,26 +367,34 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
           </div>
           {fields.map((field, index) => {
             const statId = (field as any).id as string;
+            const statName = (field as any).name as string;
             const homeVal = toComparable(String(form.watch(`teamStats.${index}.homeValue`) ?? ''));
             const awayVal = toComparable(String(form.watch(`teamStats.${index}.awayValue`) ?? ''));
+            const isReadOnly = statId === 'yellowCards' || statId === 'redCards' || statName === 'イエロー' || statName === 'レッド';
 
             return (
               <div
                 key={(field as any).fieldId}
                 className="flex items-center gap-2"
               >
-                <Controller
-                  name={`teamStats.${index}.homeValue`}
-                  control={form.control}
-                  render={({ field }) => (
-                    <Input
-                      value={typeof field.value === 'string' ? field.value : ''}
-                      onChange={(e) => field.onChange(e.target.value)}
-                      type="text"
-                      className={`w-16 sm:w-24 text-center font-bold text-sm sm:text-lg bg-white text-gray-900 ${homeVal > awayVal ? 'bg-emerald-500/80 text-white' : ''}`}
-                    />
-                  )}
-                />
+                {isReadOnly ? (
+                  <span className="inline-flex items-center justify-center h-8 w-16 sm:w-24 px-2 text-center font-bold text-sm sm:text-lg bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
+                    {form.watch(`teamStats.${index}.homeValue`) ?? ''}
+                  </span>
+                ) : (
+                  <Controller
+                    name={`teamStats.${index}.homeValue`}
+                    control={form.control}
+                    render={({ field }) => (
+                      <Input
+                        value={typeof field.value === 'string' ? field.value : ''}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        type="text"
+                        className={`w-16 sm:w-24 text-center font-bold text-sm sm:text-lg bg-white text-gray-900 ${homeVal > awayVal ? 'bg-emerald-500/80 text-white' : ''}`}
+                      />
+                    )}
+                  />
+                )}
                 
                 <div className="flex-1 min-w-0">
                   <Controller
@@ -402,18 +412,24 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                   />
                 </div>
 
-                <Controller
-                  name={`teamStats.${index}.awayValue`}
-                  control={form.control}
-                  render={({ field }) => (
-                    <Input
-                      value={typeof field.value === 'string' ? field.value : ''}
-                      onChange={(e) => field.onChange(e.target.value)}
-                      type="text"
-                      className={`w-16 sm:w-24 text-center font-bold text-sm sm:text-lg bg-white text-gray-900 ${awayVal > homeVal ? 'bg-emerald-500/80 text-white' : ''}`}
-                    />
-                  )}
-                />
+                {isReadOnly ? (
+                  <span className="inline-flex items-center justify-center h-8 w-16 sm:w-24 px-2 text-center font-bold text-sm sm:text-lg bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
+                    {form.watch(`teamStats.${index}.awayValue`) ?? ''}
+                  </span>
+                ) : (
+                  <Controller
+                    name={`teamStats.${index}.awayValue`}
+                    control={form.control}
+                    render={({ field }) => (
+                      <Input
+                        value={typeof field.value === 'string' ? field.value : ''}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        type="text"
+                        className={`w-16 sm:w-24 text-center font-bold text-sm sm:text-lg bg-white text-gray-900 ${awayVal > homeVal ? 'bg-emerald-500/80 text-white' : ''}`}
+                      />
+                    )}
+                  />
+                )}
 
                 {!defaultStatIds.includes(statId) && (
                   <div className="flex items-center justify-end">
@@ -470,6 +486,7 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                         maxLength={8}
                         className="mt-1"
                       />
+                      <p className="text-xs text-orange-600 mt-1">※項目名が同じじゃないと正しく集計されません</p>
                     </div>
                   )}
                   <div className="flex justify-end">

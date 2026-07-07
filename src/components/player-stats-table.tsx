@@ -209,12 +209,10 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
   const customStatHeaders = watch('customStatHeaders') || [];
 
   // Filter fields to only show players belonging to the current team
-  console.log(`PlayerStatsTable (${teamId}): All fields in form`, fields);
-  console.log(`PlayerStatsTable (${teamId}): All players for this team`, allPlayers);
-
-  const teamPlayerFields = fields.filter(field =>
-    allPlayers.some(p => p.id === (field as any).playerId)
-  );
+  const teamPlayerFields = fields.filter(field => {
+    const fieldTeamId = (field as any).teamId;
+    return fieldTeamId === teamId;
+  });
 
   const teamPlayerIdsInStats = teamPlayerFields.map(f => (f as any).playerId);
   const availablePlayers = sortedAllPlayers.filter(p => !teamPlayerIdsInStats.includes(p.id));
@@ -508,62 +506,37 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
 
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[10px] text-gray-500">出場分</span>
-                <Input
-                  type="number"
-                  min="0"
-                  max="90"
-                  readOnly
-                  value={watch(minutesFieldName)?.toString() ?? ""}
-                  className="h-8 w-20 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
-                />
+                <span className="inline-flex items-center justify-center h-8 w-20 px-2 text-center text-sm bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
+                  {watch(minutesFieldName)?.toString() ?? ""}
+                </span>
               </div>
 
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[10px] text-gray-500">G</span>
-                <Input
-                  type="number"
-                  min="0"
-                  max="10"
-                  readOnly
-                  value={goalsValue}
-                  className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
-                />
+                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
+                  {goalsValue}
+                </span>
               </div>
 
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[10px] text-gray-500">👟</span>
-                <Input
-                  type="number"
-                  min="0"
-                  max="10"
-                  readOnly
-                  value={assistsValue}
-                  className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
-                />
+                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
+                  {assistsValue}
+                </span>
               </div>
 
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[10px] text-gray-500">Y</span>
-                <Input
-                  type="number"
-                  min="0"
-                  max="2"
-                  readOnly
-                  value={yellowValue}
-                  className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
-                />
+                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
+                  {yellowValue}
+                </span>
               </div>
 
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[10px] text-gray-500">R</span>
-                <Input
-                  type="number"
-                  min="0"
-                  max="1"
-                  readOnly
-                  value={redValue}
-                  className="h-8 w-10 px-0 text-center text-sm bg-gray-100 text-gray-900 cursor-default shrink-0 shadow-none focus-visible:ring-0"
-                />
+                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
+                  {redValue}
+                </span>
               </div>
 
               {(opts?.showTrash ?? true) ? (
@@ -610,7 +583,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
           {Array.from({ length: 11 }).map((_, slot) => {
             const slotField = starters.find((f) => (f as any).starterSlot === slot);
             const currentPlayerId = (slotField as any)?.playerId || '';
-            const options = slotField ? sortedAllPlayers : sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
+            const options = sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
 
             if (!slotField) {
               return (
@@ -687,7 +660,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
             const globalIndex = fields.findIndex((f) => f.id === (field as any).id);
             if (globalIndex === -1) return null;
             const currentPlayerId = String(watch(`playerStats.${globalIndex}.playerId`) || (field as any)?.playerId || '');
-            const options = sortedAllPlayers;
+            const options = sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
             return renderPlayerRow(field as any, {
               showTrash: true,
               header: (

@@ -1,6 +1,7 @@
 "use client";
 
 import { MatchDetails, Player } from "@/types/match";
+import { formatMinute } from "@/lib/formatMinute";
 
 interface MatchEventsPreviewProps {
   match: MatchDetails;
@@ -30,18 +31,6 @@ export function MatchEventsPreview({ match, homePlayers, awayPlayers }: MatchEve
   const sorted = [...events]
     .slice()
     .sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
-
-  const formatMinute = (minute: any) => {
-    const n = typeof minute === 'number' ? minute : Number(minute);
-    if (!Number.isFinite(n)) return '';
-    if (Number.isInteger(n)) return `${n}`;
-
-    const base = Math.floor(n);
-    const extra = Math.round((n - base) * 1000);
-    if (base === 45 && extra >= 1) return `45+${extra}`;
-    if (base === 90 && extra >= 1) return `90+${extra}`;
-    return `${n}`;
-  };
 
   const renderLabel = (ev: any) => {
     const mainPlayer = ev.playerId ? playerMap[ev.playerId]?.name : undefined;

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MatchesFilters } from "./components/MatchesFilters";
 import { MatchesList } from "./components/MatchesList";
 import { useMatchesData } from "./hooks/useMatchesData";
@@ -46,6 +47,14 @@ export default function MatchesPage() {
   useEffect(() => {
     if (loadingBootstrap) return;
     const qSeason = (searchParams?.get("season") || "").trim();
+    if (!qSeason && seasonButtons.length > 0) {
+      // URLにシーズンがない場合、最新のシーズンを自動選択
+      setSelectedSeason(seasonButtons[0]);
+      setHasSearched(false);
+      clearMatches();
+      router.replace(`/admin/matches?season=${encodeURIComponent(seasonButtons[0])}`);
+      return;
+    }
     if (!qSeason) return;
     if (selectedSeason !== null) return;
     if (!seasonButtons.includes(qSeason)) return;
@@ -67,45 +76,48 @@ export default function MatchesPage() {
       {selectedSeason === null ? (
         <div className="rounded-lg border bg-card p-4">
           <div className="text-sm text-muted-foreground mb-3">シーズンを選択してください</div>
-          <div className="grid grid-cols-3 gap-2">
-            {seasonButtons.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => {
-                  setSelectedSeason(s);
-                  setHasSearched(false);
-                  clearMatches();
-                  router.replace(`/admin/matches?season=${encodeURIComponent(s)}`);
-                }}
-                className="rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400/60"
-              >
-                {s}
-              </button>
-            ))}
+          <div className="w-full sm:w-[220px]">
+            <Select value="" onValueChange={(value) => {
+              setSelectedSeason(value);
+              setHasSearched(false);
+              clearMatches();
+              router.replace(`/admin/matches?season=${encodeURIComponent(value)}`);
+            }}>
+              <SelectTrigger className="w-full bg-white text-gray-900">
+                <SelectValue placeholder="シーズンを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {seasonButtons.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       ) : (
         <>
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              className="rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white shadow-sm"
-            >
-              {selectedSeason}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedSeason(null);
+          <div className="mb-3 flex justify-center">
+            <div className="w-full sm:w-[220px]">
+              <Select value={selectedSeason} onValueChange={(value) => {
+                setSelectedSeason(value);
                 setHasSearched(false);
                 clearMatches();
-                router.replace("/admin/matches");
-              }}
-              className="rounded-md border bg-white px-3 py-2 text-xs text-gray-900 shadow-sm hover:bg-gray-50"
-            >
-              シーズン選択に戻る
-            </button>
+                router.replace(`/admin/matches?season=${encodeURIComponent(value)}`);
+              }}>
+                <SelectTrigger className="w-full bg-white text-gray-900">
+                  <SelectValue placeholder="シーズン" />
+                </SelectTrigger>
+                <SelectContent>
+                  {seasonButtons.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <MatchesFilters
@@ -140,7 +152,9 @@ export default function MatchesPage() {
         ) : selectedSeason === null ? (
           <div className="text-center py-10 text-muted-foreground">上でシーズンを選択してください。</div>
         ) : (
-          <div className="text-center py-6 text-xs text-muted-foreground whitespace-nowrap">大会とチームを選択して「表示」を押してください。</div>
+          <div className="flex justify-center py-6">
+            <div className="text-xs text-muted-foreground whitespace-nowrap">表示したいシーズン、大会、チームを選択して表示を押してください</div>
+          </div>
         )}
       </div>
     </div>

@@ -7,6 +7,7 @@ import { ClubHeader } from "@/components/club-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ClubFooter } from "@/components/club-footer";
 import { PartnerStripClient } from "@/components/partner-strip-client";
+import { formatMinute } from "@/lib/formatMinute";
 
 interface PageProps {
   params: Promise<{ clubId: string; competitionId: string; roundId: string; matchId: string }>;
@@ -356,18 +357,6 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const playerTeamMap = ((match as any).playerTeamMap || {}) as Record<string, string>;
 
   const venue: string | undefined = (match as any).venue || (match as any).stadium;
-
-  const formatMinute = (minute: any) => {
-    const n = typeof minute === "number" ? minute : Number(minute);
-    if (!Number.isFinite(n)) return "";
-    if (Number.isInteger(n)) return `${n}`;
-
-    const base = Math.floor(n);
-    const extra = Math.round((n - base) * 1000);
-    if (base === 45 && extra >= 1) return `45+${extra}`;
-    if (base === 90 && extra >= 1) return `90+${extra}`;
-    return `${n}`;
-  };
 
   const subOutMinuteByPlayerId = new Map<string, number>();
   const subInMinuteByPlayerId = new Map<string, number>();
