@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
@@ -24,6 +25,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { StaffForm, StaffFormValues } from "./staff-form";
 import { Staff } from "@/types/staff";
 import { staffColumns } from "./staff-columns";
@@ -195,14 +203,7 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
               </DialogContent>
             </Dialog>
 
-            <div className="w-full bg-white/10 text-white border border-white/15 flex items-center justify-center">
-              <Button
-                type="button"
-                disabled={Number.isFinite(maxStaff) && filteredStaff.length >= maxStaff}
-                className="w-full bg-transparent text-white/80 hover:bg-white/5 border-0"
-              >
-                CSVで追加（準備中）
-              </Button>
+            <div className="w-full">
             </div>
           </div>
         </div>
@@ -214,16 +215,42 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
             </div>
           ) : (
             filteredStaff.map((s) => {
+              const photoUrl = typeof (s as any)?.photoUrl === "string" ? String((s as any).photoUrl).trim() : "";
+              const posText = typeof (s as any)?.position === "string" ? String((s as any).position).trim().toUpperCase() : "";
               return (
                 <div
                   key={s.id}
-                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur"
+                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur relative overflow-hidden"
                 >
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded bg-white/10 -ml-3 -mt-3 -mb-3">
+                    {photoUrl ? (
+                      <Image src={photoUrl} alt={s.name || ""} fill className="object-cover" />
+                    ) : (
+                      <div className="h-full w-full" />
+                    )}
+                  </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-3">
+                    <div className="flex items-baseline gap-1">
+                      <div className="w-[4ch] text-sm font-semibold text-white/80 shrink-0">{posText || "-"}</div>
                       <div className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{s.name}</div>
                     </div>
                   </div>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/80"
+                        aria-label="操作"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-white text-gray-900">
+                      <DropdownMenuItem onClick={() => openEditDialog(s)}>編集</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive" onClick={() => setDeletingStaff(s)}>削除</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               );
             })

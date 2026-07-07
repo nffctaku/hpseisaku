@@ -79,6 +79,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const [importingCsv, setImportingCsv] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<Player | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const planTier = getPlanTier(user?.plan);
   const maxPlayers = getPlanLimit("players_per_team", planTier);
@@ -927,14 +928,15 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       toast.error('CSVが選択されていません。');
       return;
     }
-    const hasError = csvPreview.some((p) => Boolean(p.error));
-    if (hasError) {
-      toast.error('エラー行があります。内容を修正してから再度お試しください。');
+
+    // エラー行をスキップして正常な行のみを抽出
+    const validRows = csvPreview.filter((p) => !p.error).map((p) => p.data).filter(Boolean);
+    if (validRows.length === 0) {
+      toast.error('取り込み対象のデータがありません。エラーがある行のみです。');
       return;
     }
 
-    const rows = csvPreview.map((p) => p.data).filter(Boolean);
-    if (Number.isFinite(maxPlayers) && filteredPlayers.length + rows.length > maxPlayers) {
+    if (Number.isFinite(maxPlayers) && filteredPlayers.length + validRows.length > maxPlayers) {
       toast.error(`現在のプランでは1チームあたり選手は最大${maxPlayers}人まで登録できます。`);
       return;
     }
@@ -946,7 +948,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       const batch = writeBatch(db);
       const ids: string[] = [];
 
-      for (const r of rows) {
+      for (const r of validRows) {
         const docRef = doc(playersColRef);
         ids.push(docRef.id);
 
@@ -996,7 +998,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
       await Promise.all(ids.map((id) => invalidatePlayerStatsCache(id)));
 
-      toast.success(`${rows.length}人の選手を追加しました。`);
+      const errorCount = csvPreview.filter((p) => p.error).length;
+      if (errorCount > 0) {
+        toast.success(`${validRows.length}人の選手を追加しました（${errorCount}件はエラーのためスキップされました）。`);
+      } else {
+        toast.success(`${validRows.length}人の選手を追加しました。`);
+      }
       setIsCsvDialogOpen(false);
       setCsvPreview([]);
       setCsvFileName("");
@@ -1044,7 +1051,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                   disabled={Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers}
                   className="w-full bg-white/10 text-white hover:bg-white/15 border border-white/15"
                 >
-                  CSVで追加（準備中）
+                  CSVで追加
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh]">
@@ -1052,16 +1059,62 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                   <DialogTitle>CSVで選手を追加</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-3">
-                  <div className="text-sm text-muted-foreground">
-                    必須：name（選手名）, number（背番号）, position（GK/DF/MF/FW）
+                <div className="space-y-4">
+                  {/* 必須項目の説明（表形式） */}
+                  <div>
+                    <div className="text-sm font-medium mb-2">必須項目</div>
+                    <div className="rounded-md border bg-white">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="px-3 py-2 text-left font-medium text-gray-900 border-b">列名</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-900 border-b">説明</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td className="px-3 py-2 border-b font-mono text-xs">name</td>
+                            <td className="px-3 py-2 border-b text-gray-600">選手名</td>
+                          </tr>
+                          <tr>
+                            <td className="px-3 py-2 border-b font-mono text-xs">number</td>
+                            <td className="px-3 py-2 border-b text-gray-600">背番号</td>
+                          </tr>
+                          <tr>
+                            <td className="px-3 py-2 border-b font-mono text-xs">position</td>
+                            <td className="px-3 py-2 border-b text-gray-600">GK/DF/MF/FW</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
 
                   <Button type="button" variant="outline" onClick={downloadCsvTemplate} className="w-full bg-white text-gray-900 border border-border hover:bg-gray-100">
                     テンプレートCSVをダウンロード
                   </Button>
 
-                  <div className="space-y-2">
+                  {/* ドラッグ&ドロップ対応のファイル選択UI */}
+                  <div
+                    className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                      isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsDragging(false);
+                    }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      setIsDragging(false);
+                      const f = e.dataTransfer.files?.[0];
+                      if (f && f.type === 'text/csv' || f.name.endsWith('.csv')) {
+                        await handleCsvSelected(f);
+                      }
+                    }}
+                  >
                     <input
                       type="file"
                       accept=".csv,text/csv"
@@ -1070,44 +1123,82 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                         if (!f) return;
                         await handleCsvSelected(f);
                       }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
-                    {csvFileName ? <div className="text-xs text-muted-foreground">{csvFileName}</div> : null}
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <p className="text-sm text-gray-600">
+                        {csvFileName ? csvFileName : 'ドラッグ&ドロップ、またはタップして選択'}
+                      </p>
+                    </div>
                   </div>
 
+                  {/* プレビュー表示 */}
                   {csvPreview.length > 0 ? (
-                    <div className="rounded-md border bg-white p-2">
-                      <div className="flex items-center justify-between">
+                    <div className="rounded-md border bg-white p-3">
+                      <div className="flex items-center justify-between mb-3">
                         <div className="text-sm font-semibold">プレビュー</div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-gray-600">
                           {csvPreview.filter((p) => !p.error).length}件OK / {csvPreview.filter((p) => p.error).length}件エラー
                         </div>
                       </div>
 
-                      <div className="mt-2 space-y-1">
+                      <div className="space-y-1">
                         {csvPreview.slice(0, 10).map((p) => (
-                          <div key={`${p.rowNumber}`} className="flex items-start justify-between gap-2 text-xs">
-                            <div className="min-w-0">
-                              <div className="truncate">
+                          <div
+                            key={`${p.rowNumber}`}
+                            className={`flex items-start gap-2 text-xs p-2 rounded ${
+                              p.error ? 'bg-yellow-50 border border-yellow-200' : 'bg-white'
+                            }`}
+                          >
+                            <div className="flex-shrink-0 mt-0.5">
+                              {p.error ? (
+                                <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                              ) : (
+                                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-medium">
                                 {p.data?.name} #{p.data?.number} {p.data?.position}
                               </div>
-                              {p.error ? <div className="text-red-600">{p.rowNumber}行目: {p.error}</div> : null}
+                              {p.error ? <div className="text-yellow-700 mt-0.5">{p.error}</div> : null}
                             </div>
                           </div>
                         ))}
                         {csvPreview.length > 10 ? (
-                          <div className="text-xs text-muted-foreground">…他{csvPreview.length - 10}件</div>
+                          <div className="text-xs text-gray-500 text-center py-2">…他{csvPreview.length - 10}件</div>
                         ) : null}
                       </div>
                     </div>
                   ) : null}
 
+                  {/* 取り込みボタン */}
                   <Button
                     type="button"
-                    disabled={importingCsv || csvPreview.length === 0 || csvPreview.some((p) => Boolean(p.error))}
+                    disabled={
+                      importingCsv ||
+                      csvPreview.length === 0 ||
+                      csvPreview.filter((p) => !p.error).length === 0
+                    }
                     onClick={handleImportCsv}
-                    className="w-full"
+                    className={`w-full ${csvPreview.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
                   >
-                    {importingCsv ? '取り込み中...' : '取り込みを実行'}
+                    {importingCsv
+                      ? '取り込み中...'
+                      : csvPreview.length > 0
+                      ? `${csvPreview.filter((p) => !p.error).length}件を取り込む${
+                          csvPreview.filter((p) => p.error).length > 0
+                            ? ` (${csvPreview.filter((p) => p.error).length}件はエラーのためスキップ)`
+                            : ''
+                        }`
+                      : '取り込みを実行'}
                   </Button>
                 </div>
               </DialogContent>
