@@ -116,7 +116,7 @@ export function PlayersDataTable<TData, TValue>({
                             cell.column.id === "number"
                               ? "w-[4ch] whitespace-nowrap py-2 !pl-[1ch] !pr-0 text-gray-900 tabular-nums"
                               : isPositionCell
-                                ? "w-[3ch] whitespace-nowrap py-2 !pl-[2ch] !pr-0 font-semibold"
+                                ? "w-[3ch] whitespace-nowrap py-2 !pl-[1ch] !pr-0 font-semibold"
                                 : cell.column.id === "name"
                                   ? "py-2 !pl-[2ch] !pr-1.5 text-gray-900"
                                   : "py-2 !px-1.5 text-gray-900"

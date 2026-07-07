@@ -1129,10 +1129,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
               return (
                 <div
                   key={p.id}
-                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur"
+                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur relative overflow-hidden"
                   style={{ borderLeft: `4px solid ${positionColor}` }}
                 >
-                  <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-white/10">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded bg-white/10 -ml-3 -mt-3 -mb-3">
                     {photoUrl ? (
                       <Image src={photoUrl} alt={p.name || ""} fill className="object-cover" />
                     ) : (
@@ -1140,7 +1140,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-3">
+                    <div className="flex items-baseline gap-1">
                       <div className="w-[3ch] text-sm font-semibold tabular-nums text-white/90">{numberText}</div>
                       <div className="w-[3ch] text-sm font-semibold" style={{ color: positionColor }}>{posText || "-"}</div>
                       <div className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{p.name}</div>

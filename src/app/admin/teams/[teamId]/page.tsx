@@ -126,14 +126,6 @@ export default function TeamPlayersPage() {
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">選手管理</h1>
-              {teams.find(t => t.id === teamId) && (
-                <span className="text-lg text-white/80">{teams.find(t => t.id === teamId)?.name}</span>
-              )}
-              {selectedSeason ? (
-                <span className="inline-flex items-center rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
-                  {selectedSeason}
-                </span>
-              ) : null}
             </div>
           </div>
 
