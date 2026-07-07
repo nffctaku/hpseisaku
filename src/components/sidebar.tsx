@@ -151,7 +151,7 @@ export function Sidebar() {
     { href: bookletHref, label: '選手名鑑', icon: BookOpen },
     { href: `/admin/competitions`, label: '大会管理', icon: Trophy },
     { href: '/admin/teams', label: 'チーム登録', icon: Shield },
-    { href: 'https://forms.gle/YkvqAt14GivwrurBA', label: '問合せ', icon: Mail, external: true },
+    { href: 'https://docs.google.com/forms/d/e/1FAIpQLSeu1Yb6hQUtAwdHbrIlaxIL3F_mBgvhDy1KPdAqz728tERXMw/viewform', label: '問合せ', icon: Mail, external: true },
     { href: `/admin/plan`, label: 'プラン', icon: CreditCard },
   ];
 

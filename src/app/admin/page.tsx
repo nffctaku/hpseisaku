@@ -22,7 +22,6 @@ import {
   Trophy,
   Users,
   LayoutGrid,
-  Search,
   Eye,
   Share2,
   History,
@@ -44,7 +43,6 @@ export default function AdminHomePage() {
 
   const clubId = clubInfo.id || user?.clubId || user?.uid || null;
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [draftNewsCount, setDraftNewsCount] = useState(0);
   const [unreadMailCount, setUnreadMailCount] = useState(0);
 
@@ -218,19 +216,6 @@ export default function AdminHomePage() {
     ],
   };
 
-  const filteredNavItemsBySection = useMemo(() => {
-    const filterItems = (items: any[]) => {
-      if (!searchQuery.trim()) return items;
-      return items.filter(item => item.label.toLowerCase().includes(searchQuery.toLowerCase()));
-    };
-    return {
-      frequent: filterItems(navItemsBySection.frequent),
-      content: filterItems(navItemsBySection.content),
-      analysis: filterItems(navItemsBySection.analysis),
-      account: filterItems(navItemsBySection.account),
-    };
-  }, [searchQuery, navItemsBySection]);
-
   const handleShareHp = async () => {
     try {
       if (!clubId) return;
@@ -334,31 +319,19 @@ export default function AdminHomePage() {
         </div>
       )}
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input
-          type="text"
-          placeholder="機能を検索"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10 bg-white border-gray-200"
-        />
-      </div>
-
       {/* Sections */}
       <div className="space-y-8">
         {/* よく使う機能 */}
-        <Section title="よく使う機能" items={filteredNavItemsBySection.frequent} />
+        <Section title="よく使う機能" items={navItemsBySection.frequent} />
         
         {/* コンテンツ */}
-        <Section title="コンテンツ" items={filteredNavItemsBySection.content} />
+        <Section title="コンテンツ" items={navItemsBySection.content} />
         
         {/* 記録・分析 */}
-        <Section title="記録・分析" items={filteredNavItemsBySection.analysis} />
+        <Section title="記録・分析" items={navItemsBySection.analysis} />
         
         {/* アカウント */}
-        <Section title="アカウント" items={filteredNavItemsBySection.account} />
+        <Section title="アカウント" items={navItemsBySection.account} />
       </div>
 
       {shouldShowAdminHomeAd ? (
