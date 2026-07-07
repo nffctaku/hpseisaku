@@ -168,37 +168,92 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
 
   return (
     <>
-      <div className="mt-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">スタッフ管理</h2>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
+      <div className="mt-2">
+        <div className="w-full mb-4">
+          <div className="grid grid-cols-2 gap-1">
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  onClick={openAddDialog}
+                  disabled={Number.isFinite(maxStaff) && filteredStaff.length >= maxStaff}
+                  className="w-full bg-blue-600 text-white hover:bg-blue-700 border border-blue-700"
+                >
+                  スタッフを追加
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh]">
+                <DialogHeader>
+                  <DialogTitle>{editingStaff ? "スタッフを編集" : "スタッフを追加"}</DialogTitle>
+                </DialogHeader>
+                <StaffForm
+                  key={staffFormKey}
+                  onSubmit={handleFormSubmit}
+                  defaultValues={editingStaff || undefined}
+                  defaultSeason={selectedSeason}
+                  draftStorageKey={staffDraftStorageKey}
+                />
+              </DialogContent>
+            </Dialog>
+
+            <div className="w-full bg-white/10 text-white border border-white/15 flex items-center justify-center">
               <Button
-                onClick={openAddDialog}
-                className="bg-white text-gray-900 hover:bg-gray-100 border border-border"
+                type="button"
+                disabled={Number.isFinite(maxStaff) && filteredStaff.length >= maxStaff}
+                className="w-full bg-transparent text-white/80 hover:bg-white/5 border-0"
               >
-                スタッフを追加
+                CSVで追加（準備中）
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh]">
-              <DialogHeader>
-                <DialogTitle>{editingStaff ? "スタッフを編集" : "スタッフを追加"}</DialogTitle>
-              </DialogHeader>
-              <StaffForm
-                key={staffFormKey}
-                onSubmit={handleFormSubmit}
-                defaultValues={editingStaff || undefined}
-                defaultSeason={selectedSeason}
-                draftStorageKey={staffDraftStorageKey}
-              />
-            </DialogContent>
-          </Dialog>
+            </div>
+          </div>
         </div>
 
-        <PlayersDataTable
-          columns={staffColumns(openEditDialog, setDeletingStaff)}
-          data={filteredStaff}
-        />
+        <div className="sm:hidden space-y-3">
+          {filteredStaff.length === 0 ? (
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+              スタッフがいません。
+            </div>
+          ) : (
+            filteredStaff.map((s) => {
+              return (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-3">
+                      <div className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{s.name}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+
+          {filteredStaff.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                toast.info('並び替え機能はPC表示でご利用いただけます。');
+              }}
+              className="text-xs text-white/50 hover:text-white/70 underline cursor-pointer"
+            >
+              ※並び替えはPC表示で行えます。
+            </button>
+          ) : null}
+        </div>
+
+        <div className="hidden sm:block">
+          <PlayersDataTable
+            columns={staffColumns(openEditDialog, setDeletingStaff)}
+            data={filteredStaff}
+            emptyState={filteredStaff.length === 0 ? {
+              title: 'まだスタッフが登録されていません',
+              description: '最初の1人を追加してチームを始めましょう',
+              actionLabel: 'スタッフを追加',
+              onAction: openAddDialog
+            } : undefined}
+          />
+        </div>
       </div>
 
       <AlertDialog open={!!deletingStaff} onOpenChange={() => setDeletingStaff(null)}>

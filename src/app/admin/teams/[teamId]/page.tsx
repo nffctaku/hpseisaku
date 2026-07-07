@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { doc, collection, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, collection, getDocs, updateDoc, limit, query } from 'firebase/firestore';
 import { toDashSeason, toSlashSeason } from '@/lib/season';
 import { toast } from 'sonner';
 import { ChevronLeft, Loader2 } from 'lucide-react';
@@ -14,10 +14,22 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Season {
   id: string;
   isPublic?: boolean;
+}
+
+interface Team {
+  id: string;
+  name: string;
 }
 
 export default function TeamPlayersPage() {
@@ -28,6 +40,7 @@ export default function TeamPlayersPage() {
   const teamId = params.teamId as string;
   const clubUid = ownerUid || user?.uid;
   const [seasons, setSeasons] = useState<Season[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const seasonFromQuery = (searchParams.get('season') || '').trim();
   const [selectedSeason, setSelectedSeason] = useState<string>(seasonFromQuery);
   const [activeTab, setActiveTab] = useState<'players' | 'staff'>('players');
@@ -59,7 +72,24 @@ export default function TeamPlayersPage() {
     });
   }, [clubUid, seasonFromQuery, router, teamId]);
 
+  // Fetch teams for team selector
+  useEffect(() => {
+    if (!clubUid) return;
+    const teamsColRef = collection(db, `clubs/${clubUid}/teams`);
+    getDocs(teamsColRef).then(snapshot => {
+      const teamsData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        name: (doc.data().name as string) || doc.id,
+      }));
+      setTeams(teamsData);
+    });
+  }, [clubUid]);
+
   const seasonIds = seasons.map((s) => s.id);
+
+  const handleChangeTeam = (newTeamId: string) => {
+    router.push(`/admin/teams/${newTeamId}?season=${encodeURIComponent(selectedSeason)}`);
+  };
 
   const handleChangeSeason = (seasonId: string) => {
     setSelectedSeason(seasonId);
@@ -96,57 +126,80 @@ export default function TeamPlayersPage() {
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">選手管理</h1>
+              {teams.find(t => t.id === teamId) && (
+                <span className="text-lg text-white/80">{teams.find(t => t.id === teamId)?.name}</span>
+              )}
               {selectedSeason ? (
                 <span className="inline-flex items-center rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
                   {selectedSeason}
                 </span>
               ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 bg-white/10 text-white border-white/15 hover:bg-white/15 whitespace-nowrap"
-                onClick={() => router.push(`/admin/teams/${teamId}/season`)}
-              >
-                シーズン選択に戻る
-              </Button>
             </div>
           </div>
 
-          <div className="mb-6 rounded-xl border border-white/10 bg-white/5 p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur">
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-              {selectedSeason && (
-                <div className="flex items-center gap-3">
-                  <Switch
-                    id={`public-switch-${selectedSeason}`}
-                    checked={seasons.find(s => s.id === selectedSeason)?.isPublic || false}
-                    onCheckedChange={(checked) => handleTogglePublic(selectedSeason, checked)}
-                    className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-gray-500"
-                  />
-                  <div className="flex flex-col leading-tight">
-                    <Label htmlFor={`public-switch-${selectedSeason}`} className="text-sm text-white">
-                      HPに公開する
-                    </Label>
-                    <span className="text-xs text-white/60">
-                      {seasons.find(s => s.id === selectedSeason)?.isPublic ? '現在: 公開中' : '現在: 非公開'}
-                    </span>
-                  </div>
-                </div>
-              )}
+          {/* Team and Season Selectors */}
+          <div className="mb-6 flex flex-row gap-4">
+            <div className="flex-1">
+              <Select value={teamId} onValueChange={handleChangeTeam}>
+                <SelectTrigger className="bg-white/10 text-white border-white/15 w-full">
+                  <SelectValue placeholder="チームを選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teams.map((team) => (
+                    <SelectItem key={team.id} value={team.id}>
+                      {team.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1">
+              <Select value={selectedSeason} onValueChange={handleChangeSeason}>
+                <SelectTrigger className="bg-white/10 text-white border-white/15 w-full">
+                  <SelectValue placeholder="シーズンを選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {seasons.map((season) => (
+                    <SelectItem key={season.id} value={season.id}>
+                      {season.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
+
+          {/* Public Toggle - Lighter Expression */}
+          {selectedSeason && (
+            <div className="mb-6 flex items-center justify-between py-1">
+              <div className="flex items-center gap-2">
+                <Label htmlFor={`public-switch-${selectedSeason}`} className="text-sm text-white">
+                  HPに公開する
+                </Label>
+                <span className="text-xs text-white/60">
+                  {seasons.find(s => s.id === selectedSeason)?.isPublic ? '現在: 公開中' : '現在: 非公開'}
+                </span>
+              </div>
+              <Switch
+                id={`public-switch-${selectedSeason}`}
+                checked={seasons.find(s => s.id === selectedSeason)?.isPublic || false}
+                onCheckedChange={(checked) => handleTogglePublic(selectedSeason, checked)}
+                className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-gray-500"
+              />
+            </div>
+          )}
 
           {selectedSeason ? (
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-              <TabsList className="grid w-full grid-cols-2 rounded-xl bg-white/10 p-1">
+              <TabsList className="grid w-full grid-cols-2 rounded-xl bg-white/10 p-0">
                 <TabsTrigger
-                  className="w-full rounded-lg text-white/80 data-[state=active]:bg-blue-600 data-[state=active]:text-white"
+                  className="w-full rounded-lg text-white/80 data-[state=active]:bg-blue-600 data-[state=active]:text-white h-9"
                   value="players"
                 >
                   選手管理
                 </TabsTrigger>
                 <TabsTrigger
-                  className="w-full rounded-lg text-white/80 data-[state=active]:bg-blue-600 data-[state=active]:text-white"
+                  className="w-full rounded-lg text-white/80 data-[state=active]:bg-blue-600 data-[state=active]:text-white h-9"
                   value="staff"
                 >
                   スタッフ管理

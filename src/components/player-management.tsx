@@ -407,6 +407,22 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     return () => unsubscribe();
   }, [clubUid, teamId, user?.uid]);
 
+  const getPositionColor = (position: string): string => {
+    const pos = typeof position === 'string' ? position.trim().toUpperCase() : '';
+    switch (pos) {
+      case 'GK':
+        return '#F5C542'; // Yellow
+      case 'DF':
+        return '#4A90D9'; // Blue
+      case 'MF':
+        return '#4CAF7D'; // Green
+      case 'FW':
+        return '#E0574C'; // Red
+      default:
+        return '#9CA3AF'; // Gray
+    }
+  };
+
   const handleFormSubmit = async (values: PlayerFormValues) => {
     if (!clubUid || !teamId) return;
     if (!selectedSeason) {
@@ -993,9 +1009,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
   return (
     <>
-      <div className="mt-6">
-        <div className="mb-4 w-full">
-          <div className="grid grid-cols-2 gap-2">
+      <div className="mt-2">
+        <div className="w-full mb-4">
+          <div className="grid grid-cols-2 gap-1">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button
@@ -1109,10 +1125,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
               const photoUrl = typeof (p as any)?.photoUrl === "string" ? String((p as any).photoUrl).trim() : "";
               const numberText = (p as any)?.number != null ? String((p as any).number) : "-";
               const posText = typeof (p as any)?.position === "string" ? String((p as any).position).trim().toUpperCase() : "";
+              const positionColor = getPositionColor(posText);
               return (
                 <div
                   key={p.id}
                   className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur"
+                  style={{ borderLeft: `4px solid ${positionColor}` }}
                 >
                   <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-white/10">
                     {photoUrl ? (
@@ -1124,7 +1142,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-3">
                       <div className="w-[3ch] text-sm font-semibold tabular-nums text-white/90">{numberText}</div>
-                      <div className="w-[3ch] text-sm font-semibold text-white/80">{posText || "-"}</div>
+                      <div className="w-[3ch] text-sm font-semibold" style={{ color: positionColor }}>{posText || "-"}</div>
                       <div className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{p.name}</div>
                     </div>
                   </div>
@@ -1150,12 +1168,30 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           )}
 
           {filteredPlayers.length > 0 ? (
-            <div className="text-xs text-white/50">※並び替えはPC表示で行えます。</div>
+            <button
+              type="button"
+              onClick={() => {
+                // Show a toast message about PC sorting
+                toast.info('並び替え機能はPC表示でご利用いただけます。');
+              }}
+              className="text-xs text-white/50 hover:text-white/70 underline cursor-pointer"
+            >
+              ※並び替えはPC表示で行えます。
+            </button>
           ) : null}
         </div>
 
         <div className="hidden sm:block">
-          <PlayersDataTable columns={columns(openEditDialog, setDeletingPlayer)} data={filteredPlayers} />
+          <PlayersDataTable
+            columns={columns(openEditDialog, setDeletingPlayer)}
+            data={filteredPlayers}
+            emptyState={filteredPlayers.length === 0 ? {
+              title: 'まだ選手が登録されていません',
+              description: '最初の1人を追加してチームを始めましょう',
+              actionLabel: '選手を追加',
+              onAction: openAddDialog
+            } : undefined}
+          />
         </div>
       </div>
 

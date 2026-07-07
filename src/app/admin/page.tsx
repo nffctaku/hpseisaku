@@ -212,7 +212,7 @@ export default function AdminHomePage() {
     ],
     account: [
       { href: "/admin/plan", label: "プラン", icon: CreditCard },
-      { href: "/admin/club", label: "メール", icon: Mail, badge: unreadMailCount > 0 ? { text: String(unreadMailCount), color: "red" } : undefined },
+      { href: "https://docs.google.com/forms/d/e/1FAIpQLSeu1Yb6hQUtAwdHbrIlaxIL3F_mBgvhDy1KPdAqz728tERXMw/viewform", label: "問合せ", icon: Mail, external: true },
     ],
   };
 
@@ -350,7 +350,7 @@ export default function AdminHomePage() {
   );
 }
 
-function Section({ title, items }: { title: string; items: Array<{ href: string; label: string; icon: any; disabled?: boolean; badge?: { text: string; color: string } }> }) {
+function Section({ title, items }: { title: string; items: Array<{ href: string; label: string; icon: any; disabled?: boolean; badge?: { text: string; color: string }; external?: boolean }> }) {
   if (items.length === 0) return null;
 
   return (
@@ -383,6 +383,20 @@ function Section({ title, items }: { title: string; items: Array<{ href: string;
 
           if (item.disabled) {
             return <div key={item.label}>{content}</div>;
+          }
+
+          if (item.external) {
+            return (
+              <a
+                key={item.label}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                {content}
+              </a>
+            );
           }
 
           return (
