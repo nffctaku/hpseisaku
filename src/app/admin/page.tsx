@@ -193,8 +193,8 @@ export default function AdminHomePage() {
 
   const navItemsBySection = {
     frequent: [
-      { href: "/admin/teams", label: "チーム管理", icon: Users },
-      { href: "/admin/players", label: "選手管理", icon: Shield },
+      { href: "/admin/teams", label: "チーム管理", icon: Shield },
+      { href: "/admin/players", label: "選手管理", icon: Users },
       { href: "/admin/matches", label: "試合管理", icon: Calendar },
       { href: "/admin/news", label: "ニュース管理", icon: Newspaper, badge: draftNewsCount > 0 ? { text: `下書${draftNewsCount}`, color: "orange" } : undefined },
     ],
