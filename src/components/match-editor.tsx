@@ -1,41 +1,39 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { doc, deleteDoc, setDoc, increment } from "firebase/firestore";
-import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Trash2, CalendarIcon, Pencil } from 'lucide-react';
 import { toast } from "sonner";
 import { cn } from '@/lib/utils';
-import { format, parseISO } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { Match, Team } from "@/types/match";
-
-const getSeasonDateRange = (season: string): { fromDate: Date, toDate: Date } | undefined => {
-  const match = season.match(/^(\d{4})\/(\d{2}|\d{4})$/);
-  if (!match) return undefined;
-
-  const startYear = parseInt(match[1], 10);
-  const fromDate = new Date(startYear, 6, 1); // July 1st
-  const toDate = new Date(startYear + 1, 5, 30); // June 30th
-  return { fromDate, toDate };
-};
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundId, season, onUpdate, onDelete }: { match: Match, teams: Team[], allTeamsMap: Map<string, Team>, excludedTeamIds: Set<string>, roundId: string, season: string, onUpdate: Function, onDelete: Function }) {
-  const initialDate = match.matchDate ? parseISO(match.matchDate) : new Date();
-  const [selectedYear, setSelectedYear] = useState<number>(initialDate.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState<number>(initialDate.getMonth() + 1); // 1-12
-  const [selectedDay, setSelectedDay] = useState<number>(initialDate.getDate());
+  const selectedDate = useMemo(() => {
+    const parsed = match.matchDate ? parseISO(match.matchDate) : new Date();
+    return isValid(parsed) ? parsed : new Date();
+  }, [match.matchDate]);
 
-  const seasonRange = useMemo(() => {
-    if (!season) return undefined;
-    return getSeasonDateRange(season);
-  }, [season]);
   const { user, ownerUid } = useAuth();
   const params = useParams();
   const competitionId = params.competitionId as string;
@@ -49,9 +47,6 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
       return;
     }
     try {
-      const ok = window.confirm('この試合を削除します。よろしいですか？');
-      if (!ok) return;
-
       await deleteDoc(doc(db, `clubs/${clubUid}/competitions/${competitionId}/rounds/${roundId}/matches`, match.id));
 
       const indexDocId = `${competitionId}__${roundId}__${match.id}`;
@@ -76,21 +71,14 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
     }
   }
 
-  const years = useMemo(() => {
-    if (!seasonRange) return [selectedYear];
-    const start = seasonRange.fromDate.getFullYear();
-    const end = seasonRange.toDate.getFullYear();
-    if (start === end) return [start];
-    return [start, end];
-  }, [seasonRange, selectedMonth, selectedYear]);
+  const selectedHomeName = match.homeTeam ? allTeamsMap.get(match.homeTeam)?.name : '';
+  const selectedAwayName = match.awayTeam ? allTeamsMap.get(match.awayTeam)?.name : '';
+  const deleteTitle = selectedHomeName && selectedAwayName ? `${selectedHomeName} vs ${selectedAwayName}` : 'この試合';
 
-  const daysInMonth = useMemo(() => {
-    const year = selectedYear;
-    const month = selectedMonth;
-    return new Date(year, month, 0).getDate();
-  }, [selectedYear, selectedMonth]);
-
-  const clampDay = (day: number) => Math.min(day, daysInMonth);
+  const handleDateSelect = (date?: Date) => {
+    if (!date) return;
+    onUpdate(match.id, 'matchDate', format(date, 'yyyy-MM-dd'));
+  };
 
   const clampScore = (value: number) => (Number.isFinite(value) ? Math.max(0, value) : 0);
 
@@ -119,110 +107,73 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
     });
   }, [teams, excludedTeamIds, match.homeTeam, match.awayTeam]);
 
-  const updateMatchDate = (y: number, m: number, d: number) => {
-    const yearStr = y.toString();
-    const monthStr = m.toString().padStart(2, '0');
-    const dayStr = d.toString().padStart(2, '0');
-    onUpdate(match.id, 'matchDate', `${yearStr}-${monthStr}-${dayStr}`);
-  };
-
-  useEffect(() => {
-    if (!seasonRange) return;
-    if (!Array.isArray(years) || years.length === 0) return;
-    if (years.includes(selectedYear)) return;
-
-    const y = years[0];
-    setSelectedYear(y);
-    const newDay = clampDay(selectedDay);
-    setSelectedDay(newDay);
-    updateMatchDate(y, selectedMonth, newDay);
-  }, [seasonRange, years, selectedYear, selectedMonth, selectedDay]);
-
   return (
-    <div className="grid grid-cols-6 lg:grid-cols-12 items-start lg:items-center gap-1 p-2 bg-card text-card-foreground rounded-md border border-border">
-      {/* Date Picker (Year / Month / Day Selects) */}
-      <div className="col-span-6 lg:col-span-3 flex gap-2">
-        {/* Year */}
-        <Select
-          value={selectedYear.toString()}
-          onValueChange={(val) => {
-            const y = parseInt(val, 10);
-            setSelectedYear(y);
-            const newDay = clampDay(selectedDay);
-            setSelectedDay(newDay);
-            updateMatchDate(y, selectedMonth, newDay);
-          }}
-        >
-          <SelectTrigger className="w-1/3 bg-background text-foreground border border-border">
-            <SelectValue placeholder="年" />
-          </SelectTrigger>
-          <SelectContent>
-            {years.map((y) => (
-              <SelectItem key={y} value={y.toString()}>
-                {y}年
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="rounded-xl border border-gray-100 bg-white p-3 text-gray-900 shadow-sm">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className={cn(
+                "h-8 w-auto justify-center gap-1.5 rounded-md border-gray-300 bg-white px-3 text-xs font-semibold text-gray-900 hover:bg-gray-50",
+                !match.matchDate && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="h-3.5 w-3.5" />
+              {match.matchDate ? format(selectedDate, 'yyyy年M月d日(E)', { locale: ja }) : '日付を選択'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto border border-gray-200 bg-white p-0 text-gray-900 shadow-lg" align="start">
+            <Calendar className="bg-white text-gray-900"
+              mode="single"
+              selected={selectedDate}
+              onSelect={handleDateSelect}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
 
-        {/* Month */}
-        <Select
-          value={selectedMonth.toString()}
-          onValueChange={(val) => {
-            const m = parseInt(val, 10);
-            setSelectedMonth(m);
-            const newDay = clampDay(selectedDay);
-            setSelectedDay(newDay);
-            updateMatchDate(selectedYear, m, newDay);
-          }}
-        >
-          <SelectTrigger className="w-1/4 bg-background text-foreground border border-border">
-            <SelectValue placeholder="月" />
-          </SelectTrigger>
-          <SelectContent>
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <SelectItem key={m} value={m.toString()}>
-                {m}月
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Day */}
-        <Select
-          value={selectedDay.toString()}
-          onValueChange={(val) => {
-            const d = parseInt(val, 10);
-            const clamped = clampDay(d);
-            setSelectedDay(clamped);
-            updateMatchDate(selectedYear, selectedMonth, clamped);
-          }}
-        >
-          <SelectTrigger className="flex-1 bg-background text-foreground border border-border">
-            <SelectValue placeholder="日" />
-          </SelectTrigger>
-          <SelectContent>
-            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-              <SelectItem key={d} value={d.toString()}>
-                {d}日
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center justify-end gap-2">
+          <Pencil className="h-4 w-4 text-gray-700" />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 bg-transparent text-red-600 hover:bg-red-50 hover:text-red-700"
+                aria-label="試合を削除"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>試合を削除しますか？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {deleteTitle}の試合を削除します。この操作は元に戻せません。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} className="bg-red-600 text-white hover:bg-red-700">
+                  削除する
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+
       {/* Home Team Selector */}
-      <div className="col-span-2 lg:col-span-3 flex items-center justify-end gap-2">
+      <div className="flex min-w-0 items-center justify-start">
         <Select value={match.homeTeam} onValueChange={(value) => onUpdate(match.id, 'homeTeam', value)}>
-          <SelectTrigger className="w-full bg-background text-foreground border border-border">
+          <SelectTrigger className="h-9 w-full border-0 bg-transparent px-0 text-left font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0">
             <SelectValue placeholder="ホーム">
               {match.homeTeam && allTeamsMap.get(match.homeTeam) ? (
-                <div className="flex items-center gap-2">
-                  {allTeamsMap.get(match.homeTeam)!.logoUrl ? (
-                    <Image src={allTeamsMap.get(match.homeTeam)!.logoUrl!} alt={allTeamsMap.get(match.homeTeam)!.name} width={20} height={20} className="rounded-full object-contain" />
-                  ) : null}
-                  <span>{allTeamsMap.get(match.homeTeam)!.name}</span>
-                </div>
+                <span>{allTeamsMap.get(match.homeTeam)!.name}</span>
               ) : "ホーム"}
             </SelectValue>
           </SelectTrigger>
@@ -233,18 +184,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
                 value={t.id}
                 className="hover:bg-muted focus:bg-muted data-[state=checked]:bg-muted"
               >
-                <div className="flex items-center gap-2">
-                  {t.logoUrl && (
-                    <Image
-                      src={t.logoUrl}
-                      alt={t.name}
-                      width={20}
-                      height={20}
-                      className="rounded-full object-contain"
-                    />
-                  )}
-                  <span>{t.name}</span>
-                </div>
+                <span>{t.name}</span>
               </SelectItem>
             ))}
           </SelectContent>
@@ -252,12 +192,12 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
       </div>
 
       {/* Score Inputs */}
-      <div className="col-span-2 lg:col-span-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
         <div className="flex items-center gap-2">
           <Input
             type="number"
             min={0}
-            className="w-14 text-center font-bold text-lg bg-background text-foreground border border-border"
+            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900"
             value={match.scoreHome ?? ''}
             onChange={(e) => {
               if (e.target.value === '') {
@@ -269,11 +209,11 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
             }}
             placeholder="-"
           />
-          <span className="text-lg text-white">-</span>
+          <span className="text-sm text-gray-400">-</span>
           <Input
             type="number"
             min={0}
-            className="w-14 text-center font-bold text-lg bg-background text-foreground border border-border"
+            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900"
             value={match.scoreAway ?? ''}
             onChange={(e) => {
               if (e.target.value === '') {
@@ -288,12 +228,12 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
         </div>
 
         {canInputPk && (
-          <div className="flex items-center gap-1 text-[10px] text-white/70">
+          <div className="flex items-center gap-1 text-[10px] text-gray-500">
             <span>PK</span>
             <Input
               type="number"
               min={0}
-              className="h-7 w-9 text-center font-semibold text-xs bg-background text-foreground border border-border"
+              className="h-7 w-9 border border-gray-200 bg-white text-center text-xs font-semibold text-gray-900"
               value={(match as any).pkScoreHome ?? ''}
               onChange={(e) => {
                 if (e.target.value === '') {
@@ -305,11 +245,11 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               }}
               placeholder="-"
             />
-            <span className="text-xs text-white/60">-</span>
+            <span className="text-xs text-gray-400">-</span>
             <Input
               type="number"
               min={0}
-              className="h-7 w-9 text-center font-semibold text-xs bg-background text-foreground border border-border"
+              className="h-7 w-9 border border-gray-200 bg-white text-center text-xs font-semibold text-gray-900"
               value={(match as any).pkScoreAway ?? ''}
               onChange={(e) => {
                 if (e.target.value === '') {
@@ -326,17 +266,12 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
       </div>
 
       {/* Away Team Selector */}
-      <div className="col-span-2 lg:col-span-3">
+      <div className="min-w-0">
         <Select value={match.awayTeam} onValueChange={(value) => onUpdate(match.id, 'awayTeam', value)}>
-           <SelectTrigger className="w-full bg-background text-foreground border border-border">
+           <SelectTrigger className="h-9 w-full border-0 bg-transparent px-0 text-right font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0">
             <SelectValue placeholder="アウェイ">
               {match.awayTeam && allTeamsMap.get(match.awayTeam) ? (
-                <div className="flex items-center gap-2">
-                  {allTeamsMap.get(match.awayTeam)!.logoUrl ? (
-                    <Image src={allTeamsMap.get(match.awayTeam)!.logoUrl!} alt={allTeamsMap.get(match.awayTeam)!.name} width={20} height={20} className="rounded-full object-contain" />
-                  ) : null}
-                  <span>{allTeamsMap.get(match.awayTeam)!.name}</span>
-                </div>
+                <span>{allTeamsMap.get(match.awayTeam)!.name}</span>
               ) : "アウェイ"}
             </SelectValue>
           </SelectTrigger>
@@ -347,35 +282,12 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
                 value={t.id}
                 className="hover:bg-muted focus:bg-muted data-[state=checked]:bg-muted"
               >
-                <div className="flex items-center gap-2">
-                  {t.logoUrl && (
-                    <Image
-                      src={t.logoUrl}
-                      alt={t.name}
-                      width={20}
-                      height={20}
-                      className="rounded-full object-contain"
-                    />
-                  )}
-                  <span>{t.name}</span>
-                </div>
+                <span>{t.name}</span>
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
-
-      {/* Delete Button */}
-      <div className="col-span-6 lg:col-span-1 flex justify-end">
-        <Button
-          variant="outline"
-          size="icon"
-          className="border-destructive text-destructive hover:bg-destructive/10 bg-background"
-          onClick={handleDelete}
-          aria-label="試合を削除"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
       </div>
     </div>
   );

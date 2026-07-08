@@ -53,12 +53,26 @@ export default function TeamsPage() {
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [teamSeasons, setTeamSeasons] = useState<string[]>([]);
 
   const getTeamInitial = (name: string) => {
     const s = (name || '').trim();
     if (!s) return '?';
     return s.slice(0, 1).toUpperCase();
   };
+
+  const getLatestSeason = () => {
+  if (teamSeasons.length > 0) {
+    return teamSeasons[0]; // Already sorted in reverse, so first is latest
+  }
+  // Fallback to current date-based calculation if no seasons found
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const startYear = month < 6 ? year - 1 : year;
+  const endYear = startYear + 1;
+  return `${startYear}/${String(endYear).slice(-2)}`;
+};
 
   const getCategoryFilterLabel = () => {
     if (categoryFilter === 'all') return 'すべて';
@@ -104,6 +118,32 @@ export default function TeamsPage() {
 
     return () => unsubscribe();
   }, [clubUid]);
+
+  useEffect(() => {
+    if (!clubUid || !editingTeam) return;
+    const playersColRef = collection(db, `clubs/${clubUid}/teams/${editingTeam.id}/players`);
+    const q = query(playersColRef);
+
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const seasonsSet = new Set<string>();
+        querySnapshot.docs.forEach(doc => {
+          const player = doc.data() as any;
+          if (Array.isArray(player.seasons)) {
+            player.seasons.forEach((season: string) => seasonsSet.add(season));
+          }
+        });
+        const seasonsArray = Array.from(seasonsSet).sort().reverse();
+        setTeamSeasons(seasonsArray);
+      },
+      (error) => {
+        console.error("[AdminTeamsPage] team players onSnapshot error", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [clubUid, editingTeam]);
 
   useEffect(() => {
     if (!clubUid) return;
@@ -319,18 +359,18 @@ export default function TeamsPage() {
             先にカテゴリを作成して、チームを分類できます。
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <div className="flex flex-row gap-2 w-full sm:w-auto">
           <Button
             type="button"
             variant="outline"
             onClick={() => setIsCategoryDialogOpen(true)}
-            className="w-full sm:w-auto bg-white text-gray-900 border border-border hover:bg-gray-100"
+            className="flex-1 sm:w-auto bg-white text-gray-900 border border-border hover:bg-gray-100"
           >
             カテゴリ作成/管理
           </Button>
           <Button
             onClick={() => handleOpenDialog(null)}
-            className="w-full sm:w-auto bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:hover:bg-emerald-600"
+            className="flex-1 sm:w-auto bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:hover:bg-orange-500"
           >
             新規チームを追加
           </Button>
@@ -470,7 +510,7 @@ export default function TeamsPage() {
                       onValueChange={(v) => field.onChange(v === "__none__" ? undefined : v)}
                     >
                       <FormControl>
-                        <SelectTrigger className="bg-white text-gray-900">
+                        <SelectTrigger className="w-full bg-white text-gray-900">
                           <SelectValue placeholder="未分類" />
                         </SelectTrigger>
                       </FormControl>
@@ -491,7 +531,7 @@ export default function TeamsPage() {
                 <FormLabel>チームロゴ</FormLabel>
                 <FormControl>
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-center gap-4">
                       {/* ロゴ画像アップロードは、無料プランではメインチーム（最初の1チーム）のみ許可 */}
                       {(() => {
                         const primaryTeamId = teams[0]?.id;
@@ -501,14 +541,14 @@ export default function TeamsPage() {
 
                         return (
                           <label
-                            className={`border-2 border-dashed rounded-md w-24 h-24 flex flex-col items-center justify-center text-muted-foreground transition-colors ${
+                            className={`border-2 border-dashed rounded-md w-20 h-20 flex flex-col items-center justify-center text-muted-foreground transition-colors ${
                               canUseLogo
                                 ? 'cursor-pointer hover:bg-muted/50'
                                 : 'opacity-50 cursor-not-allowed'
                             }`}
                           >
                             {previewUrl ? (
-                              <Image src={previewUrl} alt="Preview" width={96} height={96} className="object-contain" />
+                              <Image src={previewUrl} alt="Preview" width={80} height={80} className="object-contain" />
                             ) : (
                               <>
                                 <ImagePlus className="h-8 w-8" />
@@ -569,7 +609,7 @@ export default function TeamsPage() {
 
                 {editingTeam && (
                   <Link
-                    href={`/admin/teams/${editingTeam.id}/season`}
+                    href={`/admin/teams/${editingTeam.id}?season=${encodeURIComponent(getLatestSeason())}`}
                     className="block w-full"
                   >
                     <Button type="button" variant="outline" className="w-full">

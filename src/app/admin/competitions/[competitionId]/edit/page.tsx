@@ -15,11 +15,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import Image from 'next/image';
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { ClubEmblemUploader } from "@/components/club-emblem-uploader";
 
-const rankLabelColors = ["green", "red", "orange", "blue", "yellow"] as const;
+const rankLabelColorValues = ["green", "red", "orange", "blue", "yellow", "purple", "pink", "gray"] as const;
+
+const rankLabelColors = [
+  { name: "green", bg: "bg-green-500", border: "border-green-500" },
+  { name: "red", bg: "bg-red-500", border: "border-red-500" },
+  { name: "orange", bg: "bg-orange-500", border: "border-orange-500" },
+  { name: "blue", bg: "bg-blue-500", border: "border-blue-500" },
+  { name: "yellow", bg: "bg-yellow-500", border: "border-yellow-500" },
+  { name: "purple", bg: "bg-purple-500", border: "border-purple-500" },
+  { name: "pink", bg: "bg-pink-500", border: "border-pink-500" },
+  { name: "gray", bg: "bg-gray-500", border: "border-gray-500" }
+] as const;
 
 // NOTE: This is largely a copy of the new page, but adapted for editing.
 // It does not support changing the competition format or re-generating rounds after creation.
@@ -39,9 +50,10 @@ const formSchema = z.object({
     .array(
       z
         .object({
+          name: z.string().optional(),
           from: z.coerce.number().int().positive("1以上の数値を入力してください。"),
           to: z.coerce.number().int().positive("1以上の数値を入力してください。"),
-          color: z.enum(rankLabelColors),
+          color: z.enum(rankLabelColorValues),
         })
         .refine((v) => v.from <= v.to, {
           message: "開始順位は終了順位以下にしてください。",
@@ -159,23 +171,36 @@ export default function EditCompetitionPage() {
 
   return (
     <div className="container mx-auto py-10 max-w-2xl">
-      <h1 className="text-3xl font-bold mb-8 text-white">大会を編集</h1>
-      <div className="bg-white text-gray-900 rounded-lg shadow p-8 space-y-6">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <FormField
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold text-white">大会を編集</h1>
+        <Button
+          type="button"
+          size="icon"
+          onClick={() => router.push('/admin/competitions')}
+          className="bg-orange-500 hover:bg-orange-600 text-white"
+        >
+          <X className="h-6 w-6" />
+        </Button>
+      </div>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
+          {/* セクション1: 基本情報 */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-6">
+            <h2 className="text-sm font-semibold text-white/80 mb-4">基本情報</h2>
+            <div className="space-y-6">
+              <FormField
               control={form.control}
               name="logoUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>大会ロゴ</FormLabel>
+                  <FormLabel className="text-white">大会ロゴ</FormLabel>
                   <FormControl>
                     <ClubEmblemUploader
                       value={field.value || ''}
                       onChange={field.onChange}
                     />
                   </FormControl>
-                  <FormDescription>
+                  <FormDescription className="text-white/50">
                     大会ごとのロゴ画像を設定できます（任意）。
                   </FormDescription>
                   <FormMessage />
@@ -187,10 +212,10 @@ export default function EditCompetitionPage() {
             name="season"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>シーズン</FormLabel>
+                <FormLabel className="text-white">シーズン <span className="text-red-500 text-xs">必須</span></FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full bg-white/10 text-white border-white/20">
                       <SelectValue placeholder="シーズンを選択" />
                     </SelectTrigger>
                   </FormControl>
@@ -204,15 +229,19 @@ export default function EditCompetitionPage() {
               </FormItem>
             )}
           />
-            
+            </div>
+          </div>
+
+          {/* セクション2: 参加チーム */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-6">
+            <h2 className="text-sm font-semibold text-white/80 mb-4">参加チーム <span className="text-red-500 text-xs">必須</span></h2>
             <FormField
             control={form.control}
             name="teams"
             render={() => (
               <FormItem>
                 <div className="mb-4">
-                  <FormLabel className="text-base">参加チーム</FormLabel>
-                  <FormDescription>
+                  <FormDescription className="text-white/50">
                     大会に参加するチームを選択してください。
                   </FormDescription>
                 </div>
@@ -226,7 +255,7 @@ export default function EditCompetitionPage() {
                         return (
                           <FormItem
                             key={team.id}
-                            className="flex flex-row items-start gap-2 space-y-0 rounded-md border p-2 transition-colors hover:bg-muted/50 data-[state=checked]:bg-primary/10"
+                            className="flex flex-row items-start gap-2 space-y-0 rounded-md border border-white/20 p-2 transition-colors hover:bg-white/10 data-[state=checked]:bg-primary/20 bg-white/5"
                           >
                             <FormControl>
                               <Checkbox
@@ -247,9 +276,9 @@ export default function EditCompetitionPage() {
                                 {team.logoUrl ? (
                                   <Image src={team.logoUrl} alt={team.name} width={24} height={24} className="rounded-full object-contain" />
                                 ) : (
-                                  <div className="w-6 h-6 bg-muted rounded-full" />
+                                  <div className="w-6 h-6 bg-white/10 rounded-full" />
                                 )}
-                                <span className="min-w-0 text-xs leading-snug line-clamp-2">{team.name}</span>
+                                <span className="min-w-0 text-xs leading-snug line-clamp-2 text-white">{team.name}</span>
                               </div>
                             </FormLabel>
                           </FormItem>
@@ -262,90 +291,133 @@ export default function EditCompetitionPage() {
               </FormItem>
             )}
           />
+          </div>
 
+          {/* セクション3: 順位ラベル */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-6">
+            <h2 className="text-sm font-semibold text-white/80 mb-4">順位ラベル</h2>
             <div className="space-y-4">
               <div>
-                <FormLabel className="text-base">順位ラベル</FormLabel>
-                <FormDescription>
+                <FormDescription className="text-white/50 text-xs">
                   順位表の左端に色付きラベルを表示します（最大5つ）。
                 </FormDescription>
               </div>
 
+              {/* ミニプレビュー */}
+              <div className="rounded-md border border-white/20 bg-white/5 p-3">
+                <div className="text-[10px] text-white/60 mb-2">プレビュー</div>
+                <div className="space-y-1">
+                  {[1, 2, 3, 4, 5].map((rank) => {
+                    const rankLabels = form.getValues('rankLabels') || [];
+                    const activeLabel = rankLabels.find(
+                      (label: any) => label.from <= rank && label.to >= rank
+                    );
+                    const colorObj = activeLabel ? rankLabelColors.find(c => c.name === activeLabel.color) : null;
+
+                    return (
+                      <div key={rank} className="flex items-center gap-2 h-8 rounded bg-white/5">
+                        {colorObj && (
+                          <div className={`w-1.5 h-6 rounded-l ${colorObj.bg}`} />
+                        )}
+                        <div className="flex-1 flex items-center gap-3 px-2">
+                          <span className="text-[10px] text-white/60 w-4">{rank}</span>
+                          <span className="text-[10px] text-white">チーム {rank}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="space-y-3">
                 {rankLabelFields.map((f, idx) => (
-                  <div key={f.id} className="grid grid-cols-12 gap-2 rounded-md border p-2 overflow-hidden">
-                    <div className="col-span-4">
+                  <div key={f.id} className="grid grid-cols-12 gap-2 rounded-md border border-white/20 p-2 overflow-hidden">
+                    <div className="col-span-6">
+                      <FormField
+                        control={form.control}
+                        name={`rankLabels.${idx}.name`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-[10px] text-white">ラベル名</FormLabel>
+                            <FormControl>
+                              <Input placeholder="昇格圏" {...field} className="h-6 w-full px-2 text-[10px] bg-white/10 text-white border-white/20" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="col-span-2">
                       <FormField
                         control={form.control}
                         name={`rankLabels.${idx}.from`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-[11px]">開始</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="1" className="h-7 w-[72px] px-2 text-xs" {...field} />
-                            </FormControl>
+                            <FormLabel className="text-[10px] text-white">開始</FormLabel>
+                            <div className="flex items-center">
+                              <FormControl>
+                                <Input type="number" placeholder="1" className="h-6 w-full px-2 text-[10px] bg-white/10 text-white border-white/20" {...field} />
+                              </FormControl>
+                              <span className="text-[10px] text-white/60 ml-1">位</span>
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
-                    <div className="col-span-1 flex items-end justify-center pb-2 text-sm text-muted-foreground">
+                    <div className="col-span-1 flex items-end justify-center pb-2 text-sm text-white/60">
                       〜
                     </div>
-                    <div className="col-span-4">
+                    <div className="col-span-2">
                       <FormField
                         control={form.control}
                         name={`rankLabels.${idx}.to`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-[11px]">終了</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="4" className="h-7 w-[72px] px-2 text-xs" {...field} />
-                            </FormControl>
+                            <FormLabel className="text-[10px] text-white">終了</FormLabel>
+                            <div className="flex items-center">
+                              <FormControl>
+                                <Input type="number" placeholder="4" className="h-6 w-full px-2 text-[10px] bg-white/10 text-white border-white/20" {...field} />
+                              </FormControl>
+                              <span className="text-[10px] text-white/60 ml-1">位</span>
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
-                    <div className="col-span-3 min-w-0">
-                      <div className="h-[11px]" />
+                    <div className="col-span-1">
                     </div>
-
-                    <div className="col-span-10 min-w-0">
+                    <div className="col-span-11">
                       <FormField
                         control={form.control}
                         name={`rankLabels.${idx}.color`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-[11px]">色</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger className="h-7 w-full min-w-0 text-xs">
-                                  <SelectValue placeholder="色" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {rankLabelColors.map((c) => (
-                                  <SelectItem key={c} value={c}>
-                                    {c}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex flex-wrap gap-1">
+                              {rankLabelColors.map((color) => (
+                                <button
+                                  key={color.name}
+                                  type="button"
+                                  onClick={() => field.onChange(color.name as any)}
+                                  className={`w-5 h-5 rounded-full ${color.bg} ${field.value === color.name ? `ring-2 ring-offset-1 ring-offset-gray-900 ${color.border}` : ''} transition-all`}
+                                />
+                              ))}
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
-                    <div className="col-span-2 flex justify-end items-end">
+                    <div className="col-span-1 flex justify-start items-center">
                       <Button
                         type="button"
                         variant="destructive"
                         size="icon"
                         onClick={() => removeRankLabel(idx)}
-                        className="h-8 w-8 bg-red-600 text-white hover:bg-red-700"
+                        className="h-6 w-6 bg-red-600 text-white hover:bg-red-700"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
@@ -358,9 +430,10 @@ export default function EditCompetitionPage() {
                     size="sm"
                     onClick={() => {
                       if (rankLabelFields.length >= 5) return;
-                      appendRankLabel({ from: 1, to: 1, color: "green" } as any);
+                      appendRankLabel({ name: "", from: 1, to: 1, color: "green" } as any);
                     }}
                     disabled={rankLabelFields.length >= 5}
+                    className="bg-white/10 text-white border-white/30 hover:bg-white/20"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     ラベルを追加
@@ -368,14 +441,19 @@ export default function EditCompetitionPage() {
                 </div>
               </div>
             </div>
+          </div>
 
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              更新する
-            </Button>
-          </form>
-        </Form>
-      </div>
+          {/* Sticky submit button */}
+          <div className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-white/10 p-4">
+            <div className="container mx-auto max-w-2xl">
+              <Button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600 text-white">
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                更新する
+              </Button>
+            </div>
+          </div>
+        </form>
+      </Form>
     </div>
   );
 }

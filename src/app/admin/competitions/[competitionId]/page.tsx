@@ -3,20 +3,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, doc, getDoc, getDocs, query, where, updateDoc, addDoc, deleteDoc, setDoc, increment } from "firebase/firestore";
-import Image from 'next/image';
+import { collection, doc, getDoc, getDocs, query, updateDoc, addDoc, setDoc, increment } from "firebase/firestore";
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { Loader2, ChevronLeft, ChevronRight, PlusCircle, Trash2, CalendarIcon, AlertTriangle } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, PlusCircle, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from "sonner";
-import { cn } from '@/lib/utils';
-import { format, isToday, isValid, isYesterday, isTomorrow, parseISO } from 'date-fns';
-import { ja } from 'date-fns/locale';
+import { format } from 'date-fns';
 import { MatchEditor } from '@/components/match-editor';
 import { Match, Team } from '@/types/match';
 import {
@@ -274,42 +268,6 @@ export default function CompetitionDetailPage() {
     await setDoc(indexRef, rowForFirestore, { merge: true });
   };
 
-  const groupedMatches = useMemo(() => {
-    if (!currentRound) return [];
-    const reduced = currentRound.matches.reduce(
-      (acc, match) => {
-        const raw = typeof match.matchDate === 'string' ? match.matchDate : '';
-        const date = parseISO(raw);
-
-        let groupName = '日付未設定';
-        let sortMs = Number.POSITIVE_INFINITY;
-
-        if (isValid(date)) {
-          groupName = format(date, 'M月d日(E)', { locale: ja });
-          if (isToday(date)) groupName = '今日';
-          if (isYesterday(date)) groupName = '昨日';
-          if (isTomorrow(date)) groupName = '明日';
-          sortMs = date.getTime();
-        }
-
-        if (!acc.groups[groupName]) {
-          acc.groups[groupName] = [];
-          acc.sortMs[groupName] = sortMs;
-        } else {
-          // 同一グループで複数試合が来た場合、最小の日時を採用
-          acc.sortMs[groupName] = Math.min(acc.sortMs[groupName], sortMs);
-        }
-
-        acc.groups[groupName].push(match);
-        return acc;
-      },
-      { groups: {} as Record<string, Match[]>, sortMs: {} as Record<string, number> }
-    );
-
-    return Object.entries(reduced.groups)
-      .sort(([a], [b]) => (reduced.sortMs[a] ?? Number.POSITIVE_INFINITY) - (reduced.sortMs[b] ?? Number.POSITIVE_INFINITY)) as [string, Match[]][];
-  }, [currentRound]);
-
   const handleResetAllScores = async () => {
     if (!user || !competition || !clubUid) return;
 
@@ -495,16 +453,9 @@ export default function CompetitionDetailPage() {
 
   return (
     <div className="container mx-auto py-10">
-      <div className="flex justify-between items-start mb-8">
-        <div>
-          <h1 className="text-2xl font-bold">{competition?.name}</h1>
-          <p className="text-muted-foreground">{competition?.season}</p>
-        </div>
-        {canEditStandings ? (
-          <Link href={`/admin/competitions/${competitionId}/standings`}>
-            <Button className="bg-green-600 text-white hover:bg-green-700">順位表を更新・編集</Button>
-          </Link>
-        ) : null}
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold">{competition?.name}</h1>
+        <p className="text-muted-foreground">{competition?.season}</p>
       </div>
 
       <div className="flex justify-between items-center bg-card p-2 rounded-lg mb-8">
@@ -526,26 +477,21 @@ export default function CompetitionDetailPage() {
 
       {currentRound && competition ? (
         <div className="space-y-6">
-          {groupedMatches.map(([groupName, matchesInGroup]) => (
-            <div key={groupName}>
-              <h3 className="font-semibold mb-2 text-muted-foreground">{groupName}</h3>
-              <div className="space-y-1">
-                {matchesInGroup.map(match => (
-                  <MatchEditor 
-                    key={match.id} 
-                    match={{ ...(match as any), competitionFormat: competition.format }} 
-                    teams={competitionTeams} 
-                    allTeamsMap={allTeams}
-                    excludedTeamIds={excludedTeamIdsByMatchId.get(match.id) ?? new Set()}
-                    roundId={currentRound.id} 
-                    season={competition.season} 
-                    onUpdate={handleMatchUpdate} 
-                    onDelete={fetchAllData} 
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+          <div className="space-y-3">
+            {currentRound.matches.map(match => (
+              <MatchEditor 
+                key={match.id} 
+                match={{ ...(match as any), competitionFormat: competition.format }} 
+                teams={competitionTeams} 
+                allTeamsMap={allTeams}
+                excludedTeamIds={excludedTeamIdsByMatchId.get(match.id) ?? new Set()}
+                roundId={currentRound.id} 
+                season={competition.season} 
+                onUpdate={handleMatchUpdate} 
+                onDelete={fetchAllData} 
+              />
+            ))}
+          </div>
           <Button variant="outline" className="w-full text-gray-900" onClick={handleAddMatch}><PlusCircle className="mr-2 h-4 w-4" />試合を追加</Button>
           {canEditStandings ? (
             <Link href={`/admin/competitions/${competitionId}/standings`}>

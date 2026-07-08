@@ -8,9 +8,10 @@ import { toast } from 'sonner';
 interface ClubEmblemUploaderProps {
   value: string;
   onChange: (url: string) => void;
+  description?: string;
 }
 
-export function ClubEmblemUploader({ value, onChange }: ClubEmblemUploaderProps) {
+export function ClubEmblemUploader({ value, onChange, description }: ClubEmblemUploaderProps) {
   const [uploading, setUploading] = useState(false);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,7 +47,7 @@ toast.error('エンブレムのアップロードに失敗しました。');
   };
 
   return (
-    <div className="relative w-40 h-40 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center text-gray-500 hover:border-gray-400 hover:text-gray-400 transition-colors cursor-pointer">
+    <div className="relative w-full h-32 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center text-gray-500 hover:border-gray-400 hover:text-gray-400 transition-colors cursor-pointer">
       <input
         type="file"
         accept="image/*"
@@ -59,9 +60,10 @@ toast.error('エンブレムのアップロードに失敗しました。');
       ) : value ? (
         <Image src={value} alt="Club Emblem" fill className="object-contain rounded-lg" />
       ) : (
-        <div className="text-center">
+        <div className="text-center px-4">
           <UploadCloud className="mx-auto h-12 w-12" />
           <p className="mt-2 text-sm">エンブレムをアップロード</p>
+          {description && <p className="mt-1 text-xs text-gray-400">{description}</p>}
         </div>
       )}
     </div>

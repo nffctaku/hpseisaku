@@ -195,8 +195,8 @@ export default function AdminHomePage() {
     frequent: [
       { href: "/admin/teams", label: "チーム管理", icon: Shield },
       { href: "/admin/players", label: "選手管理", icon: Users },
+      { href: "/admin/competitions", label: "大会管理", icon: Trophy },
       { href: "/admin/matches", label: "試合管理", icon: Calendar },
-      { href: "/admin/news", label: "ニュース管理", icon: Newspaper, badge: draftNewsCount > 0 ? { text: `下書${draftNewsCount}`, color: "orange" } : undefined },
     ],
     content: [
       { href: "/admin/design", label: "デザイン", icon: LayoutGrid, disabled: !isPro },
@@ -205,7 +205,7 @@ export default function AdminHomePage() {
       { href: bookletHref, label: "選手名鑑", icon: BookOpen },
     ],
     analysis: [
-      { href: "/admin/competitions", label: "大会管理", icon: Trophy },
+      { href: "/admin/news", label: "ニュース管理", icon: Newspaper, badge: draftNewsCount > 0 ? { text: `下書${draftNewsCount}`, color: "orange" } : undefined },
       { href: "/admin/analysis", label: "分析管理", icon: LineChart },
       { href: transfersHref, label: "移籍管理", icon: ArrowLeftRight },
       { href: "/admin/settings", label: "変更履歴", icon: History },
@@ -321,8 +321,8 @@ export default function AdminHomePage() {
 
       {/* Sections */}
       <div className="space-y-8">
-        {/* よく使う機能 */}
-        <Section title="よく使う機能" items={navItemsBySection.frequent} />
+        {/* はじめに */}
+        <Section title="はじめに" items={navItemsBySection.frequent} />
         
         {/* コンテンツ */}
         <Section title="コンテンツ" items={navItemsBySection.content} />

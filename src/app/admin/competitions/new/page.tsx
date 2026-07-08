@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import Image from 'next/image';
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { ClubEmblemUploader } from "@/components/club-emblem-uploader";
 
@@ -27,7 +27,18 @@ const seasons = Array.from({ length: 91 }, (_, i) => {
   return `${startYear}/${String(endYear).slice(-2)}`;
 });
 
-const rankLabelColors = ["green", "red", "orange", "blue", "yellow"] as const;
+const rankLabelColorValues = ["green", "red", "orange", "blue", "yellow", "purple", "pink", "gray"] as const;
+
+const rankLabelColors = [
+  { name: "green", bg: "bg-green-500", border: "border-green-500" },
+  { name: "red", bg: "bg-red-500", border: "border-red-500" },
+  { name: "orange", bg: "bg-orange-500", border: "border-orange-500" },
+  { name: "blue", bg: "bg-blue-500", border: "border-blue-500" },
+  { name: "yellow", bg: "bg-yellow-500", border: "border-yellow-500" },
+  { name: "purple", bg: "bg-purple-500", border: "border-purple-500" },
+  { name: "pink", bg: "bg-pink-500", border: "border-pink-500" },
+  { name: "gray", bg: "bg-gray-500", border: "border-gray-500" }
+] as const;
 
 const formSchema = z.object({
   name: z.string().min(1, "大会名は必須です。"),
@@ -54,9 +65,10 @@ const formSchema = z.object({
     .array(
       z
         .object({
+          name: z.string().optional(),
           from: z.coerce.number().int().positive("1以上の数値を入力してください。"),
           to: z.coerce.number().int().positive("1以上の数値を入力してください。"),
-          color: z.enum(rankLabelColors),
+          color: z.enum(rankLabelColorValues),
         })
         .refine((v) => v.from <= v.to, {
           message: "開始順位は終了順位以下にしてください。",
@@ -354,204 +366,234 @@ export default function NewCompetitionPage() {
 
   return (
     <div className="container mx-auto py-10 max-w-2xl">
-      <h1 className="text-3xl font-bold mb-8 text-white">新規大会登録</h1>
-      <div className="bg-white text-gray-900 rounded-lg shadow p-8 space-y-6">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <FormField
-            control={form.control}
-            name="logoUrl"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>大会ロゴ</FormLabel>
-                <FormControl>
-                  <ClubEmblemUploader
-                    value={field.value || ''}
-                    onChange={field.onChange}
-                  />
-                </FormControl>
-                <FormDescription>
-                  大会ごとのロゴ画像を設定できます（任意）。
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-            <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>大会名</FormLabel>
-                <div className="space-y-2">
-                  <Select
-                    value={selectedCompetitionName}
-                    onValueChange={(v) => {
-                      setSelectedCompetitionName(v);
-                      if (v === '__new__') {
-                        setCompetitionNameMode('new');
-                        field.onChange('');
-                        return;
-                      }
-                      setCompetitionNameMode('existing');
-                      field.onChange(v);
-
-                      const template = templateByName[v];
-                      if (template) {
-                        applyTemplateFromCompetition(template);
-                      }
-                    }}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="大会名を選択" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {competitionNameSuggestions.map((n) => (
-                        <SelectItem key={n} value={n}>
-                          {n}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="__new__">（新しい大会名を追加）</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  {competitionNameMode === 'new' && (
-                    <FormControl>
-                      <Input placeholder="プレミアリーグ" {...field} />
-                    </FormControl>
-                  )}
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-            <FormField
-            control={form.control}
-            name="season"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>シーズン</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="シーズンを選択" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {seasons.map(s => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-            <FormField
-            control={form.control}
-            name="format"
-            render={({ field }) => (
-              <FormItem className="space-y-3">
-                <FormLabel>大会フォーマット</FormLabel>
-                <FormControl>
-                  <div className="flex flex-col space-y-2">
-                    <label className="flex items-center space-x-3">
-                      <input type="radio" {...field} value="league" checked={field.value === 'league'} className="form-radio" disabled={competitionNameMode === 'existing'} />
-                      <span className="font-normal">リーグ戦</span>
-                    </label>
-                    <label className="flex items-center space-x-3">
-                      <input type="radio" {...field} value="cup" checked={field.value === 'cup'} className="form-radio" disabled={competitionNameMode === 'existing'} />
-                      <span className="font-normal">カップ戦</span>
-                    </label>
-                    <label className="flex items-center space-x-3">
-                      <input type="radio" {...field} value="league_cup" checked={field.value === 'league_cup'} className="form-radio" disabled={competitionNameMode === 'existing'} />
-                      <span className="font-normal">リーグ & トーナメント</span>
-                    </label>
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-            {(selectedFormat === 'league' || selectedFormat === 'league_cup') && (
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold text-white">新規大会登録</h1>
+        <Button
+          type="button"
+          size="icon"
+          onClick={() => router.push('/admin/competitions')}
+          className="bg-orange-500 hover:bg-orange-600 text-white"
+        >
+          <X className="h-6 w-6" />
+        </Button>
+      </div>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-20">
+          {/* セクション1: 基本情報 */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-6">
+            <h2 className="text-sm font-semibold text-white/80 mb-4">基本情報</h2>
+            <div className="space-y-6">
               <FormField
               control={form.control}
-              name="leagueRounds"
+              name="logoUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>総節数</FormLabel>
+                  <FormLabel className="text-white">大会ロゴ</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="38"
-                      {...field}
-                      value={field.value ?? ""}
-                      onChange={(e) => field.onChange(e.target.value)}
+                    <ClubEmblemUploader
+                      value={field.value || ''}
+                      onChange={field.onChange}
+                      description="大会ごとのロゴ画像を設定できます（任意）"
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
-              />
-            )}
+            />
+              <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white">大会名 <span className="text-red-500 text-xs">必須</span></FormLabel>
+                  <div className="space-y-2">
+                    <Select
+                      value={selectedCompetitionName}
+                      onValueChange={(v) => {
+                        setSelectedCompetitionName(v);
+                        if (v === '__new__') {
+                          setCompetitionNameMode('new');
+                          field.onChange('');
+                          return;
+                        }
+                        setCompetitionNameMode('existing');
+                        field.onChange(v);
 
-            {(selectedFormat === 'cup' || selectedFormat === 'league_cup') && (
-              <div className="space-y-4">
-              <FormLabel>回戦名</FormLabel>
-              {cupRoundFields.map((field, index) => (
-                <div key={field.id} className="flex items-center gap-2">
-                  <FormField
-                    control={form.control}
-                    name={`cupRounds.${index}.name`}
-                    render={({ field }) => (
-                      <FormItem className="flex-grow">
-                        <FormControl><Input placeholder={`例: 準々決勝`} {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
+                        const template = templateByName[v];
+                        if (template) {
+                          applyTemplateFromCompetition(template);
+                        }
+                      }}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full bg-white/10 text-white border-white/20">
+                          <SelectValue placeholder="大会名を選択" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {competitionNameSuggestions.map((n) => (
+                          <SelectItem key={n} value={n}>
+                            {n}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="__new__">（新しい大会名を追加）</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {competitionNameMode === 'new' ? (
+                      <FormControl>
+                        <Input placeholder="プレミアリーグ" {...field} className="w-full bg-white/10 text-white border-white/20" />
+                      </FormControl>
+                    ) : (
+                      <FormControl>
+                        <Input placeholder="プレミアリーグ" {...field} disabled className="w-full bg-white/5 text-white/60 border-white/10" />
+                      </FormControl>
                     )}
-                  />
-                  <Button type="button" variant="destructive" size="icon" onClick={() => removeCupRound(index)} disabled={cupRoundFields.length <= 1}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-                <Button type="button" variant="outline" size="sm" onClick={() => appendCupRound({ name: "" })}>
-                <Plus className="mr-2 h-4 w-4" />
-                回戦を追加
-              </Button>
-              </div>
-            )}
+                    {competitionNameMode === 'existing' && (
+                      <p className="text-xs text-white/50">既存大会名を選択中 - 新しい大会名を入力するには「（新しい大会名を追加）」を選択してください</p>
+                    )}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+              <FormField
+              control={form.control}
+              name="season"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white">シーズン <span className="text-red-500 text-xs">必須</span></FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="w-full bg-white/10 text-white border-white/20">
+                        <SelectValue placeholder="シーズンを選択" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {seasons.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            </div>
+          </div>
 
+          {/* セクション2: フォーマット設定 */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-6">
+            <h2 className="text-sm font-semibold text-white/80 mb-4">フォーマット設定</h2>
+            <div className="space-y-6">
+              <FormField
+              control={form.control}
+              name="format"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <FormLabel className="text-white">大会フォーマット <span className="text-red-500 text-xs">必須</span></FormLabel>
+                  <FormControl>
+                    <div className="flex flex-col space-y-2">
+                      <label className="flex items-center space-x-3 text-white">
+                        <input type="radio" {...field} value="league" checked={field.value === 'league'} className="form-radio" disabled={competitionNameMode === 'existing'} />
+                        <span className="font-normal">リーグ戦</span>
+                      </label>
+                      <label className="flex items-center space-x-3 text-white">
+                        <input type="radio" {...field} value="cup" checked={field.value === 'cup'} className="form-radio" disabled={competitionNameMode === 'existing'} />
+                        <span className="font-normal">カップ戦</span>
+                      </label>
+                      <label className="flex items-center space-x-3 text-white">
+                        <input type="radio" {...field} value="league_cup" checked={field.value === 'league_cup'} className="form-radio" disabled={competitionNameMode === 'existing'} />
+                        <span className="font-normal">リーグ & トーナメント</span>
+                      </label>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+              {(selectedFormat === 'league' || selectedFormat === 'league_cup') && (
+                <FormField
+                control={form.control}
+                name="leagueRounds"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-white">総節数</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="38"
+                        {...field}
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        className="bg-white/10 text-white border-white/20"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+                />
+              )}
+
+              {(selectedFormat === 'cup' || selectedFormat === 'league_cup') && (
+                <div className="space-y-4">
+                <FormLabel className="text-white">回戦名</FormLabel>
+                {cupRoundFields.map((field, index) => (
+                  <div key={field.id} className="flex items-center gap-2">
+                    <FormField
+                      control={form.control}
+                      name={`cupRounds.${index}.name`}
+                      render={({ field }) => (
+                        <FormItem className="flex-grow">
+                          <FormControl><Input placeholder={`例: 準々決勝`} {...field} className="bg-white/10 text-white border-white/20" /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button type="button" variant="destructive" size="icon" onClick={() => removeCupRound(index)} disabled={cupRoundFields.length <= 1}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                  <Button type="button" variant="outline" size="sm" onClick={() => appendCupRound({ name: "" })}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  回戦を追加
+                </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* セクション3: 参加チーム */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-6">
+            <h2 className="text-sm font-semibold text-white/80 mb-4">参加チーム <span className="text-red-500 text-xs">必須</span></h2>
             <FormField
             control={form.control}
             name="teams"
             render={() => (
               <FormItem>
                 <div className="mb-4">
-                  <FormLabel className="text-base">参加チーム</FormLabel>
-                  <FormDescription>
+                  <FormDescription className="text-white/50">
                     大会に参加するチームを選択してください。
                   </FormDescription>
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
-                  <div className="text-xs sm:text-sm text-muted-foreground">表示カテゴリ</div>
+                  <div></div>
                   <div className="w-full sm:w-[420px] space-y-2">
                     <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
-                      <div className="text-sm text-gray-900">表示カテゴリ: {getTeamCategoryFilterLabel()}</div>
+                      <div className="text-sm text-white">表示カテゴリ: {getTeamCategoryFilterLabel()}</div>
                       <div className="flex gap-2">
-                        <Button type="button" variant="outline" size="sm" onClick={setAllTeamCategoryFilters}>
+                        <Button type="button" variant="outline" size="sm" onClick={setAllTeamCategoryFilters} className="bg-white/10 text-white border-white/30 hover:bg-white/20">
                           全選択
                         </Button>
-                        <Button type="button" variant="outline" size="sm" onClick={clearTeamCategoryFilters}>
+                        <Button type="button" variant="outline" size="sm" onClick={clearTeamCategoryFilters} className="bg-white/10 text-white border-white/30 hover:bg-white/20">
                           全解除
                         </Button>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <label className="flex items-center gap-2 rounded-md border px-2 py-1">
+                      <label className="flex items-center gap-2 rounded-md border border-white/30 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer">
                         <Checkbox
                           checked={teamCategoryFilters.includes("uncategorized")}
                           onCheckedChange={(checked) => {
@@ -562,11 +604,12 @@ export default function NewCompetitionPage() {
                               return Array.from(set);
                             });
                           }}
+                          className="border-white/40 data-[state=checked]:bg-white/20"
                         />
-                        <span className="text-sm">未分類</span>
+                        <span className="text-sm text-white font-medium">未分類</span>
                       </label>
                       {categories.map((c) => (
-                        <label key={c.id} className="flex items-center gap-2 rounded-md border px-2 py-1">
+                        <label key={c.id} className="flex items-center gap-2 rounded-md border border-white/30 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer">
                           <Checkbox
                             checked={teamCategoryFilters.includes(c.id)}
                             onCheckedChange={(checked) => {
@@ -577,8 +620,9 @@ export default function NewCompetitionPage() {
                                 return Array.from(set);
                               });
                             }}
+                            className="border-white/40 data-[state=checked]:bg-white/20"
                           />
-                          <span className="text-sm">{c.name}</span>
+                          <span className="text-sm text-white font-medium">{c.name}</span>
                         </label>
                       ))}
                     </div>
@@ -586,8 +630,8 @@ export default function NewCompetitionPage() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
-                  <div className="text-xs sm:text-sm text-muted-foreground">参加チーム</div>
-                  <div className="flex gap-2">
+                  <div className="text-xs sm:text-sm text-white/60">参加チーム</div>
+                  <div className="flex gap-2 flex-1 justify-end">
                     <Button
                       type="button"
                       variant="outline"
@@ -607,6 +651,7 @@ export default function NewCompetitionPage() {
                         const merged = Array.from(new Set([...current, ...visibleTeamIds]));
                         form.setValue('teams', merged, { shouldDirty: true, shouldValidate: true });
                       }}
+                      className="bg-white/10 text-white border-white/30 hover:bg-white/20 min-w-[140px]"
                     >
                       表示中を一括チェック
                     </Button>
@@ -630,6 +675,7 @@ export default function NewCompetitionPage() {
                         const removed = current.filter((id) => !visibleSet.has(id));
                         form.setValue('teams', removed, { shouldDirty: true, shouldValidate: true });
                       }}
+                      className="bg-white/10 text-white border-white/30 hover:bg-white/20 min-w-[140px]"
                     >
                       表示中を一括解除
                     </Button>
@@ -654,7 +700,7 @@ export default function NewCompetitionPage() {
                         return (
                           <FormItem
                             key={team.id}
-                            className="flex flex-row items-start gap-2 space-y-0 rounded-md border p-2 transition-colors hover:bg-muted/50 data-[state=checked]:bg-primary/10"
+                            className="flex flex-row items-center gap-2 space-y-0 rounded-md border border-white/20 p-2 transition-colors hover:bg-white/10 data-[state=checked]:bg-primary/20"
                           >
                             <FormControl>
                               <Checkbox
@@ -670,8 +716,8 @@ export default function NewCompetitionPage() {
                                 }}
                               />
                             </FormControl>
-                            <FormLabel className="font-normal flex-1 min-w-0 cursor-pointer">
-                              <div className="flex items-start gap-2 min-w-0">
+                            <FormLabel className="font-normal flex-1 min-w-0 cursor-pointer text-white">
+                              <div className="flex items-center gap-2 min-w-0">
                                 {team.logoUrl ? (
                                   <Image src={team.logoUrl} alt={team.name} width={24} height={24} className="rounded-full object-contain" />
                                 ) : (
@@ -692,90 +738,133 @@ export default function NewCompetitionPage() {
               </FormItem>
             )}
           />
+          </div>
 
+          {/* セクション4: 順位ラベル */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-6">
+            <h2 className="text-sm font-semibold text-white/80 mb-4">順位ラベル</h2>
             <div className="space-y-4">
               <div>
-                <FormLabel className="text-base">順位ラベル</FormLabel>
-                <FormDescription>
+                <FormDescription className="text-white/50 text-xs">
                   順位表の左端に色付きラベルを表示します（最大5つ）。
                 </FormDescription>
               </div>
 
+              {/* ミニプレビュー */}
+              <div className="rounded-md border border-white/20 bg-white/5 p-3">
+                <div className="text-[10px] text-white/60 mb-2">プレビュー</div>
+                <div className="space-y-1">
+                  {[1, 2, 3, 4, 5].map((rank) => {
+                    const rankLabels = form.getValues('rankLabels') || [];
+                    const activeLabel = rankLabels.find(
+                      (label: any) => label.from <= rank && label.to >= rank
+                    );
+                    const colorObj = activeLabel ? rankLabelColors.find(c => c.name === activeLabel.color) : null;
+
+                    return (
+                      <div key={rank} className="flex items-center gap-2 h-8 rounded bg-white/5">
+                        {colorObj && (
+                          <div className={`w-1.5 h-6 rounded-l ${colorObj.bg}`} />
+                        )}
+                        <div className="flex-1 flex items-center gap-3 px-2">
+                          <span className="text-[10px] text-white/60 w-4">{rank}</span>
+                          <span className="text-[10px] text-white">チーム {rank}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="space-y-3">
                 {rankLabelFields.map((f, idx) => (
-                  <div key={f.id} className="grid grid-cols-12 gap-2 rounded-md border p-2 overflow-hidden">
-                    <div className="col-span-4">
+                  <div key={f.id} className="grid grid-cols-12 gap-2 rounded-md border border-white/20 p-2 overflow-hidden">
+                    <div className="col-span-6">
+                      <FormField
+                        control={form.control}
+                        name={`rankLabels.${idx}.name`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-[10px] text-white">ラベル名</FormLabel>
+                            <FormControl>
+                              <Input placeholder="昇格圏" {...field} className="h-6 w-full px-2 text-[10px] bg-white/10 text-white border-white/20" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="col-span-2">
                       <FormField
                         control={form.control}
                         name={`rankLabels.${idx}.from`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-[11px]">開始</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="1" className="h-7 w-[72px] px-2 text-xs" {...field} />
-                            </FormControl>
+                            <FormLabel className="text-[10px] text-white">開始</FormLabel>
+                            <div className="flex items-center">
+                              <FormControl>
+                                <Input type="number" placeholder="1" className="h-6 w-full px-2 text-[10px] bg-white/10 text-white border-white/20" {...field} />
+                              </FormControl>
+                              <span className="text-[10px] text-white/60 ml-1">位</span>
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
-                    <div className="col-span-1 flex items-end justify-center pb-2 text-sm text-muted-foreground">
+                    <div className="col-span-1 flex items-end justify-center pb-2 text-sm text-white/60">
                       〜
                     </div>
-                    <div className="col-span-4">
+                    <div className="col-span-2">
                       <FormField
                         control={form.control}
                         name={`rankLabels.${idx}.to`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-[11px]">終了</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="4" className="h-7 w-[72px] px-2 text-xs" {...field} />
-                            </FormControl>
+                            <FormLabel className="text-[10px] text-white">終了</FormLabel>
+                            <div className="flex items-center">
+                              <FormControl>
+                                <Input type="number" placeholder="4" className="h-6 w-full px-2 text-[10px] bg-white/10 text-white border-white/20" {...field} />
+                              </FormControl>
+                              <span className="text-[10px] text-white/60 ml-1">位</span>
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
-                    <div className="col-span-3 min-w-0">
-                      <div className="h-[11px]" />
+                    <div className="col-span-1">
                     </div>
-
-                    <div className="col-span-10 min-w-0">
+                    <div className="col-span-11">
                       <FormField
                         control={form.control}
                         name={`rankLabels.${idx}.color`}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-[11px]">色</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger className="h-7 w-full min-w-0 text-xs">
-                                  <SelectValue placeholder="色" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {rankLabelColors.map((c) => (
-                                  <SelectItem key={c} value={c}>
-                                    {c}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex flex-wrap gap-1">
+                              {rankLabelColors.map((color) => (
+                                <button
+                                  key={color.name}
+                                  type="button"
+                                  onClick={() => field.onChange(color.name)}
+                                  className={`w-5 h-5 rounded-full ${color.bg} ${field.value === color.name ? `ring-2 ring-offset-1 ring-offset-gray-900 ${color.border}` : ''} transition-all`}
+                                />
+                              ))}
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
-                    <div className="col-span-2 flex justify-end items-end">
+                    <div className="col-span-1 flex justify-start items-center">
                       <Button
                         type="button"
                         variant="destructive"
                         size="icon"
                         onClick={() => removeRankLabel(idx)}
-                        className="h-8 w-8 bg-red-600 text-white hover:bg-red-700"
+                        className="h-6 w-6 bg-red-600 text-white hover:bg-red-700"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
@@ -788,9 +877,10 @@ export default function NewCompetitionPage() {
                     size="sm"
                     onClick={() => {
                       if (rankLabelFields.length >= 5) return;
-                      appendRankLabel({ from: 1, to: 1, color: "green" } as any);
+                      appendRankLabel({ name: "", from: 1, to: 1, color: "green" } as any);
                     }}
                     disabled={rankLabelFields.length >= 5}
+                    className="bg-white/10 text-white border-white/30 hover:bg-white/20"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     ラベルを追加
@@ -798,14 +888,19 @@ export default function NewCompetitionPage() {
                 </div>
               </div>
             </div>
+          </div>
 
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              作成する
-            </Button>
-          </form>
-        </Form>
-      </div>
+          {/* Sticky submit button */}
+          <div className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-white/10 p-4">
+            <div className="container mx-auto max-w-2xl">
+              <Button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600 text-white">
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                作成する
+              </Button>
+            </div>
+          </div>
+        </form>
+      </Form>
     </div>
   );
 }
