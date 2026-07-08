@@ -39,7 +39,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
         const tosVersion = '2025-12-30';
         const ref = doc(db, 'user_consents', user.uid);
         const snap = await getDoc(ref);
-        const data = snap.exists() ? (snap.data() as any) : null;
+        const data = snap.exists() ? (snap.data() as { tosAcceptedAt?: unknown; tosVersion?: unknown }) : null;
         const accepted = Boolean(data?.tosAcceptedAt) && String(data?.tosVersion || '') === tosVersion;
         setTosOpen(!accepted);
       } catch (e) {
@@ -100,15 +100,38 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   // 未ログイン時は、管理画面の代わりにログイン画面を表示
   if (!user) {
     return (
-      <div className={isPlainAdminPage ? "min-h-screen flex items-center justify-center bg-white text-gray-900 px-4" : "min-h-screen flex items-center justify-center bg-gray-900 text-white px-4"}>
-        <div className="max-w-sm w-full text-center space-y-4">
-          <h1 className="text-2xl font-bold">ログインまたは新規作成</h1>
-          <p className={isPlainAdminPage ? "text-sm text-gray-600" : "text-sm text-gray-300"}>
-            Googleアカウントでログインすると、この画面からクラブや大会の管理を始められます。
+      <div className="min-h-screen flex items-center justify-center bg-[#f7f7f5] px-6 text-gray-900">
+        <div className="w-full max-w-[360px] text-center">
+          <div className="mx-auto mb-9 flex h-[68px] w-[68px] items-center justify-center rounded-2xl bg-white shadow-sm">
+            <Image
+              src="/favicon.png"
+              alt="FootChron"
+              width={34}
+              height={34}
+              className="object-contain"
+              priority
+            />
+          </div>
+          <h1 className="text-[24px] font-bold leading-tight tracking-tight text-gray-950">ログインまたは新規作成</h1>
+          <p className="mt-4 text-[15px] font-semibold leading-relaxed text-gray-500">
+            Googleアカウントでログインすると、この画面<br className="hidden sm:block" />
+            からクラブや大会の管理を始められます。
           </p>
-          <div className="flex justify-center mt-4">
+          <div className="mt-10 flex justify-center">
             <AuthButton />
           </div>
+          <p className="mt-6 text-[12px] font-semibold leading-relaxed text-gray-400">
+            ログインすることで
+            <Link href="/terms" className="font-bold text-gray-600 underline underline-offset-2 hover:text-gray-900" target="_blank" rel="noreferrer">
+              利用規約
+            </Link>
+            および
+            <Link href="/kkk/legal/プライバシーポリシー" className="font-bold text-gray-600 underline underline-offset-2 hover:text-gray-900" target="_blank" rel="noreferrer">
+              プライバシーポリシー
+            </Link>
+            に<br />
+            同意したものとみなされます
+          </p>
         </div>
       </div>
     );
