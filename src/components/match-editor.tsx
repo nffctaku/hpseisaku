@@ -142,7 +142,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               mode="single"
               selected={selectedDate}
               onSelect={handleDateSelect}
-              month={calendarDefaultMonth}
+              defaultMonth={calendarDefaultMonth}
               locale={ja}
               initialFocus
             />
