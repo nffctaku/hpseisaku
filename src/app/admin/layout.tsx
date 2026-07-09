@@ -126,7 +126,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
               利用規約
             </Link>
             および
-            <Link href="/kkk/legal/プライバシーポリシー" className="font-bold text-gray-600 underline underline-offset-2 hover:text-gray-900" target="_blank" rel="noreferrer">
+            <Link href="/privacy" className="font-bold text-gray-600 underline underline-offset-2 hover:text-gray-900" target="_blank" rel="noreferrer">
               プライバシーポリシー
             </Link>
             に<br />
