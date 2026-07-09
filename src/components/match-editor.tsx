@@ -34,6 +34,19 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
     return isValid(parsed) ? parsed : new Date();
   }, [match.matchDate]);
 
+  const calendarDefaultMonth = useMemo(() => {
+    if (match.matchDate) {
+      const parsed = parseISO(match.matchDate);
+      if (isValid(parsed)) return parsed;
+    }
+    const seasonMatch = season.match(/(\d{4})\/\d{2}/);
+    if (seasonMatch) {
+      const startYear = parseInt(seasonMatch[1], 10);
+      return new Date(startYear, 7, 1);
+    }
+    return new Date();
+  }, [match.matchDate, season]);
+
   const { user, ownerUid } = useAuth();
   const params = useParams();
   const competitionId = params.competitionId as string;
@@ -129,6 +142,8 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               mode="single"
               selected={selectedDate}
               onSelect={handleDateSelect}
+              month={calendarDefaultMonth}
+              locale={ja}
               initialFocus
             />
           </PopoverContent>

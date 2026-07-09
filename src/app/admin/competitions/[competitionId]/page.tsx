@@ -390,17 +390,9 @@ export default function CompetitionDetailPage() {
   const handleAddMatch = async () => {
     if (!currentRound || !user || !clubUid) return;
     try {
-      const lastMatchDate =
-        Array.isArray(currentRound.matches) && currentRound.matches.length > 0
-          ? currentRound.matches[currentRound.matches.length - 1]?.matchDate
-          : undefined;
-      const defaultMatchDate =
-        typeof lastMatchDate === 'string' && lastMatchDate.trim().length > 0
-          ? lastMatchDate
-          : format(new Date(), 'yyyy-MM-dd');
       const newMatchData = { 
         homeTeam: '', awayTeam: '', 
-        matchDate: defaultMatchDate, 
+        matchDate: null, 
         competitionId, 
         scoreHome: null, scoreAway: null,
         pkScoreHome: null, pkScoreAway: null 
