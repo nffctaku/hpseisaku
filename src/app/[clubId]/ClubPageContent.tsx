@@ -14,7 +14,8 @@ import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import type { NewsArticle } from "@/types/news";
-import { MatchSection } from "@/components/match-section";
+import { MatchResultsList, MatchSection } from "@/components/match-section";
+import type { MatchDetails } from "@/types/match";
 
 function toCloudinaryPadded16x9(url: string, width: number) {
   if (!url) return url;
@@ -65,8 +66,54 @@ export default function ClubPageContent({
       }
     );
     const [isLoading, setIsLoading] = useState(!initialClubInfo);
+    const [homePanel, setHomePanel] = useState<'standings' | 'results'>('standings');
+    const [selectedRoundIndex, setSelectedRoundIndex] = useState(0);
+    const [rounds, setRounds] = useState<{ roundId: string; roundName: string }[]>([]);
     const router = useRouter();
     const routerRef = useRef(router);
+
+    useEffect(() => {
+      if (clubInfo.recentMatches && clubInfo.recentMatches.length > 0) {
+        const matches = clubInfo.recentMatches as MatchDetails[];
+        const roundsMap = matches.reduce((map, match) => {
+            if (!match) return map;
+            const key = `${match.roundId || ''}:${match.roundName || ''}`;
+            if (!map.has(key)) {
+              map.set(key, { roundId: match.roundId || '', roundName: match.roundName || '', latestDate: match.matchDate });
+            } else {
+              const current = map.get(key)!;
+              const matchDate = new Date(match.matchDate).getTime();
+              const currentLatestDate = new Date(current.latestDate).getTime();
+              if (matchDate > currentLatestDate) {
+                current.latestDate = match.matchDate;
+              }
+            }
+            return map;
+          }, new Map<string, { roundId: string; roundName: string; latestDate: string }>());
+        const roundsList = Array.from(roundsMap.values())
+          .sort((a, b) => new Date(a.latestDate).getTime() - new Date(b.latestDate).getTime())
+          .map(({ roundId, roundName }) => ({ roundId, roundName }));
+        setRounds(roundsList);
+
+        const latestMatch = matches
+          .filter((m) => m && m.scoreHome !== null && m.scoreAway !== null)
+          .sort((a, b) => {
+            const msA = new Date(a.matchDate).getTime();
+            const msB = new Date(b.matchDate).getTime();
+            return msB - msA;
+          })[0];
+        if (latestMatch) {
+          const latestIndex = roundsList.findIndex(
+            (r) => r.roundId === latestMatch.roundId && r.roundName === latestMatch.roundName
+          );
+          if (latestIndex !== -1) {
+            setSelectedRoundIndex(latestIndex);
+          }
+        }
+      } else {
+        setRounds([]);
+      }
+    }, [clubInfo.recentMatches]);
 
     useEffect(() => {
         routerRef.current = router;
@@ -175,6 +222,43 @@ export default function ClubPageContent({
     const heroItems = (heroNews as NewsArticle[]).slice(0, heroNewsLimit);
     const mainHeroItem = heroItems[0] as NewsArticle | undefined;
     const sideHeroItems = heroItems.slice(1, 4) as NewsArticle[];
+    const mainTeamId = clubInfo.profile?.mainTeamId || null;
+    const allRecentMatches = (clubInfo.recentMatches || []) as MatchDetails[];
+    const ownRecentMatches = mainTeamId
+      ? allRecentMatches.filter((match) => match?.homeTeam === mainTeamId || match?.awayTeam === mainTeamId)
+      : allRecentMatches;
+
+    const renderHomePanelContent = () => (
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 rounded-full bg-gray-100 p-1 text-sm font-bold text-gray-500">
+          <button
+            type="button"
+            onClick={() => setHomePanel('standings')}
+            className={homePanel === 'standings' ? 'rounded-full bg-white px-3 py-2 text-gray-950 shadow-sm' : 'rounded-full px-3 py-2 hover:text-gray-900'}
+          >
+            順位表
+          </button>
+          <button
+            type="button"
+            onClick={() => setHomePanel('results')}
+            className={homePanel === 'results' ? 'rounded-full bg-white px-3 py-2 text-gray-950 shadow-sm' : 'rounded-full px-3 py-2 hover:text-gray-900'}
+          >
+            試合結果
+          </button>
+        </div>
+        {homePanel === 'standings' ? (
+          <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} minCardOnMobile />
+        ) : (
+          <MatchResultsList
+            matches={allRecentMatches}
+            clubSlug={clubId}
+            rounds={rounds}
+            selectedRoundIndex={selectedRoundIndex}
+            onRoundChange={setSelectedRoundIndex}
+          />
+        )}
+      </div>
+    );
 
     if (isLoading) {
       return (
@@ -301,18 +385,18 @@ export default function ClubPageContent({
                         <MatchSection 
                             nextMatch={clubInfo.nextMatch} 
                             upcomingMatches={(clubInfo as any).upcomingMatches || []}
-                            recentMatches={(clubInfo as any).recentMatches || []}
-                            mainTeamId={(clubInfo as any).profile?.mainTeamId || null}
+                            recentMatches={ownRecentMatches}
+                            mainTeamId={mainTeamId}
                             backgroundColor={homeBgColor || null}
                             clubSlug={clubId}
                         />
                         <div className="lg:hidden">
-                          <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} minCardOnMobile />
+                          {renderHomePanelContent()}
                         </div>
                         {videos.length > 0 && <ClubTv videos={videos} clubId={clubId} />}
                     </div>
                     <div className="hidden lg:block lg:col-span-1">
-                        <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} />
+                        {renderHomePanelContent()}
                     </div>
                 </div>
             </div>

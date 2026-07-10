@@ -309,6 +309,142 @@ function RecentMatchesStrip({
   );
 }
 
+export function MatchResultsList({
+  matches,
+  clubSlug,
+  rounds,
+  selectedRoundIndex,
+  onRoundChange,
+}: {
+  matches: MatchDetails[];
+  clubSlug: string;
+  rounds: { roundId: string; roundName: string }[];
+  selectedRoundIndex: number;
+  onRoundChange: (index: number) => void;
+}) {
+  const items = (matches || [])
+    .filter((m) => m && typeof m === "object")
+    .filter((m) => typeof m.scoreHome === 'number' && typeof m.scoreAway === 'number')
+    .slice()
+    .sort((a, b) => getMatchSortMs(b) - getMatchSortMs(a));
+
+  if (items.length === 0) {
+    return (
+      <div className="bg-white text-gray-900 p-4 rounded-2xl text-center text-muted-foreground shadow-sm border border-black/10">
+        <p>表示できる試合結果がありません。</p>
+      </div>
+    );
+  }
+
+  if (rounds.length === 0) {
+    return (
+      <div className="bg-white text-gray-900 p-4 rounded-2xl text-center text-muted-foreground shadow-sm border border-black/10">
+        <p>表示できる試合結果がありません。</p>
+      </div>
+    );
+  }
+
+  const currentRound = rounds[selectedRoundIndex];
+  const currentRoundMatches = items
+    .filter((m) => m.roundId === currentRound.roundId && m.roundName === currentRound.roundName)
+    .sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
+
+  const dateLabel = (value: string) => {
+    const d = new Date(value);
+    if (!Number.isFinite(d.getTime())) return '日付未定';
+    return format(d, 'yyyy年M月d日EEE曜日', { locale: ja });
+  };
+
+  const grouped = currentRoundMatches.reduce((acc: Map<string, MatchDetails[]>, match: MatchDetails) => {
+    const key = dateLabel(match.matchDate);
+    if (!acc.has(key)) acc.set(key, []);
+    acc.get(key)!.push(match);
+    return acc;
+  }, new Map<string, MatchDetails[]>());
+
+  const handlePrevRound = () => {
+    if (selectedRoundIndex > 0) {
+      onRoundChange(selectedRoundIndex - 1);
+    }
+  };
+
+  const handleNextRound = () => {
+    if (selectedRoundIndex < rounds.length - 1) {
+      onRoundChange(selectedRoundIndex + 1);
+    }
+  };
+
+  return (
+    <div className="bg-white text-gray-900 rounded-2xl shadow-sm border border-black/10 overflow-hidden">
+      <div className="px-3 sm:px-4 py-3 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={handlePrevRound}
+          disabled={selectedRoundIndex === 0}
+          className="h-8 w-8 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <div className="text-sm font-bold text-gray-900">
+          {currentRound.roundName || '節'}
+        </div>
+        <button
+          type="button"
+          onClick={handleNextRound}
+          disabled={selectedRoundIndex === rounds.length - 1}
+          className="h-8 w-8 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+      <div className="p-3 sm:p-4 space-y-3">
+        {Array.from(grouped.entries()).map(([date, dateMatches]) => (
+          <div key={date}>
+            <div className="mb-1 rounded-xl bg-gray-100 px-4 py-3 text-sm font-black text-gray-950">
+              {date}
+            </div>
+            <div className="divide-y divide-gray-100">
+              {dateMatches.map((match) => {
+                const href = `/${clubSlug}/matches/${match.competitionId}/${match.roundId}/${match.id}`;
+                return (
+                  <Link key={match.id} href={href} className="grid grid-cols-[34px_1fr_auto_1fr] items-center gap-2 py-3 hover:bg-gray-50 transition-colors">
+                    <div className="flex justify-center">
+                      <span className="rounded-full bg-gray-100 px-2 py-1 text-[11px] font-black text-gray-400">FT</span>
+                    </div>
+                    <div className="flex min-w-0 items-center justify-end gap-2 text-right">
+                      <span className="truncate text-xs font-bold leading-tight text-gray-700 sm:text-sm">{match.homeTeamName}</span>
+                      {match.homeTeamLogo ? (
+                        <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={26} height={26} className="h-6 w-6 flex-shrink-0 object-contain" />
+                      ) : (
+                        <div className="h-6 w-6 flex-shrink-0 rounded-full bg-gray-100" />
+                      )}
+                    </div>
+                    <div className="min-w-[54px] text-center text-base font-black tabular-nums text-gray-950 sm:text-lg">
+                      {match.scoreHome ?? '-'} - {match.scoreAway ?? '-'}
+                    </div>
+                    <div className="flex min-w-0 items-center justify-start gap-2">
+                      {match.awayTeamLogo ? (
+                        <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={26} height={26} className="h-6 w-6 flex-shrink-0 object-contain" />
+                      ) : (
+                        <div className="h-6 w-6 flex-shrink-0 rounded-full bg-gray-100" />
+                      )}
+                      <span className="truncate text-xs font-bold leading-tight text-gray-700 sm:text-sm">{match.awayTeamName}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function NextMatch({ match }: { match: MatchDetails | null }) {
   if (!match) return <div className="text-center p-8">No upcoming matches.</div>;
 
