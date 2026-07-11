@@ -71,9 +71,6 @@ export default function TeamSeasonSelectPage() {
           .map((d) => ({ id: toSlashSeason(d.id), ...(d.data() as any) } as Season))
           .sort((a, b) => b.id.localeCompare(a.id));
         setSeasons(seasonsData);
-        if (seasonsData.length > 0) {
-          setSelectedSeason(seasonsData[0].id);
-        }
       })
       .finally(() => {
         setBooting(false);
@@ -184,69 +181,17 @@ export default function TeamSeasonSelectPage() {
       ) : (
         <>
           <h1 className="text-3xl font-bold mb-6">シーズン選択</h1>
-          <div className="space-y-2">
-            <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-              <SelectTrigger className="w-full sm:w-[240px] bg-white text-gray-900">
-                <SelectValue placeholder="シーズンを選択" />
-              </SelectTrigger>
-              <SelectContent>
-                {seasons.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-            <Button
-              type="button"
-              disabled={!canContinue}
-              className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:hover:bg-emerald-600"
-              onClick={() => {
-                if (!selectedSeason) return;
-                if (next === "booklet") {
-                  router.push(`/admin/teams/${teamId}/booklet?season=${encodeURIComponent(selectedSeason)}`);
-                  return;
-                }
-                if (next === "transfers") {
-                  router.push(`/admin/teams/${teamId}/transfers?season=${encodeURIComponent(selectedSeason)}`);
-                  return;
-                }
-                router.push(`/admin/teams/${teamId}?season=${encodeURIComponent(selectedSeason)}`);
-              }}
-            >
-              {next === "booklet" ? "名鑑へ" : "編集"}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={!selectedSeason}
-              onClick={handleDeleteSeason}
-            >
-              シーズン削除
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="bg-white text-gray-900 border border-border hover:bg-gray-100"
-              onClick={() => router.push("/admin/teams")}
-            >
-              戻る
-            </Button>
-          </div>
-
-          <div className="mt-8 space-y-3">
+          <div className="mt-6 space-y-3">
             {seasons.length === 0 ? (
               <div className="text-sm text-muted-foreground">シーズンが未作成です。まずシーズンを作成してください。</div>
             ) : (
-              <div className="text-sm text-muted-foreground">今シーズンを追加できます。</div>
+              <div className="text-sm text-muted-foreground">登録したい選手のシーズンを登録してください。</div>
             )}
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-row gap-0 items-center">
               <Select value={newSeasonId} onValueChange={setNewSeasonId}>
-                <SelectTrigger className="w-full sm:w-[240px] bg-white text-gray-900">
-                  <SelectValue placeholder="ー" />
+                <SelectTrigger className="w-full sm:w-[180px] h-9 bg-white text-gray-900 text-sm rounded-r-none border-r-0">
+                  <SelectValue placeholder="シーズンを選択してください" />
                 </SelectTrigger>
                 <SelectContent>
                   {availableSeasonOptions.map((s) => (
@@ -258,14 +203,55 @@ export default function TeamSeasonSelectPage() {
               </Select>
               <Button
                 type="button"
+                size="sm"
                 onClick={handleCreateSeason}
                 disabled={!canCreate}
-                className="whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600"
+                className="whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 h-9 text-sm flex-1 rounded-l-none"
               >
                 {seasons.length === 0 ? "シーズン作成" : "シーズン追加"}
               </Button>
             </div>
           </div>
+
+          {seasons.length > 0 && (
+            <div className="mt-8 space-y-3">
+              <div className="flex flex-row gap-0 items-center">
+                <Select value={selectedSeason} onValueChange={setSelectedSeason}>
+                  <SelectTrigger className="w-full sm:w-[180px] h-9 bg-white text-gray-900 text-sm rounded-r-none border-r-0">
+                    <SelectValue placeholder="シーズンを選択してください" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {seasons.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={!selectedSeason}
+                  onClick={handleDeleteSeason}
+                  className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:hover:bg-red-600 h-9 text-sm flex-1 rounded-l-none"
+                >
+                  シーズン削除
+                </Button>
+              </div>
+
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="bg-white text-gray-900 border border-border hover:bg-gray-100 w-full"
+                  onClick={() => router.push(`/admin/teams/${teamId}?season=${encodeURIComponent(selectedSeason)}`)}
+                  disabled={!selectedSeason}
+                >
+                  選手管理に戻る
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

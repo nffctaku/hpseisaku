@@ -479,16 +479,17 @@ export default function CompetitionDetailPage() {
         <div className="space-y-6">
           <div className="space-y-3">
             {currentRound.matches.map(match => (
-              <MatchEditor 
-                key={match.id} 
-                match={{ ...(match as any), competitionFormat: competition.format }} 
-                teams={competitionTeams} 
+              <MatchEditor
+                key={match.id}
+                match={{ ...(match as any), competitionFormat: competition.format }}
+                teams={competitionTeams}
                 allTeamsMap={allTeams}
                 excludedTeamIds={excludedTeamIdsByMatchId.get(match.id) ?? new Set()}
-                roundId={currentRound.id} 
-                season={competition.season} 
-                onUpdate={handleMatchUpdate} 
-                onDelete={fetchAllData} 
+                roundId={currentRound.id}
+                season={competition.season}
+                clubId={clubUid || ''}
+                onUpdate={handleMatchUpdate}
+                onDelete={fetchAllData}
               />
             ))}
           </div>

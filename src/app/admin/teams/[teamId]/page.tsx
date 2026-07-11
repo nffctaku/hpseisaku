@@ -130,7 +130,7 @@ export default function TeamPlayersPage() {
           </div>
 
           {/* Team and Season Selectors */}
-          <div className="mb-6 flex flex-row gap-4">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row">
             <div className="flex-1">
               <Select value={teamId} onValueChange={handleChangeTeam}>
                 <SelectTrigger className="bg-white/10 text-white border-white/15 w-full">
@@ -145,7 +145,7 @@ export default function TeamPlayersPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 flex gap-2">
               <Select value={selectedSeason} onValueChange={handleChangeSeason}>
                 <SelectTrigger className="bg-white/10 text-white border-white/15 w-full">
                   <SelectValue placeholder="シーズンを選択" />
@@ -158,6 +158,14 @@ export default function TeamPlayersPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-white/10 text-white border-white/15 hover:bg-white/20 h-9 whitespace-nowrap px-4"
+                onClick={() => router.push(`/admin/teams/${teamId}/season`)}
+              >
+                シーズン登録
+              </Button>
             </div>
           </div>
 

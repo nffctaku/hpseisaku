@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { doc, deleteDoc, setDoc, increment } from "firebase/firestore";
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,7 +29,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundId, season, onUpdate, onDelete }: { match: Match, teams: Team[], allTeamsMap: Map<string, Team>, excludedTeamIds: Set<string>, roundId: string, season: string, onUpdate: Function, onDelete: Function }) {
+export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundId, season, clubId, onUpdate, onDelete }: { match: Match, teams: Team[], allTeamsMap: Map<string, Team>, excludedTeamIds: Set<string>, roundId: string, season: string, clubId: string, onUpdate: Function, onDelete: Function }) {
   const selectedDate = useMemo(() => {
     const parsed = match.matchDate ? parseISO(match.matchDate) : new Date();
     return isValid(parsed) ? parsed : new Date();
@@ -145,12 +146,23 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               defaultMonth={calendarDefaultMonth}
               locale={ja}
               initialFocus
+              fromYear={2000}
+              toYear={2030}
             />
           </PopoverContent>
         </Popover>
 
         <div className="flex items-center justify-end gap-2">
-          <Pencil className="h-4 w-4 text-gray-700" />
+          <Link href={`/${clubId}/matches/${competitionId}/${roundId}/${match.id}`}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 bg-transparent text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+              aria-label="試合詳細を編集"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </Link>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
