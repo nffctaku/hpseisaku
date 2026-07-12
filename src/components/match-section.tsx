@@ -349,6 +349,10 @@ export function MatchResultsList({
     .filter((m) => m.roundId === currentRound.roundId && m.roundName === currentRound.roundName)
     .sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
 
+  // 大会名を取得（最初の試合から）
+  const competitionName = currentRoundMatches[0]?.competitionName;
+  const competitionLogoUrl = currentRoundMatches[0]?.competitionLogoUrl;
+
   const dateLabel = (value: string) => {
     const d = new Date(value);
     if (!Number.isFinite(d.getTime())) return '日付未定';
@@ -376,6 +380,20 @@ export function MatchResultsList({
 
   return (
     <div className="bg-white text-gray-900 rounded-2xl shadow-sm border border-black/10 overflow-hidden">
+      {competitionName && (
+        <div className="px-3 sm:px-4 py-2 border-b border-gray-100 flex items-center gap-2">
+          {competitionLogoUrl && (
+            <Image
+              src={competitionLogoUrl}
+              alt={competitionName}
+              width={16}
+              height={16}
+              className="rounded-full object-contain"
+            />
+          )}
+          <span className="text-[10px] font-semibold text-gray-600">{competitionName}</span>
+        </div>
+      )}
       <div className="px-3 sm:px-4 py-3 flex items-center justify-between">
         <button
           type="button"
