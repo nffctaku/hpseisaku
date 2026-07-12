@@ -22,12 +22,17 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useMemo, useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { PlayerPhotoUploader } from "@/components/player-photo-uploader";
 import type { SubmitHandler } from "react-hook-form";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 import {
   BasicInfoSection,
@@ -51,6 +56,7 @@ interface PlayerFormProps {
 
 export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }: PlayerFormProps) {
   const [loading, setLoading] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [competitions, setCompetitions] = useState<{ id: string; name: string; season?: string }[]>([]);
 
   const normalizeSeason = (s: string): string => {
@@ -180,6 +186,18 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
   const seasonsWatch = form.watch("seasons") || [];
   const activeSeason = (defaultSeason || seasonsWatch[0] || "").trim();
   const activeSeasonNorm = normalizeSeason(activeSeason);
+  
+  // シーズン一覧を取得（加入シーズン選択用）
+  const seasonsList = useMemo(() => {
+    const seasonSet = new Set<string>();
+    competitions.forEach((c) => {
+      if (c.season && typeof c.season === "string" && c.season.trim() !== "") {
+        seasonSet.add(c.season);
+      }
+    });
+    return Array.from(seasonSet).sort((a, b) => b.localeCompare(a));
+  }, [competitions]);
+  
   const filteredCompetitions = useMemo(() => {
     if (!activeSeasonNorm) return competitions;
     return competitions.filter((c) => normalizeSeason(c.season || "") === activeSeasonNorm);
@@ -331,8 +349,21 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
         onSubmit={form.handleSubmit(handleSubmit)}
         className="space-y-4 pb-24 max-h-[80vh] overflow-y-auto"
       >
-        <Tabs defaultValue="profile" className="space-y-4">
-          <TabsList>
+        <Tabs defaultValue="profile" className="space-y-4" onValueChange={(value) => {
+            if (value === "stats" && statsFieldArray.fields.length === 0) {
+              statsFieldArray.append({
+                competitionId: "",
+                matches: undefined,
+                minutes: undefined,
+                goals: undefined,
+                assists: undefined,
+                yellowCards: undefined,
+                redCards: undefined,
+                avgRating: undefined,
+              });
+            }
+          }}>
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="profile">プロフィール</TabsTrigger>
             <TabsTrigger value="params">パラメーター</TabsTrigger>
             <TabsTrigger value="stats">成績</TabsTrigger>
@@ -397,7 +428,7 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                       <FormLabel>ポジション *</FormLabel>
                       <FormControl>
                         <Select value={field.value as any} onValueChange={field.onChange as any}>
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="選択" />
                           </SelectTrigger>
                           <SelectContent>
@@ -414,70 +445,71 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                   )}
                 />
               </div>
-
-              <BasicInfoSection form={form} />
-              <OtherInfoSection form={form} />
-              <DetailedPositionsSection form={form} />
             </div>
-            <FormField
-              control={form.control}
-              name="profile"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>プロフィール</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="選手の経歴や特徴など" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <SnsLinksSection form={form} />
-            <FormField
-              control={form.control}
-              name="isPublished"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel>HPで表示する</FormLabel>
-                    <p className="text-xs text-muted-foreground">
-                      OFF にすると、この選手はHPの選手一覧には表示されません。
-                    </p>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value ?? true}
-                      onCheckedChange={(checked) => field.onChange(checked)}
-                      className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-gray-300"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+
+            <Collapsible open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full justify-between mt-2 mb-2 h-9 px-3 text-sm font-medium"
+                >
+                  <span>詳細情報を{isDetailOpen ? '閉じる' : '開く'}</span>
+                  {isDetailOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <BasicInfoSection form={form} defaultOpen={isDetailOpen} seasons={seasonsList} />
+                  <OtherInfoSection form={form} defaultOpen={isDetailOpen} seasons={seasonsList} />
+                  <DetailedPositionsSection form={form} defaultOpen={isDetailOpen} />
+                  <FormField
+                    control={form.control}
+                    name="profile"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>プロフィール</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="選手の経歴や特徴など" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <SnsLinksSection form={form} />
+                  <FormField
+                    control={form.control}
+                    name="isPublished"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 md:col-span-2">
+                        <div className="space-y-0.5">
+                          <FormLabel>HPで表示する</FormLabel>
+                          <p className="text-xs text-muted-foreground">
+                            OFF にすると、この選手はHPの選手一覧には表示されません。
+                          </p>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value ?? true}
+                            onCheckedChange={(checked) => field.onChange(checked)}
+                            className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-gray-300"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </TabsContent>
 
           <TabsContent value="stats" className="space-y-4">
+            <div className="bg-muted/50 p-3 text-sm">
+              <p>公開ページには手入力の数値が優先的に表示されます。試合イベントからの記録は引き続き行われており、「自動集計に戻す」を押せばいつでも元に戻せます。</p>
+            </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-medium">大会別成績（手入力）</div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    statsFieldArray.append({
-                      competitionId: "",
-                      matches: undefined,
-                      minutes: undefined,
-                      goals: undefined,
-                      assists: undefined,
-                      yellowCards: undefined,
-                      redCards: undefined,
-                      avgRating: undefined,
-                    })
-                  }
-                >
-                  追加
-                </Button>
               </div>
 
               {statsFieldArray.fields.length === 0 && (
@@ -492,11 +524,11 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                         control={form.control}
                         name={`manualCompetitionStats.${idx}.competitionId` as const}
                         render={({ field }) => (
-                          <FormItem className="flex-1">
+                          <FormItem className="flex-1 min-w-0">
                             <FormLabel>大会</FormLabel>
                             <Select onValueChange={field.onChange} value={field.value || ""}>
                               <FormControl>
-                                <SelectTrigger>
+                                <SelectTrigger className="w-full">
                                   <SelectValue placeholder="大会を選択" />
                                 </SelectTrigger>
                               </FormControl>
@@ -519,19 +551,6 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                           </FormItem>
                         )}
                       />
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full sm:w-auto border-destructive text-destructive hover:bg-destructive/10"
-                        onClick={() => {
-                          const ok = window.confirm('この手入力成績を削除して、自動集計に戻しますか？');
-                          if (!ok) return;
-                          statsFieldArray.remove(idx);
-                        }}
-                      >
-                        自動集計に戻す
-                      </Button>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -665,18 +684,44 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                         control={form.control}
                         name={`manualCompetitionStats.${idx}.avgRating` as const}
                         render={({ field }) => (
-                          <FormItem>
+                          <FormItem className="col-span-2">
                             <FormLabel>評価点</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="text"
-                                inputMode="decimal"
-                                step="0.1"
-                                placeholder="6.5"
-                                value={field.value ?? ""}
-                                onChange={(e) => field.onChange(e.target.value)}
-                              />
-                            </FormControl>
+                            <div className="flex gap-2">
+                              <FormControl className="flex-1">
+                                <Input
+                                  type="text"
+                                  inputMode="decimal"
+                                  step="0.1"
+                                  placeholder="6.5"
+                                  value={field.value ?? ""}
+                                  onChange={(e) => field.onChange(e.target.value)}
+                                />
+                              </FormControl>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="flex-shrink-0"
+                                onClick={() => {
+                                  const ok = window.confirm('この手入力成績を削除して、自動集計に戻しますか？');
+                                  if (!ok) return;
+                                  statsFieldArray.remove(idx);
+                                }}
+                              >
+                                自動集計に戻す
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="border-destructive text-destructive hover:bg-destructive/10 flex-shrink-0"
+                                onClick={() => {
+                                  const ok = window.confirm('この成績を削除しますか？');
+                                  if (!ok) return;
+                                  statsFieldArray.remove(idx);
+                                }}
+                              >
+                                削除
+                              </Button>
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -686,6 +731,25 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                 ))}
               </div>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() =>
+                statsFieldArray.append({
+                  competitionId: "",
+                  matches: undefined,
+                  minutes: undefined,
+                  goals: undefined,
+                  assists: undefined,
+                  yellowCards: undefined,
+                  redCards: undefined,
+                  avgRating: undefined,
+                })
+              }
+            >
+              追加
+            </Button>
           </TabsContent>
           <TabsContent value="params" className="space-y-4">
             <FormField

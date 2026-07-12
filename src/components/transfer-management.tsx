@@ -169,7 +169,7 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
       const seasonData = (p.seasonData || {})[season] as any;
       out.push({
         ...p,
-        age: seasonData?.age ?? (p as any).age,
+        dateOfBirth: seasonData?.dateOfBirth ?? (p as any).dateOfBirth,
         position: seasonData?.position ?? (p as any).position,
       } as Player);
     }
@@ -186,7 +186,7 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
           const seasonData = s ? ((p.seasonData || {})[s] as any) : undefined;
           return {
             ...p,
-            age: seasonData?.age ?? (p as any).age,
+            dateOfBirth: seasonData?.dateOfBirth ?? (p as any).dateOfBirth,
             position: seasonData?.position ?? (p as any).position,
           } as Player;
         });
@@ -228,8 +228,8 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
     if (values.playerId && values.playerId.trim().length > 0) {
       payload.playerId = values.playerId;
     }
-    if (values.age != null) {
-      payload.age = values.age;
+    if (values.dateOfBirth && values.dateOfBirth.trim().length > 0) {
+      payload.dateOfBirth = values.dateOfBirth;
     }
     if (values.position && values.position.trim().length > 0) {
       payload.position = values.position;

@@ -401,6 +401,11 @@ async function getPlayersData(
   if (activeSeason && rosterPlayerIdSet && filteredPlayers.length === 0) {
     filteredPlayers = players.filter((p: any) => filterBySeasonMembership(p));
   }
+  
+  // If roster exists but results in very few players (less than 50% of total), also fall back to season membership
+  if (activeSeason && rosterPlayerIdSet && filteredPlayers.length > 0 && filteredPlayers.length < players.length / 2) {
+    filteredPlayers = players.filter((p: any) => filterBySeasonMembership(p));
+  }
 
   // HP非表示フラグ（active season の seasonData.isPublished を優先）
   filteredPlayers = filteredPlayers.filter((p) => isPublishedForActiveSeason(p));

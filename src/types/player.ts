@@ -43,8 +43,8 @@ export interface PlayerSeasonData {
   mainPosition?: "ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK";
   subPositions?: ("ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK")[];
   nationality?: string;
-  age?: number;
-  tenureYears?: number;
+  dateOfBirth?: string;
+  joinedSeason?: string;
   height?: number;
   weight?: number;
   profile?: string;
@@ -70,9 +70,8 @@ export interface Player {
   mainPosition?: "ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK";
   subPositions?: ("ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK")[];
   nationality: string;
-  birthDate: string; // or Date
-  age: number;
-  tenureYears?: number;
+  dateOfBirth?: string;
+  joinedSeason?: string;
   height: number; // in cm
   weight?: number; // in kg
   profile?: string;

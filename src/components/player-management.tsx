@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { toDashSeason } from "@/lib/season";
+import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc, getDocs, writeBatch } from "firebase/firestore";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
@@ -279,8 +280,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           mainPosition: (season as any)?.mainPosition ?? (p as any).mainPosition,
           subPositions: (season as any)?.subPositions ?? (p as any).subPositions,
           nationality: (season?.nationality ?? p.nationality) as any,
-          age: (season?.age ?? p.age) as any,
-          tenureYears: (season as any)?.tenureYears ?? (p as any).tenureYears,
+          dateOfBirth: (season?.dateOfBirth ?? p.dateOfBirth) as any,
+          joinedSeason: (season?.joinedSeason ?? p.joinedSeason) as any,
           height: (season?.height ?? p.height) as any,
           weight: (season as any)?.weight ?? (p as any).weight,
           profile: (season as any)?.profile ?? (p as any).profile,
@@ -332,8 +333,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       mainPosition: (season as any)?.mainPosition ?? (editingPlayer as any).mainPosition,
       subPositions: (season as any)?.subPositions ?? (editingPlayer as any).subPositions,
       nationality: season.nationality ?? editingPlayer.nationality,
-      age: season.age ?? editingPlayer.age,
-      tenureYears: (season as any)?.tenureYears ?? (editingPlayer as any).tenureYears,
+      dateOfBirth: season.dateOfBirth ?? editingPlayer.dateOfBirth,
+      joinedSeason: season.joinedSeason ?? editingPlayer.joinedSeason,
       height: season.height ?? editingPlayer.height,
       weight: (season as any)?.weight ?? (editingPlayer as any).weight,
       profile: (season as any)?.profile ?? (editingPlayer as any).profile,
@@ -541,8 +542,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         mainPosition: (values as any).mainPosition,
         subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
         nationality: valuesNormalized.nationality,
-        age: valuesNormalized.age,
-        tenureYears: (values as any).tenureYears,
+        dateOfBirth: valuesNormalized.dateOfBirth,
+        joinedSeason: (values as any).joinedSeason,
         height: valuesNormalized.height,
         weight: (values as any).weight,
         profile: (values as any).profile,
@@ -573,7 +574,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
           number: valuesNormalized.number as any,
           photoUrl: valuesNormalized.photoUrl,
-          tenureYears: (values as any).tenureYears,
+          joinedSeason: (values as any).joinedSeason,
           seasons: nextSeasons,
           [`seasonData.${selectedSeasonDash}`]: seasonPayloadClean,
         });
@@ -597,7 +598,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           mainPosition: (values as any).mainPosition,
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
           photoUrl: valuesNormalized.photoUrl,
-          tenureYears: (values as any).tenureYears,
+          joinedSeason: (values as any).joinedSeason,
         });
         console.log("[PlayerManagement] write roster", {
           path: `clubs/${clubUid}/seasons/${selectedSeason}/roster/${editingPlayer.id}`,
@@ -638,7 +639,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             mainPosition: (values as any).mainPosition,
             subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
             photoUrl: values.photoUrl,
-            tenureYears: (values as any).tenureYears,
+            joinedSeason: (values as any).joinedSeason,
           }) || {}) as any,
           { merge: true }
         );
@@ -956,7 +957,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           number: (r as any).number,
           position: (r as any).position,
           nationality: (r as any).nationality,
-          age: (r as any).age,
+          dateOfBirth: (r as any).dateOfBirth,
           height: (r as any).height,
           weight: (r as any).weight,
           preferredFoot: (r as any).preferredFoot,
@@ -969,7 +970,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           number: (r as any).number,
           position: (r as any).position,
           nationality: (r as any).nationality,
-          age: (r as any).age,
+          dateOfBirth: (r as any).dateOfBirth,
           height: (r as any).height,
           weight: (r as any).weight,
           preferredFoot: (r as any).preferredFoot,

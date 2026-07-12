@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
 
 // This interface needs to be in sync with the one in page.tsx
 interface Player {
@@ -20,7 +21,8 @@ interface Staff {
   name: string;
   position?: string;
   nationality?: string;
-  age?: number;
+  dateOfBirth?: string;
+  joinedSeason?: string;
   profile?: string;
   photoUrl?: string;
 }
@@ -82,6 +84,21 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
   const [seasonPickerOpen, setSeasonPickerOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [resolvedHeadingColor, setResolvedHeadingColor] = useState<string | null>(null);
+
+  // デバッグ情報をコンソールに出力
+  useEffect(() => {
+    if (debugInfo) {
+      console.log('=== DEBUG INFO ===');
+      console.log('Total players from teams:', debugInfo.counts?.teamsPlayers || 'N/A');
+      console.log('After season membership:', debugInfo.counts?.afterSeasonMembershipPlayers || 'N/A');
+      console.log('After roster disambiguation:', debugInfo.counts?.afterRosterDisambiguationPlayers || 'N/A');
+      console.log('After published filter:', debugInfo.counts?.afterPublishedPlayers || 'N/A');
+      console.log('Roster loaded:', debugInfo.roster?.loaded || 'N/A');
+      console.log('Roster count:', debugInfo.roster?.count || 'N/A');
+      console.log('Active season:', activeSeason);
+      console.log('==================');
+    }
+  }, [debugInfo, activeSeason]);
 
   const baseTabBtn = useMemo(
     () =>
@@ -472,7 +489,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
             </div>
 
             <div className="p-4 pt-3 space-y-2 text-sm text-center">
-              {(selectedStaff.nationality || selectedStaff.age != null) ? (
+              {(selectedStaff.nationality || selectedStaff.dateOfBirth) ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-white/15 bg-white/5 p-3">
                     <div className="text-[11px] text-white/60">国籍</div>
@@ -480,7 +497,11 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
                   </div>
                   <div className="rounded-xl border border-white/15 bg-white/5 p-3">
                     <div className="text-[11px] text-white/60">年齢</div>
-                    <div className="mt-0.5 font-semibold tabular-nums">{typeof selectedStaff.age === 'number' && Number.isFinite(selectedStaff.age) ? selectedStaff.age : '-'}</div>
+                    <div className="mt-0.5 font-semibold tabular-nums">
+                      {selectedStaff.dateOfBirth && activeSeason 
+                        ? calculateAge(selectedStaff.dateOfBirth, activeSeason) 
+                        : '-'}
+                    </div>
                   </div>
                 </div>
               ) : null}

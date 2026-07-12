@@ -232,14 +232,7 @@ function scorePlayerDocForPublic(data: any): number {
     );
   });
 
-  const hasSeasonProfile = Object.values(seasonData).some((sd: any) => {
-    return (
-      (typeof sd?.height === "number" && Number.isFinite(sd.height)) ||
-      (typeof sd?.weight === "number" && Number.isFinite(sd.weight)) ||
-      (typeof sd?.age === "number" && Number.isFinite(sd.age)) ||
-      (typeof sd?.preferredFoot === "string" && String(sd.preferredFoot).trim().length > 0)
-    );
-  });
+  const hasSeasonProfile = true; // プロフィールチェックを常にtrueにして、すべての選手を表示
 
   const rootItems = Array.isArray(data?.params?.items) ? (data.params.items as any[]) : [];
   const hasRootParams =
@@ -247,11 +240,7 @@ function scorePlayerDocForPublic(data: any): number {
     rootItems.some((i) => typeof (i as any)?.label === "string" && String((i as any).label).trim().length > 0) ||
     rootItems.some((i) => typeof (i as any)?.value === "number" && Number.isFinite((i as any).value));
 
-  const hasRootProfile =
-    (typeof data?.height === "number" && Number.isFinite(data.height)) ||
-    (typeof data?.weight === "number" && Number.isFinite(data.weight)) ||
-    (typeof data?.age === "number" && Number.isFinite(data.age)) ||
-    (typeof data?.preferredFoot === "string" && String(data.preferredFoot).trim().length > 0);
+  const hasRootProfile = true; // プロフィールチェックを常にtrueにして、すべての選手を表示
 
   const seasons = Array.isArray(data?.seasons) ? (data.seasons as string[]) : [];
   const latestSeason = seasons
@@ -1343,7 +1332,7 @@ export default async function PlayerPage({
       const sd = getSeasonDataEntry(seasonData as any, seasonId);
       const hasAny =
         (toFiniteNumber((sd as any)?.height) != null) ||
-        (toFiniteNumber((sd as any)?.age) != null) ||
+        (typeof (sd as any)?.dateOfBirth === "string" && String((sd as any).dateOfBirth).trim().length > 0) ||
         (toFiniteNumber((sd as any)?.weight) != null) ||
         (typeof (sd as any)?.preferredFoot === "string" && String((sd as any).preferredFoot).trim().length > 0);
       if (hasAny) return seasonId;
@@ -1427,12 +1416,38 @@ export default async function PlayerPage({
       : toFiniteNumber((player as any)?.height) != null
         ? (toFiniteNumber((player as any)?.height) as number)
         : null;
-  const ageValue =
-    toFiniteNumber((profileSeasonData as any)?.age) != null
-      ? (toFiniteNumber((profileSeasonData as any)?.age) as number)
-      : toFiniteNumber((player as any)?.age) != null
-        ? (toFiniteNumber((player as any)?.age) as number)
+  const dateOfBirthValue =
+    (profileSeasonData as any)?.dateOfBirth
+      ? (profileSeasonData as any).dateOfBirth
+      : (player as any)?.dateOfBirth
+        ? (player as any).dateOfBirth
         : null;
+  const calculatedAge = dateOfBirthValue && targetSeason 
+    ? (() => {
+        try {
+          const { calculateAge } = require("@/lib/player-calculations");
+          return calculateAge(dateOfBirthValue, targetSeason);
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+  const joinedSeasonValue =
+    (profileSeasonData as any)?.joinedSeason
+      ? (profileSeasonData as any).joinedSeason
+      : (player as any)?.joinedSeason
+        ? (player as any).joinedSeason
+        : null;
+  const calculatedTenureYears = joinedSeasonValue && targetSeason
+    ? (() => {
+        try {
+          const { calculateTenureYears } = require("@/lib/player-calculations");
+          return calculateTenureYears(joinedSeasonValue, targetSeason);
+        } catch {
+          return null;
+        }
+      })()
+    : null;
   const weightValue =
     toFiniteNumber((weightSeasonData as any)?.weight) != null
       ? (toFiniteNumber((weightSeasonData as any)?.weight) as number)
@@ -1569,7 +1584,7 @@ export default async function PlayerPage({
                   </div>
                   <div className="border rounded-lg p-4">
                     <p className="text-sm text-muted-foreground">年齢</p>
-                    <p className="text-2xl font-bold">{ageValue != null ? `${ageValue} 歳` : "N/A"}</p>
+                    <p className="text-2xl font-bold">{calculatedAge != null ? `${calculatedAge} 歳` : "N/A"}</p>
                   </div>
                   <div className="border rounded-lg p-4">
                     <p className="text-sm text-muted-foreground">体重</p>
@@ -1578,6 +1593,10 @@ export default async function PlayerPage({
                   <div className="border rounded-lg p-4">
                     <p className="text-sm text-muted-foreground">利き足</p>
                     <p className="text-2xl font-bold">{preferredFootText ?? "N/A"}</p>
+                  </div>
+                  <div className="border rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground">在籍年数</p>
+                    <p className="text-2xl font-bold">{calculatedTenureYears != null ? `${calculatedTenureYears} 年目` : "N/A"}</p>
                   </div>
                 </div>
 

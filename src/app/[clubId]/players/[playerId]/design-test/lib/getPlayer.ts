@@ -52,14 +52,7 @@ function scorePlayerDocForPublic(data: any): number {
     );
   });
 
-  const hasSeasonProfile = Object.values(seasonData).some((sd: any) => {
-    return (
-      (typeof sd?.height === "number" && Number.isFinite(sd.height)) ||
-      (typeof sd?.weight === "number" && Number.isFinite(sd.weight)) ||
-      (typeof sd?.age === "number" && Number.isFinite(sd.age)) ||
-      (typeof sd?.preferredFoot === "string" && String(sd.preferredFoot).trim().length > 0)
-    );
-  });
+  const hasSeasonProfile = true; // プロフィールチェックを常にtrueにして、すべての選手を表示
 
   const rootItems = Array.isArray(data?.params?.items) ? (data.params.items as any[]) : [];
   const hasRootParams =
@@ -67,11 +60,7 @@ function scorePlayerDocForPublic(data: any): number {
     rootItems.some((i) => typeof (i as any)?.label === "string" && String((i as any).label).trim().length > 0) ||
     rootItems.some((i) => typeof (i as any)?.value === "number" && Number.isFinite((i as any).value));
 
-  const hasRootProfile =
-    (typeof data?.height === "number" && Number.isFinite(data.height)) ||
-    (typeof data?.weight === "number" && Number.isFinite(data.weight)) ||
-    (typeof data?.age === "number" && Number.isFinite(data.age)) ||
-    (typeof data?.preferredFoot === "string" && String(data.preferredFoot).trim().length > 0);
+  const hasRootProfile = true; // プロフィールチェックを常にtrueにして、すべての選手を表示
 
   const seasons = Array.isArray(data?.seasons) ? (data.seasons as string[]) : [];
   const latestSeason = seasons

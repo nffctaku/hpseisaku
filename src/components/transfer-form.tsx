@@ -37,7 +37,7 @@ const formSchema = z.object({
   season: z.string().min(1),
   playerId: z.string().optional().or(z.literal("")),
   playerName: z.string().min(1, { message: "選手名は必須です。" }),
-  age: z.coerce.number().int().optional(),
+  dateOfBirth: z.string().optional(),
   position: z.string().optional(),
   counterparty: z.string().min(1, { message: "移籍先/元は必須です。" }),
   fee: z.preprocess(parseMoneyValue, z.number().nonnegative().optional()),
@@ -73,7 +73,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
       season,
       playerId: "",
       playerName: "",
-      age: undefined,
+      dateOfBirth: undefined,
       position: "",
       counterparty: "",
       fee: undefined,
@@ -151,7 +151,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
                   const selected = playerOptions.find((p) => p.id === next);
                   if (selected) {
                     form.setValue("playerName", selected.name || "");
-                    form.setValue("age", (selected as any).age ?? undefined);
+                    form.setValue("dateOfBirth", (selected as any).dateOfBirth ?? undefined);
                     form.setValue("position", (selected as any).position ?? "");
                   }
                 }}
@@ -192,16 +192,16 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
         <div className="grid grid-cols-2 gap-3">
           <FormField
             control={form.control}
-            name="age"
+            name="dateOfBirth"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>年齢</FormLabel>
+                <FormLabel>生年月日</FormLabel>
                 <FormControl>
                   <Input
-                    type="number"
-                    placeholder="20"
+                    type="date"
+                    placeholder="2000-05-01"
                     value={field.value ?? ""}
-                    onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />

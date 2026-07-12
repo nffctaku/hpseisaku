@@ -20,6 +20,7 @@ import {
   toSlashSeason,
 } from "./lib/season";
 import { computeOverall } from "./lib/params";
+import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -92,9 +93,11 @@ export default async function PlayerDesignTestPage({
     return true;
   })();
 
-  const birthDateText = formatBirthDate((player as any)?.birthDate ?? (currentSeasonData as any)?.birthDate ?? (player as any)?.birthday);
-  const ageValue = (currentSeasonData as any)?.age ?? (player as any)?.age ?? null;
-  const birthLine = birthDateText ? `${birthDateText}${typeof ageValue === "number" && Number.isFinite(ageValue) ? ` (${ageValue})` : ""}` : null;
+  const birthDateText = formatBirthDate((player as any)?.dateOfBirth ?? (currentSeasonData as any)?.dateOfBirth ?? (player as any)?.birthDate ?? (currentSeasonData as any)?.birthDate ?? (player as any)?.birthday);
+  const dateOfBirthValue = (player as any)?.dateOfBirth ?? (currentSeasonData as any)?.dateOfBirth ?? null;
+  const calculatedAge = dateOfBirthValue && effectiveSeason ? calculateAge(dateOfBirthValue, effectiveSeason) : null;
+  const joinedSeasonValue = (player as any)?.joinedSeason ?? (currentSeasonData as any)?.joinedSeason ?? null;
+  const calculatedTenureYears = joinedSeasonValue && effectiveSeason ? calculateTenureYears(joinedSeasonValue, effectiveSeason) : null;
 
   const nationalityText = (currentSeasonData as any)?.nationality ?? (player as any)?.nationality ?? null;
 
@@ -182,13 +185,6 @@ export default async function PlayerDesignTestPage({
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="text-sm font-semibold">基本情報</div>
       <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
-        {birthLine ? (
-          <div className="flex items-baseline justify-between gap-4">
-            <div className="text-white/70">生年月日/年齢</div>
-            <div className="font-semibold tabular-nums text-right">{birthLine}</div>
-          </div>
-        ) : null}
-
         <div className="flex items-baseline justify-between gap-4">
           <div className="text-white/70">出身</div>
           <div className="font-semibold text-right break-words">{nationalityText ? String(nationalityText) : "-"}</div>
@@ -206,7 +202,12 @@ export default async function PlayerDesignTestPage({
 
         <div className="flex items-baseline justify-between gap-4">
           <div className="text-white/70">年齢</div>
-          <div className="font-semibold tabular-nums text-right">{typeof ageValue === "number" && Number.isFinite(ageValue) ? `${ageValue}` : "-"}</div>
+          <div className="font-semibold tabular-nums text-right">{calculatedAge != null ? `${calculatedAge} 歳` : "-"}</div>
+        </div>
+
+        <div className="flex items-baseline justify-between gap-4">
+          <div className="text-white/70">在籍年数</div>
+          <div className="font-semibold tabular-nums text-right">{calculatedTenureYears != null ? `${calculatedTenureYears} 年目` : "-"}</div>
         </div>
 
         <div className="flex items-baseline justify-between gap-4">
@@ -530,7 +531,12 @@ export default async function PlayerDesignTestPage({
 
                             <div className="flex items-baseline justify-between gap-4">
                               <div className="text-white/70">年齢</div>
-                              <div className="font-semibold tabular-nums text-right">{typeof ageValue === "number" && Number.isFinite(ageValue) ? `${ageValue}` : "-"}</div>
+                              <div className="font-semibold tabular-nums text-right">{calculatedAge != null ? `${calculatedAge} 歳` : "-"}</div>
+                            </div>
+
+                            <div className="flex items-baseline justify-between gap-4">
+                              <div className="text-white/70">在籍年数</div>
+                              <div className="font-semibold tabular-nums text-right">{calculatedTenureYears != null ? `${calculatedTenureYears} 年目` : "-"}</div>
                             </div>
 
                             <div className="flex items-baseline justify-between gap-4">

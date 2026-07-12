@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { UseFormReturn } from "react-hook-form";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,33 +21,45 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 import {
   type DetailedPosition,
   type PlayerFormValues,
 } from "./player-form.schema";
 
-const detailedPositionLayout: Array<{ key: DetailedPosition; label: string; grid: string }> = [
-  { key: "ST", label: "ST", grid: "col-start-3 row-start-1" },
-  { key: "LW", label: "LW", grid: "col-start-1 row-start-1" },
-  { key: "RW", label: "RW", grid: "col-start-5 row-start-1" },
-  { key: "AM", label: "AM", grid: "col-start-3 row-start-2" },
-  { key: "LM", label: "LM", grid: "col-start-1 row-start-3" },
-  { key: "CM", label: "CM", grid: "col-start-3 row-start-3" },
-  { key: "RM", label: "RM", grid: "col-start-5 row-start-3" },
-  { key: "DM", label: "DM", grid: "col-start-3 row-start-4" },
-  { key: "LB", label: "LB", grid: "col-start-1 row-start-5" },
-  { key: "CB", label: "CB", grid: "col-start-3 row-start-5" },
-  { key: "RB", label: "RB", grid: "col-start-5 row-start-5" },
-  { key: "GK", label: "GK", grid: "col-start-3 row-start-6" },
+const detailedPositionLayout: Array<{ key: DetailedPosition; label: string; x: string; y: string }> = [
+  { key: "LW", label: "LW", x: "17%", y: "14%" },
+  { key: "ST", label: "ST", x: "50%", y: "12%" },
+  { key: "RW", label: "RW", x: "83%", y: "14%" },
+  { key: "AM", label: "AM", x: "50%", y: "28%" },
+  { key: "LM", label: "LM", x: "17%", y: "43%" },
+  { key: "CM", label: "CM", x: "50%", y: "46%" },
+  { key: "RM", label: "RM", x: "83%", y: "43%" },
+  { key: "DM", label: "DM", x: "50%", y: "61%" },
+  { key: "LB", label: "LB", x: "17%", y: "77%" },
+  { key: "CB", label: "CB", x: "50%", y: "80%" },
+  { key: "RB", label: "RB", x: "83%", y: "77%" },
+  { key: "GK", label: "GK", x: "50%", y: "93%" },
 ];
 
 export function DetailedPositionsSection({
   form,
+  defaultOpen = false,
 }: {
   form: UseFormReturn<PlayerFormValues>;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    setOpen(defaultOpen);
+  }, [defaultOpen]);
 
   return (
     <FormItem className="md:col-span-2">
@@ -67,7 +80,11 @@ export function DetailedPositionsSection({
 
           {open ? (
             <div className="mt-4">
-              <div className="grid grid-cols-5 grid-rows-6 gap-3 max-w-[520px] mx-auto">
+              <div className="relative mx-auto h-[430px] w-full max-w-[360px] overflow-hidden rounded-xl border border-gray-300 bg-white">
+                <div className="absolute left-1/2 top-0 h-[52px] w-[42%] -translate-x-1/2 border-x border-b border-gray-200" />
+                <div className="absolute left-0 top-1/2 h-px w-full bg-gray-200" />
+                <div className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-gray-200" />
+                <div className="absolute bottom-0 left-1/2 h-[52px] w-[42%] -translate-x-1/2 border-x border-t border-gray-200" />
                 {detailedPositionLayout.map((p) => {
                   const main = form.watch("mainPosition") as DetailedPosition | undefined;
                   const subs = (form.watch("subPositions") || []) as DetailedPosition[];
@@ -104,12 +121,11 @@ export function DetailedPositionsSection({
                     form.setValue("subPositions", [...currentSubs, p.key] as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
                   };
 
-                  const baseClass = "relative select-none rounded-md border text-sm font-semibold h-12 flex items-center justify-center transition-colors";
                   const colorClass = isMain
-                    ? "bg-rose-500/90 text-white border-rose-500"
+                    ? "border-blue-600 bg-blue-600 text-white shadow-sm"
                     : isSub
-                      ? "bg-rose-500/25 text-foreground border-rose-500/40"
-                      : "bg-muted/30 hover:bg-muted/50";
+                      ? "border-blue-300 bg-blue-100 text-blue-700"
+                      : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50";
                   const disabledClass = !selected && (form.watch("mainPosition") != null) && ((form.watch("subPositions") || []).length >= 3)
                     ? "opacity-60"
                     : "";
@@ -119,15 +135,11 @@ export function DetailedPositionsSection({
                       key={p.key}
                       type="button"
                       onClick={onToggle}
-                      className={`${p.grid} ${baseClass} ${colorClass} ${disabledClass}`}
+                      className={`absolute flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 select-none items-center justify-center rounded-full border text-sm font-semibold transition-colors ${colorClass} ${disabledClass}`}
+                      style={{ left: p.x, top: p.y }}
                       aria-pressed={selected}
                     >
-                      <span className="text-base tracking-wide">{p.label}</span>
-                      {selected && (
-                        <span className="absolute top-1 right-1 text-[10px] font-bold">
-                          {isMain ? "MAIN" : "SUB"}
-                        </span>
-                      )}
+                      {p.label}
                     </button>
                   );
                 })}
@@ -135,17 +147,19 @@ export function DetailedPositionsSection({
             </div>
           ) : null}
 
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            <div className="rounded-md bg-muted/30 p-3">
-              <div className="text-xs text-muted-foreground">メイン</div>
-              <div className="font-semibold">{(form.watch("mainPosition") as any) || "未選択"}</div>
-            </div>
-            <div className="rounded-md bg-muted/30 p-3">
-              <div className="text-xs text-muted-foreground">サブ</div>
-              <div className="font-semibold">
-                {((form.watch("subPositions") as any[]) || []).length > 0
-                  ? ((form.watch("subPositions") as any[]) || []).join(", ")
-                  : "未選択"}
+          <div className="mt-4 rounded-md bg-muted/30 p-3 text-sm">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs text-muted-foreground">メイン</div>
+                <div className="font-semibold">{(form.watch("mainPosition") as any) || "未選択"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">サブ</div>
+                <div className="font-semibold">
+                  {((form.watch("subPositions") as any[]) || []).length > 0
+                    ? ((form.watch("subPositions") as any[]) || []).join(", ")
+                    : "未選択"}
+                </div>
               </div>
             </div>
           </div>
@@ -157,10 +171,18 @@ export function DetailedPositionsSection({
 
 export function BasicInfoSection({
   form,
+  defaultOpen = false,
+  seasons = [],
 }: {
   form: UseFormReturn<PlayerFormValues>;
+  defaultOpen?: boolean;
+  seasons?: string[];
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    setOpen(defaultOpen);
+  }, [defaultOpen]);
 
   return (
     <div className="space-y-3 rounded-lg border bg-muted/10 p-3 md:col-span-2">
@@ -239,50 +261,77 @@ export function BasicInfoSection({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="preferredFoot"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>利き足</FormLabel>
-                <FormControl>
-                  <Select value={(field.value as any) ?? ""} onValueChange={(v) => field.onChange(v === "" ? undefined : v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="left">左</SelectItem>
-                      <SelectItem value="right">右</SelectItem>
-                      <SelectItem value="both">両</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <FormField
+              control={form.control}
+              name="dateOfBirth"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>生年月日</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            new Date(field.value).toLocaleDateString("ja-JP")
+                          ) : (
+                            <span>日付を選択</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-white" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value ? new Date(field.value) : undefined}
+                        onSelect={(date) => field.onChange(date?.toISOString().split('T')[0])}
+                        disabled={(date) =>
+                          date > new Date() || date < new Date("1900-01-01")
+                        }
+                        initialFocus
+                        fromYear={1950}
+                        toYear={new Date().getFullYear() + 5}
+                        captionLayout="dropdown"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="age"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>年齢</FormLabel>
-                <FormControl>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="25"
-                    {...field}
-                    value={(field.value ?? "") as any}
-                    onChange={(e) => field.onChange(e.target.value)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="joinedSeason"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>加入シーズン</FormLabel>
+                  <FormControl>
+                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {seasons.map((season: string) => (
+                          <SelectItem key={season} value={season}>
+                            {season}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         </>
       ) : null}
     </div>
@@ -291,10 +340,18 @@ export function BasicInfoSection({
 
 export function OtherInfoSection({
   form,
+  defaultOpen = false,
+  seasons = [],
 }: {
   form: UseFormReturn<PlayerFormValues>;
+  defaultOpen?: boolean;
+  seasons?: string[];
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    setOpen(defaultOpen);
+  }, [defaultOpen]);
 
   return (
     <div className="space-y-3 rounded-lg border bg-muted/10 p-3 md:col-span-2">
@@ -315,28 +372,6 @@ export function OtherInfoSection({
 
       {open ? (
         <>
-          <FormField
-            control={form.control}
-            name="tenureYears"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>在籍年数</FormLabel>
-                <FormControl>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="0"
-                    {...field}
-                    value={(field.value ?? "") as any}
-                    onChange={(e) => field.onChange(e.target.value)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
           <div className="grid grid-cols-2 gap-4">
             <FormField
               control={form.control}
