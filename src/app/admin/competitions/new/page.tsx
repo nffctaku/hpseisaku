@@ -4,11 +4,12 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, writeBatch, doc, getDocs, query } from "firebase/firestore";
+import { collection, addDoc, writeBatch, doc, getDocs, query, setDoc } from "firebase/firestore";
 import { useForm, useFieldArray, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
+import { toDashSeason } from "@/lib/season";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -327,14 +328,43 @@ export default function NewCompetitionPage() {
 
     setLoading(true);
     try {
-      const compRef = await addDoc(collection(db, `clubs/${clubUid}/competitions`), {
-        name: data.name,
-        season: data.season,
-        format: data.format,
-        teams: data.teams, // Save array of team IDs
-        logoUrl: data.logoUrl || null,
+      // 選択したシーズンをFirebaseに保存
+      if (data.season) {
+        const seasonId = toDashSeason(data.season.trim());
+        const seasonRef = doc(db, `clubs/${clubUid}/seasons`, seasonId);
+        await setDoc(seasonRef, { id: seasonId }, { merge: true });
+      }
+
+      const competitionData: any = {
+        name: String(data.name || ''),
+        season: String(data.season || ''),
+        format: String(data.format || 'league') as 'league' | 'cup' | 'league_cup',
+        teams: Array.isArray(data.teams) ? data.teams : [],
+        logoUrl: (data.logoUrl && data.logoUrl !== '') ? data.logoUrl : null,
         rankLabels: Array.isArray(data.rankLabels) ? data.rankLabels : [],
-      });
+      };
+      
+      // Remove undefined values recursively
+      const removeUndefined = (obj: any): any => {
+        if (obj === null || obj === undefined) return null;
+        if (Array.isArray(obj)) {
+          return obj.map(removeUndefined);
+        }
+        if (typeof obj === 'object') {
+          const cleaned: any = {};
+          for (const key in obj) {
+            if (obj[key] !== undefined) {
+              cleaned[key] = removeUndefined(obj[key]);
+            }
+          }
+          return cleaned;
+        }
+        return obj;
+      };
+      
+      const cleanedData = removeUndefined(competitionData);
+      
+      const compRef = await addDoc(collection(db, `clubs/${clubUid}/competitions`), cleanedData);
 
       const batch = writeBatch(db);
       const roundsColRef = collection(db, `clubs/${clubUid}/competitions`, compRef.id, 'rounds');
@@ -358,7 +388,14 @@ export default function NewCompetitionPage() {
       router.push(`/admin/competitions/${compRef.id}`);
     } catch (error) {
       console.error("Error creating competition: ", error);
-      toast.error("大会の作成に失敗しました。");
+      let errorMessage = "大会の作成に失敗しました。";
+      if (error instanceof Error) {
+        errorMessage = `大会の作成に失敗しました: ${error.message}`;
+      } else if (typeof error === 'string') {
+        errorMessage = `大会の作成に失敗しました: ${error}`;
+      }
+      toast.error(errorMessage, { duration: 5000 });
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -494,16 +531,37 @@ export default function NewCompetitionPage() {
                   <FormLabel className="text-white">大会フォーマット <span className="text-red-500 text-xs">必須</span></FormLabel>
                   <FormControl>
                     <div className="flex flex-col space-y-2">
-                      <label className="flex items-center space-x-3 text-white">
-                        <input type="radio" {...field} value="league" checked={field.value === 'league'} className="form-radio" disabled={competitionNameMode === 'existing'} />
+                      <label className={`flex items-center space-x-3 text-white ${competitionNameMode === 'existing' ? 'opacity-50' : ''}`}>
+                        <div className="relative">
+                          <input type="radio" {...field} value="league" checked={field.value === 'league'} className={`w-4 h-4 border-gray-300 appearance-none cursor-pointer ${field.value === 'league' ? 'accent-blue-500' : ''}`} disabled={competitionNameMode === 'existing'} />
+                          {field.value === 'league' && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+                            </div>
+                          )}
+                        </div>
                         <span className="font-normal">リーグ戦</span>
                       </label>
-                      <label className="flex items-center space-x-3 text-white">
-                        <input type="radio" {...field} value="cup" checked={field.value === 'cup'} className="form-radio" disabled={competitionNameMode === 'existing'} />
+                      <label className={`flex items-center space-x-3 text-white ${competitionNameMode === 'existing' ? 'opacity-50' : ''}`}>
+                        <div className="relative">
+                          <input type="radio" {...field} value="cup" checked={field.value === 'cup'} className={`w-4 h-4 border-gray-300 appearance-none cursor-pointer ${field.value === 'cup' ? 'accent-blue-500' : ''}`} disabled={competitionNameMode === 'existing'} />
+                          {field.value === 'cup' && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+                            </div>
+                          )}
+                        </div>
                         <span className="font-normal">カップ戦</span>
                       </label>
-                      <label className="flex items-center space-x-3 text-white">
-                        <input type="radio" {...field} value="league_cup" checked={field.value === 'league_cup'} className="form-radio" disabled={competitionNameMode === 'existing'} />
+                      <label className={`flex items-center space-x-3 text-white ${competitionNameMode === 'existing' ? 'opacity-50' : ''}`}>
+                        <div className="relative">
+                          <input type="radio" {...field} value="league_cup" checked={field.value === 'league_cup'} className={`w-4 h-4 border-gray-300 appearance-none cursor-pointer ${field.value === 'league_cup' ? 'accent-blue-500' : ''}`} disabled={competitionNameMode === 'existing'} />
+                          {field.value === 'league_cup' && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+                            </div>
+                          )}
+                        </div>
                         <span className="font-normal">リーグ & トーナメント</span>
                       </label>
                     </div>

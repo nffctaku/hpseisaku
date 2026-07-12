@@ -287,7 +287,7 @@ export default function CompetitionsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>削除</AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} className="text-red-600 border-red-600 border-2 hover:bg-red-50">削除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
