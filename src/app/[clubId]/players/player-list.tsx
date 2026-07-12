@@ -304,7 +304,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
               <button
                 type="button"
                 onClick={() => setSeasonPickerOpen((v) => !v)}
-                className="w-full h-8 px-3 text-xs rounded-xl bg-background/90 text-foreground border border-border hover:bg-background shadow-sm shadow-black/10 sm:w-[180px] sm:h-9 sm:text-sm dark:bg-white/5 dark:text-white dark:border-white/15 dark:hover:bg-white/10 dark:shadow-black/15"
+                className="w-full h-8 px-3 text-xs rounded-xl bg-background/90 text-foreground border border-border hover:bg-background shadow-sm shadow-black/10 sm:w-[180px] sm:h-9 sm:text-sm dark:bg-zinc-800 dark:text-white dark:border-zinc-600 dark:hover:bg-zinc-700 dark:shadow-black/15"
               >
                 シーズン
               </button>
@@ -330,7 +330,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
                     className={
                       activeTab === 'players'
                         ? `${baseTabBtn} bg-blue-600 text-white`
-                        : `${baseTabBtn} bg-background/90 text-foreground border-border hover:bg-background dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10`
+                        : `${baseTabBtn} bg-background/90 text-foreground border-border hover:bg-background dark:bg-zinc-800 dark:text-white dark:border-zinc-600 dark:hover:bg-zinc-700`
                     }
                   >
                     選手
@@ -342,7 +342,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
                     className={
                       activeTab === 'staff'
                         ? `${baseTabBtn} bg-blue-600 text-white`
-                        : `${baseTabBtn} bg-background/90 text-foreground border-border hover:bg-background dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10`
+                        : `${baseTabBtn} bg-background/90 text-foreground border-border hover:bg-background dark:bg-zinc-800 dark:text-white dark:border-zinc-600 dark:hover:bg-zinc-700`
                     }
                   >
                     スタッフ

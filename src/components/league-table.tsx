@@ -329,6 +329,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
           >
             <TableHeader className={variant === 'table' ? "[&_tr]:border-0" : undefined}>
               <TableRow className={variant === 'table' ? "border-0" : undefined}>
+                <TableHead className="w-[32px] text-center tabular-nums px-1 py-1 sm:px-2 sm:py-1">順</TableHead>
                 <TableHead className="px-2 py-1 sm:px-2 sm:py-1">
                   {selectedCompetition ? (
                     <div className="flex items-center gap-2 min-w-0">
@@ -370,44 +371,63 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
               </TableRow>
             </TableHeader>
             <TableBody>
-              {standings.map((team) => (
-                <TableRow key={team.id} className={variant === 'table' ? "border-0" : undefined}>
-                  <TableCell className="px-2 py-1 sm:px-2 sm:py-1">
-                    <div className="flex items-center gap-1.5">
-                      {team.logoUrl ? (
-                        <Image
-                          src={team.logoUrl}
-                          alt={team.teamName}
-                          width={18}
-                          height={18}
-                          className="rounded-full object-contain"
-                        />
-                      ) : (
-                        <div className="w-[18px] h-[18px] bg-muted rounded-full" />
-                      )}
-                      <span className="truncate max-w-[130px] sm:max-w-none text-[13px] sm:text-xs">{team.teamName}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums px-2 py-1 sm:px-2 sm:py-1">{team.played}</TableCell>
-                  {variant === 'table' ? (
-                    <>
-                      <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.wins}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.draws}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.losses}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsFor}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsAgainst}</TableCell>
-                    </>
-                  ) : (
-                    <>
-                      <TableCell className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">{team.wins}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">{team.draws}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">{team.losses}</TableCell>
-                    </>
-                  )}
-                  <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{formatGoalDifference(team.goalDifference)}</TableCell>
-                  <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1 font-bold">{team.points}</TableCell>
-                </TableRow>
-              ))}
+              {standings.map((team) => {
+                const rankLabel = rankLabels.find(r => team.rank >= r.from && team.rank <= r.to);
+                const rankColor = rankLabel ? (
+                  rankLabel.color === 'green' ? '#22c55e' :
+                  rankLabel.color === 'red' ? '#ef4444' :
+                  rankLabel.color === 'orange' ? '#f97316' :
+                  rankLabel.color === 'blue' ? '#3b82f6' :
+                  rankLabel.color === 'yellow' ? '#eab308' :
+                  '#6b7280'
+                ) : null;
+                return (
+                  <TableRow key={team.id} className={variant === 'table' ? "border-0" : undefined}>
+                    <TableCell className="text-center tabular-nums px-1 py-1 sm:px-2 sm:py-1">
+                      <div 
+                        className="flex items-center justify-center gap-1"
+                        style={{ borderLeft: rankColor ? `3px solid ${rankColor}` : '3px solid transparent' }}
+                      >
+                        <span className="text-xs font-semibold">{team.rank}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-2 py-1 sm:px-2 sm:py-1">
+                      <div className="flex items-center gap-1.5">
+                        {team.logoUrl ? (
+                          <Image
+                            src={team.logoUrl}
+                            alt={team.teamName}
+                            width={18}
+                            height={18}
+                            className="rounded-full object-contain"
+                          />
+                        ) : (
+                          <div className="w-[18px] h-[18px] bg-muted rounded-full" />
+                        )}
+                        <span className="truncate max-w-[130px] sm:max-w-none text-[13px] sm:text-xs">{team.teamName}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums px-2 py-1 sm:px-2 sm:py-1">{team.played}</TableCell>
+                    {variant === 'table' ? (
+                      <>
+                        <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.wins}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.draws}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.losses}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsFor}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsAgainst}</TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">{team.wins}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">{team.draws}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-right px-1 py-0.5 sm:px-2 sm:py-1">{team.losses}</TableCell>
+                      </>
+                    )}
+                    <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{formatGoalDifference(team.goalDifference)}</TableCell>
+                    <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1 font-bold">{team.points}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
