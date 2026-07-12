@@ -9,6 +9,8 @@ type RankLabelRule = {
   from: number;
   to: number;
   color: RankLabelColor;
+  name?: string;
+  label?: string;
 };
 
 type Standing = {
@@ -107,6 +109,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
             from: Number((r as any).from),
             to: Number((r as any).to),
             color: (r as any).color as RankLabelColor,
+            name: typeof (r as any).name === "string" ? (r as any).name : undefined,
+            label: typeof (r as any).label === "string" ? (r as any).label : undefined,
           }))
           .filter(
             (r) =>
