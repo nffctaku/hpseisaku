@@ -1,4 +1,4 @@
-"use client";
+"us一覧の並び順が「38分→41分→45+10分→12分→5分」のように分の順番になっていないように見えます。おそらく登録した順番のままになっているのだと思いますが、これは分の小さい順(または大きい順)にソートした方が、後から試合の流れを見返すときに分かりやすいと思います。e client";
 
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";

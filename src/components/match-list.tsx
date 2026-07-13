@@ -57,6 +57,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
   const [showAll, setShowAll] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState<string>('all');
   const [selectedSeason, setSelectedSeason] = useState<string>(initialSelectedSeason || 'all');
+  const [selectedRoundIndex, setSelectedRoundIndex] = useState(0);
 
   const seasons = [
     'all',
@@ -104,14 +105,47 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
 
   const filteredMatches = filteredByTeam;
 
-  const groupedMatches = filteredMatches.reduce((acc, match) => {
-    const dateGroup = getFormattedDateGroup(match.matchDate);
-    if (!acc[dateGroup]) {
-      acc[dateGroup] = [];
-    }
-    acc[dateGroup].push(match);
-    return acc;
-  }, {} as Record<string, EnrichedMatch[]>);
+  // 節の一覧を取得（重複なし、表示順序を維持）
+  const rounds = Array.from(
+    new Map(
+      filteredMatches
+        .map(m => ({ id: m.roundId, name: m.roundName || m.roundId }))
+        .map(r => [r.id, r])
+    ).values()
+  );
+
+  // showAllがtrueの場合は節でグルーピング、そうでなければ日付でグルーピング
+  const groupedMatches = showAll
+    ? filteredMatches.reduce((acc, match) => {
+        const roundKey = match.roundId;
+        if (!acc[roundKey]) {
+          acc[roundKey] = [];
+        }
+        acc[roundKey].push(match);
+        return acc;
+      }, {} as Record<string, EnrichedMatch[]>)
+    : filteredMatches.reduce((acc, match) => {
+        const dateGroup = getFormattedDateGroup(match.matchDate);
+        if (!acc[dateGroup]) {
+          acc[dateGroup] = [];
+        }
+        acc[dateGroup].push(match);
+        return acc;
+      }, {} as Record<string, EnrichedMatch[]>);
+
+  // 節ナビゲーション用
+  const currentRound = rounds[selectedRoundIndex];
+  const handlePrevRound = () => {
+    setSelectedRoundIndex(prev => Math.max(0, prev - 1));
+  };
+  const handleNextRound = () => {
+    setSelectedRoundIndex(prev => Math.min(rounds.length - 1, prev + 1));
+  };
+
+  // showAllがtrueの場合は選択された節の試合のみ表示、そうでなければ全試合を1つのカードに
+  const displayGroups = showAll && currentRound
+    ? { [currentRound.id]: groupedMatches[currentRound.id] || [] }
+    : { all: filteredMatches };
 
   return (
     <div className="container mx-auto py-8 px-4 md:px-0">
@@ -186,15 +220,40 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
             </div>
           </div>
         </div>
-        
-        {Object.keys(groupedMatches).length === 0 ? (
+
+        {/* 節ナビゲーション（すべて表示時のみ） */}
+        {showAll && rounds.length > 1 && (
+          <div className="flex items-center justify-center gap-4 py-2">
+            <button
+              onClick={handlePrevRound}
+              disabled={selectedRoundIndex === 0}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="前の節"
+            >
+              &lt;
+            </button>
+            <span className="min-w-[120px] text-center text-sm font-semibold">
+              {currentRound?.name || `節 ${selectedRoundIndex + 1}`}
+            </span>
+            <button
+              onClick={handleNextRound}
+              disabled={selectedRoundIndex === rounds.length - 1}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="次の節"
+            >
+              &gt;
+            </button>
+          </div>
+        )}
+
+        {Object.keys(displayGroups).length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">表示する試合がありません。</div>
         ) : (
-            <div className="space-y-2">
-                {Object.entries(groupedMatches).map(([dateGroup, matchesInGroup]) => (
-                    <div key={dateGroup}>
-                        <div className="space-y-2">
-                            {matchesInGroup.map(match => {
+            <div className="space-y-4">
+                {Object.entries(displayGroups).map(([groupKey, matchesInGroup]) => (
+                    <div key={groupKey} className="bg-white rounded-md border">
+                        <div className="divide-y divide-gray-100">
+                            {matchesInGroup.map((match, index) => {
                                 const isFinished =
                                   typeof match.scoreHome === "number" &&
                                   typeof match.scoreAway === "number";
@@ -273,12 +332,13 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                                 }
 
                                 return (
-                                    <div key={match.id} className="block bg-white text-gray-900 rounded-md">
+                                    <div key={match.id} className="text-gray-900">
                                       {/* Mobile */}
                                       <div className="p-2 lg:hidden">
                                           <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-1 text-[10px] text-muted-foreground">
                                             <span className="truncate text-left">
                                               {(() => {
+                                                if (!match.matchDate) return '';
                                                 const d = parseISO(match.matchDate);
                                                 const dateLabel = Number.isNaN(d.getTime())
                                                   ? match.matchDate
@@ -296,6 +356,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                                                   className="h-3.5 w-3.5 shrink-0 object-contain"
                                                 />
                                               ) : null}
+                                              <span className="truncate">{match.competitionName}</span>
                                               <span className="truncate">
                                                 {match.roundId === 'single' || !match.roundName ? '' : match.roundName}
                                               </span>
@@ -385,6 +446,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
 
                                           <div className="mt-2 text-2xl font-black tracking-tight">
                                             {(() => {
+                                              if (!match.matchDate) return '';
                                               const d = parseISO(match.matchDate);
                                               const dateLabel = Number.isNaN(d.getTime())
                                                 ? match.matchDate

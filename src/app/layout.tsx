@@ -60,6 +60,7 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning translate="no" className="notranslate">
       <head>
+        <link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
         {shouldLoadAdsense ? (
           <Script
             async

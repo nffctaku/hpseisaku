@@ -236,62 +236,252 @@ export function SeasonPerformance({
     goalDifference: 0,
   };
 
+  const totalMatches = currentSeasonStats.wins + currentSeasonStats.draws + currentSeasonStats.losses;
+  const winPercent = totalMatches > 0 ? (currentSeasonStats.wins / totalMatches) * 100 : 0;
+  const drawPercent = totalMatches > 0 ? (currentSeasonStats.draws / totalMatches) * 100 : 0;
+  const lossPercent = totalMatches > 0 ? (currentSeasonStats.losses / totalMatches) * 100 : 0;
+
   return (
-    <div className="space-y-6">
+    <div className="max-w-[760px] mx-auto space-y-7">
       <div className="flex justify-between items-center">
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* 公式戦成績 */}
-        <Card className="bg-white text-gray-900">
-          <CardHeader>
-            <CardTitle className="text-lg">
-              {selectedSeason} 公式戦
-              <span className="text-sm text-muted-foreground ml-2">
-                (リーグ戦、カップ戦、リーグ&カップ戦)
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-green-600">{currentSeasonStats.wins}</div>
-                <div className="text-sm text-muted-foreground">勝</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-yellow-600">{currentSeasonStats.draws}</div>
-                <div className="text-sm text-muted-foreground">分</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-red-600">{currentSeasonStats.losses}</div>
-                <div className="text-sm text-muted-foreground">負</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{currentSeasonStats.winRate}%</div>
-                <div className="text-sm text-muted-foreground">勝率</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* 公式戦成績 */}
+      <div className="card" style={{
+        fontFamily: 'IBM Plex Sans JP, sans-serif'
+      }}>
+        <div className="card-head flex justify-between items-start flex-wrap gap-2" style={{
+          borderBottom: '2px solid #0B1410',
+          paddingBottom: '8px',
+          marginBottom: '8px'
+        }}>
+          <div className="card-title" style={{
+            fontFamily: 'Oswald, sans-serif',
+            fontWeight: 600,
+            fontSize: '16px',
+            letterSpacing: '0.02em'
+          }}>
+            {toSlashSeason(selectedSeason)} <b style={{ color: '#B8862C' }}>公式戦</b>
+          </div>
+          <div className="card-note" style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: '11px',
+            letterSpacing: '0.02em',
+            color: '#0B1410b3'
+          }}>
+            リーグ戦・カップ戦・リーグ&カップ戦
+          </div>
+        </div>
 
-        {/* ホーム・アウェイ別勝利数 */}
-        <Card className="bg-white text-gray-900">
-          <CardHeader>
-            <CardTitle className="text-lg">ホーム・アウェイ別勝利数</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-blue-600">{currentSeasonStats.homeWins}</div>
-                <div className="text-sm text-muted-foreground">ホーム勝利数</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-orange-600">{currentSeasonStats.awayWins}</div>
-                <div className="text-sm text-muted-foreground">アウェイ勝利数</div>
-              </div>
+        <div className="record-row grid grid-cols-[1fr_1fr_1fr_1fr]" style={{
+          fontFamily: 'JetBrains Mono, monospace',
+          fontVariantNumeric: 'tabular-nums'
+        }}>
+          <div className="record-cell text-center" style={{
+            padding: '26px 10px 20px',
+            borderRight: '1px solid #0B141033'
+          }}>
+            <div className="record-num win" style={{
+              fontSize: 'clamp(32px, 7vw, 46px)',
+              fontWeight: 700,
+              color: '#2F7A56',
+              marginBottom: '10px'
+            }}>
+              {currentSeasonStats.wins}
             </div>
-          </CardContent>
-        </Card>
+            <div className="record-label" style={{
+              fontFamily: 'Oswald, sans-serif',
+              fontWeight: 400,
+              fontSize: '11px',
+              letterSpacing: '0.12em'
+            }}>
+              勝
+            </div>
+          </div>
+          <div className="record-cell text-center" style={{
+            padding: '26px 10px 20px',
+            borderRight: '1px solid #0B141033'
+          }}>
+            <div className="record-num draw" style={{
+              fontSize: 'clamp(32px, 7vw, 46px)',
+              fontWeight: 700,
+              color: '#B8862C',
+              marginBottom: '10px'
+            }}>
+              {currentSeasonStats.draws}
+            </div>
+            <div className="record-label" style={{
+              fontFamily: 'Oswald, sans-serif',
+              fontWeight: 400,
+              fontSize: '11px',
+              letterSpacing: '0.12em'
+            }}>
+              分
+            </div>
+          </div>
+          <div className="record-cell text-center" style={{
+            padding: '26px 10px 20px',
+            borderRight: '1px solid #0B141033'
+          }}>
+            <div className="record-num loss" style={{
+              fontSize: 'clamp(32px, 7vw, 46px)',
+              fontWeight: 700,
+              color: '#B85450',
+              marginBottom: '10px'
+            }}>
+              {currentSeasonStats.losses}
+            </div>
+            <div className="record-label" style={{
+              fontFamily: 'Oswald, sans-serif',
+              fontWeight: 400,
+              fontSize: '11px',
+              letterSpacing: '0.12em'
+            }}>
+              負
+            </div>
+          </div>
+          <div className="record-cell text-center" style={{
+            padding: '26px 10px 20px'
+          }}>
+            <div className="record-num" style={{
+              fontSize: 'clamp(32px, 7vw, 46px)',
+              fontWeight: 700,
+              color: '#0B1410',
+              marginBottom: '10px'
+            }}>
+              {currentSeasonStats.winRate}%
+            </div>
+            <div className="record-label" style={{
+              fontFamily: 'Oswald, sans-serif',
+              fontWeight: 400,
+              fontSize: '11px',
+              letterSpacing: '0.12em'
+            }}>
+              勝率
+            </div>
+          </div>
+        </div>
+
+        {/* 内訳バー */}
+        <div className="form-bar" style={{
+          height: '6px',
+          borderRadius: '2px',
+          backgroundColor: '#0B141033',
+          display: 'flex',
+          marginTop: '20px'
+        }}>
+          {winPercent > 0 && (
+            <span className="fb-win" style={{
+              width: `${winPercent}%`,
+              backgroundColor: '#2F7A56'
+            }}></span>
+          )}
+          {drawPercent > 0 && (
+            <span className="fb-draw" style={{
+              width: `${drawPercent}%`,
+              backgroundColor: '#B8862C'
+            }}></span>
+          )}
+          {lossPercent > 0 && (
+            <span className="fb-loss" style={{
+              width: `${lossPercent}%`,
+              backgroundColor: '#B85450'
+            }}></span>
+          )}
+        </div>
+      </div>
+
+      {/* ホーム・アウェイ別勝利数 */}
+      <div className="card" style={{
+        fontFamily: 'IBM Plex Sans JP, sans-serif'
+      }}>
+        <div className="card-head flex justify-between items-start flex-wrap gap-2" style={{
+          borderBottom: '2px solid #0B1410',
+          paddingBottom: '8px',
+          marginBottom: '8px'
+        }}>
+          <div className="card-title" style={{
+            fontFamily: 'Oswald, sans-serif',
+            fontWeight: 600,
+            fontSize: '16px',
+            letterSpacing: '0.02em'
+          }}>
+            ホーム・アウェイ別勝利数
+          </div>
+        </div>
+
+        <div className="split-row grid grid-cols-[1fr_1px_1fr]" style={{
+          fontFamily: 'JetBrains Mono, monospace',
+          fontVariantNumeric: 'tabular-nums'
+        }}>
+          <div className="split-cell text-center" style={{
+            padding: '28px 20px'
+          }}>
+            <div className="split-num" style={{
+              fontSize: 'clamp(30px, 6vw, 42px)',
+              fontWeight: 700,
+              color: '#B8862C',
+              marginBottom: '10px'
+            }}>
+              {currentSeasonStats.homeWins}
+            </div>
+            <div className="split-label" style={{
+              fontFamily: 'Oswald, sans-serif',
+              fontWeight: 400,
+              fontSize: '11px',
+              letterSpacing: '0.12em',
+              marginBottom: '8px'
+            }}>
+              ホーム勝利数
+            </div>
+            <div className="split-tag" style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '10px',
+              letterSpacing: '0.08em',
+              border: '1px solid #0B1410',
+              borderRadius: '2px',
+              padding: '3px 10px',
+              display: 'inline-block'
+            }}>
+              HOME
+            </div>
+          </div>
+          <div className="split-divider" style={{
+            backgroundColor: '#0B141033'
+          }}></div>
+          <div className="split-cell text-center" style={{
+            padding: '28px 20px'
+          }}>
+            <div className="split-num" style={{
+              fontSize: 'clamp(30px, 6vw, 42px)',
+              fontWeight: 700,
+              color: '#B8862C',
+              marginBottom: '10px'
+            }}>
+              {currentSeasonStats.awayWins}
+            </div>
+            <div className="split-label" style={{
+              fontFamily: 'Oswald, sans-serif',
+              fontWeight: 400,
+              fontSize: '11px',
+              letterSpacing: '0.12em',
+              marginBottom: '8px'
+            }}>
+              アウェイ勝利数
+            </div>
+            <div className="split-tag" style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '10px',
+              letterSpacing: '0.08em',
+              border: '1px solid #0B1410',
+              borderRadius: '2px',
+              padding: '3px 10px',
+              display: 'inline-block'
+            }}>
+              AWAY
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* リーグ戦詳細成績 */}

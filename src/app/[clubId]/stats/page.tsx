@@ -550,7 +550,14 @@ export default function ClubStatsPage() {
     pageFg === "text-white" ? "text-white/80" : pageFg === "text-black" ? "text-black/70" : "text-muted-foreground";
 
   return (
-    <main className="min-h-screen" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
+    <main
+      className="min-h-screen"
+      style={{
+        backgroundColor: '#FFF5E6',
+        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+        backgroundSize: '4px 4px'
+      }}
+    >
       {clubId && (
         <ClubHeader
           clubId={clubId}

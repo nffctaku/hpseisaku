@@ -55,6 +55,7 @@ export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSel
   const [showAll, setShowAll] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState<string>("all");
   const [selectedSeason, setSelectedSeason] = useState<string>(initialSelectedSeason || "all");
+  const [selectedRoundIndex, setSelectedRoundIndex] = useState(0);
 
   const seasons = useMemo(() => {
     const base = [
@@ -109,14 +110,48 @@ export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSel
     return filteredByCompetition.filter((m) => m.homeTeamId === clubId || m.awayTeamId === clubId);
   }, [filteredByCompetition, showAll, clubId]);
 
-  const groupedMatches = useMemo(() => {
-    return filteredMatches.reduce((acc, match) => {
-      const dateGroup = getFormattedDateGroup(match.matchDate);
-      if (!acc[dateGroup]) acc[dateGroup] = [];
-      acc[dateGroup].push(match);
-      return acc;
-    }, {} as Record<string, EnrichedMatch[]>);
+  // 節の一覧を取得（重複なし、表示順序を維持）
+  const rounds = useMemo(() => {
+    return Array.from(
+      new Map(
+        filteredMatches
+          .map(m => ({ id: m.roundId, name: m.roundName || m.roundId }))
+          .map(r => [r.id, r])
+      ).values()
+    );
   }, [filteredMatches]);
+
+  const groupedMatches = useMemo(() => {
+    return showAll
+      ? filteredMatches.reduce((acc, match) => {
+          const roundKey = match.roundId;
+          if (!acc[roundKey]) acc[roundKey] = [];
+          acc[roundKey].push(match);
+          return acc;
+        }, {} as Record<string, EnrichedMatch[]>)
+      : filteredMatches.reduce((acc, match) => {
+          const dateGroup = getFormattedDateGroup(match.matchDate);
+          if (!acc[dateGroup]) acc[dateGroup] = [];
+          acc[dateGroup].push(match);
+          return acc;
+        }, {} as Record<string, EnrichedMatch[]>);
+  }, [filteredMatches, showAll]);
+
+  // 節ナビゲーション用
+  const currentRound = rounds[selectedRoundIndex];
+  const handlePrevRound = () => {
+    setSelectedRoundIndex(prev => Math.max(0, prev - 1));
+  };
+  const handleNextRound = () => {
+    setSelectedRoundIndex(prev => Math.min(rounds.length - 1, prev + 1));
+  };
+
+  // showAllがtrueの場合は選択された節の試合のみ表示、そうでなければ全試合を1つのカードに
+  const displayGroups = useMemo(() => {
+    return showAll && currentRound
+      ? { [currentRound.id]: groupedMatches[currentRound.id] || [] }
+      : { all: filteredMatches };
+  }, [showAll, currentRound, groupedMatches, filteredMatches]);
 
   return (
     <div className="container mx-auto py-8 px-4 md:px-0">
@@ -214,20 +249,46 @@ export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSel
         </div>
       </div>
 
-      {Object.keys(groupedMatches).length === 0 ? (
+      {/* 節ナビゲーション（すべて表示時のみ） */}
+      {showAll && rounds.length > 1 && (
+        <div className="flex items-center justify-center gap-4 py-2">
+          <button
+            onClick={handlePrevRound}
+            disabled={selectedRoundIndex === 0}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="前の節"
+          >
+            &lt;
+          </button>
+          <span className="min-w-[120px] text-center text-sm font-semibold">
+            {currentRound?.name || `節 ${selectedRoundIndex + 1}`}
+          </span>
+          <button
+            onClick={handleNextRound}
+            disabled={selectedRoundIndex === rounds.length - 1}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="次の節"
+          >
+            &gt;
+          </button>
+        </div>
+      )}
+
+      {Object.keys(displayGroups).length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">表示する試合がありません。</div>
       ) : (
         <div className="space-y-6">
-          {Object.entries(groupedMatches).map(([dateGroup, matchesInGroup]) => (
-            <section key={dateGroup} className="space-y-3">
+          {Object.entries(displayGroups).map(([groupKey, matchesInGroup]) => (
+            <section key={groupKey} className="space-y-3">
               <div className="sticky top-[56px] z-10 -mx-4 px-4 sm:mx-0 sm:px-0">
                 <div className="inline-flex items-center rounded-full border bg-white/80 px-3 py-1 text-xs font-semibold text-gray-900 shadow-sm">
-                  {dateGroup}
+                  {showAll ? currentRound?.name || groupKey : groupKey}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3">
-                {matchesInGroup.map((match) => {
+              <div className="bg-white rounded-xl border shadow-sm">
+                <div className="divide-y divide-gray-100">
+                  {matchesInGroup.map((match, index) => {
                   const isFinished = typeof match.scoreHome === "number" && typeof match.scoreAway === "number";
 
                   const venue =
@@ -283,6 +344,7 @@ export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSel
 
                           <div className="mt-2 text-sm font-semibold text-gray-900">
                             {(() => {
+                              if (!match.matchDate) return '';
                               const d = parseISO(match.matchDate);
                               const dateLabel = Number.isNaN(d.getTime())
                                 ? match.matchDate
@@ -346,6 +408,7 @@ export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSel
                     </div>
                   );
                 })}
+                </div>
               </div>
             </section>
           ))}
