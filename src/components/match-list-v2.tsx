@@ -5,9 +5,7 @@ import { format, isToday, isYesterday, isTomorrow, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { MapPin, MoreHorizontal } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface EnrichedMatch {
@@ -128,19 +126,36 @@ export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSel
             <div className="text-xs text-muted-foreground">{clubName}</div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight">試合日程・結果</h1>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <Label htmlFor="filter-switch-v2">自チームのみ</Label>
-            <Switch
-              id="filter-switch-v2"
-              checked={!showAll}
-              onCheckedChange={(checked) => setShowAll(!checked)}
-              className="border border-gray-300 data-[state=unchecked]:bg-gray-200 data-[state=checked]:bg-emerald-500"
-            />
-            <Label htmlFor="filter-switch-v2">すべて表示</Label>
+          <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:w-[360px]">
+            <div className="flex h-10 items-stretch">
+              <button
+                onClick={() => setShowAll(false)}
+                className={`flex-1 text-sm font-bold transition-colors ${
+                  !showAll
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                自チームのみ
+              </button>
+              <button
+                onClick={() => setShowAll(true)}
+                className={`flex-1 border-l border-gray-200 text-sm font-medium transition-colors ${
+                  showAll
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                すべて表示
+              </button>
+              <button className="flex w-10 items-center justify-center border-l border-gray-200 bg-white text-gray-600 hover:bg-gray-50" aria-label="表示オプション">
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 rounded-xl border bg-white/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-4 flex w-full flex-col gap-3 rounded-xl border bg-white/70 p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Select value={selectedSeason} onValueChange={setSelectedSeason}>
               <SelectTrigger className="w-[180px] bg-background text-foreground border border-border shadow-sm">
@@ -180,6 +195,20 @@ export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSel
                   </span>
                 </button>
               ))}
+            </div>
+          </div>
+          <div className="flex w-full items-center justify-start gap-4 text-xs text-gray-500 sm:w-auto">
+            <div className="flex items-center gap-1.5">
+              <div className="h-3 w-3 rounded bg-emerald-500"></div>
+              <span>勝ち</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-3 w-3 rounded bg-gray-400"></div>
+              <span>引き分け</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-3 w-3 rounded bg-red-500"></div>
+              <span>負け</span>
             </div>
           </div>
         </div>
@@ -222,7 +251,7 @@ export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSel
                   }
 
                   return (
-                    <div key={match.id} className="rounded-xl border bg-white p-4 text-gray-900 shadow-sm">
+                    <div key={match.id} className="rounded-xl bg-white p-4 text-gray-900 shadow-sm">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

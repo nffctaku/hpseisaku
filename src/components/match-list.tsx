@@ -6,8 +6,6 @@ import { ja } from 'date-fns/locale';
 import Image from 'next/image';
 import Link from 'next/link';
 import { MapPin } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // This interface needs to be consistent with the one in the page.tsx
@@ -123,7 +121,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
             </h1>
         </div>
         <div className={`mb-8 flex flex-col items-center gap-4 ${pageForegroundClass || ''}`.trim()}>
-          <div className="flex flex-wrap items-center justify-center gap-4">
+          <div className="flex w-full flex-wrap items-center justify-start gap-4">
             <Select value={selectedSeason} onValueChange={setSelectedSeason}>
               <SelectTrigger className="w-[180px] bg-background text-foreground border border-border shadow-sm">
                 <SelectValue placeholder="シーズンを選択" />
@@ -136,42 +134,56 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              {competitions.map(comp => (
-                <button
-                  key={comp}
-                  onClick={() => setSelectedCompetition(comp)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
-                    selectedCompetition === comp
-                      ? 'bg-emerald-500 text-white border-emerald-600'
-                      : 'bg-background text-foreground border-border hover:border-muted-foreground'
-                  }`}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {comp !== 'all' && competitionLogoByName.get(comp) ? (
-                      <Image
-                        src={competitionLogoByName.get(comp)!}
-                        alt=""
-                        width={14}
-                        height={14}
-                        className="h-3.5 w-3.5 object-contain"
-                      />
-                    ) : null}
-                    <span>{comp === 'all' ? '全大会' : comp}</span>
-                  </span>
-                </button>
-              ))}
+            <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
+              <SelectTrigger className="w-[180px] bg-background text-foreground border border-border shadow-sm">
+                <SelectValue placeholder="大会を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {competitions.map(comp => (
+                  <SelectItem key={comp} value={comp}>
+                    {comp === 'all' ? '全大会' : comp}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex h-10 items-stretch">
+              <button
+                onClick={() => setShowAll(false)}
+                className={`flex-1 text-sm font-bold transition-colors ${
+                  !showAll
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                自チームのみ
+              </button>
+              <button
+                onClick={() => setShowAll(true)}
+                className={`flex-1 border-l border-gray-200 text-sm font-medium transition-colors ${
+                  showAll
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                すべて表示
+              </button>
             </div>
           </div>
-          <div className="flex items-center justify-center space-x-2 text-xs">
-              <Label htmlFor="filter-switch">自チームのみ</Label>
-              <Switch 
-                  id="filter-switch" 
-                  checked={!showAll}
-                  onCheckedChange={(checked) => setShowAll(!checked)}
-                  className="border border-gray-300 data-[state=unchecked]:bg-gray-200 data-[state=checked]:bg-emerald-500"
-              />
-              <Label htmlFor="filter-switch">すべて表示</Label>
+          <div className="flex w-full items-center justify-start gap-4 text-xs text-gray-500">
+            <div className="flex items-center gap-1.5">
+              <div className="h-3 w-3 rounded bg-emerald-500"></div>
+              <span>勝ち</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-3 w-3 rounded bg-gray-400"></div>
+              <span>引き分け</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-3 w-3 rounded bg-red-500"></div>
+              <span>負け</span>
+            </div>
           </div>
         </div>
         
@@ -261,35 +273,31 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                                 }
 
                                 return (
-                                    <div key={match.id} className="block bg-white text-gray-900 rounded-md border">
+                                    <div key={match.id} className="block bg-white text-gray-900 rounded-md">
                                       {/* Mobile */}
                                       <div className="p-2 lg:hidden">
-                                          <div className="text-[10px] text-muted-foreground text-center">
-                                            <span className="inline-flex max-w-full items-center justify-center gap-2 min-w-0">
-                                              <span className="shrink-0">
-                                                {(() => {
-                                                  const d = parseISO(match.matchDate);
-                                                  const dateLabel = Number.isNaN(d.getTime())
-                                                    ? match.matchDate
-                                                    : format(d, 'yyyy.M.d(EEE)', { locale: ja });
-                                                  return `${dateLabel}${match.matchTime ? ` ${match.matchTime}` : ''}`;
-                                                })()}
-                                              </span>
-                                              <span className="inline-flex min-w-0 items-center gap-1">
-                                                {match.competitionLogoUrl ? (
-                                                  <Image
-                                                    src={match.competitionLogoUrl}
-                                                    alt=""
-                                                    width={12}
-                                                    height={12}
-                                                    className="h-3 w-3 shrink-0 object-contain"
-                                                  />
-                                                ) : null}
-                                                <span className="truncate">
-                                                  {match.roundId === 'single' || !match.roundName
-                                                    ? match.competitionName
-                                                    : `${match.competitionName} / ${match.roundName}`}
-                                                </span>
+                                          <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-1 text-[10px] text-muted-foreground">
+                                            <span className="truncate text-left">
+                                              {(() => {
+                                                const d = parseISO(match.matchDate);
+                                                const dateLabel = Number.isNaN(d.getTime())
+                                                  ? match.matchDate
+                                                  : format(d, 'yyyy.M.d(EEE)', { locale: ja });
+                                                return `${dateLabel}${match.matchTime ? ` ${match.matchTime}` : ''}`;
+                                              })()}
+                                            </span>
+                                            <span className="inline-flex min-w-0 items-center justify-start gap-1 text-left">
+                                              {match.competitionLogoUrl ? (
+                                                <Image
+                                                  src={match.competitionLogoUrl}
+                                                  alt={match.competitionName}
+                                                  width={14}
+                                                  height={14}
+                                                  className="h-3.5 w-3.5 shrink-0 object-contain"
+                                                />
+                                              ) : null}
+                                              <span className="truncate">
+                                                {match.roundId === 'single' || !match.roundName ? '' : match.roundName}
                                               </span>
                                             </span>
                                           </div>
