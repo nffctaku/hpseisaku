@@ -549,6 +549,20 @@ export default function ClubStatsPage() {
   const pageMuted =
     pageFg === "text-white" ? "text-white/80" : pageFg === "text-black" ? "text-black/70" : "text-muted-foreground";
 
+  // SeasonPerformance用のシーズンごとのaggregatedStatsを計算
+  const performanceAggregatedStats = useMemo(() => {
+    if (!statsDataAll || !statsDataAll.players || !statsDataAll.competitions || !performanceSeason) {
+      return {};
+    }
+    return aggregatePlayerStats(
+      statsDataAll.matches || [],
+      statsDataAll.players,
+      statsDataAll.competitions,
+      performanceSeason,
+      'all'
+    );
+  }, [statsDataAll, performanceSeason]);
+
   return (
     <main
       className="min-h-screen"
@@ -590,40 +604,14 @@ export default function ClubStatsPage() {
             matches={(statsDataAll ?? statsData).matches}
             competitions={(statsDataAll ?? statsData).competitions}
             teams={(statsDataAll ?? statsData).teams}
+            players={(statsDataAll ?? statsData).players}
+            aggregatedStats={performanceAggregatedStats}
             mainTeamId={mainTeamId}
             selectedSeason={performanceSeason}
             onSeasonChange={setPerformanceSeason}
           />
-
-            <div className="mt-8 flex flex-wrap items-center gap-2 justify-end">
-              <Select value={selectedCompetitionId} onValueChange={setSelectedCompetitionId}>
-                <SelectTrigger className="w-full sm:w-[180px] bg-white text-gray-900 border">
-                  <SelectValue placeholder="大会を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">すべての大会</SelectItem>
-                  {statsData.competitions.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <PublicPlayerStatsView
-              teams={statsData.teams}
-              competitions={statsData.competitions}
-              players={statsData.players}
-              matches={statsData.matches}
-              aggregatedStats={statsData.aggregatedStats}
-              mainTeamId={mainTeamId}
-              selectedSeason={selectedSeason}
-              setSelectedSeason={setSelectedSeason}
-              selectedCompetitionId={selectedCompetitionId}
-              setSelectedCompetitionId={setSelectedCompetitionId}
-            />
-          </>
-        )}
+        </>
+      )}
       </div>
 
       {clubId && <PartnerStripClient clubId={clubId} />}

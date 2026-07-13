@@ -70,10 +70,31 @@ interface Team {
   name: string;
 }
 
+interface PlayerRow {
+  id: string;
+  name: string;
+  number?: number;
+  position?: string;
+  teamId?: string;
+  manualCompetitionStats?: any[];
+  seasonData?: Record<string, any>;
+}
+
+interface AggregatedPlayerStats {
+  appearances: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+}
+
 interface SeasonPerformanceProps {
   matches: Match[];
   competitions: Competition[];
   teams: Team[];
+  players?: PlayerRow[];
+  aggregatedStats?: Record<string, AggregatedPlayerStats>;
   mainTeamId?: string | null;
   selectedSeason: string;
   onSeasonChange: (season: string) => void;
@@ -99,6 +120,8 @@ export function SeasonPerformance({
   matches,
   competitions,
   teams,
+  players,
+  aggregatedStats,
   mainTeamId,
   selectedSeason,
   onSeasonChange,
@@ -220,6 +243,44 @@ export function SeasonPerformance({
     return stats;
   }, [seasons, competitions, matches, mainTeamId]);
 
+  // リーグ戦のみのホーム・アウェイ勝利数
+  const leagueHomeAwayStats = useMemo(() => {
+    const stats: Record<string, { homeWins: number; awayWins: number }> = {};
+
+    seasons.forEach((season) => {
+      const seasonCompetitions = competitions.filter((c) => typeof c.season === "string" && seasonEquals(c.season, season) && c.format === 'league');
+      const competitionIds = new Set(seasonCompetitions.map((c) => c.id));
+
+      const seasonMatches = matches.filter((m) => competitionIds.has(m.competitionId));
+      const teamMatches = mainTeamId
+        ? seasonMatches.filter((m) => m.homeTeamId === mainTeamId || m.awayTeamId === mainTeamId)
+        : seasonMatches;
+
+      let homeWins = 0;
+      let awayWins = 0;
+
+      teamMatches.forEach((match) => {
+        const isHome = match.homeTeamId === mainTeamId;
+        const isAway = match.awayTeamId === mainTeamId;
+        const homeScore = match.scoreHome ?? 0;
+        const awayScore = match.scoreAway ?? 0;
+
+        if (isHome && homeScore > awayScore) {
+          homeWins++;
+        } else if (isAway && awayScore > homeScore) {
+          awayWins++;
+        }
+      });
+
+      stats[season] = {
+        homeWins,
+        awayWins,
+      };
+    });
+
+    return stats;
+  }, [seasons, competitions, matches, mainTeamId]);
+
   const currentSeasonStats = seasonStats[selectedSeason] || {
     wins: 0,
     draws: 0,
@@ -236,6 +297,63 @@ export function SeasonPerformance({
     goalDifference: 0,
   };
 
+  const currentLeagueHomeAwayStats = leagueHomeAwayStats[selectedSeason] || {
+    homeWins: 0,
+    awayWins: 0,
+  };
+
+  // 選手の得点ランキングを計算（トップ5）
+  const playerGoalRanking = useMemo(() => {
+    if (!players || !aggregatedStats) return [];
+
+    const ranking = players
+      .map((player) => {
+        const stats = aggregatedStats[player.id];
+        return {
+          player,
+          goals: stats?.goals || 0,
+          minutes: stats?.minutes || 0,
+          appearances: stats?.appearances || 0,
+        };
+      })
+      .filter((item) => item.goals > 0)
+      .sort((a, b) => b.goals - a.goals)
+      .slice(0, 5)
+      .map((item, index) => ({
+        ...item,
+        rank: index + 1,
+        goalsPer90: item.minutes > 0 ? (item.goals / item.minutes) * 90 : 0,
+      }));
+
+    return ranking;
+  }, [players, aggregatedStats]);
+
+  // 選手のアシストランキングを計算（トップ5）
+  const playerAssistRanking = useMemo(() => {
+    if (!players || !aggregatedStats) return [];
+
+    const ranking = players
+      .map((player) => {
+        const stats = aggregatedStats[player.id];
+        return {
+          player,
+          assists: stats?.assists || 0,
+          minutes: stats?.minutes || 0,
+          appearances: stats?.appearances || 0,
+        };
+      })
+      .filter((item) => item.assists > 0)
+      .sort((a, b) => b.assists - a.assists)
+      .slice(0, 5)
+      .map((item, index) => ({
+        ...item,
+        rank: index + 1,
+        assistsPer90: item.minutes > 0 ? (item.assists / item.minutes) * 90 : 0,
+      }));
+
+    return ranking;
+  }, [players, aggregatedStats]);
+
   const totalMatches = currentSeasonStats.wins + currentSeasonStats.draws + currentSeasonStats.losses;
   const winPercent = totalMatches > 0 ? (currentSeasonStats.wins / totalMatches) * 100 : 0;
   const drawPercent = totalMatches > 0 ? (currentSeasonStats.draws / totalMatches) * 100 : 0;
@@ -244,6 +362,26 @@ export function SeasonPerformance({
   return (
     <div className="max-w-[760px] mx-auto space-y-7">
       <div className="flex justify-between items-center">
+        <Select value={selectedSeason} onValueChange={onSeasonChange}>
+          <SelectTrigger className="w-[180px]" style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: '11px',
+            border: '1px solid #0B141033',
+            backgroundColor: 'transparent'
+          }}>
+            <SelectValue placeholder="シーズンを選択" />
+          </SelectTrigger>
+          <SelectContent>
+            {seasons.map((season) => (
+              <SelectItem key={season} value={season} style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '11px'
+              }}>
+                {toSlashSeason(season)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 公式戦成績 */}
@@ -407,6 +545,16 @@ export function SeasonPerformance({
             letterSpacing: '0.02em'
           }}>
             ホーム・アウェイ別勝利数
+            <span style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '11px',
+              letterSpacing: '0.02em',
+              color: '#0B1410b3',
+              marginLeft: '8px',
+              fontWeight: 400
+            }}>
+              リーグ戦
+            </span>
           </div>
         </div>
 
@@ -423,7 +571,7 @@ export function SeasonPerformance({
               color: '#B8862C',
               marginBottom: '10px'
             }}>
-              {currentSeasonStats.homeWins}
+              {currentLeagueHomeAwayStats.homeWins}
             </div>
             <div className="split-label" style={{
               fontFamily: 'Oswald, sans-serif',
@@ -458,7 +606,7 @@ export function SeasonPerformance({
               color: '#B8862C',
               marginBottom: '10px'
             }}>
-              {currentSeasonStats.awayWins}
+              {currentLeagueHomeAwayStats.awayWins}
             </div>
             <div className="split-label" style={{
               fontFamily: 'Oswald, sans-serif',
@@ -484,117 +632,205 @@ export function SeasonPerformance({
         </div>
       </div>
 
-      {/* リーグ戦詳細成績 */}
-      <Card className="bg-white text-gray-900">
-        <CardHeader>
-          <CardTitle className="text-lg">
-            大会別(リーグ戦のみ)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table className="bg-white">
-            <TableHeader>
-              <TableRow>
-                <TableHead>シーズン</TableHead>
-                <TableHead>リーグ戦</TableHead>
-                <TableHead className="text-center">勝</TableHead>
-                <TableHead className="text-center">分</TableHead>
-                <TableHead className="text-center">負</TableHead>
-                <TableHead className="text-center">勝率</TableHead>
-                <TableHead className="text-center">勝点</TableHead>
-                <TableHead className="text-center">得</TableHead>
-                <TableHead className="text-center">失</TableHead>
-                <TableHead className="text-center">±</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(() => {
-                const league = competitions.filter((c) => c.format === 'league');
-                const showOnHome = league.filter((c: any) => Boolean((c as any).showOnHome));
-                const target = showOnHome.length > 0 ? showOnHome : league;
-                return target;
-              })()
-                .sort((a, b) => {
-                  const sa = typeof a.season === 'string' ? a.season : '';
-                  const sb = typeof b.season === 'string' ? b.season : '';
-                  if (sa !== sb) return sb.localeCompare(sa);
-                  return String(a.name || '').localeCompare(String(b.name || ''));
-                })
-                .map((competition) => {
-                  const competitionMatches = matches.filter(
-                    (m) => m.competitionId === competition.id
-                  );
-                  const teamMatches = mainTeamId
-                    ? competitionMatches.filter(
-                        (m) => m.homeTeamId === mainTeamId || m.awayTeamId === mainTeamId
-                      )
-                    : competitionMatches;
+      {/* 選手ランキングセクション */}
+      <div className="ranking-section" style={{
+        fontFamily: 'IBM Plex Sans JP, sans-serif'
+      }}>
+        <div className="section-head flex justify-between items-start flex-wrap gap-4 mb-12" style={{
+          borderBottom: '2px solid #0B1410',
+          paddingBottom: '8px',
+          marginBottom: '8px'
+        }}>
+          <div className="flex items-baseline gap-4">
+            <h2 style={{
+              fontFamily: 'Oswald, sans-serif',
+              fontWeight: 600,
+              fontSize: '16px',
+              letterSpacing: '0.02em'
+            }}>
+              選手ランキング — 得点
+            </h2>
+          </div>
+          <p style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: '11px',
+            letterSpacing: '0.02em',
+            color: '#0B1410b3',
+            textAlign: 'right',
+            marginLeft: 'auto'
+          }}>
+            シーズン通算ゴール数トップ5
+          </p>
+        </div>
 
-                  let wins = 0;
-                  let draws = 0;
-                  let losses = 0;
-                  let points = 0;
-                  let goalsFor = 0;
-                  let goalsAgainst = 0;
+        <div className="ranking-list" style={{
+          borderTop: '1px solid #0B141033'
+        }}>
+          {playerGoalRanking.map((item) => (
+            <div key={item.player.id} className="rank-row" style={{
+              display: 'grid',
+              gridTemplateColumns: '56px 1fr auto auto',
+              alignItems: 'center',
+              gap: '1px',
+              padding: '20px 4px',
+              borderBottom: '1px solid #0B141033',
+              transition: 'background 0.2s',
+              cursor: 'pointer'
+            }}>
+              <div className="rank-index" style={{
+                fontFamily: 'Anton, sans-serif',
+                fontSize: '28px',
+                color: '#D3A63C'
+              }}>
+                {String(item.rank).padStart(2, '0')}
+              </div>
+              <div>
+                <div className="rank-name" style={{
+                  fontFamily: 'Oswald, sans-serif',
+                  fontWeight: 600,
+                  fontSize: '15px'
+                }}>
+                  {item.player.name}
+                </div>
+                <div className="rank-pos" style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '11px',
+                  letterSpacing: '0.08em',
+                  color: '#0B1410aa'
+                }}>
+                  {item.player.position || ''} {item.player.number ? `/ #${item.player.number}` : ''}
+                </div>
+              </div>
+              <div className="rank-num" style={{
+                fontFamily: 'Anton, sans-serif',
+                fontSize: '28px',
+                color: '#D3A63C',
+                marginRight: '12px'
+              }}>
+                {item.goals}<span style={{ fontSize: '16px', marginLeft: '2px' }}>G</span>
+              </div>
+              <div className="rank-sub" style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '12px',
+                textAlign: 'right',
+                color: '#0B1410aa',
+                lineHeight: '1.4'
+              }}>
+                90分あたり<br />
+                {item.goalsPer90.toFixed(2)}
+              </div>
+            </div>
+          ))}
+          {playerGoalRanking.length === 0 && (
+            <div className="text-center py-8" style={{
+              color: '#0B1410aa',
+              fontFamily: 'IBM Plex Sans JP, sans-serif'
+            }}>
+              得点データがありません
+            </div>
+          )}
+        </div>
+      </div>
 
-                  teamMatches.forEach((match) => {
-                    const isHome = match.homeTeamId === mainTeamId;
-                    const isAway = match.awayTeamId === mainTeamId;
-                    const homeScore = match.scoreHome ?? 0;
-                    const awayScore = match.scoreAway ?? 0;
+      {/* 選手ランキングセクション - アシスト */}
+      <div className="ranking-section" style={{
+        fontFamily: 'IBM Plex Sans JP, sans-serif'
+      }}>
+        <div className="section-head flex justify-between items-start flex-wrap gap-4 mb-12" style={{
+          borderBottom: '2px solid #0B1410',
+          paddingBottom: '8px',
+          marginBottom: '8px'
+        }}>
+          <div className="flex items-baseline gap-4">
+            <h2 style={{
+              fontFamily: 'Oswald, sans-serif',
+              fontWeight: 600,
+              fontSize: '16px',
+              letterSpacing: '0.02em'
+            }}>
+              選手ランキング — アシスト
+            </h2>
+          </div>
+          <p style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: '11px',
+            letterSpacing: '0.02em',
+            color: '#0B1410b3',
+            textAlign: 'right',
+            marginLeft: 'auto'
+          }}>
+            シーズン通算アシスト数トップ5
+          </p>
+        </div>
 
-                    if (isHome) {
-                      goalsFor += homeScore;
-                      goalsAgainst += awayScore;
-                      if (homeScore > awayScore) {
-                        wins++;
-                        points += 3;
-                      } else if (homeScore === awayScore) {
-                        draws++;
-                        points += 1;
-                      } else {
-                        losses++;
-                      }
-                    } else if (isAway) {
-                      goalsFor += awayScore;
-                      goalsAgainst += homeScore;
-                      if (awayScore > homeScore) {
-                        wins++;
-                        points += 3;
-                      } else if (awayScore === homeScore) {
-                        draws++;
-                        points += 1;
-                      } else {
-                        losses++;
-                      }
-                    }
-                  });
-
-                  const totalMatches = wins + draws + losses;
-                  const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
-                  const goalDifference = goalsFor - goalsAgainst;
-
-                  return (
-                    <TableRow key={competition.id}>
-                      <TableCell className="font-medium">{competition.season || '-'}</TableCell>
-                      <TableCell className="font-medium">{competition.name}</TableCell>
-                      <TableCell className="text-center">{wins}</TableCell>
-                      <TableCell className="text-center">{draws}</TableCell>
-                      <TableCell className="text-center">{losses}</TableCell>
-                      <TableCell className="text-center">{winRate}%</TableCell>
-                      <TableCell className="text-center font-bold">{points}</TableCell>
-                      <TableCell className="text-center">{goalsFor}</TableCell>
-                      <TableCell className="text-center">{goalsAgainst}</TableCell>
-                      <TableCell className="text-center font-medium">
-                        {goalDifference > 0 ? `+${goalDifference}` : goalDifference}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        <div className="ranking-list" style={{
+          borderTop: '1px solid #0B141033'
+        }}>
+          {playerAssistRanking.map((item) => (
+            <div key={item.player.id} className="rank-row" style={{
+              display: 'grid',
+              gridTemplateColumns: '56px 1fr auto auto',
+              alignItems: 'center',
+              gap: '1px',
+              padding: '20px 4px',
+              borderBottom: '1px solid #0B141033',
+              transition: 'background 0.2s',
+              cursor: 'pointer'
+            }}>
+              <div className="rank-index" style={{
+                fontFamily: 'Anton, sans-serif',
+                fontSize: '28px',
+                color: '#D3A63C'
+              }}>
+                {String(item.rank).padStart(2, '0')}
+              </div>
+              <div>
+                <div className="rank-name" style={{
+                  fontFamily: 'Oswald, sans-serif',
+                  fontWeight: 600,
+                  fontSize: '15px'
+                }}>
+                  {item.player.name}
+                </div>
+                <div className="rank-pos" style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '11px',
+                  letterSpacing: '0.08em',
+                  color: '#0B1410aa'
+                }}>
+                  {item.player.position || ''} {item.player.number ? `/ #${item.player.number}` : ''}
+                </div>
+              </div>
+              <div className="rank-num" style={{
+                fontFamily: 'Anton, sans-serif',
+                fontSize: '28px',
+                color: '#D3A63C',
+                marginRight: '12px'
+              }}>
+                {item.assists}<span style={{ fontSize: '16px', marginLeft: '2px' }}>A</span>
+              </div>
+              <div className="rank-sub" style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '12px',
+                textAlign: 'right',
+                color: '#0B1410aa',
+                lineHeight: '1.4'
+              }}>
+                90分あたり<br />
+                {item.assistsPer90.toFixed(2)}
+              </div>
+            </div>
+          ))}
+          {playerAssistRanking.length === 0 && (
+            <div className="text-center py-8" style={{
+              color: '#0B1410aa',
+              fontFamily: 'IBM Plex Sans JP, sans-serif'
+            }}>
+              アシストデータがありません
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
