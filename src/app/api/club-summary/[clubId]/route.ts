@@ -84,6 +84,7 @@ async function getClubSummary(clubId: string) {
     nextMatch: matchData.nextMatch,
     recentMatches: matchData.recentMatches,
     upcomingMatches: matchData.upcomingMatches,
+    allRecentMatches: matchData.allRecentMatches,
     news: latestNews,
     heroNews,
     videos: [],

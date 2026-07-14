@@ -49,7 +49,7 @@ async function getClubData(clubId: string) {
   const videosQuery = db.collection(`clubs/${ownerUid}/videos`).orderBy('publishedAt', 'desc').limit(4);
   const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
 
-  const [{ latestResult, nextMatch, recentMatches, upcomingMatches }, newsSnap, videosSnap, competitionsSnap] =
+  const [{ latestResult, nextMatch, recentMatches, upcomingMatches, allRecentMatches }, newsSnap, videosSnap, competitionsSnap] =
     await Promise.all([
       getMatchDataForClub(ownerUid),
       newsQuery.get(),
@@ -106,6 +106,7 @@ async function getClubData(clubId: string) {
     nextMatch,
     recentMatches,
     upcomingMatches,
+    allRecentMatches,
     news: latestNews,
     heroNews,
     videos,

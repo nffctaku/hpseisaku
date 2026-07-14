@@ -70,9 +70,10 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
   clubName: string | null;
   recentMatches: MatchDetails[];
   upcomingMatches: MatchDetails[];
+  allRecentMatches: MatchDetails[];
 }> {
   if (!ownerUid) {
-    return { latestResult: null, nextMatch: null, clubName: null, recentMatches: [], upcomingMatches: [] };
+    return { latestResult: null, nextMatch: null, clubName: null, recentMatches: [], upcomingMatches: [], allRecentMatches: [] };
   }
 
   // 1. Get club name and main team id
@@ -164,11 +165,9 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
   // 5. Find latest result and next match based on score presence
   const ownPastMatches = ownMatches.filter(m => m.scoreHome !== null && m.scoreAway !== null);
   const ownFutureMatches = ownMatches.filter(m => m.scoreHome === null || m.scoreAway === null);
-  const allPastMatches = allMatches.filter(m => m.scoreHome !== null && m.scoreAway !== null);
 
   // Sort past matches descending to get the latest one first
   ownPastMatches.sort((a, b) => getMatchSortMs(b) - getMatchSortMs(a));
-  allPastMatches.sort((a, b) => getMatchSortMs(b) - getMatchSortMs(a));
   // Sort future matches ascending to get the next one first
   ownFutureMatches.sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
 
@@ -177,6 +176,9 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
 
   const recentMatches = ownPastMatches.slice(0, 5);
   const upcomingMatches = ownFutureMatches.slice(0, 7);
+  const allRecentMatches = allMatches
+    .filter(m => m.scoreHome !== null && m.scoreAway !== null)
+    .sort((a, b) => getMatchSortMs(b) - getMatchSortMs(a));
 
-  return { latestResult, nextMatch, clubName, recentMatches, upcomingMatches };
+  return { latestResult, nextMatch, clubName, recentMatches, upcomingMatches, allRecentMatches };
 }

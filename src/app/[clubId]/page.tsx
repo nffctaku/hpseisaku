@@ -140,7 +140,7 @@ export default async function ClubPage({ params }: ClubPageProps) {
       const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy("publishedAt", "desc").limit(baseLimit);
       const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
 
-      const [{ latestResult, nextMatch, recentMatches, upcomingMatches }, newsSnap, competitionsSnap] = await Promise.all([
+      const [{ latestResult, nextMatch, recentMatches, upcomingMatches, allRecentMatches }, newsSnap, competitionsSnap] = await Promise.all([
         getMatchDataForClub(ownerUid),
         newsQuery.get(),
         competitionsQuery.get(),
@@ -177,6 +177,7 @@ export default async function ClubPage({ params }: ClubPageProps) {
         nextMatch,
         recentMatches,
         upcomingMatches,
+        allRecentMatches,
         news: latestNews,
         heroNews,
         videos: [],

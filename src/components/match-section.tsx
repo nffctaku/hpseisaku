@@ -345,8 +345,15 @@ export function MatchResultsList({
   }
 
   const currentRound = rounds[selectedRoundIndex];
+  if (!currentRound) {
+    return (
+      <div className="bg-white text-gray-900 p-4 rounded-2xl text-center text-muted-foreground shadow-sm border border-black/10">
+        <p>表示できる試合結果がありません。</p>
+      </div>
+    );
+  }
   const currentRoundMatches = items
-    .filter((m) => m.roundId === currentRound.roundId && m.roundName === currentRound.roundName)
+    .filter((m) => m.roundId === currentRound.roundId || (!currentRound.roundId && m.roundName === currentRound.roundName))
     .sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
 
   // 大会名を取得（最初の試合から）

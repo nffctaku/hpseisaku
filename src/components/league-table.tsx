@@ -314,7 +314,11 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
         </div>
       ) : standings.length > 0 ? (
         <div className={variant === 'table' ? 'overflow-x-auto' : 'overflow-hidden'}>
-          <div className="border-0 [&>*]:border-0" style={{ border: 'none' }}>
+          <div className={
+            variant === 'table'
+              ? 'border-0 [&>*]:border-0'
+              : 'bg-white p-2 rounded-xl shadow-none border border-black/10 sm:p-3 sm:rounded-2xl sm:shadow-sm'
+          } style={variant === 'table' ? { border: 'none' } : undefined}>
             <Table
               className={
                 variant === 'table'
