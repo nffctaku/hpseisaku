@@ -6,6 +6,7 @@ import { ClubFooter } from '@/components/club-footer';
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import { SeasonSelect } from "./season-select";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
+import { lightenColor } from "@/lib/utils";
 
 interface TablePageProps {
   params: { clubId: string };
@@ -82,8 +83,14 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
     ? competitionsToRender.filter((c: any) => c.season === activeSeason)
     : competitionsToRender;
 
+  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
+
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen" style={{
+      backgroundColor: backgroundColor,
+      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+      backgroundSize: '4px 4px'
+    }}>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} headerBackgroundColor={homeBgColor} />
       <div className="container mx-auto py-10 px-4 md:px-0">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
@@ -106,7 +113,7 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
           ))}
         </div>
       </div>
-      <PartnerStripClient clubId={clubId} />
+
       <ClubFooter
         clubId={clubId}
         clubName={clubName}

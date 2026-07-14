@@ -2,8 +2,8 @@ import { db } from "@/lib/firebase/admin";
 import { notFound } from "next/navigation";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
-import { PartnerStripClient } from "@/components/partner-strip-client";
 import Link from "next/link";
+import { lightenColor } from "@/lib/utils";
 
 interface PageProps {
   params: Promise<{ clubId: string; slug: string }>;
@@ -64,6 +64,7 @@ export default async function LegalTextPage({ params }: PageProps) {
 
   const { clubName, title, content } = data;
   const { logoUrl, snsLinks, sponsors, legalPages, gameTeamUsage, homeBgColor } = data as any;
+  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
 
   const paragraphs = content
     .split(/\n{2,}/)
@@ -71,7 +72,11 @@ export default async function LegalTextPage({ params }: PageProps) {
     .filter((p: string) => Boolean(p));
 
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="min-h-screen flex flex-col" style={{
+      backgroundColor: backgroundColor,
+      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+      backgroundSize: '4px 4px'
+    }}>
       <ClubHeader
         clubId={clubId}
         clubName={clubName || ""}
@@ -102,7 +107,7 @@ export default async function LegalTextPage({ params }: PageProps) {
           </div>
         </div>
       </div>
-      <PartnerStripClient clubId={clubId} />
+
       <ClubFooter
         clubId={clubId}
         clubName={clubName || ""}

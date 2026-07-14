@@ -3,12 +3,19 @@ import { notFound } from "next/navigation";
 
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
-import { PartnerStripClient } from "@/components/partner-strip-client";
-import { TransfersBalancePie } from "@/components/transfers-balance-pie";
+import { SeasonDropdown } from "@/components/season-dropdown";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
+import { lightenColor } from "@/lib/utils";
 
 import type { TransferLog } from "@/types/transfer";
 import { formatMoneyWithSymbol } from "@/lib/money";
+import { Inter } from "next/font/google";
+
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata = {
+  title: "移籍履歴",
+};
 
 interface TransfersPageProps {
   params: { clubId: string };
@@ -34,22 +41,17 @@ const sumFeesByCurrency = (rows: TransferLog[]): Record<string, number> => {
   for (const t of rows) {
     const fee = (t as any).fee as number | undefined;
     if (fee == null || !Number.isFinite(fee)) continue;
-    const currency = ((t as any).feeCurrency as string | undefined) || "JPY";
+    const currency = ((t as any).feeCurrency as string | undefined) || "EUR";
     result[currency] = (result[currency] || 0) + fee;
   }
   return result;
 };
 
 const formatCurrencyAmount = (currency: string, amount: number): string => {
+  if (currency === "EUR") {
+    return `€${(amount / 1000000).toFixed(1)}M`;
+  }
   return formatMoneyWithSymbol(amount, currency);
-};
-
-const formatFeesSummary = (fees: Record<string, number>): string => {
-  const entries = Object.entries(fees)
-    .filter(([, v]) => Number.isFinite(v) && v !== 0)
-    .sort(([a], [b]) => a.localeCompare(b));
-  if (entries.length === 0) return "-";
-  return entries.map(([c, v]) => formatCurrencyAmount(c, v)).join(" / ");
 };
 
 async function resolveClubProfile(clubId: string): Promise<any | null> {
@@ -110,23 +112,6 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
   if (transfersPublic === false) {
     return (
       <main className="min-h-screen flex flex-col bg-background text-foreground">
-        <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
-
-        <div className="flex-1 w-full">
-          <div className="container mx-auto px-4 sm:px-6 py-12 sm:py-16">
-            <a href={`/${clubId}/club`} className="text-sm text-muted-foreground hover:underline">
-              &larr; {clubName || clubId}のCLUBに戻る
-            </a>
-            <div className="mt-6 rounded-lg border border-border bg-card text-card-foreground p-6">
-              <h1 className="text-xl font-bold">移籍情報は公開されていません</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                このクラブの移籍履歴は現在非公開設定になっています。
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <PartnerStripClient clubId={clubId} />
         <ClubFooter
           clubId={clubId}
           clubName={clubName}
@@ -175,37 +160,115 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
   const availableCurrencies = Array.from(
     new Set([...Object.keys(inTotals), ...Object.keys(outTotals)].filter((c) => c && c.length > 0))
   ).sort((a, b) => a.localeCompare(b));
-  const activeCurrency = availableCurrencies.includes("JPY") ? "JPY" : availableCurrencies[0] || "JPY";
+  const activeCurrency = availableCurrencies.includes("EUR") ? "EUR" : availableCurrencies[0] || "EUR";
 
   const inTotal = (inTotals[activeCurrency] || 0) as number;
   const outTotal = (outTotals[activeCurrency] || 0) as number;
   const balanceTotal = ((outTotals[activeCurrency] || 0) - (inTotals[activeCurrency] || 0)) as number;
 
+  // Calculate donut percentages
+  const totalTransferAmount = inTotal + outTotal;
+  const inPercentage = totalTransferAmount > 0 ? (inTotal / totalTransferAmount) * 100 : 50;
+  const outPercentage = totalTransferAmount > 0 ? (outTotal / totalTransferAmount) * 100 : 50;
+
   const TransferTable = ({ rows, directionLabel }: { rows: TransferLog[]; directionLabel: string }) => {
     const counterpartyHeader = directionLabel === "IN" ? "移籍元" : "移籍先";
-    const feeClass = directionLabel === "IN" ? "text-red-600" : "text-emerald-600";
+    const isLoss = directionLabel === "IN";
 
     return (
-      <div className="overflow-hidden rounded-lg bg-card text-card-foreground shadow-md border border-border">
-        <div className="px-4 py-3 border-b border-border">
-          <h2 className="text-lg font-semibold">{directionLabel}</h2>
+      <div style={{
+        border: '1px solid #0B141033',
+        borderRadius: '4px',
+        overflow: 'hidden'
+      }}>
+        <div style={{
+          padding: '16px 22px',
+          borderBottom: '2px solid #0B1410',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <h2 style={{
+            fontFamily: 'Anton, sans-serif',
+            fontSize: '22px',
+            color: '#0B1410',
+            margin: 0
+          }}>
+            {directionLabel}
+          </h2>
+          <span style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: '13px',
+            color: '#0B1410b3'
+          }}>
+            {rows.length} PLAYERS
+          </span>
         </div>
         {rows.length === 0 ? (
-          <div className="px-4 py-8 text-sm text-muted-foreground">データがありません。</div>
+          <div className="px-4 py-8 text-sm" style={{ color: '#0B1410b3' }}>データがありません。</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-xs">
-              <thead className="bg-muted">
-                <tr className="text-left">
-                  <th className="px-2 py-1 font-medium whitespace-nowrap">種</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap">選手名</th>
-                  <th className="px-2 py-1 font-medium">{counterpartyHeader}</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap">Pos</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap">年齢</th>
-                  <th className="px-2 py-1 font-medium whitespace-nowrap">金額</th>
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse'
+          }}>
+              <thead>
+                <tr>
+                  <th style={{
+                    padding: '8px',
+                    textAlign: 'left',
+                    fontWeight: '500',
+                    whiteSpace: 'nowrap',
+                    background: '#FFF5E6',
+                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                    backgroundSize: '4px 4px'
+                  }}>種</th>
+                  <th style={{
+                    padding: '8px',
+                    textAlign: 'left',
+                    fontWeight: '500',
+                    whiteSpace: 'nowrap',
+                    background: '#FFF5E6',
+                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                    backgroundSize: '4px 4px'
+                  }}>選手名</th>
+                  <th className="hidden md:table-cell" style={{
+                    padding: '8px',
+                    textAlign: 'left',
+                    fontWeight: '500',
+                    background: '#FFF5E6',
+                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                    backgroundSize: '4px 4px'
+                  }}>{counterpartyHeader}</th>
+                  <th style={{
+                    padding: '8px',
+                    textAlign: 'left',
+                    fontWeight: '500',
+                    whiteSpace: 'nowrap',
+                    background: '#FFF5E6',
+                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                    backgroundSize: '4px 4px'
+                  }}>Pos</th>
+                  <th style={{
+                    padding: '8px',
+                    textAlign: 'right',
+                    fontWeight: '500',
+                    whiteSpace: 'nowrap',
+                    background: '#FFF5E6',
+                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                    backgroundSize: '4px 4px'
+                  }}>年齢</th>
+                  <th style={{
+                    padding: '8px',
+                    textAlign: 'right',
+                    fontWeight: '500',
+                    whiteSpace: 'nowrap',
+                    background: '#FFF5E6',
+                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                    backgroundSize: '4px 4px'
+                  }}>金額</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody>
                 {rows.map((t) => {
                   const fee = (t as any).fee as number | undefined;
                   const feeCurrency = (t as any).feeCurrency as string | undefined;
@@ -214,76 +277,283 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
                   const counterparty = typeof (t as any).counterparty === "string" ? (t as any).counterparty : "";
 
                   return (
-                    <tr key={t.id}>
-                      <td className="px-2 py-1 font-medium whitespace-nowrap">{abbrevKind(kind)}</td>
-                      <td className="px-2 py-1 font-medium whitespace-nowrap" title={playerName || ""}>
+                    <tr key={t.id} style={{
+                      borderBottom: '1px solid #e5e7eb'
+                    }}>
+                      <td style={{
+                        padding: '8px',
+                        whiteSpace: 'nowrap',
+                        background: '#FFF5E6',
+                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                        backgroundSize: '4px 4px'
+                      }}>
+                        <span style={{
+                          display: 'inline-block',
+                          border: '1px solid #0B1410',
+                          borderRadius: '2px',
+                          padding: '2px 6px',
+                          fontSize: '11px',
+                          fontFamily: 'JetBrains Mono, monospace',
+                          color: '#0B1410'
+                        }}>
+                          {abbrevKind(kind)}
+                        </span>
+                      </td>
+                      <td style={{
+                        padding: '8px',
+                        whiteSpace: 'nowrap',
+                        background: '#FFF5E6',
+                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                        backgroundSize: '4px 4px'
+                      }} title={playerName || ""}>
                         {playerName ? truncateText(playerName, 15) : "-"}
                       </td>
-                      <td className="px-2 py-1" title={counterparty || ""}>
+                      <td className="hidden md:table-cell" style={{
+                        padding: '8px',
+                        background: '#FFF5E6',
+                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                        backgroundSize: '4px 4px'
+                      }} title={counterparty || ""}>
                         {counterparty ? truncateText(counterparty, 15) : "-"}
                       </td>
-                      <td className="px-2 py-1 whitespace-nowrap">{t.position || "-"}</td>
-                      <td className="px-2 py-1 whitespace-nowrap">{t.age != null ? t.age : "-"}</td>
-                      <td className={`px-2 py-1 whitespace-nowrap font-semibold ${feeClass}`}>
-                        {fee != null ? formatMoneyWithSymbol(fee, feeCurrency) : "-"}
+                      <td style={{
+                        padding: '8px',
+                        whiteSpace: 'nowrap',
+                        background: '#FFF5E6',
+                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                        backgroundSize: '4px 4px'
+                      }}>{t.position || "-"}</td>
+                      <td style={{
+                        padding: '8px',
+                        whiteSpace: 'nowrap',
+                        textAlign: 'right',
+                        background: '#FFF5E6',
+                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                        backgroundSize: '4px 4px'
+                      }}>{t.age != null ? t.age : "-"}</td>
+                      <td style={{
+                        padding: '8px',
+                        whiteSpace: 'nowrap',
+                        textAlign: 'right',
+                        fontWeight: '600',
+                        background: '#FFF5E6',
+                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+                        backgroundSize: '4px 4px',
+                        color: isLoss ? '#B85450' : '#2F7A56'
+                      }}>
+                        {fee != null ? formatCurrencyAmount(feeCurrency || activeCurrency, fee) : "-"}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          </div>
         )}
       </div>
     );
   };
 
+  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
+
   return (
-    <main className="min-h-screen flex flex-col bg-background text-foreground">
+    <main className={inter.className} style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: backgroundColor,
+      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+      backgroundSize: '4px 4px'
+    }}>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
+      <link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 
-      <div className="flex-1 w-full">
-        <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6">
-          <div className="space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">移籍履歴</h1>
+      <div style={{
+        maxWidth: '820px',
+        margin: '0 auto',
+        padding: '48px 6vw 80px'
+      }}>
+        {/* Page Head */}
+        <div className="page-head" style={{
+          borderBottom: '2px solid #0B1410',
+          paddingBottom: '16px',
+          marginBottom: '32px',
+          display: 'flex',
+          alignItems: 'flex-end'
+        }}>
+          <h1 style={{
+            fontFamily: 'Anton, sans-serif',
+            fontWeight: 400,
+            fontSize: 'clamp(26px, 4vw, 38px)',
+            color: '#0B1410'
+          }}>
+            移籍履歴
+          </h1>
+          <p style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontWeight: 400,
+            fontSize: '12px',
+            letterSpacing: '0.04em',
+            color: '#0B1410',
+            marginLeft: 'auto'
+          }}>
+            TRANSFER HISTORY
+          </p>
+        </div>
+
+        {/* Season Dropdown */}
+        {seasons.length > 1 && (
+          <div style={{ marginBottom: '32px' }}>
+            <label style={{
+              fontFamily: 'Oswald, sans-serif',
+              fontSize: '12px',
+              color: '#0B1410',
+              marginRight: '12px'
+            }}>
+              シーズン
+            </label>
+            <SeasonDropdown seasons={seasons} activeSeason={activeSeason} />
           </div>
+        )}
 
-          {seasons.length > 1 && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-muted-foreground">シーズン</span>
-              {seasons.map((s) => {
-                const isActive = s === activeSeason;
-                return (
-                  <a
-                    key={s}
-                    href={`?season=${encodeURIComponent(s)}`}
-                    className={
-                      isActive
-                        ? "rounded-md bg-sky-600 px-3 py-1 text-white"
-                        : "rounded-md border border-sky-600 px-3 py-1 text-sky-700 hover:bg-sky-50"
-                    }
-                  >
-                    {s}
-                  </a>
-                );
-              })}
+        {/* Balance Card */}
+        <div className="balance-card" style={{
+          padding: '32px',
+          marginBottom: '32px',
+          borderRadius: '4px'
+        }}>
+          <div className="balance-title" style={{
+            fontFamily: 'Oswald, sans-serif',
+            fontWeight: 600,
+            fontSize: '15px',
+            color: '#0B1410',
+            marginBottom: '24px'
+          }}>
+            移籍収支（€）
+          </div>
+          <div className="donut-row" style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '32px',
+            flexWrap: 'wrap'
+          }}>
+            <div className="donut" style={{
+              position: 'relative',
+              width: '220px',
+              height: '220px',
+              borderRadius: '50%',
+              background: `conic-gradient(#B85450 0% ${inPercentage}%, #2F7A56 ${inPercentage}% 100%)`
+            }}>
+              <div className="donut-center" style={{
+                position: 'absolute',
+                inset: '34px',
+                borderRadius: '50%',
+                background: '#F4F2E8',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <span style={{
+                  fontFamily: 'Oswald, sans-serif',
+                  fontWeight: 400,
+                  fontSize: '11px',
+                  letterSpacing: '0.1em',
+                  color: '#0B1410b3',
+                  marginBottom: '4px'
+                }}>
+                  収支
+                </span>
+                <span className="val" style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontWeight: 700,
+                  fontSize: '24px',
+                  color: balanceTotal >= 0 ? '#2F7A56' : '#B85450'
+                }}>
+                  {balanceTotal >= 0 ? '+' : ''}{formatCurrencyAmount(activeCurrency, balanceTotal)}
+                </span>
+              </div>
             </div>
-          )}
-
-          <TransfersBalancePie inTotal={inTotal} outTotal={outTotal} balanceTotal={balanceTotal} currencyLabel={activeCurrency} />
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <TransferTable rows={inTransfers} directionLabel="IN" />
-            <TransferTable rows={outTransfers} directionLabel="OUT" />
+            <div className="legend" style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  background: '#B85450'
+                }}></div>
+                <span style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontWeight: 400,
+                  fontSize: '13px',
+                  color: '#0B1410b3'
+                }}>
+                  IN
+                </span>
+                <span style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  color: '#B85450',
+                  marginLeft: 'auto'
+                }}>
+                  {formatCurrencyAmount(activeCurrency, inTotal)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  background: '#2F7A56'
+                }}></div>
+                <span style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontWeight: 400,
+                  fontSize: '13px',
+                  color: '#0B1410b3'
+                }}>
+                  OUT
+                </span>
+                <span style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  color: '#2F7A56',
+                  marginLeft: 'auto'
+                }}>
+                  {formatCurrencyAmount(activeCurrency, outTotal)}
+                </span>
+              </div>
+            </div>
           </div>
+        </div>
 
-          <div className="text-xs text-muted-foreground">
-            完＝完全移籍 / レ＝レンタル移籍 / 昇＝昇格 / 解＝契約解除 / 満＝契約満了
-          </div>
+        {/* Transfer Tables */}
+        <div style={{ marginBottom: '32px' }}>
+          <TransferTable rows={inTransfers} directionLabel="IN" />
+        </div>
+        <div style={{ marginBottom: '32px' }}>
+          <TransferTable rows={outTransfers} directionLabel="OUT" />
+        </div>
+
+        {/* Legend Note */}
+        <div className="legend-note" style={{
+          fontFamily: 'JetBrains Mono, monospace',
+          fontWeight: 400,
+          fontSize: '11px',
+          color: '#0B1410b3',
+          borderTop: '1px solid #0B141033',
+          paddingTop: '16px'
+        }}>
+          完＝完全移籍 / レ＝レンタル移籍 / 昇＝昇格 / 解＝契約解除 / 満＝契約満了
         </div>
       </div>
 
-      <PartnerStripClient clubId={clubId} />
       <ClubFooter
         clubId={clubId}
         clubName={clubName}

@@ -303,15 +303,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
   }
 
   return (
-    <div
-      className={
-        variant === 'table'
-          ? 'mx-auto max-w-[520px] bg-white text-gray-900 p-4 rounded-2xl shadow-sm border border-black/10'
-          : minCardOnMobile
-            ? 'bg-white text-gray-900 p-2 rounded-xl shadow-none border border-black/10 sm:p-3 sm:rounded-2xl sm:shadow-sm lg:min-h-[520px]'
-            : 'bg-white text-gray-900 p-2 sm:p-3 rounded-2xl shadow-sm border border-black/10 lg:min-h-[520px]'
-      }
-    >
+    <>
       {loading ? (
         <div className="flex justify-center items-center h-48">
           <Loader2 className="h-8 w-8 animate-spin" />
@@ -322,15 +314,17 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
         </div>
       ) : standings.length > 0 ? (
         <div className={variant === 'table' ? 'overflow-x-auto' : 'overflow-hidden'}>
-          <Table
-            className={
-              variant === 'table'
-                ? 'w-full min-w-[500px] table-auto text-xs'
-                : 'w-full table-auto text-xs'
-            }
-          >
-            <TableHeader className={variant === 'table' ? "[&_tr]:border-0" : undefined}>
-              <TableRow className={variant === 'table' ? "border-0" : undefined}>
+          <div className="border-0 [&>*]:border-0" style={{ border: 'none' }}>
+            <Table
+              className={
+                variant === 'table'
+                  ? 'w-full min-w-[500px] table-auto text-xs border-0 [&_th]:border-0 [&_td]:border-0 [&_tr]:border-0'
+                  : 'w-full table-auto text-xs border-0 [&_th]:border-0 [&_td]:border-0 [&_tr]:border-0'
+              }
+              style={{ border: 'none' }}
+            >
+            <TableHeader className={variant === 'table' ? "[&_tr]:border-0 [&_th]:border-0 border-0" : "[&_tr]:border-0 [&_th]:border-0 border-0"} style={{ borderBottom: 'none' }}>
+              <TableRow className={variant === 'table' ? "border-0 [&_th]:border-0" : "border-0 [&_th]:border-0"} style={{ border: 'none', borderBottom: 'none' }}>
                 <TableHead className="w-[32px] text-center tabular-nums px-1 py-1 sm:px-2 sm:py-1">順</TableHead>
                 <TableHead className={variant === 'table' ? "min-w-[120px] px-2 py-1 sm:px-2 sm:py-1" : "px-2 py-1 sm:px-2 sm:py-1"}>
                   {selectedCompetition ? (
@@ -366,7 +360,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
                 <TableHead className="w-[28px] text-right tabular-nums px-1 py-0.5 sm:w-auto sm:px-2 sm:py-1">点</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody className="[&_tr]:border-0 [&_td]:border-0" style={{ borderBottom: 'none' }}>
               {standings.map((team) => {
                 const rankLabel = rankLabels.find(r => team.rank >= r.from && team.rank <= r.to);
                 const rankColor = rankLabel ? (
@@ -378,8 +372,8 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
                   '#6b7280'
                 ) : null;
                 return (
-                  <TableRow key={team.id} className={variant === 'table' ? "border-0" : undefined}>
-                    <TableCell className="text-center tabular-nums px-1 py-1 sm:px-2 sm:py-1">
+                  <TableRow key={team.id} className="border-0" style={{ border: 'none', borderBottom: 'none' }}>
+                    <TableCell className="text-center tabular-nums px-1 py-1 sm:px-2 sm:py-1 border-0">
                       <div 
                         className="flex items-center justify-center gap-1"
                         style={{ borderLeft: rankColor ? `3px solid ${rankColor}` : '3px solid transparent' }}
@@ -443,11 +437,12 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
             </div>
           )}
         </div>
+        </div>
       ) : (
         <div className="text-center py-10">
           <p className="text-muted-foreground">表示できる順位情報がありません</p>
         </div>
       )}
-    </div>
+    </>
   );
 }

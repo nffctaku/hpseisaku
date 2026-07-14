@@ -175,7 +175,7 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
   const latestResult = ownPastMatches.length > 0 ? ownPastMatches[0] : null;
   const nextMatch = ownFutureMatches.length > 0 ? ownFutureMatches[0] : null;
 
-  const recentMatches = allPastMatches;
+  const recentMatches = ownPastMatches.slice(0, 5);
   const upcomingMatches = ownFutureMatches.slice(0, 7);
 
   return { latestResult, nextMatch, clubName, recentMatches, upcomingMatches };

@@ -1,5 +1,6 @@
 import { db } from "@/lib/firebase/admin";
 import { notFound } from "next/navigation";
+import { lightenColor } from "@/lib/utils";
 
 interface PageProps {
   params: Promise<{ clubId: string; slug: string }>;
@@ -55,6 +56,7 @@ export default async function LegalTextPage({ params }: PageProps) {
   }
 
   const { clubName, title, content } = data;
+  const backgroundColor = '#FFF5E6';
 
   const paragraphs = content
     .split(/\n{2,}/)
@@ -62,7 +64,11 @@ export default async function LegalTextPage({ params }: PageProps) {
     .filter((p: string) => Boolean(p));
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" style={{
+      backgroundColor: backgroundColor,
+      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+      backgroundSize: '4px 4px'
+    }}>
       <div className="container mx-auto px-4 py-8 max-w-3xl">
         <div className="mb-6">
           <p className="text-xs text-muted-foreground mb-1">{clubName}</p>

@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import { PlayerList } from "./player-list";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
-import { PartnerStripClient } from "@/components/partner-strip-client";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
+import { lightenColor } from "@/lib/utils";
 
 export const revalidate = 60;
 export const dynamic = "force-dynamic";
@@ -560,11 +560,16 @@ export default async function PlayersPage({
   }
 
   const { clubName, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, gameTeamUsage, players, staff, allSeasons, activeSeason, debugInfo } = data;
+  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
 
   return (
     <main
       className="min-h-screen"
-      style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}
+      style={{
+        backgroundColor: backgroundColor,
+        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+        backgroundSize: '4px 4px'
+      }}
     >
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} headerBackgroundColor={homeBgColor ?? undefined} />
       <PlayerList
@@ -577,7 +582,6 @@ export default async function PlayersPage({
         debugInfo={debugInfo}
         accentColor={typeof homeBgColor === 'string' ? homeBgColor : null}
       />
-      <PartnerStripClient clubId={clubId} />
       <ClubFooter
         clubId={clubId}
         clubName={clubName}

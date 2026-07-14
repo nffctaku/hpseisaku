@@ -8,6 +8,7 @@ import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { db } from "@/lib/firebase/admin";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
+import { lightenColor } from "@/lib/utils";
 
 type PartnerCategory = "top" | "official";
 
@@ -195,8 +196,14 @@ export default async function PartnerPage({ params }: { params: { clubId: string
     sections.push({ id: "uncategorized", title: "（未分類）", partners: uncategorized });
   }
 
+  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
+
   return (
-    <main className="min-h-screen flex flex-col bg-black">
+    <main className="min-h-screen flex flex-col" style={{
+      backgroundColor: backgroundColor,
+      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+      backgroundSize: '4px 4px'
+    }}>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="flex-1">
         <div className="container mx-auto px-4 py-6 sm:py-10">

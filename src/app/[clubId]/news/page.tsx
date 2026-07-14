@@ -10,8 +10,8 @@ import { ja } from 'date-fns/locale';
 import PaginationControls from '@/components/pagination-controls';
 import { ClubHeader } from '@/components/club-header';
 import { ClubFooter } from '@/components/club-footer';
-import { PartnerStripClient } from "@/components/partner-strip-client";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
+import { lightenColor } from "@/lib/utils";
 
 const NEWS_PER_PAGE = 9;
 
@@ -116,9 +116,14 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
 
   const { news, totalNews, clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage } = newsData as any;
   const totalPages = Math.ceil(totalNews / NEWS_PER_PAGE);
+  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
 
   return (
-    <main className="min-h-screen flex flex-col bg-white">
+    <main className="min-h-screen flex flex-col" style={{
+      backgroundColor: backgroundColor,
+      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+      backgroundSize: '4px 4px'
+    }}>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="flex-1">
         <div className="container mx-auto px-4 py-6 sm:py-8">
@@ -140,8 +145,7 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
         </div>
       </div>
 
-      <PartnerStripClient clubId={clubId} />
-      <ClubFooter
+            <ClubFooter
         clubId={clubId}
         clubName={clubName}
         sponsors={sponsors}

@@ -4,9 +4,9 @@ import { format, isValid, parseISO } from 'date-fns';
 import Link from 'next/link';
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
-import { PartnerStripClient } from "@/components/partner-strip-client";
 import { notFound } from 'next/navigation';
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
+import { lightenColor } from "@/lib/utils";
 
 function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | undefined): number {
   const md: any = (m as any)?.matchDate;
@@ -399,6 +399,7 @@ export default async function ClubMatchesPage({ params }: PageProps) {
   }
 
   const { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, groupedMatches } = await getClubMatches(clubId);
+  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
   if (!groupedMatches || Object.keys(groupedMatches).length === 0) {
     const pageProfile = await getPageProfile(clubId);
     if (!pageProfile) {
@@ -408,7 +409,11 @@ export default async function ClubMatchesPage({ params }: PageProps) {
   const competitionNames = Object.keys(groupedMatches);
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen" style={{
+      backgroundColor: backgroundColor,
+      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
+      backgroundSize: '4px 4px'
+    }}>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl || undefined} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-12">
@@ -433,7 +438,6 @@ export default async function ClubMatchesPage({ params }: PageProps) {
         )}
       </div>
 
-      <PartnerStripClient clubId={clubId} />
       <ClubFooter
         clubId={clubId}
         clubName={clubName}

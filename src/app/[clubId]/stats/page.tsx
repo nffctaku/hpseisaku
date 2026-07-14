@@ -565,7 +565,7 @@ export default function ClubStatsPage() {
 
   return (
     <main
-      className="min-h-screen"
+      className="min-h-screen flex flex-col"
       style={{
         backgroundColor: '#FFF5E6',
         backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
@@ -581,7 +581,7 @@ export default function ClubStatsPage() {
           headerBackgroundColor={homeBgColor ?? undefined}
         />
       )}
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 flex-grow">
         <h1 className={`text-2xl md:text-3xl font-bold mb-4 ${pageFg}`}>STATS</h1>
         <p className={`text-sm mb-6 ${pageMuted}`}>
           
@@ -614,7 +614,6 @@ export default function ClubStatsPage() {
       )}
       </div>
 
-      {clubId && <PartnerStripClient clubId={clubId} />}
       <ClubFooter
         clubId={clubId}
         clubName={clubName}
