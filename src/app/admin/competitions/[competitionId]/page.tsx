@@ -487,7 +487,6 @@ export default function CompetitionDetailPage() {
                 excludedTeamIds={excludedTeamIdsByMatchId.get(match.id) ?? new Set()}
                 roundId={currentRound.id}
                 season={competition.season}
-                clubId={clubUid || ''}
                 onUpdate={handleMatchUpdate}
                 onDelete={fetchAllData}
               />

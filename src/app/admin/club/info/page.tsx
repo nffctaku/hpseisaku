@@ -12,7 +12,6 @@ import { toast } from 'sonner';
 import Image from 'next/image';
 import { collection, getDocs, query, where, limit, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { SettingsTab } from './components/SettingsTab';
-import { LayoutTab } from './components/LayoutTab';
 import { TextsTab } from './components/TextsTab';
 import { SnsTab } from './components/SnsTab';
 
@@ -69,7 +68,6 @@ export default function ClubInfoPage() {
   const isPro = user?.plan === "pro";
   const [clubName, setClubName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
-  const [homeBgColor, setHomeBgColor] = useState<string>('');
   const [foundedYear, setFoundedYear] = useState<string>('');
   const [hometown, setHometown] = useState<string>('');
   const [stadiumName, setStadiumName] = useState<string>('');
@@ -183,9 +181,6 @@ export default function ClubInfoPage() {
             );
           }
 
-          if (typeof data.homeBgColor === 'string') {
-            setHomeBgColor(data.homeBgColor);
-          }
 
           if (typeof data.foundedYear === 'string') {
             setFoundedYear(data.foundedYear);
@@ -314,7 +309,6 @@ export default function ClubInfoPage() {
           transfersPublic,
           snsLinks,
           legalPages,
-          homeBgColor,
           foundedYear,
           hometown,
           stadiumName,
@@ -377,7 +371,6 @@ export default function ClubInfoPage() {
           <Tabs defaultValue="settings" className="w-full">
             <TabsList className="mb-4 w-full justify-start flex-wrap h-auto gap-1">
               <TabsTrigger value="settings" className="px-2 sm:px-3 text-xs sm:text-sm">クラブ設定</TabsTrigger>
-              <TabsTrigger value="layout" className="px-2 sm:px-3 text-xs sm:text-sm">レイアウト</TabsTrigger>
               <TabsTrigger value="texts" className="px-2 sm:px-3 text-xs sm:text-sm">テキスト</TabsTrigger>
               <TabsTrigger value="sns" className="px-2 sm:px-3 text-xs sm:text-sm">SNSリンク</TabsTrigger>
             </TabsList>
@@ -415,9 +408,6 @@ export default function ClubInfoPage() {
               />
             </TabsContent>
 
-            <TabsContent value="layout">
-              <LayoutTab homeBgColor={homeBgColor} setHomeBgColor={setHomeBgColor} />
-            </TabsContent>
 
             <TabsContent value="texts">
               <TextsTab legalPages={legalPages} setLegalPages={setLegalPages} slugify={slugify} />

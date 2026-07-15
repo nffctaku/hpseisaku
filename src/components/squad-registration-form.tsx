@@ -91,6 +91,32 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   const seasonStorageKey = normalizedSeasonId ? `default_squad_${ownerUid}_${normalizedSeasonId}` : `default_squad_${ownerUid}`;
   const legacyStorageKey = `default_squad_${ownerUid}`;
 
+  const positionOrder = (position: any) => {
+    const value = String(position || '').toUpperCase();
+    if (value.includes('GK')) return 0;
+    if (value.includes('DF') || value.includes('CB') || value.includes('SB') || value.includes('RB') || value.includes('LB')) return 1;
+    if (value.includes('MF') || value.includes('DM') || value.includes('CM') || value.includes('AM') || value.includes('WB') || value.includes('SH')) return 2;
+    if (value.includes('FW') || value.includes('ST') || value.includes('CF') || value.includes('WG')) return 3;
+    return 4;
+  };
+
+  const lineupSortValue = (ps: any, fallbackIndex: number) => {
+    const role = ps?.role || 'starter';
+    if (role === 'starter') {
+      const slot = Number(ps?.starterSlot);
+      if (Number.isInteger(slot) && slot >= 0 && slot <= 10) return slot;
+      return 100 + positionOrder(ps?.position) * 10 + fallbackIndex;
+    }
+    return 1000 + fallbackIndex;
+  };
+
+  const sortLineupRows = (rows: any[]) => {
+    return rows
+      .map((row, index) => ({ row, index }))
+      .sort((a, b) => lineupSortValue(a.row, a.index) - lineupSortValue(b.row, b.index))
+      .map(({ row }) => row);
+  };
+
   // localStorageからデフォルトスタメン・サブ設定を読み込む
   const loadDefaultSquad = (teamPlayers: Player[], fallbackTeamId?: string) => {
     try {
@@ -175,18 +201,23 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       };
       
       // チームごとにスタメンとサブを分類
-      const teamGroups = playerStats.reduce((acc: any, ps: any) => {
+      const groupedRows = playerStats.reduce((acc: any, ps: any, index: number) => {
         const teamId = inferTeamId(ps);
         if (!teamId) return acc;
         
         if (!acc[teamId]) {
-          acc[teamId] = { starters: [], subs: [] };
+          acc[teamId] = [];
         }
-        if (ps.role === 'starter') {
-          acc[teamId].starters.push(ps.playerId);
-        } else {
-          acc[teamId].subs.push(ps.playerId);
-        }
+        acc[teamId].push({ ...ps, __lineupIndex: index });
+        return acc;
+      }, {});
+
+      const teamGroups = Object.keys(groupedRows).reduce((acc: any, teamId) => {
+        const sortedRows = sortLineupRows(groupedRows[teamId]);
+        acc[teamId] = {
+          starters: sortedRows.filter((ps: any) => (ps.role || 'starter') === 'starter').map((ps: any) => ps.playerId),
+          subs: sortedRows.filter((ps: any) => ps.role === 'sub').map((ps: any) => ps.playerId),
+        };
         return acc;
       }, {});
       
@@ -417,20 +448,22 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         }
       });
 
-      const normalizedPlayerStats = (data.playerStats || [])
-        .filter((ps: any) => Boolean(ps?.playerId))
-        .map((ps: any) => {
-          const playerId = ps.playerId;
-          const role = ps?.role ? ps.role : 'starter';
-          return {
-            ...ps,
-            role,
-            goals: goalCounts.get(playerId) ?? 0,
-            assists: assistCounts.get(playerId) ?? 0,
-            yellowCards: yellowCounts.get(playerId) ?? 0,
-            redCards: redCounts.get(playerId) ?? 0,
-          };
-        });
+      const normalizedPlayerStats = sortLineupRows(
+        (data.playerStats || [])
+          .filter((ps: any) => Boolean(ps?.playerId))
+          .map((ps: any) => {
+            const playerId = ps.playerId;
+            const role = ps?.role ? ps.role : 'starter';
+            return {
+              ...ps,
+              role,
+              goals: goalCounts.get(playerId) ?? 0,
+              assists: assistCounts.get(playerId) ?? 0,
+              yellowCards: yellowCounts.get(playerId) ?? 0,
+              redCards: redCounts.get(playerId) ?? 0,
+            };
+          })
+      );
 
       const sanitizedEvents = (data.events || []).map((ev: any) => {
         const {

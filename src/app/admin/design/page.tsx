@@ -7,12 +7,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useClub } from "@/contexts/ClubContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { LayoutTab } from "@/app/admin/club/info/components/LayoutTab";
 import { toast } from "sonner";
 
 export default function AdminDesignPage() {
   const { user, refreshUserProfile } = useAuth();
   const { clubInfo } = useClub();
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [homeBgColor, setHomeBgColor] = useState<string>("");
+  const [savingLayout, setSavingLayout] = useState(false);
 
   const [menuShowNews, setMenuShowNews] = useState(true);
   const [menuShowTv, setMenuShowTv] = useState(true);
@@ -34,19 +40,30 @@ export default function AdminDesignPage() {
           method: "GET",
           cache: "no-store",
         });
-        if (!res.ok) return;
-        const json = (await res.json()) as any;
-        if (cancelled) return;
-        const s = (json?.settings || {}) as any;
-        setMenuShowNews(s.menuShowNews !== false);
-        setMenuShowTv(s.menuShowTv !== false);
-        setMenuShowClub(s.menuShowClub !== false);
-        setMenuShowTransfers(s.menuShowTransfers !== false);
-        setMenuShowMatches(s.menuShowMatches !== false);
-        setMenuShowTable(s.menuShowTable !== false);
-        setMenuShowStats(s.menuShowStats !== false);
-        setMenuShowSquad(s.menuShowSquad !== false);
-        setMenuShowPartner(s.menuShowPartner !== false);
+        if (res.ok) {
+          const json = (await res.json()) as any;
+          if (!cancelled) {
+            const s = (json?.settings || {}) as any;
+            setMenuShowNews(s.menuShowNews !== false);
+            setMenuShowTv(s.menuShowTv !== false);
+            setMenuShowClub(s.menuShowClub !== false);
+            setMenuShowTransfers(s.menuShowTransfers !== false);
+            setMenuShowMatches(s.menuShowMatches !== false);
+            setMenuShowTable(s.menuShowTable !== false);
+            setMenuShowStats(s.menuShowStats !== false);
+            setMenuShowSquad(s.menuShowSquad !== false);
+            setMenuShowPartner(s.menuShowPartner !== false);
+          }
+        }
+
+        const profilesRef = collection(db, "club_profiles");
+        const profilesSnap = await getDocs(query(profilesRef, where("clubId", "==", clubId), limit(1)));
+        if (!cancelled && !profilesSnap.empty) {
+          const data = profilesSnap.docs[0].data() as any;
+          if (typeof data.homeBgColor === "string") {
+            setHomeBgColor(data.homeBgColor);
+          }
+        }
       } catch {
         // ignore
       }
@@ -148,6 +165,13 @@ export default function AdminDesignPage() {
     }
   };
 
+  const saveLayout = async () => {
+    setSavingLayout(true);
+    const ok = await save({ homeBgColor });
+    if (ok) toast.success("背景色を保存しました");
+    setSavingLayout(false);
+  };
+
   return (
     <div className="container mx-auto py-10">
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -157,10 +181,30 @@ export default function AdminDesignPage() {
         </Link>
       </div>
 
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>レイアウト</CardTitle>
+          <CardDescription>公開HPトップの見た目を設定します。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LayoutTab homeBgColor={homeBgColor} setHomeBgColor={setHomeBgColor} />
+          <div className="mt-6 flex justify-center">
+            <Button
+              type="button"
+              onClick={() => void saveLayout()}
+              disabled={savingLayout || !user || !clubInfo?.id}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {savingLayout ? "保存中..." : "背景色を保存する"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
-          <CardTitle>ページ別デザイン</CardTitle>
-          <CardDescription>各ページごとにデザインパターンを選択できます。</CardDescription>
+          <CardTitle>ページ表示設定</CardTitle>
+          <CardDescription>公開ページのメニュー表示を設定できます。</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -181,9 +225,9 @@ export default function AdminDesignPage() {
                 key={row.href}
                 className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/10 px-4 py-3 text-sm text-white"
               >
-                <Link href={row.href} className="flex-1 min-w-0 hover:opacity-90 transition-opacity">
+                <div className="flex-1 min-w-0">
                   <span className="font-medium">{row.label}</span>
-                </Link>
+                </div>
 
                 <div className="flex items-center gap-3 shrink-0">
                   {row.hasToggle ? (
@@ -206,10 +250,6 @@ export default function AdminDesignPage() {
                   ) : (
                     <span className="text-xs text-white/70">—</span>
                   )}
-
-                  <Link href={row.href} className="text-xs text-white/70 hover:text-white transition-colors">
-                    編集
-                  </Link>
                 </div>
               </div>
             ))}

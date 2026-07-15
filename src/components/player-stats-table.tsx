@@ -23,6 +23,15 @@ const ratingOptions = (() => {
 })();
 const NONE_SELECT_VALUE = "__none__";
 
+const getPositionPillClassName = (position: any) => {
+  const value = String(position || '').toUpperCase();
+  if (value.includes('GK')) return 'bg-yellow-100 text-yellow-800';
+  if (value.includes('DF') || value.includes('CB') || value.includes('SB') || value.includes('RB') || value.includes('LB')) return 'bg-blue-100 text-blue-800';
+  if (value.includes('MF') || value.includes('DM') || value.includes('CM') || value.includes('AM') || value.includes('WB') || value.includes('SH')) return 'bg-green-100 text-green-800';
+  if (value.includes('FW') || value.includes('ST') || value.includes('CF') || value.includes('WG')) return 'bg-red-100 text-red-800';
+  return 'bg-gray-100 text-gray-700';
+};
+
 export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { teamId: string, allPlayers: Player[], matchDuration?: number }) {
   console.log(`PlayerStatsTable v3 (${teamId}): Received allPlayers`, allPlayers);
   const { control, watch, setValue } = useFormContext();
@@ -477,7 +486,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
                   opts.header
                 ) : (
                   <div className="flex items-end gap-2 min-w-0">
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full w-10 text-center ${getPositionPillClassName(field.position)}`}>
                       {field.position}
                     </span>
                     <span className="font-medium text-sm truncate">
@@ -615,7 +624,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
               showTrash: false,
               header: (
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full w-10 text-center ${getPositionPillClassName((slotField as any).position)}`}>
                     {(slotField as any).position}
                   </span>
                   <Select value={currentPlayerId} onValueChange={(val) => setStarterSlotPlayer(slot, val)}>
@@ -665,7 +674,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
               showTrash: true,
               header: (
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full w-10 text-center ${getPositionPillClassName((field as any).position)}`}>
                     {(field as any).position}
                   </span>
                   <Select value={currentPlayerId} onValueChange={(val) => setBenchPlayer((field as any).id, val)}>

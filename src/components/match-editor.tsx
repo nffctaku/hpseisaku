@@ -29,7 +29,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundId, season, clubId, onUpdate, onDelete }: { match: Match, teams: Team[], allTeamsMap: Map<string, Team>, excludedTeamIds: Set<string>, roundId: string, season: string, clubId: string, onUpdate: Function, onDelete: Function }) {
+export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundId, season, onUpdate, onDelete }: { match: Match, teams: Team[], allTeamsMap: Map<string, Team>, excludedTeamIds: Set<string>, roundId: string, season: string, onUpdate: Function, onDelete: Function }) {
   const selectedDate = useMemo(() => {
     const parsed = match.matchDate ? parseISO(match.matchDate) : new Date();
     return isValid(parsed) ? parsed : new Date();
@@ -153,7 +153,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
         </Popover>
 
         <div className="flex items-center justify-end gap-2">
-          <Link href={`/${clubId}/matches/${competitionId}/${roundId}/${match.id}`}>
+          <Link href={`/admin/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`}>
             <Button
               variant="ghost"
               size="icon"
