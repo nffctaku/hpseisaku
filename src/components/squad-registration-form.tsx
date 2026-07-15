@@ -386,15 +386,31 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     fetchMatchData();
   }, [match.id, roundId, competitionId, user, ownerUid, methods, matchDocPath]);
 
-  const applyDefaultSquad = () => {
+  const applyDefaultSquad = async () => {
     const homeDefault = loadDefaultSquad(homePlayers, match.homeTeam);
     const awayDefault = loadDefaultSquad(awayPlayers, match.awayTeam);
+    const nextPlayerStats = [...homeDefault, ...awayDefault];
+
+    if (nextPlayerStats.length === 0) {
+      toast.error('登録済みのラインナップがありません。');
+      return;
+    }
+
     const current = methods.getValues();
-    methods.reset({
+    const nextValues = {
       customStatHeaders: current.customStatHeaders || [],
-      playerStats: [...homeDefault, ...awayDefault],
+      playerStats: nextPlayerStats,
       events: current.events || [],
-    });
+    };
+
+    methods.reset(nextValues);
+    const res = await saveSquadData(nextValues, { showToast: false });
+    if (res.ok) {
+      methods.reset(nextValues, { keepValues: true });
+      toast.success('登録済みのラインナップを反映して保存しました。');
+    } else {
+      toast.error('ラインナップの保存に失敗しました。');
+    }
   };
 
   const saveSquadData = async (data: FormValues, opts?: { showToast?: boolean }) => {
@@ -780,7 +796,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                     <Button
                       type="button"
                       onClick={() => {
-                        applyDefaultSquad();
+                        void applyDefaultSquad();
                       }}
                       className="w-full bg-orange-500 text-white hover:bg-orange-600"
                     >
@@ -799,7 +815,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                     <Button
                       type="button"
                       onClick={() => {
-                        applyDefaultSquad();
+                        void applyDefaultSquad();
                       }}
                       className="w-full bg-orange-500 text-white hover:bg-orange-600"
                     >
