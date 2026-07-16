@@ -46,6 +46,10 @@ function seasonEquals(a: string, b: string): boolean {
   return a === b || toSlashSeason(a) === toSlashSeason(b) || toDashSeason(a) === toDashSeason(b);
 }
 
+function hasCompletedScore(match: Match): boolean {
+  return typeof match.scoreHome === "number" && typeof match.scoreAway === "number";
+}
+
 interface Competition {
   id: string;
   name: string;
@@ -144,9 +148,10 @@ export function SeasonPerformance({
       const competitionIds = new Set(seasonCompetitions.map((c) => c.id));
 
       const seasonMatches = matches.filter((m) => competitionIds.has(m.competitionId));
-      const teamMatches = mainTeamId
+      const teamMatches = (mainTeamId
         ? seasonMatches.filter((m) => m.homeTeamId === mainTeamId || m.awayTeamId === mainTeamId)
-        : seasonMatches;
+        : seasonMatches
+      ).filter(hasCompletedScore);
 
       let wins = 0;
       let draws = 0;
@@ -157,8 +162,8 @@ export function SeasonPerformance({
       teamMatches.forEach((match) => {
         const isHome = match.homeTeamId === mainTeamId;
         const isAway = match.awayTeamId === mainTeamId;
-        const homeScore = match.scoreHome ?? 0;
-        const awayScore = match.scoreAway ?? 0;
+        const homeScore = match.scoreHome as number;
+        const awayScore = match.scoreAway as number;
 
         if (isHome) {
           if (homeScore > awayScore) {
@@ -205,9 +210,10 @@ export function SeasonPerformance({
       const competitionIds = new Set(seasonCompetitions.map((c) => c.id));
 
       const seasonMatches = matches.filter((m) => competitionIds.has(m.competitionId));
-      const teamMatches = mainTeamId
+      const teamMatches = (mainTeamId
         ? seasonMatches.filter((m) => m.homeTeamId === mainTeamId || m.awayTeamId === mainTeamId)
-        : seasonMatches;
+        : seasonMatches
+      ).filter(hasCompletedScore);
 
       let points = 0;
       let goalsFor = 0;
@@ -216,8 +222,8 @@ export function SeasonPerformance({
       teamMatches.forEach((match) => {
         const isHome = match.homeTeamId === mainTeamId;
         const isAway = match.awayTeamId === mainTeamId;
-        const homeScore = match.scoreHome ?? 0;
-        const awayScore = match.scoreAway ?? 0;
+        const homeScore = match.scoreHome as number;
+        const awayScore = match.scoreAway as number;
 
         if (isHome) {
           goalsFor += homeScore;
@@ -252,9 +258,10 @@ export function SeasonPerformance({
       const competitionIds = new Set(seasonCompetitions.map((c) => c.id));
 
       const seasonMatches = matches.filter((m) => competitionIds.has(m.competitionId));
-      const teamMatches = mainTeamId
+      const teamMatches = (mainTeamId
         ? seasonMatches.filter((m) => m.homeTeamId === mainTeamId || m.awayTeamId === mainTeamId)
-        : seasonMatches;
+        : seasonMatches
+      ).filter(hasCompletedScore);
 
       let homeWins = 0;
       let awayWins = 0;
@@ -262,8 +269,8 @@ export function SeasonPerformance({
       teamMatches.forEach((match) => {
         const isHome = match.homeTeamId === mainTeamId;
         const isAway = match.awayTeamId === mainTeamId;
-        const homeScore = match.scoreHome ?? 0;
-        const awayScore = match.scoreAway ?? 0;
+        const homeScore = match.scoreHome as number;
+        const awayScore = match.scoreAway as number;
 
         if (isHome && homeScore > awayScore) {
           homeWins++;
