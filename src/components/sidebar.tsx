@@ -9,7 +9,6 @@ import { cn } from '@/lib/utils';
 import {
   ArrowLeftRight,
   Trophy,
-  Shield,
   Home,
   Newspaper,
   Tv,
@@ -34,10 +33,6 @@ export function Sidebar() {
   const { user } = useAuth();
   const { clubInfo } = useClub();
   const clubId = clubInfo.id || user?.clubId || user?.uid || null;
-
-  const canManagePartners =
-    user?.uid === 'gNDzHTPlzVZK8cOl7ogxQBRvugH2' ||
-    Boolean(user?.ownerUid && user?.uid && user.uid === user.ownerUid);
 
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
 
@@ -150,22 +145,20 @@ export function Sidebar() {
       ],
     },
     {
-      title: '運営・分析',
+      title: 'コンテンツ',
       items: [
         { href: `/admin/news`, label: 'ニュース管理', icon: Newspaper },
         { href: `/admin/tv`, label: 'TV管理', icon: Tv },
-        { href: '/admin/teams', label: 'チーム登録', icon: Shield },
-        { href: transfersHref, label: '移籍管理', icon: TransfersIcon },
-        { href: `/admin/analysis`, label: '分析管理', icon: LineChart },
+        { href: `/admin/club/info`, label: 'クラブ情報', icon: Settings },
+        { href: `/admin/design`, label: 'デザイン', icon: LayoutGrid },
       ],
     },
     {
-      title: 'コンテンツ',
+      title: '記録・分析',
       items: [
-        { href: `/admin/design`, label: 'デザイン', icon: LayoutGrid },
-        { href: `/admin/club/info`, label: 'クラブ情報', icon: Settings },
-        { href: `/admin/partners`, label: 'パートナー管理', icon: Shield, disabled: !canManagePartners },
         { href: bookletHref, label: '選手名鑑', icon: BookOpen },
+        { href: `/admin/analysis`, label: '分析管理', icon: LineChart },
+        { href: transfersHref, label: '移籍管理', icon: TransfersIcon },
       ],
     },
     {

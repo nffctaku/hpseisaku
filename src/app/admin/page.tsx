@@ -199,13 +199,13 @@ export default function AdminHomePage() {
       { href: "/admin/matches", label: "試合管理", icon: Calendar },
     ],
     content: [
-      { href: "/admin/design", label: "デザイン", icon: LayoutGrid, disabled: !isPro },
+      { href: "/admin/news", label: "ニュース管理", icon: Newspaper, badge: draftNewsCount > 0 ? { text: `下書${draftNewsCount}`, color: "orange" } : undefined },
       { href: "/admin/tv", label: "TV管理", icon: Tv },
       { href: "/admin/club/info", label: "クラブ情報", icon: Home },
-      { href: bookletHref, label: "選手名鑑", icon: BookOpen },
+      { href: "/admin/design", label: "デザイン", icon: LayoutGrid, disabled: !isPro },
     ],
     analysis: [
-      { href: "/admin/news", label: "ニュース管理", icon: Newspaper, badge: draftNewsCount > 0 ? { text: `下書${draftNewsCount}`, color: "orange" } : undefined },
+      { href: bookletHref, label: "選手名鑑", icon: BookOpen },
       { href: "/admin/analysis", label: "分析管理", icon: LineChart },
       { href: transfersHref, label: "移籍管理", icon: ArrowLeftRight },
       { href: "/admin/settings", label: "変更履歴", icon: History },

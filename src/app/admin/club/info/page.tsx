@@ -5,14 +5,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
 import { auth, db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import Image from 'next/image';
 import { collection, getDocs, query, where, limit, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { SettingsTab } from './components/SettingsTab';
-import { TextsTab } from './components/TextsTab';
 import { SnsTab } from './components/SnsTab';
 
 interface TeamOption {
@@ -55,17 +51,9 @@ const generateSeasonOptions = (): string[] => {
   return out;
 };
 
-const slugify = (value: string): string => {
-  return value
-    .trim()
-    // 連続する空白をハイフンに変換し、それ以外の文字（日本語など）はそのまま残す
-    .replace(/\s+/g, '-');
-};
-
 export default function ClubInfoPage() {
   const { user, refreshUserProfile } = useAuth();
   const { fetchClubInfo } = useClub();
-  const isPro = user?.plan === "pro";
   const [clubName, setClubName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [foundedYear, setFoundedYear] = useState<string>('');
@@ -360,20 +348,18 @@ export default function ClubInfoPage() {
   };
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-6">クラブ情報編集</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>クラブ情報編集</CardTitle>
-          <CardDescription>クラブ設定・テキストページ・SNSリンクを編集します。</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="settings" className="w-full">
-            <TabsList className="mb-4 w-full justify-start flex-wrap h-auto gap-1">
-              <TabsTrigger value="settings" className="px-2 sm:px-3 text-xs sm:text-sm">クラブ設定</TabsTrigger>
-              <TabsTrigger value="texts" className="px-2 sm:px-3 text-xs sm:text-sm">テキスト</TabsTrigger>
-              <TabsTrigger value="sns" className="px-2 sm:px-3 text-xs sm:text-sm">SNSリンク</TabsTrigger>
-            </TabsList>
+    <div className="min-h-screen pb-[104px]">
+      <div className="mx-auto w-full max-w-[640px] px-5 py-8">
+        <div className="mb-5">
+          <h1 className="text-[22px] font-bold leading-tight">クラブ情報編集</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground">基本設定、クラブ詳細、タイトル管理、SNSリンクを編集します。</p>
+        </div>
+
+        <Tabs defaultValue="settings" className="w-full">
+          <TabsList className="mb-5 grid h-auto w-full grid-cols-2 gap-1 rounded-lg bg-[#F8F9FB] p-1">
+            <TabsTrigger value="settings" className="rounded-md px-3 py-2 text-[13px] font-semibold text-[#6B7280] data-[state=active]:bg-[#3355FF] data-[state=active]:!text-white">クラブ設定</TabsTrigger>
+            <TabsTrigger value="sns" className="rounded-md px-3 py-2 text-[13px] font-semibold text-[#6B7280] data-[state=active]:bg-[#3355FF] data-[state=active]:!text-white">SNSリンク</TabsTrigger>
+          </TabsList>
 
             <TabsContent value="settings">
               <SettingsTab
@@ -385,8 +371,6 @@ export default function ClubInfoPage() {
                 setRealTeamUsage={setRealTeamUsage}
                 gameTeamUsage={gameTeamUsage}
                 setGameTeamUsage={setGameTeamUsage}
-                transfersPublic={transfersPublic}
-                setTransfersPublic={setTransfersPublic}
                 logoUrl={logoUrl}
                 foundedYear={foundedYear}
                 setFoundedYear={setFoundedYear}
@@ -402,34 +386,27 @@ export default function ClubInfoPage() {
                 setClubTitles={setClubTitles}
                 seasonOptions={seasonOptions}
                 toSlashSeason={toSlashSeason}
-                isPro={isPro}
-                loading={loading}
-                onUpdate={handleUpdate}
               />
-            </TabsContent>
-
-
-            <TabsContent value="texts">
-              <TextsTab legalPages={legalPages} setLegalPages={setLegalPages} slugify={slugify} />
             </TabsContent>
 
             <TabsContent value="sns">
               <SnsTab snsLinks={snsLinks} setSnsLinks={setSnsLinks} />
             </TabsContent>
-          </Tabs>
-        </CardContent>
-        <CardFooter>
-          <div className="w-full flex justify-center">
-            <Button
-              onClick={handleUpdate}
-              disabled={loading}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
+        </Tabs>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#E2E4EA] bg-white">
+        <div className="mx-auto flex min-h-[72px] w-full max-w-[640px] items-center justify-between gap-4 px-5">
+          <div className="font-mono text-xs text-[#9CA3AF]">{loading ? '保存中...' : 'すべて保存済みです'}</div>
+          <Button
+            onClick={handleUpdate}
+            disabled={loading}
+            className="h-10 rounded-lg bg-[#1F9D63] px-5 text-sm font-bold text-white hover:bg-[#188653]"
+          >
             {loading ? '更新中...' : '更新する'}
-            </Button>
-          </div>
-        </CardFooter>
-      </Card>
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

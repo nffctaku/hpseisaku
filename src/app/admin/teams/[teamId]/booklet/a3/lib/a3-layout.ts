@@ -25,6 +25,14 @@ type LayoutState = {
   coachStaffId: string | null;
 };
 
+export function normalizeA3Text(value: unknown): string {
+  return String(value || "")
+    .replace(/\\u00A0/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\u00A0/g, " ")
+    .trim();
+}
+
 export function createEmptyLayout(): LayoutState {
   const slots: Record<string, string | null> = {};
   for (let i = 0; i < 12; i++) slots[`l${i}`] = null;

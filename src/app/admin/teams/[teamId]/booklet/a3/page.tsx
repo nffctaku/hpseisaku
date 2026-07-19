@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import type { BookletPlayer } from "../types";
-import { createEmptyLayout, last5Seasons } from "./lib/a3-layout";
+import { createEmptyLayout, last5Seasons, normalizeA3Text } from "./lib/a3-layout";
 import { useLeagueCompetitions } from "./hooks/useLeagueCompetitions";
 import { useLeagueStats } from "./hooks/useLeagueStats";
 import { formations } from "@/lib/formations";
@@ -87,8 +87,8 @@ export function A3Editor({
           typeof (parsed as any).leagueCompetitionName === "string" && String((parsed as any).leagueCompetitionName).trim().length > 0
             ? String((parsed as any).leagueCompetitionName).trim()
             : null,
-        bioTitle: typeof (parsed as any).bioTitle === "string" ? String((parsed as any).bioTitle) : "",
-        bioBody: typeof (parsed as any).bioBody === "string" ? String((parsed as any).bioBody) : "",
+        bioTitle: normalizeA3Text((parsed as any).bioTitle),
+        bioBody: normalizeA3Text((parsed as any).bioBody),
         cups: normalizedCups,
         formationName:
           typeof (parsed as any).formationName === "string" && String((parsed as any).formationName).trim().length > 0

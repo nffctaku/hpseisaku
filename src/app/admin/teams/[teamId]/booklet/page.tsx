@@ -45,6 +45,8 @@ export default function TeamBookletPage() {
   const [a3IsEditMode, setA3IsEditMode] = useState(false);
   const [a3PreviewScale, setA3PreviewScale] = useState(0.7);
   const [a3UpgradeMessage, setA3UpgradeMessage] = useState<string | null>(null);
+  const [showDisplaySettings, setShowDisplaySettings] = useState(false);
+  const [showParameterGraph, setShowParameterGraph] = useState(true);
   const [positionColors, setPositionColors] = useState<PositionColors>({
     GK: "bg-rose-300",
     DF: "bg-blue-300",
@@ -155,6 +157,7 @@ export default function TeamBookletPage() {
             const parsed = JSON.parse(savedSelection);
             setSelectedPlayerIds(parsed.selectedPlayerIds || json.players.slice(0, 15).map(p => p.id));
             setAdditionalPlayerIds(parsed.additionalPlayerIds || []);
+            setShowParameterGraph(parsed.showParameterGraph !== false);
             setPositionColors(
               parsed.positionColors || {
                 GK: "bg-rose-300",
@@ -167,6 +170,7 @@ export default function TeamBookletPage() {
             // パースエラーの場合はデフォルト値を使用
             setSelectedPlayerIds(json.players.slice(0, 15).map(p => p.id));
             setAdditionalPlayerIds([]);
+            setShowParameterGraph(true);
           }
         } else {
           // 初期状態では最初の15人を選択
@@ -222,11 +226,12 @@ export default function TeamBookletPage() {
     const selectionData = {
       selectedPlayerIds,
       additionalPlayerIds,
-      positionColors
+      positionColors,
+      showParameterGraph,
     };
     
     localStorage.setItem(storageKey, JSON.stringify(selectionData));
-  }, [selectedPlayerIds, additionalPlayerIds, positionColors, teamId, season]);
+  }, [selectedPlayerIds, additionalPlayerIds, positionColors, showParameterGraph, teamId, season]);
 
   const players = useMemo(() => {
     const list = Array.isArray(data?.players) ? data!.players : [];
@@ -565,6 +570,10 @@ export default function TeamBookletPage() {
         onEnterEdit={() => setIsEditMode(true)}
         onExitEdit={() => setIsEditMode(false)}
         onPrint={() => window.print()}
+        showDisplaySettings={showDisplaySettings}
+        onToggleDisplaySettings={() => setShowDisplaySettings((prev) => !prev)}
+        showParameterGraph={showParameterGraph}
+        onToggleParameterGraph={() => setShowParameterGraph((prev) => !prev)}
       />
 
       {a3UpgradeMessage ? (
@@ -627,6 +636,7 @@ export default function TeamBookletPage() {
               rightCards={a3RightCards}
               additionalPlayers={a3AdditionalPlayers}
               getPositionColor={a3GetPositionColor}
+              showParameterGraph={showParameterGraph}
               stats={a3Stats}
               cups={a3Cups8}
               transfersIn={a3TransfersIn12}
@@ -708,6 +718,7 @@ export default function TeamBookletPage() {
                       key={p.id}
                       player={p}
                       positionColorClass={getPositionColor(p.mainPosition || p.position)}
+                      showParameterGraph={showParameterGraph}
                     />
                   ))}
                 </div>

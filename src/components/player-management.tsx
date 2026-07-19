@@ -282,6 +282,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           nationality: (season?.nationality ?? p.nationality) as any,
           dateOfBirth: (season?.dateOfBirth ?? p.dateOfBirth) as any,
           joinedSeason: (season?.joinedSeason ?? p.joinedSeason) as any,
+          tenureYears: ((season as any)?.tenureYears ?? (p as any).tenureYears) as any,
           height: (season?.height ?? p.height) as any,
           weight: (season as any)?.weight ?? (p as any).weight,
           profile: (season as any)?.profile ?? (p as any).profile,
@@ -335,6 +336,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       nationality: season.nationality ?? editingPlayer.nationality,
       dateOfBirth: season.dateOfBirth ?? editingPlayer.dateOfBirth,
       joinedSeason: season.joinedSeason ?? editingPlayer.joinedSeason,
+      tenureYears: (season as any)?.tenureYears ?? (editingPlayer as any).tenureYears,
       height: season.height ?? editingPlayer.height,
       weight: (season as any)?.weight ?? (editingPlayer as any).weight,
       profile: (season as any)?.profile ?? (editingPlayer as any).profile,
@@ -528,6 +530,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           ? `${String((valuesNormalized as any)?.contractEndYear).padStart(4, "0")}-${String((valuesNormalized as any)?.contractEndMonth).padStart(2, "0")}`
           : undefined;
 
+      const joinedSeason = typeof (values as any)?.joinedSeason === "string" ? (values as any).joinedSeason.trim() : "";
+      const tenureYears = joinedSeason ? calculateTenureYears(joinedSeason, selectedSeason) : undefined;
+
       const snsLinksRaw = (valuesNormalized as any)?.snsLinks;
       const snsLinksClean = {
         x: typeof snsLinksRaw?.x === "string" ? snsLinksRaw.x : "",
@@ -543,7 +548,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
         nationality: valuesNormalized.nationality,
         dateOfBirth: valuesNormalized.dateOfBirth,
-        joinedSeason: (values as any).joinedSeason,
+        joinedSeason,
+        tenureYears,
         height: valuesNormalized.height,
         weight: (values as any).weight,
         profile: (values as any).profile,
@@ -574,7 +580,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
           number: valuesNormalized.number as any,
           photoUrl: valuesNormalized.photoUrl,
-          joinedSeason: (values as any).joinedSeason,
+          joinedSeason,
+          tenureYears,
           seasons: nextSeasons,
           [`seasonData.${selectedSeasonDash}`]: seasonPayloadClean,
         });
@@ -598,7 +605,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           mainPosition: (values as any).mainPosition,
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
           photoUrl: valuesNormalized.photoUrl,
-          joinedSeason: (values as any).joinedSeason,
+          joinedSeason,
+          tenureYears,
         });
         console.log("[PlayerManagement] write roster", {
           path: `clubs/${clubUid}/seasons/${selectedSeason}/roster/${editingPlayer.id}`,
@@ -612,6 +620,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       } else {
         const createPayload = stripUndefinedDeep({
           ...valuesNormalized,
+          joinedSeason,
+          tenureYears,
           seasons: [selectedSeason],
           seasonData: {
             [selectedSeasonDash]: seasonPayloadClean,
@@ -639,7 +649,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             mainPosition: (values as any).mainPosition,
             subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
             photoUrl: values.photoUrl,
-            joinedSeason: (values as any).joinedSeason,
+            joinedSeason,
+            tenureYears,
           }) || {}) as any,
           { merge: true }
         );

@@ -5,17 +5,31 @@ import type { BookletPlayer } from "../types";
 import { clampText, contractEndLabel, isAlphabetName, preferredFootLabel } from "../lib/booklet-utils";
 import { PositionMap } from "./PositionMap";
 
+function PlayerSilhouette() {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-400">
+      <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden="true">
+        <circle cx="24" cy="16" r="8" fill="currentColor" opacity="0.55" />
+        <path d="M9 42c1.8-9 7.6-14 15-14s13.2 5 15 14" fill="currentColor" opacity="0.35" />
+      </svg>
+      <div className="text-[9px] font-semibold tracking-wide">PLAYER</div>
+    </div>
+  );
+}
+
 export function BookletPlayerCard({
   player,
   positionColorClass,
+  showParameterGraph = true,
 }: {
   player: BookletPlayer;
   positionColorClass: string;
+  showParameterGraph?: boolean;
 }) {
   const labels = player.params?.items?.map((i) => i.label) ?? ["", "", "", "", "", ""];
   const values = player.params?.items?.map((i) => i.value) ?? [0, 0, 0, 0, 0, 0];
   const overall = typeof player.params?.overall === "number" ? player.params.overall : 0;
-  const desc = clampText((player.memo || "").trim() || (player.profile || ""), 80);
+  const desc = clampText((player.memo || "").trim() || (player.profile || ""), showParameterGraph ? 80 : 200);
 
   return (
     <div className="relative border border-gray-200 bg-white h-[42mm]">
@@ -50,13 +64,11 @@ export function BookletPlayerCard({
           )}
         </div>
 
-        <div className="relative bg-gray-200 h-full">
+        <div className="relative bg-slate-100 h-full">
           {player.photoUrl ? (
             <Image src={player.photoUrl} alt={player.name} fill className="object-cover" sizes="360px" />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-sm font-semibold text-gray-500">NoImage</div>
-            </div>
+            <PlayerSilhouette />
           )}
         </div>
 
@@ -82,13 +94,15 @@ export function BookletPlayerCard({
             </div>
           </div>
 
-          <div className="text-[6px] text-gray-800 leading-tight overflow-hidden flex-none mt-1">{desc || ""}</div>
+          <div className={`text-[6px] text-gray-800 leading-tight overflow-hidden mt-1 ${showParameterGraph ? "flex-none" : "flex-1"}`}>{desc || ""}</div>
 
-          <div className="mt-auto flex items-center justify-center">
-            <div className="w-full max-w-[60px] h-auto">
-              <PublicPlayerHexChart labels={labels} values={values} overall={overall} />
+          {showParameterGraph ? (
+            <div className="mt-auto flex items-center justify-center">
+              <div className="w-full max-w-[60px] h-auto">
+                <PublicPlayerHexChart labels={labels} values={values} overall={overall} />
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
     </div>

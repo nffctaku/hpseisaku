@@ -14,7 +14,7 @@ import {
   orderBy,
   serverTimestamp,
 } from "firebase/firestore";
-import { Loader2, PlusCircle, Trash2 } from "lucide-react";
+import { CalendarDays, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -65,9 +65,10 @@ export default function FriendlyMatchesPage() {
     const dd = String(d.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
   });
-  const [matchTime, setMatchTime] = useState<string>("");
   const [homeTeamId, setHomeTeamId] = useState<string>("");
   const [awayTeamId, setAwayTeamId] = useState<string>("");
+  const [customHomeTeamName, setCustomHomeTeamName] = useState<string>("");
+  const [customAwayTeamName, setCustomAwayTeamName] = useState<string>("");
   const [creating, setCreating] = useState(false);
 
   const teamsMap = useMemo(() => {
@@ -134,17 +135,23 @@ export default function FriendlyMatchesPage() {
 
   const handleCreate = async () => {
     if (!user) return;
-    if (!homeTeamId || !awayTeamId) {
-      toast.error("ホーム/アウェイのチームを選択してください。");
+    const isCustomHome = homeTeamId === "__custom_home__";
+    const isCustomAway = awayTeamId === "__custom_away__";
+    const customHomeName = customHomeTeamName.trim();
+    const customAwayName = customAwayTeamName.trim();
+    const home = isCustomHome ? null : teamsMap.get(homeTeamId);
+    const away = isCustomAway ? null : teamsMap.get(awayTeamId);
+    const homeName = isCustomHome ? customHomeName : home?.name;
+    const awayName = isCustomAway ? customAwayName : away?.name;
+
+    if (!homeName || !awayName) {
+      toast.error("ホーム/アウェイのチームを選択または入力してください。");
       return;
     }
-    if (homeTeamId === awayTeamId) {
+    if ((isCustomHome ? customHomeName : homeTeamId) === (isCustomAway ? customAwayName : awayTeamId)) {
       toast.error("ホームとアウェイは別のチームを選択してください。");
       return;
     }
-
-    const home = teamsMap.get(homeTeamId);
-    const away = teamsMap.get(awayTeamId);
 
     setCreating(true);
     try {
@@ -155,10 +162,10 @@ export default function FriendlyMatchesPage() {
         competitionName,
         roundName: "単発",
         matchDate,
-        homeTeam: homeTeamId,
-        awayTeam: awayTeamId,
-        homeTeamName: home?.name,
-        awayTeamName: away?.name,
+        homeTeam: isCustomHome ? `custom:${customHomeName}` : homeTeamId,
+        awayTeam: isCustomAway ? `custom:${customAwayName}` : awayTeamId,
+        homeTeamName: homeName,
+        awayTeamName: awayName,
         homeTeamLogo: home?.logoUrl,
         awayTeamLogo: away?.logoUrl,
         scoreHome: null,
@@ -166,10 +173,6 @@ export default function FriendlyMatchesPage() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
-
-      if (matchTime) {
-        (payload as any).matchTime = matchTime;
-      }
 
       await addDoc(
         collection(db, `clubs/${user.uid}/friendly_matches`),
@@ -210,17 +213,23 @@ export default function FriendlyMatchesPage() {
     return <div className="container mx-auto py-10">ログインしてください。</div>;
   }
 
-  return (
-    <div className="w-full mx-auto py-8 sm:py-10 px-4 md:px-0">
-      <div className="mb-6 sm:mb-8 space-y-4">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">単発試合（親善/練習試合）</h1>
+  const labelClass = "mb-2 text-[13px] font-semibold text-[#1B1F27]";
+  const inputClass = "h-10 rounded-lg border-[#E2E4EA] bg-white text-[#1B1F27] focus-visible:ring-[#3355FF33] focus-visible:ring-offset-0";
 
-        <div className="rounded-lg border bg-card p-4 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+  return (
+    <div className="min-h-screen px-4 py-8 sm:py-10">
+      <div className="mx-auto w-full max-w-[560px] space-y-6">
+        <div>
+          <h1 className="text-[20px] font-bold leading-tight tracking-tight text-white">単発試合（親善/練習試合）</h1>
+          <p className="mt-1 text-[13px] text-white/70">リーグ戦とは別枠の親善試合・練習試合を作成します。</p>
+        </div>
+
+        <div className="rounded-[10px] border border-[#E2E4EA] bg-white p-[26px]">
+          <div className="space-y-5">
             <div>
-              <div className="text-xs text-muted-foreground mb-1">種別</div>
+              <div className={labelClass}>種別</div>
               <Select value={matchType} onValueChange={(v) => setMatchType(v as any)}>
-                <SelectTrigger className="bg-white text-gray-900">
+                <SelectTrigger className={`w-full ${inputClass}`}>
                   <SelectValue placeholder="種別" />
                 </SelectTrigger>
                 <SelectContent>
@@ -229,113 +238,140 @@ export default function FriendlyMatchesPage() {
                 </SelectContent>
               </Select>
             </div>
+
             <div>
-              <div className="text-xs text-muted-foreground mb-1">日付</div>
+              <div className={labelClass}>日付</div>
               <Input
                 type="date"
                 value={matchDate}
                 onChange={(e) => setMatchDate(e.target.value)}
-                className="bg-white text-gray-900"
+                className={`${inputClass} [color-scheme:light] [&::-webkit-calendar-picker-indicator]:opacity-70 [&::-webkit-calendar-picker-indicator]:[filter:invert(56%)_sepia(7%)_saturate(400%)_hue-rotate(180deg)]`}
               />
             </div>
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">時間</div>
-              <Input
-                type="time"
-                value={matchTime}
-                onChange={(e) => setMatchTime(e.target.value)}
-                className="bg-white text-gray-900"
-              />
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">ホーム</div>
-              <Select value={homeTeamId} onValueChange={setHomeTeamId}>
-                <SelectTrigger className="bg-white text-gray-900">
-                  <SelectValue placeholder="ホーム" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teams.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">アウェイ</div>
-              <Select value={awayTeamId} onValueChange={setAwayTeamId}>
-                <SelectTrigger className="bg-white text-gray-900">
-                  <SelectValue placeholder="アウェイ" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teams.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
-          <div className="flex justify-end">
-            <Button type="button" onClick={handleCreate} disabled={creating}>
-              {creating ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <PlusCircle className="mr-2 h-4 w-4" />
-              )}
-              作成
-            </Button>
-          </div>
-        </div>
-      </div>
+            <div className="border-t border-[#E2E4EA]" />
 
-      {matches.length === 0 ? (
-        <div className="text-center py-10 text-muted-foreground">単発試合がありません。</div>
-      ) : (
-        <div className="space-y-3">
-          {matches.map((m) => (
-            <div
-              key={m.id}
-              className="rounded-lg border bg-card p-4 hover:bg-muted/30 transition-colors"
-            >
-              <div className="flex items-center justify-between gap-4">
-                <Link
-                  href={`/admin/friendly-matches/${m.id}`}
-                  className="min-w-0 flex-1"
-                >
-                  <div className="text-sm font-medium truncate">
-                    {(m.homeTeamName || "Home")} vs {(m.awayTeamName || "Away")}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {m.matchDate}{m.matchTime ? ` ${m.matchTime}` : ""}
-                  </div>
-                </Link>
-
-                <div className="flex items-center gap-3">
-                  <div className="text-xs text-muted-foreground whitespace-nowrap">
-                    {typeof m.scoreHome === "number" && typeof m.scoreAway === "number"
-                      ? `${m.scoreHome} - ${m.scoreAway}`
-                      : "未入力"}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(m.id)}
-                    aria-label="試合を削除"
-                    className="text-muted-foreground hover:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+            <div className="grid grid-cols-1 items-start gap-[14px] min-[421px]:grid-cols-[1fr_auto_1fr]">
+              <div className="space-y-2">
+                <div className={labelClass}>ホーム</div>
+                <Select value={homeTeamId} onValueChange={setHomeTeamId}>
+                  <SelectTrigger className={inputClass}>
+                    <SelectValue placeholder="ホーム" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__custom_home__">自由入力</SelectItem>
+                    {teams.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {homeTeamId === "__custom_home__" ? (
+                  <Input
+                    value={customHomeTeamName}
+                    onChange={(e) => setCustomHomeTeamName(e.target.value)}
+                    placeholder="ホームチーム名を入力"
+                    className={inputClass}
+                  />
+                ) : null}
+              </div>
+              <div className="hidden h-10 items-center px-1 pt-7 font-mono text-xs text-[#9CA3AF] min-[421px]:flex">VS</div>
+              <div className="space-y-2">
+                <div className={labelClass}>アウェイ</div>
+                <Select value={awayTeamId} onValueChange={setAwayTeamId}>
+                  <SelectTrigger className={inputClass}>
+                    <SelectValue placeholder="アウェイ" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__custom_away__">自由入力</SelectItem>
+                    {teams.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {awayTeamId === "__custom_away__" ? (
+                  <Input
+                    value={customAwayTeamName}
+                    onChange={(e) => setCustomAwayTeamName(e.target.value)}
+                    placeholder="アウェイチーム名を入力"
+                    className={inputClass}
+                  />
+                ) : null}
               </div>
             </div>
-          ))}
+
+            <div>
+              <Button
+                type="button"
+                onClick={handleCreate}
+                disabled={creating}
+                className="h-10 w-full rounded-lg bg-[#3355FF] px-4 text-sm font-semibold text-white hover:bg-[#2645E0] disabled:opacity-60"
+              >
+                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 stroke-[2.4]" />}
+                作成
+              </Button>
+            </div>
+          </div>
         </div>
-      )}
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-sm font-bold text-white">登録済みの単発試合</h2>
+            <span className="font-mono text-xs text-white/60">{matches.length}件</span>
+          </div>
+
+          {matches.length === 0 ? (
+            <div className="rounded-[10px] border border-dashed border-[#E2E4EA] bg-[#F8F9FB] px-5 py-10 text-center">
+              <CalendarDays className="mx-auto h-9 w-9 text-[#9CA3AF]" strokeWidth={1.6} />
+              <p className="mt-3 text-[13px] text-[#9CA3AF]">単発試合がありません。</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {matches.map((m) => {
+                const matchLabel = m.competitionName || (m.competitionId === "practice" ? "練習試合" : "親善試合");
+                return (
+                  <div key={m.id} className="flex items-center gap-[14px] rounded-lg border border-[#E2E4EA] bg-white px-[18px] py-4 transition hover:bg-[#F8F9FB]">
+                    <Link href={`/admin/friendly-matches/${m.id}`} className="grid min-w-0 flex-1 grid-cols-1 items-center gap-3 sm:grid-cols-[auto_1fr_auto]">
+                      <span className="w-fit rounded-full bg-[#3355FF14] px-2 py-1 font-mono text-[10px] text-[#3355FF]">{matchLabel}</span>
+                      <span className="min-w-0 truncate text-sm font-semibold text-[#1B1F27]">
+                        {m.homeTeamName || "Home"} <span className="font-mono text-xs font-normal text-[#9CA3AF]">vs</span> {m.awayTeamName || "Away"}
+                      </span>
+                      <span className="text-left font-mono text-xs text-[#6B7280] sm:text-right">
+                        <span className="block">{m.matchDate}</span>
+                      </span>
+                    </Link>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      asChild
+                      aria-label="試合詳細を入力"
+                      className="shrink-0 text-[#9CA3AF] hover:text-[#3355FF]"
+                    >
+                      <Link href={`/admin/friendly-matches/${m.id}`}>
+                        <Pencil className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(m.id)}
+                      aria-label="試合を削除"
+                      className="shrink-0 text-[#9CA3AF] hover:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

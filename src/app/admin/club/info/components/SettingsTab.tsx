@@ -1,12 +1,12 @@
 "use client";
 
+import { useState } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ClubEmblemUploader } from '@/components/club-emblem-uploader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 
 type TeamOption = {
   id: string;
@@ -31,8 +31,6 @@ export function SettingsTab(props: {
   gameTeamUsage: boolean;
   setGameTeamUsage: (v: boolean) => void;
 
-  transfersPublic: boolean;
-  setTransfersPublic: (v: boolean) => void;
 
   logoUrl: string;
 
@@ -51,10 +49,6 @@ export function SettingsTab(props: {
   setClubTitles: (v: ClubTitleItem[]) => void;
   seasonOptions: string[];
   toSlashSeason: (season: string) => string;
-
-  isPro: boolean;
-  loading: boolean;
-  onUpdate: () => void | Promise<void>;
 }) {
   const {
     teams,
@@ -65,8 +59,6 @@ export function SettingsTab(props: {
     setRealTeamUsage,
     gameTeamUsage,
     setGameTeamUsage,
-    transfersPublic,
-    setTransfersPublic,
     logoUrl,
     foundedYear,
     setFoundedYear,
@@ -82,20 +74,42 @@ export function SettingsTab(props: {
     setClubTitles,
     seasonOptions,
     toSlashSeason,
-    loading,
-    onUpdate,
   } = props;
 
+  const [activeSection, setActiveSection] = useState<'basic' | 'detail'>('basic');
+
+  const cardClass = 'rounded-[10px] border border-[#E2E4EA] bg-white p-[26px]';
+  const labelClass = 'text-[13px] font-semibold text-[#1B1F27]';
+  const helpClass = 'text-xs text-[#9CA3AF]';
+  const inputClass = 'h-10 rounded-lg border-[#E2E4EA] bg-white text-[#1B1F27] focus-visible:ring-[#3355FF33] focus-visible:ring-offset-0';
+  const sectionTabClass = (value: 'basic' | 'detail') =>
+    `flex-1 rounded-md px-3 py-2 text-sm font-semibold transition ${activeSection === value ? 'bg-[#3355FF] !text-white' : 'text-[#6B7280]'}`;
+  const titleCount = clubTitles.filter((t) => t.competitionName.trim() || t.seasons.length > 0).length;
+
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>自チームを選択</Label>
+    <div className="space-y-6 text-[#1B1F27]">
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#F8F9FB] p-1">
+        <button type="button" className={sectionTabClass('basic')} onClick={() => setActiveSection('basic')}>基本設定</button>
+        <button type="button" className={sectionTabClass('detail')} onClick={() => setActiveSection('detail')}>
+          クラブ詳細{titleCount > 0 ? <span className="ml-1 font-mono text-xs opacity-75">{titleCount}</span> : null}
+        </button>
+      </div>
+
+      {activeSection === 'basic' ? (
+        <div className="space-y-5">
+          <div className={cardClass}>
+            <div className="mb-5 flex items-center gap-2 text-sm font-bold">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#3355FF14] text-[11px] font-bold text-[#3355FF]">1</span>
+              自チーム設定
+            </div>
+            <div className="space-y-2">
+              <Label className={labelClass}>自チームを選択</Label>
         {mainTeamLocked ? (
           <div>
             <div className="w-full rounded-md border bg-white text-gray-900 px-3 py-2 text-sm">
               {teams.find((t) => t.id === selectedTeamId)?.name || '未設定'}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className={`${helpClass} mt-1`}>
               自チームは一度設定すると変更できません。チーム情報の編集はチーム管理画面から行ってください。
             </p>
           </div>
@@ -107,7 +121,7 @@ export function SettingsTab(props: {
                 setSelectedTeamId(value);
               }}
             >
-              <SelectTrigger className="w-full bg-white text-gray-900">
+              <SelectTrigger className={inputClass}>
                 <SelectValue placeholder="登録済みチームから選択" />
               </SelectTrigger>
               <SelectContent>
@@ -123,146 +137,144 @@ export function SettingsTab(props: {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
+            <p className={helpClass}>
               一度選択した自チームは後から変更できません。慎重に選択してください。
             </p>
           </>
         )}
-      </div>
-
-      <div className="space-y-2 pt-4 border-t">
-        <Label>利用形態（ライセンス・著作権の確認）</Label>
-        <p className="text-xs text-muted-foreground">
-          ご利用の目的に応じて選択してください。いずれか1つの選択が必須です。
-        </p>
-        <div className="space-y-3">
-          <label className="flex items-start gap-3 rounded-md border bg-white/60 p-3">
-            <Checkbox
-              checked={realTeamUsage}
-              onCheckedChange={(checked) => {
-                const v = checked === true;
-                setRealTeamUsage(v);
-                if (v) setGameTeamUsage(false);
-              }}
-            />
-            <div className="space-y-1">
-              <div className="text-sm font-medium text-gray-900">実在のチームとして利用する</div>
-              <div className="text-xs text-muted-foreground">
-                実在のクラブ名・ロゴ・選手名などを扱う場合、権利者の許諾が必要になることがあります。
-              </div>
             </div>
-          </label>
-
-          <label className="flex items-start gap-3 rounded-md border bg-white/60 p-3">
-            <Checkbox
-              checked={gameTeamUsage}
-              onCheckedChange={(checked) => {
-                const v = checked === true;
-                setGameTeamUsage(v);
-                if (v) setRealTeamUsage(false);
-              }}
-            />
-            <div className="space-y-1">
-              <div className="text-sm font-medium text-gray-900">ゲーム内のチームとして利用する</div>
-              <div className="text-xs text-muted-foreground">
-                実在のチームを模したファン活動（パロディ）としてお楽しみいただけます。設定内容はご自身の責任で管理してください。
-              </div>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <div className="space-y-2 pt-4 border-t">
-        <Label>公開設定</Label>
-        <label className="flex items-start gap-3 rounded-md border bg-white/60 p-3">
-          <Checkbox
-            checked={transfersPublic}
-            onCheckedChange={(checked) => {
-              setTransfersPublic(checked === true);
-            }}
-          />
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-gray-900">移籍情報を公開する</div>
-            <div className="text-xs text-muted-foreground">OFFにすると、クラブページの移籍履歴が表示されなくなります。</div>
           </div>
-        </label>
-      </div>
 
-      <div className="space-y-2 pt-4 border-t">
-        <Label>クラブロゴ</Label>
-        <div className="w-24 h-24 rounded-md border bg-white/60 flex items-center justify-center overflow-hidden">
-          {logoUrl ? (
-            <Image src={logoUrl} alt="クラブロゴ" width={96} height={96} className="object-contain" />
-          ) : (
-            <span className="text-xs text-muted-foreground">ロゴ未設定</span>
-          )}
+          <div className={cardClass}>
+            <div className="mb-5 flex items-center gap-2 text-sm font-bold">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#3355FF14] text-[11px] font-bold text-[#3355FF]">2</span>
+              クラブロゴ
+            </div>
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border border-[#E2E4EA] bg-white">
+              {logoUrl ? (
+                <Image src={logoUrl} alt="クラブロゴ" width={64} height={64} className="object-contain" />
+              ) : (
+                <span className="text-xs text-[#9CA3AF]">ロゴ未設定</span>
+              )}
+            </div>
+            <p className={`${helpClass} mt-2`}>
+              ロゴ画像はチーム／大会管理で設定されたエンブレムを使用し、この画面からは変更できません。
+            </p>
+          </div>
+
+          <div className={cardClass}>
+            <div className="mb-5 flex items-center gap-2 text-sm font-bold">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#3355FF14] text-[11px] font-bold text-[#3355FF]">3</span>
+              利用形態
+            </div>
+            <p className="mb-3 text-xs text-[#6B7280]">ご利用の目的に応じて選択してください。いずれか1つの選択が必須です。</p>
+            <div className="space-y-3">
+              <button
+                type="button"
+                className={`w-full rounded-lg border p-4 text-left transition ${realTeamUsage ? 'border-[#3355FF] bg-[#3355FF14]' : 'border-[#E2E4EA] bg-white'}`}
+                onClick={() => {
+                  setRealTeamUsage(true);
+                  setGameTeamUsage(false);
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <span className={`mt-0.5 h-4 w-4 rounded-full border ${realTeamUsage ? 'border-[#3355FF] bg-[#3355FF] shadow-[inset_0_0_0_4px_white]' : 'border-[#E2E4EA] bg-white'}`} />
+                  <span>
+                    <span className="block text-sm font-semibold text-[#1B1F27]">実在のチームとして利用する</span>
+                    <span className="mt-1 block text-xs text-[#6B7280]">実在のクラブ名・ロゴ・選手名などを扱う場合、権利者の許諾が必要になることがあります。</span>
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                className={`w-full rounded-lg border p-4 text-left transition ${gameTeamUsage ? 'border-[#3355FF] bg-[#3355FF14]' : 'border-[#E2E4EA] bg-white'}`}
+                onClick={() => {
+                  setGameTeamUsage(true);
+                  setRealTeamUsage(false);
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <span className={`mt-0.5 h-4 w-4 rounded-full border ${gameTeamUsage ? 'border-[#3355FF] bg-[#3355FF] shadow-[inset_0_0_0_4px_white]' : 'border-[#E2E4EA] bg-white'}`} />
+                  <span>
+                    <span className="block text-sm font-semibold text-[#1B1F27]">ゲーム内のチームとして利用する</span>
+                    <span className="mt-1 block text-xs text-[#6B7280]">実在のチームを模したファン活動（パロディ）としてお楽しみいただけます。</span>
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          ロゴ画像はチーム／大会管理で設定されたエンブレムを使用し、この画面からは変更できません。
-        </p>
-      </div>
+      ) : null}
 
-      <div className="space-y-2 pt-4 border-t">
-        <Label>クラブ情報</Label>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {activeSection === 'detail' ? (
+        <div className="space-y-5">
+          <div className={cardClass}>
+            <div className="mb-5 flex items-center gap-2 text-sm font-bold">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#3355FF14] text-[11px] font-bold text-[#3355FF]">1</span>
+              クラブ情報
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1">
-            <Label className="text-xs">創立</Label>
+            <Label className={labelClass}>創立</Label>
             <Input
               placeholder="例: 1999年"
-              className="bg-white text-gray-900"
+              className={inputClass}
               value={foundedYear}
               onChange={(e) => setFoundedYear(e.target.value)}
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">ホームタウン</Label>
+            <Label className={labelClass}>ホームタウン</Label>
             <Input
               placeholder="例: 東京都"
-              className="bg-white text-gray-900"
+              className={inputClass}
               value={hometown}
               onChange={(e) => setHometown(e.target.value)}
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">スタジアム名</Label>
+            <Label className={labelClass}>スタジアム名</Label>
             <Input
               placeholder="例: ○○スタジアム"
-              className="bg-white text-gray-900"
+              className={inputClass}
               value={stadiumName}
               onChange={(e) => setStadiumName(e.target.value)}
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">収容人数</Label>
+            <Label className={labelClass}>収容人数</Label>
             <Input
               placeholder="例: 10,000"
-              className="bg-white text-gray-900"
+              className={inputClass}
               inputMode="numeric"
               value={stadiumCapacity}
               onChange={(e) => setStadiumCapacity(e.target.value)}
             />
           </div>
-        </div>
+            </div>
 
-        <div className="space-y-2 pt-3">
-          <Label className="text-xs">スタジアム写真</Label>
-          <div className="w-full max-w-md">
-            <ClubEmblemUploader value={stadiumPhotoUrl} onChange={(url) => setStadiumPhotoUrl(url || '')} />
+            <div className="mt-5 space-y-2">
+              <Label className={labelClass}>スタジアム写真</Label>
+              <div className="rounded-lg border border-dashed border-[#E2E4EA] bg-white p-4 transition hover:border-[#3355FF] hover:bg-[#3355FF14]">
+                <ClubEmblemUploader value={stadiumPhotoUrl} onChange={(url) => setStadiumPhotoUrl(url || '')} />
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="space-y-2 pt-4 border-t">
-        <Label>獲得タイトル</Label>
-        <p className="text-xs text-muted-foreground">大会名と獲得シーズンを登録できます。</p>
-        <div className="space-y-3">
-          {clubTitles.map((item, index) => (
-            <div key={index} className="grid grid-cols-1 gap-2 rounded-md border p-3 bg-white/60">
+          <div className={cardClass}>
+            <div className="mb-5 flex items-center gap-2 text-sm font-bold">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#3355FF14] text-[11px] font-bold text-[#3355FF]">2</span>
+              獲得タイトル管理
+            </div>
+          <p className="mb-4 text-xs text-[#6B7280]">大会名と獲得シーズンを登録できます。</p>
+          <div className="space-y-3">
+            {clubTitles.map((item, index) => (
+            <div key={index} className="grid grid-cols-1 gap-3 rounded-lg border border-[#E2E4EA] bg-[#F8F9FB] p-4">
               <div className="space-y-1">
-                <Label className="text-xs">大会名</Label>
+                <Label className={labelClass}>大会名</Label>
                 <Input
                   placeholder="例: ○○リーグ"
-                  className="bg-white text-gray-900"
+                  className={inputClass}
                   value={item.competitionName}
                   onChange={(e) => {
                     const next = [...clubTitles];
@@ -272,9 +284,9 @@ export function SettingsTab(props: {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-2 items-end">
+              <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[1fr_auto]">
                 <div className="space-y-1">
-                  <Label className="text-xs">獲得シーズン（追加）</Label>
+                  <Label className={labelClass}>獲得シーズン（追加）</Label>
                   <Select
                     value={item.pendingSeason || ''}
                     onValueChange={(value) => {
@@ -283,7 +295,7 @@ export function SettingsTab(props: {
                       setClubTitles(next);
                     }}
                   >
-                    <SelectTrigger className="w-full bg-white text-gray-900">
+                    <SelectTrigger className={inputClass}>
                       <SelectValue placeholder="シーズン" />
                     </SelectTrigger>
                     <SelectContent>
@@ -299,7 +311,7 @@ export function SettingsTab(props: {
                   <Button
                     type="button"
                     variant="outline"
-                    className="bg-white text-gray-900 disabled:opacity-60"
+                    className="h-10 rounded-lg border-[#E2E4EA] bg-white text-[#1B1F27] disabled:opacity-60"
                     disabled={!item.pendingSeason}
                     onClick={() => {
                       const pending = (item.pendingSeason || '').trim();
@@ -321,18 +333,18 @@ export function SettingsTab(props: {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">登録済みシーズン</Label>
+                <Label className={labelClass}>登録済みシーズン</Label>
                 {Array.isArray(item.seasons) && item.seasons.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {item.seasons
                       .slice()
                       .sort((a, b) => String(b).localeCompare(String(a)))
                       .map((s) => (
-                        <div key={s} className="inline-flex items-center gap-2 rounded-md border bg-white px-2 py-1 text-xs text-gray-900">
+                        <div key={s} className="inline-flex items-center gap-2 rounded-full border border-[#E2E4EA] bg-white px-2 py-1 font-mono text-xs text-[#1B1F27]">
                           <span>{s}</span>
                           <button
                             type="button"
-                            className="text-red-500"
+                            className="flex h-5 w-5 items-center justify-center rounded-full bg-[#D9302510] text-[#D93025]"
                             onClick={() => {
                               const next = [...clubTitles];
                               next[index] = { ...next[index], seasons: (next[index].seasons || []).filter((x) => x !== s) };
@@ -345,7 +357,7 @@ export function SettingsTab(props: {
                       ))}
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground">未登録</div>
+                  <div className="text-xs italic text-[#9CA3AF]">未登録</div>
                 )}
               </div>
 
@@ -353,7 +365,7 @@ export function SettingsTab(props: {
                 <Button
                   type="button"
                   variant="outline"
-                  className="text-red-500 border-red-300 hover:bg-red-50"
+                  className="border-[#D93025]/30 text-[#D93025] hover:bg-[#D9302510]"
                   onClick={() => setClubTitles(clubTitles.filter((_, i) => i !== index))}
                 >
                   削除
@@ -364,19 +376,15 @@ export function SettingsTab(props: {
           <Button
             type="button"
             variant="outline"
-            className="w-full bg-white text-gray-900 disabled:opacity-60"
+            className="w-full border-dashed border-[#E2E4EA] bg-white text-[#1B1F27] disabled:opacity-60"
             onClick={() => setClubTitles([...clubTitles, { competitionName: '', seasons: [], pendingSeason: '' }])}
           >
-            タイトルを追加
+            ＋ タイトルを追加
           </Button>
+          </div>
         </div>
-      </div>
-
-      <div className="flex justify-end pt-2">
-        <Button onClick={onUpdate} disabled={loading}>
-          {loading ? '更新中...' : '更新する'}
-        </Button>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

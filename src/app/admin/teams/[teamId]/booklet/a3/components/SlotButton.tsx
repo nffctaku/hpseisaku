@@ -3,6 +3,18 @@
 import { BookletPlayerCard } from "../../components/BookletPlayerCard";
 import type { BookletPlayer } from "../../types";
 
+function EmptyPlayerIcon() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-1 text-slate-300">
+      <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden="true">
+        <circle cx="24" cy="16" r="8" fill="currentColor" opacity="0.55" />
+        <path d="M9 42c1.8-9 7.6-14 15-14s13.2 5 15 14" fill="currentColor" opacity="0.35" />
+      </svg>
+      <div className="text-[10px] font-semibold tracking-wide">PLAYER</div>
+    </div>
+  );
+}
+
 export function SlotButton({
   active,
   label,
@@ -80,7 +92,9 @@ export function SlotButton({
           </div>
         </div>
       ) : (
-        <div className="mt-8 text-sm text-gray-400">NoImage</div>
+        <div className="mt-8 flex justify-center">
+          <EmptyPlayerIcon />
+        </div>
       )}
     </div>
   );

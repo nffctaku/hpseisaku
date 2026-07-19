@@ -45,6 +45,7 @@ export interface PlayerSeasonData {
   nationality?: string;
   dateOfBirth?: string;
   joinedSeason?: string;
+  tenureYears?: number;
   height?: number;
   weight?: number;
   profile?: string;
@@ -72,6 +73,7 @@ export interface Player {
   nationality: string;
   dateOfBirth?: string;
   joinedSeason?: string;
+  tenureYears?: number;
   height: number; // in cm
   weight?: number; // in kg
   profile?: string;

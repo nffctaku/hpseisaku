@@ -5,6 +5,7 @@ import Image from "next/image";
 import type { BookletResponse } from "../../../types";
 import { BookletPlayerCard } from "../../../components/BookletPlayerCard";
 import { formations } from "@/lib/formations";
+import { normalizeA3Text } from "../../lib/a3-layout";
 
 type StatRow = {
   season: string;
@@ -30,10 +31,26 @@ type CoachInfo = {
   bio: string;
 };
 
+function FormationPlayerSilhouette() {
+  return (
+    <div className="flex flex-col items-center justify-center text-slate-400">
+      <svg viewBox="0 0 48 48" className="h-9 w-9" aria-hidden="true">
+        <circle cx="24" cy="16" r="8" fill="currentColor" opacity="0.55" />
+        <path d="M9 42c1.8-9 7.6-14 15-14s13.2 5 15 14" fill="currentColor" opacity="0.35" />
+      </svg>
+    </div>
+  );
+}
+
 function NoImageCard() {
   return (
-    <div className="relative border border-gray-200 bg-white h-[42mm] flex items-center justify-center">
-      <div className="text-sm font-semibold text-gray-400">NoImage</div>
+    <div className="relative border border-gray-200 bg-slate-50 h-[42mm] flex items-center justify-center">
+      <div className="flex flex-col items-center justify-center gap-1 text-slate-300">
+        <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden="true">
+          <circle cx="24" cy="16" r="8" fill="currentColor" opacity="0.55" />
+          <path d="M9 42c1.8-9 7.6-14 15-14s13.2 5 15 14" fill="currentColor" opacity="0.35" />
+        </svg>
+      </div>
     </div>
   );
 }
@@ -120,7 +137,7 @@ function FormationPitch({
                 {p.photoUrl ? (
                   <Image src={p.photoUrl} alt={p.name} width={56} height={56} className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-[10px] font-semibold text-gray-500">NoImage</span>
+                  <FormationPlayerSilhouette />
                 )}
               </div>
               <div className="mt-1 px-2 py-1 rounded-full bg-white/90 text-[10px] leading-none font-bold text-gray-900 whitespace-nowrap shadow-sm">
@@ -148,6 +165,7 @@ export function PrintPageLayout({
   rightCards,
   additionalPlayers,
   getPositionColor,
+  showParameterGraph = true,
   stats,
   cups,
   transfersIn,
@@ -166,12 +184,19 @@ export function PrintPageLayout({
   rightCards: Array<BookletResponse["players"][number] | null>;
   additionalPlayers: Array<BookletResponse["players"][number] | null>;
   getPositionColor: (position: string) => string;
+  showParameterGraph?: boolean;
   stats: StatRow[];
   cups: CupRow[];
   transfersIn: TransferRow[];
   transfersOut: TransferRow[];
   coach: CoachInfo;
 }) {
+  const normalizedBioTitle = normalizeA3Text(bioTitle);
+  const normalizedBioBody = normalizeA3Text(bioBody);
+  const shouldShowBioBox = normalizedBioTitle.length > 0 || normalizedBioBody.length > 0;
+  const hasAdditionalPlayers = additionalPlayers.some((p) => !!p);
+  const visibleCups = cups.filter((c) => String(c.tournament || "").trim() || String(c.result || "").trim());
+
   return (
     <div className="print-page">
       <div className="w-[420mm] min-h-[297mm] mx-auto bg-white">
@@ -191,12 +216,16 @@ export function PrintPageLayout({
                   ) : null}
                 </div>
 
-                <div className="rounded-md border bg-white p-3">
-                  <div className="text-sm font-semibold text-gray-900 mb-2">{String(bioTitle || "").trim() ? bioTitle : "\u00A0"}</div>
-                  <div className="text-[12px] leading-relaxed text-gray-700">
-                    {String(bioBody || "").trim() ? <div>{bioBody}</div> : <div>\u00A0</div>}
+                {shouldShowBioBox ? (
+                  <div className="rounded-md border bg-white p-3">
+                    {normalizedBioTitle ? <div className="text-sm font-semibold text-gray-900 mb-2">{normalizedBioTitle}</div> : null}
+                    {normalizedBioBody ? (
+                      <div className="text-[12px] leading-relaxed text-gray-700">
+                        <div>{normalizedBioBody}</div>
+                      </div>
+                    ) : null}
                   </div>
-                </div>
+                ) : null}
 
                 <FormationPitch
                   formationName={formationName}
@@ -212,6 +241,7 @@ export function PrintPageLayout({
                       key={`l_${p.id}_${idx}`}
                       player={p}
                       positionColorClass={getPositionColor(p.mainPosition || p.position)}
+                      showParameterGraph={showParameterGraph}
                     />
                   ) : (
                     <NoImageCard key={`l_no_${idx}`} />
@@ -229,6 +259,7 @@ export function PrintPageLayout({
                         key={`r_${p.id}_${idx}`}
                         player={p}
                         positionColorClass={getPositionColor(p.mainPosition || p.position)}
+                        showParameterGraph={showParameterGraph}
                       />
                     ) : (
                       <NoImageCard key={`r_no_${idx}`} />
@@ -242,30 +273,36 @@ export function PrintPageLayout({
                   <div className="border border-gray-300">
                     <div className="bg-gray-50 px-3 py-2 text-sm font-semibold">OTHER MEMBERS</div>
                     <div className="p-2">
-                      <table className="w-full text-[9px] table-fixed">
-                        <thead>
-                          <tr className="bg-gray-600 text-white">
-                            <th className="border border-gray-300 pl-1 pr-1.5 py-1 text-left w-[8%] whitespace-nowrap text-[8px]">POS</th>
-                            <th className="border border-gray-300 pl-1 pr-1.5 py-1 text-left w-[27%] whitespace-nowrap text-[8px]">選手名</th>
-                            <th className="border border-gray-300 px-1.5 py-1 text-left w-[44%] text-[8px]">身長/体重/年齢/国籍</th>
-                            <th className="border border-gray-300 pl-1.5 pr-1 py-1 text-right w-[21%] whitespace-nowrap text-[8px]">昨シーズン成績</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {additionalPlayers.map((p, idx) => (
-                            <tr key={idx}>
-                              <td className="border border-gray-300 pl-1 pr-1.5 py-[1px] align-top whitespace-nowrap">{p?.position || "\u00A0"}</td>
-                              <td className="border border-gray-300 pl-1 pr-1.5 py-[1px] align-top whitespace-nowrap">{p?.name || "\u00A0"}</td>
-                              <td className="border border-gray-300 px-1.5 py-[1px] align-top whitespace-nowrap">
-                                {p ? `${p.height ?? ""}cm/${p.weight ?? ""}kg/${p.age ?? ""}歳/${p.nationality ?? ""}` : "\u00A0"}
-                              </td>
-                              <td className="border border-gray-300 pl-1.5 pr-1 py-[1px] align-top whitespace-nowrap text-right overflow-hidden text-ellipsis">
-                                {p?.lastSeasonSummary || "\u00A0"}
-                              </td>
+                      {hasAdditionalPlayers ? (
+                        <table className="w-full text-[9px] table-fixed">
+                          <thead>
+                            <tr className="bg-gray-600 text-white">
+                              <th className="border border-gray-300 pl-1 pr-1.5 py-1 text-left w-[8%] whitespace-nowrap text-[8px]">POS</th>
+                              <th className="border border-gray-300 pl-1 pr-1.5 py-1 text-left w-[27%] whitespace-nowrap text-[8px]">選手名</th>
+                              <th className="border border-gray-300 px-1.5 py-1 text-left w-[44%] text-[8px]">身長/体重/年齢/国籍</th>
+                              <th className="border border-gray-300 pl-1.5 pr-1 py-1 text-right w-[21%] whitespace-nowrap text-[8px]">昨シーズン成績</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {additionalPlayers.filter((p): p is BookletResponse["players"][number] => !!p).map((p, idx) => (
+                              <tr key={idx}>
+                                <td className="border border-gray-300 pl-1 pr-1.5 py-[1px] align-top whitespace-nowrap">{p.position || "\u00A0"}</td>
+                                <td className="border border-gray-300 pl-1 pr-1.5 py-[1px] align-top whitespace-nowrap">{p.name || "\u00A0"}</td>
+                                <td className="border border-gray-300 px-1.5 py-[1px] align-top whitespace-nowrap">
+                                  {`${p.height ?? ""}cm/${p.weight ?? ""}kg/${p.age ?? ""}歳/${p.nationality ?? ""}`}
+                                </td>
+                                <td className="border border-gray-300 pl-1.5 pr-1 py-[1px] align-top whitespace-nowrap text-right overflow-hidden text-ellipsis">
+                                  {p.lastSeasonSummary || "\u00A0"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-center text-[10px] font-semibold text-gray-500">
+                          登録がありません
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -294,22 +331,28 @@ export function PrintPageLayout({
                   <div className="border border-gray-300">
                     <div className="bg-gray-50 px-3 py-2 text-sm font-semibold">昨シーズン 他大会成績</div>
                     <div className="p-2">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr>
-                            <th className="border border-gray-300 px-2 py-1 text-left">大会</th>
-                            <th className="border border-gray-300 px-2 py-1 text-left">成績</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {cups.map((c, idx) => (
-                            <tr key={idx}>
-                              <td className="border border-gray-300 px-2 py-1">{c.tournament || "\u00A0"}</td>
-                              <td className="border border-gray-300 px-2 py-1">{c.result || "\u00A0"}</td>
+                      {visibleCups.length > 0 ? (
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr>
+                              <th className="border border-gray-300 px-2 py-1 text-left">大会</th>
+                              <th className="border border-gray-300 px-2 py-1 text-left">成績</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {visibleCups.map((c, idx) => (
+                              <tr key={idx}>
+                                <td className="border border-gray-300 px-2 py-1">{c.tournament || "\u00A0"}</td>
+                                <td className="border border-gray-300 px-2 py-1">{c.result || "\u00A0"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-center text-xs font-semibold text-gray-500">
+                          登録がありません
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -317,12 +360,16 @@ export function PrintPageLayout({
                 <div className="border border-gray-300">
                   <div className="bg-gray-50 px-3 py-2 text-sm font-semibold">監督</div>
                   <div className="p-2 flex items-start gap-3">
-                    <div className="relative w-[26mm] h-[22mm] bg-white border border-gray-200 flex-shrink-0 overflow-hidden">
+                    <div className="relative w-[26mm] h-[22mm] bg-slate-100 border border-slate-200 flex-shrink-0 overflow-hidden">
                       {coach.photoUrl ? (
                         <Image src={coach.photoUrl} alt={coach.name} fill className="object-contain p-1" sizes="160px" />
                       ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-gray-400">
-                          NoImage
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-400">
+                          <svg viewBox="0 0 48 48" className="h-9 w-9" aria-hidden="true">
+                            <circle cx="24" cy="17" r="8" fill="currentColor" opacity="0.55" />
+                            <path d="M9 42c1.8-9 7.6-14 15-14s13.2 5 15 14" fill="currentColor" opacity="0.35" />
+                          </svg>
+                          <div className="text-[9px] font-semibold tracking-wide">COACH</div>
                         </div>
                       )}
                     </div>

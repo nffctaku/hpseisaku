@@ -68,6 +68,15 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
     return replaced;
   };
 
+  const parseSeasonStartYear = (season: string): number | null => {
+    const m = String(season || "").trim().match(/^(\d{4})[/-](\d{2})$/);
+    if (!m) return null;
+    const year = Number(m[1]);
+    return Number.isFinite(year) ? year : null;
+  };
+
+  const formatSeason = (startYear: number): string => `${startYear}/${String((startYear + 1) % 100).padStart(2, "0")}`;
+
   const baseDefaults: PlayerFormValues = useMemo(
     () => ({
       name: "",
@@ -195,8 +204,15 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
         seasonSet.add(c.season);
       }
     });
+    if (defaultSeason) seasonSet.add(defaultSeason);
+    const activeStartYear = parseSeasonStartYear(defaultSeason || "") ?? new Date().getFullYear();
+    const minStartYear = Math.min(activeStartYear - 30, 1990);
+    const maxStartYear = Math.max(activeStartYear + 5, new Date().getFullYear() + 5);
+    for (let year = maxStartYear; year >= minStartYear; year -= 1) {
+      seasonSet.add(formatSeason(year));
+    }
     return Array.from(seasonSet).sort((a, b) => b.localeCompare(a));
-  }, [competitions]);
+  }, [competitions, defaultSeason]);
   
   const filteredCompetitions = useMemo(() => {
     if (!activeSeasonNorm) return competitions;
@@ -469,9 +485,15 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                     render={({ field }) => (
                       <FormItem className="md:col-span-2">
                         <FormLabel>プロフィール</FormLabel>
+                        <p className="text-xs text-muted-foreground">
+                          最大200文字まで入力できます。選手名鑑では通常80文字、パラメーターグラフOFF時は200文字まで表示されます。
+                        </p>
                         <FormControl>
-                          <Textarea placeholder="選手の経歴や特徴など" {...field} />
+                          <Textarea placeholder="選手の経歴や特徴など" maxLength={200} {...field} />
                         </FormControl>
+                        <div className="text-right text-xs text-muted-foreground">
+                          {String(field.value || "").length}/200
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -137,6 +137,7 @@ export const formSchema = z.object({
   preferredFoot: z.enum(["left", "right", "both"]).optional(),
   dateOfBirth: z.string().optional().or(z.literal("")),
   joinedSeason: z.string().optional().or(z.literal("")),
+  tenureYears: tenureYearsSchema,
   annualSalary: optionalNumberSchema,
   annualSalaryCurrency: z.enum(["JPY", "GBP", "EUR"]).optional(),
   contractEndYear: contractEndYearSchema,

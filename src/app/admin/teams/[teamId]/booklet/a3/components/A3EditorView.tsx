@@ -1,12 +1,13 @@
 "use client";
 
 import type React from "react";
+import { useState } from "react";
 import Link from "next/link";
 import type { BookletPlayer, BookletResponse } from "../../types";
 import { ProPlanNotice } from "../../components/ProPlanNotice";
 import { SlotButton } from "./SlotButton";
 import { PreviewPanel } from "./PreviewPanel";
-import { createEmptyLayout, toCompetitionSeasonLabel } from "../lib/a3-layout";
+import { createEmptyLayout, normalizeA3Text, toCompetitionSeasonLabel } from "../lib/a3-layout";
 import { formations } from "@/lib/formations";
 import type { ActiveKey, LayoutState, SlotKey, StaffDoc, StatRow, TransferRow, CoachInfo } from "../types";
 
@@ -79,46 +80,31 @@ export function A3EditorView({
     return players.filter((p) => !usedCardPlayerIds.has(p.id) || p.id === currentId);
   };
 
+  const steps = [
+    { key: "intro", label: "紹介文" },
+    { key: "formation", label: "フォーメーション" },
+    { key: "colors", label: "帯色" },
+    { key: "cards", label: "カード配置" },
+    { key: "preview", label: "印刷プレビュー" },
+  ] as const;
+  const [activeStep, setActiveStep] = useState<(typeof steps)[number]["key"]>("intro");
+  const activeStepIndex = steps.findIndex((step) => step.key === activeStep);
+  const goPrevStep = () => setActiveStep(steps[Math.max(0, activeStepIndex - 1)].key);
+  const goNextStep = () => setActiveStep(steps[Math.min(steps.length - 1, activeStepIndex + 1)].key);
+
   if (!isPro) {
     return <ProPlanNotice />;
   }
 
   return (
-    <div className="text-gray-900">
+    <div className="min-h-screen bg-[#F3F4F7] px-4 py-8 text-[#1B1F27]">
+      <div className={`mx-auto w-full transition-[max-width] duration-200 ${activeStep === "cards" ? "max-w-[1360px]" : "max-w-[640px]"}`}>
       {!embedded ? (
         <>
-          <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href={`/admin/teams/${encodeURIComponent(teamId)}/booklet?season=${encodeURIComponent(season)}`}
-                className="px-3 py-2 rounded-md bg-gray-700 text-white text-sm font-semibold"
-              >
-                名鑑へ戻る
-              </Link>
-              <Link
-                href={`/admin/teams/${encodeURIComponent(teamId)}/booklet/a3/print?season=${encodeURIComponent(season)}`}
-                className="px-3 py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold"
-              >
-                印刷プレビュー
-              </Link>
-            </div>
-            <button
-              type="button"
-              onClick={handleClearAll}
-              className="px-3 py-2 rounded-md bg-white text-gray-900 text-sm font-semibold border border-gray-300"
-            >
-              全クリア
-            </button>
-          </div>
-
-          <div className="mb-4">
-            <h1 className="text-2xl font-bold">A3 選手名鑑（配置編集）</h1>
-            <div className="text-sm text-muted-foreground">
-              {data?.club?.clubName || ""} / {data?.teamName || ""} / {season}
-            </div>
-            <div className="mt-2 text-xs text-muted-foreground">
-              変更内容は自動保存されます。大会（リーグ）は右下プレビュー内で選択します。
-              {layout.leagueCompetitionName ? `（選択中: ${layout.leagueCompetitionName}）` : ""}
+          <div className="mb-5">
+            <h1 className="text-[22px] font-bold leading-tight">選手名鑑を作成</h1>
+            <div className="mt-2 text-[14px] font-semibold text-[#8A93A3]">
+              {data?.teamName || ""} / {season}シーズン
             </div>
           </div>
         </>
@@ -128,7 +114,33 @@ export function A3EditorView({
       {error && <div className="text-sm text-red-600">{error}</div>}
 
       {!loading && !error && data ? (
-        <div className="grid grid-cols-1 gap-6">
+        <div className="pb-24">
+          <div className="no-print mb-7 overflow-x-auto pb-2">
+            <div className="flex min-w-[620px] items-center gap-2">
+              {steps.map((step, index) => {
+                const isActive = activeStep === step.key;
+                const isDone = index < activeStepIndex;
+                return (
+                  <div key={step.key} className="flex flex-1 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveStep(step.key)}
+                      className={`flex items-center gap-2 whitespace-nowrap text-[13px] font-bold transition ${isActive ? "text-[#1B1F27]" : isDone ? "text-[#6B7280]" : "text-[#9CA3AF]"}`}
+                    >
+                      <span className={`flex h-8 w-8 items-center justify-center rounded-full border text-[13px] font-bold ${isActive ? "border-[#3355FF] bg-[#3355FF] text-white" : isDone ? "border-[#39A66A] bg-[#39A66A] text-white" : "border-[#D9DDE5] bg-white text-[#9CA3AF]"}`}>
+                        {isDone ? "✓" : index + 1}
+                      </span>
+                      {step.label}
+                    </button>
+                    {index < steps.length - 1 ? <div className="h-px flex-1 bg-[#E2E4EA]" /> : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6">
+          {activeStep === "intro" ? (
           <div className="border rounded-lg bg-white p-4">
             <div className="text-sm font-semibold mb-3">紹介文</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -140,7 +152,7 @@ export function A3EditorView({
                   onChange={(e) =>
                     setLayout((prev) => ({
                       ...prev,
-                      bioTitle: String(e.target.value || ""),
+                      bioTitle: normalizeA3Text(e.target.value),
                     }))
                   }
                   placeholder="例：今季の目標"
@@ -154,7 +166,7 @@ export function A3EditorView({
                   onChange={(e) =>
                     setLayout((prev) => ({
                       ...prev,
-                      bioBody: String(e.target.value || ""),
+                      bioBody: normalizeA3Text(e.target.value),
                     }))
                   }
                   placeholder="チームの特徴や今季の目標など"
@@ -162,200 +174,160 @@ export function A3EditorView({
               </label>
             </div>
           </div>
+          ) : null}
 
-          <div className="border rounded-lg bg-white p-4">
-            <div className="text-sm font-semibold mb-3">配置（A3横・概略）</div>
-
-            <div className="mb-4 rounded-md border bg-white p-3">
-              <div className="text-sm font-semibold text-gray-900 mb-2">フォーメーション</div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="space-y-3">
-                  <label className="text-xs text-gray-700 block">
-                    <div className="font-semibold mb-1">フォーメーション選択</div>
-                    <select
-                      className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
-                      value={formation.name}
-                      onChange={(e) => {
-                        const nextFormationName = String(e.target.value || "").trim();
-                        const nextFormation = formations.find((f) => f.name === nextFormationName) || formations[0];
-
-                        setLayout((prev) => {
-                          const prevStarters = prev.starters || {};
-
-                          const selectedIds = Object.values(prevStarters)
-                            .map((v) => String(v || "").trim())
-                            .filter((v) => !!v);
-
-                          const uniqSelected: string[] = [];
-                          for (const id of selectedIds) {
-                            if (!uniqSelected.includes(id)) uniqSelected.push(id);
-                          }
-
-                          const nextStarters: Record<string, string | null> = {};
-                          const used = new Set<string>();
-
-                          for (const pos of nextFormation.positions) {
-                            const existing = String(prevStarters[pos.id] || "").trim();
-                            if (existing && !used.has(existing)) {
-                              nextStarters[pos.id] = existing;
-                              used.add(existing);
-                            }
-                          }
-
-                          let poolIndex = 0;
-                          for (const pos of nextFormation.positions) {
-                            if (nextStarters[pos.id]) continue;
-                            while (poolIndex < uniqSelected.length && used.has(uniqSelected[poolIndex])) poolIndex++;
-                            if (poolIndex < uniqSelected.length) {
-                              nextStarters[pos.id] = uniqSelected[poolIndex];
-                              used.add(uniqSelected[poolIndex]);
-                              poolIndex++;
-                            } else {
-                              nextStarters[pos.id] = null;
-                            }
-                          }
-
-                          return {
-                            ...prev,
-                            formationName: nextFormationName,
-                            starters: nextStarters,
-                          };
-                        });
-
-                        if (nextFormation.positions.length > 0) {
-                          setActiveFormationPosId(nextFormation.positions[0].id);
-                        }
-                      }}
-                    >
-                      {formations.map((f) => (
-                        <option key={f.name} value={f.name}>
-                          {f.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <div className="text-xs text-gray-600">
-                    <div className="font-semibold mb-1">ポジション選択（〇をクリック）</div>
-                    <div className="relative w-full aspect-[16/10] rounded-md overflow-hidden bg-emerald-700 border border-emerald-800">
-                      <svg viewBox="0 0 100 60" className="absolute inset-0 w-full h-full">
-                        <rect x="2" y="2" width="96" height="56" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-                        <line x1="2" y1="30" x2="98" y2="30" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-                        <circle cx="50" cy="30" r="6" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-                        <rect x="38" y="2" width="24" height="10" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-                        <rect x="42" y="2" width="16" height="5" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-                        <rect x="38" y="48" width="24" height="10" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-                        <rect x="42" y="53" width="16" height="5" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1" />
-                      </svg>
-
-                      {formation.positions.map((pos) => {
-                        const isActive = activeFormationPosId === pos.id;
-                        const x = padPitchCoord(pos.coordinates.x);
-                        const y = padPitchCoord(pos.coordinates.y);
-                        return (
-                          <button
-                            key={pos.id}
-                            type="button"
-                            onClick={() => setActiveFormationPosId(pos.id)}
-                            className={
-                              "absolute -translate-x-1/2 -translate-y-1/2 rounded-full border text-[10px] font-semibold px-2 py-1 transition-all " +
-                              (isActive
-                                ? "bg-amber-300 text-emerald-950 border-amber-200 shadow-lg ring-4 ring-white/80 scale-110"
-                                : "bg-white/90 text-emerald-900 border-white/80 shadow-sm hover:scale-105")
-                            }
-                            style={{ left: `${100 - x}%`, top: `${100 - y}%` }}
-                          >
-                            {pos.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-2 text-[11px] text-gray-500">
-                      選択中: {formation.positions.find((p) => p.id === activeFormationPosId)?.label || "-"}
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border bg-white p-3">
-                    <div className="text-xs font-semibold text-gray-700 mb-2">割当（選択中）</div>
-                    {(() => {
-                      const pos = formation.positions.find((p) => p.id === activeFormationPosId) || null;
-                      if (!pos) return <div className="text-[11px] text-gray-500">ポジションがありません</div>;
-                      const currentId = (layout.starters || {})[pos.id] || null;
-                      return (
-                        <label className="flex items-center gap-2">
-                          <span className="w-10 text-[11px] font-semibold text-gray-700">{pos.label}</span>
-                          <select
-                            className="flex-1 border border-gray-300 rounded-md px-2 py-1 text-[11px]"
-                            value={currentId || ""}
-                            onChange={(e) => {
-                              const v = String(e.target.value || "").trim();
-                              setLayout((prev) => ({
-                                ...prev,
-                                starters: {
-                                  ...(prev.starters || {}),
-                                  [pos.id]: v || null,
-                                },
-                              }));
-                            }}
-                          >
-                            <option value="">未設定</option>
-                            {getAvailableStarters(currentId).map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {(p.number != null ? String(p.number) : "-") + " " + p.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="px-2 py-1 rounded-md border border-gray-300 text-[11px] font-semibold text-gray-700"
-                            onClick={() =>
-                              setLayout((prev) => ({
-                                ...prev,
-                                starters: {
-                                  ...(prev.starters || {}),
-                                  [pos.id]: null,
-                                },
-                              }))
-                            }
-                          >
-                            クリア
-                          </button>
-                        </label>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                <div className="md:col-span-2 text-xs text-gray-600">
-                  <div className="font-semibold mb-1">先発11人（選択中ポジションに割当）</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {formation.positions.map((pos) => {
-                      const currentId = (layout.starters || {})[pos.id] || null;
-                      const player = currentId ? playersById.get(currentId) || null : null;
-                      const isActive = activeFormationPosId === pos.id;
-                      return (
-                        <button
-                          key={pos.id}
-                          type="button"
-                          onClick={() => setActiveFormationPosId(pos.id)}
-                          className={
-                            "flex items-center justify-between gap-2 rounded-md border px-2 py-2 text-left transition-colors " +
-                            (isActive ? "border-amber-500 bg-amber-50 ring-2 ring-amber-200" : "border-gray-200 bg-white hover:bg-gray-50")
-                          }
-                        >
-                          <span className="w-10 text-[11px] font-semibold text-gray-700">{pos.label}</span>
-                          <span className="flex-1 text-[11px] text-gray-700 truncate">
-                            {player ? `${player.number != null ? String(player.number) : "-"} ${player.name}` : "未設定"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+          {activeStep === "formation" ? (
+          <div className="rounded-xl border border-[#DDE2EA] bg-white p-7 shadow-sm">
+            <div className="mb-6">
+              <div className="text-[16px] font-bold text-[#1B1F27]">配置(A3横・概略)</div>
+              <p className="mt-2 text-[13px] font-semibold text-[#8A93A3]">フォーメーションを選び、ピッチ上のポジションをクリックして選手を割り当てます。</p>
             </div>
 
-            <div className="rounded-md border bg-white p-3 mt-4">
+            <label className="mb-5 block">
+              <div className="mb-2 text-[13px] font-bold text-[#1B1F27]">フォーメーション選択</div>
+              <select
+                className="h-12 w-full rounded-lg border border-[#DDE2EA] bg-white px-4 text-[15px] font-semibold text-[#1B1F27]"
+                value={formation.name}
+                onChange={(e) => {
+                  const nextFormationName = String(e.target.value || "").trim();
+                  const nextFormation = formations.find((f) => f.name === nextFormationName) || formations[0];
+
+                  setLayout((prev) => {
+                    const prevStarters = prev.starters || {};
+                    const selectedIds = Object.values(prevStarters).map((v) => String(v || "").trim()).filter((v) => !!v);
+                    const uniqSelected: string[] = [];
+                    for (const id of selectedIds) {
+                      if (!uniqSelected.includes(id)) uniqSelected.push(id);
+                    }
+                    const nextStarters: Record<string, string | null> = {};
+                    const used = new Set<string>();
+                    for (const pos of nextFormation.positions) {
+                      const existing = String(prevStarters[pos.id] || "").trim();
+                      if (existing && !used.has(existing)) {
+                        nextStarters[pos.id] = existing;
+                        used.add(existing);
+                      }
+                    }
+                    let poolIndex = 0;
+                    for (const pos of nextFormation.positions) {
+                      if (nextStarters[pos.id]) continue;
+                      while (poolIndex < uniqSelected.length && used.has(uniqSelected[poolIndex])) poolIndex++;
+                      if (poolIndex < uniqSelected.length) {
+                        nextStarters[pos.id] = uniqSelected[poolIndex];
+                        used.add(uniqSelected[poolIndex]);
+                        poolIndex++;
+                      } else {
+                        nextStarters[pos.id] = null;
+                      }
+                    }
+                    return { ...prev, formationName: nextFormationName, starters: nextStarters };
+                  });
+
+                  if (nextFormation.positions.length > 0) setActiveFormationPosId(nextFormation.positions[0].id);
+                }}
+              >
+                {formations.map((f) => (
+                  <option key={f.name} value={f.name}>{f.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className="mb-5 text-[13px] font-bold text-[#1B1F27]">ポジション選択(〇をクリック)</div>
+            <div className="relative mb-5 aspect-[16/11] w-full overflow-hidden rounded-lg border-2 border-[#B7C3CE] bg-[#276B4B] shadow-inner">
+              <svg viewBox="0 0 100 66" className="absolute inset-0 h-full w-full">
+                <rect x="0" y="0" width="100" height="66" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="0.7" />
+                <line x1="0" y1="33" x2="100" y2="33" stroke="rgba(255,255,255,0.45)" strokeWidth="0.7" />
+                <circle cx="50" cy="33" r="8" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="0.7" />
+              </svg>
+              {formation.positions.map((pos) => {
+                const isActive = activeFormationPosId === pos.id;
+                const x = padPitchCoord(pos.coordinates.x);
+                const y = padPitchCoord(pos.coordinates.y);
+                return (
+                  <button
+                    key={pos.id}
+                    type="button"
+                    onClick={() => setActiveFormationPosId(pos.id)}
+                    className={`absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[10px] font-bold shadow-md transition ${isActive ? "bg-[#FFC53D] text-[#1B1F27] ring-2 ring-white" : "bg-white text-[#25313D] hover:scale-105"}`}
+                    style={{ left: `${100 - x}%`, top: `${100 - y}%` }}
+                  >
+                    {pos.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {(() => {
+              const pos = formation.positions.find((p) => p.id === activeFormationPosId) || null;
+              const currentId = pos ? (layout.starters || {})[pos.id] || null : null;
+              return (
+                <div className="mb-6 grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                  <div className="rounded-md bg-[#EEF2FF] px-3 py-3 text-[13px] font-bold text-[#3355FF]">選択中: {pos?.label || "-"}</div>
+                  <select
+                    className="h-12 min-w-0 rounded-lg border border-[#DDE2EA] bg-white px-4 text-[14px] font-semibold text-[#1B1F27]"
+                    value={currentId || ""}
+                    disabled={!pos}
+                    onChange={(e) => {
+                      if (!pos) return;
+                      const v = String(e.target.value || "").trim();
+                      setLayout((prev) => ({
+                        ...prev,
+                        starters: { ...(prev.starters || {}), [pos.id]: v || null },
+                      }));
+                    }}
+                  >
+                    <option value="">未設定</option>
+                    {getAvailableStarters(currentId).map((p) => (
+                      <option key={p.id} value={p.id}>{(p.number != null ? String(p.number) : "-") + " " + p.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="h-12 rounded-lg border border-[#DDE2EA] bg-white px-4 text-[14px] font-bold text-[#1B1F27]"
+                    onClick={() => {
+                      if (!pos) return;
+                      setLayout((prev) => ({
+                        ...prev,
+                        starters: { ...(prev.starters || {}), [pos.id]: null },
+                      }));
+                    }}
+                  >
+                    クリア
+                  </button>
+                </div>
+              );
+            })()}
+
+            <div>
+              <div className="mb-3 text-[13px] font-bold text-[#1B1F27]">先発11人(選択中ポジションに割当)</div>
+              <div className="space-y-2">
+                {formation.positions.map((pos) => {
+                  const currentId = (layout.starters || {})[pos.id] || null;
+                  const player = currentId ? playersById.get(currentId) || null : null;
+                  const isActive = activeFormationPosId === pos.id;
+                  return (
+                    <button
+                      key={pos.id}
+                      type="button"
+                      onClick={() => setActiveFormationPosId(pos.id)}
+                      className={`flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition ${isActive ? "border-[#3355FF] bg-[#EEF2FF] ring-1 ring-[#3355FF]" : "border-[#E2E4EA] bg-white hover:bg-[#F8F9FB]"}`}
+                    >
+                      <span className={`flex h-6 min-w-10 items-center justify-center rounded px-2 text-[11px] font-bold text-white ${isActive ? "bg-[#F27D8B]" : "bg-[#5E83F1]"}`}>{pos.label}</span>
+                      <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[#8A93A3]">
+                        {player ? `${player.number != null ? String(player.number) : "-"} ${player.name}` : "未設定"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          ) : null}
+
+          {activeStep === "colors" ? (
+          <div className="border rounded-lg bg-white p-4">
+            <div className="text-sm font-semibold mb-3">帯色設定</div>
+            <div className="rounded-md border bg-white p-3">
               <div className="text-xs font-semibold text-gray-700 mb-2">帯の色（ポジション別）</div>
               <div className="grid grid-cols-2 gap-2">
                 {([
@@ -390,12 +362,23 @@ export function A3EditorView({
                 ))}
               </div>
             </div>
+          </div>
+          ) : null}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="relative rounded-md border bg-gray-50 p-3 min-h-[360px] md:min-h-[520px]">
+          {activeStep === "cards" ? (
+          <div className="rounded-xl border border-[#DDE2EA] bg-white p-4 shadow-sm md:p-6">
+            <div className="mb-4 flex flex-col gap-1 md:mb-5 md:flex-row md:items-end md:justify-between">
+              <div>
+                <div className="text-[16px] font-bold text-[#1B1F27]">カード配置</div>
+                <p className="mt-1 text-[12px] font-semibold text-[#8A93A3] md:hidden">横にスライドして左右の配置を編集できます。</p>
+              </div>
+            </div>
+            <div className="-mx-4 overflow-x-auto px-4 pb-3 md:mx-0 md:px-0">
+            <div className="grid min-w-[1100px] grid-cols-[1fr_1fr] gap-5 lg:min-w-0 xl:gap-6">
+              <div className="relative rounded-xl border border-[#DDE2EA] bg-[#F8F9FB] p-4 min-h-[600px]">
                 <div className="text-xs font-semibold text-gray-600 mb-2">左側（下から3×4 / 12枚）</div>
-                <div className="mt-3 md:absolute md:left-3 md:right-3 md:bottom-3">
-                  <div className="grid grid-cols-3 gap-2">
+                <div className="mt-3 absolute left-4 right-4 bottom-4">
+                  <div className="grid grid-cols-3 gap-3">
                     {Array.from({ length: 12 }).map((_, i) => {
                       const key = `l${i}` as SlotKey;
                       const pid = layout.slots[key];
@@ -419,10 +402,10 @@ export function A3EditorView({
                 </div>
               </div>
 
-              <div className="relative rounded-md border bg-gray-50 p-3 min-h-[360px] md:min-h-[520px]">
-                <div className="text-xs font-semibold text-gray-600 mb-2">右側（上から3×4 / 12枠）</div>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-2">
+              <div className="relative rounded-xl border border-[#DDE2EA] bg-[#F8F9FB] p-4 min-h-[600px]">
+                <div className="text-xs font-semibold text-gray-600 mb-3">右側（上から3×4 / 12枠）</div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
                     {Array.from({ length: 12 }).map((_, i) => {
                       const key = `r${i}` as SlotKey;
                       const pid = layout.slots[key];
@@ -446,7 +429,7 @@ export function A3EditorView({
 
                   <div className="rounded-md border bg-white p-3">
                     <div className="text-xs font-semibold text-gray-700 mb-2">追加選手（最大5名）</div>
-                    <div className="grid grid-cols-5 gap-2">
+                    <div className="grid grid-cols-5 gap-3">
                       {Array.from({ length: 5 }).map((_, i) => {
                         const pid = layout.extras[i] || null;
                         const player = pid ? playersById.get(pid) || null : null;
@@ -510,33 +493,79 @@ export function A3EditorView({
                     </select>
                   </div>
 
-                  <PreviewPanel
-                    leagueCompetitionName={layout.leagueCompetitionName}
-                    competitionNames={competitionNames}
-                    onLeagueCompetitionNameChange={(next) =>
-                      setLayout((prev) => ({
-                        ...prev,
-                        leagueCompetitionName: next,
-                      }))
-                    }
-                    stats={stats}
-                    cupCompetitionNames={cupCompetitionNames}
-                    cups={layout.cups}
-                    onCupsChange={(next) =>
-                      setLayout((prev) => ({
-                        ...prev,
-                        cups: next,
-                      }))
-                    }
-                    transfers={transfers}
-                    coach={coach}
-                  />
+                  <div className="rounded-md border bg-white p-3 text-xs text-gray-600">
+                    印刷プレビューで表示内容を確認できます。大会・カップ戦などの補足情報は次のステップで設定してください。
+                  </div>
                 </div>
               </div>
+            </div>
+            </div>
+          </div>
+          ) : null}
+
+          {activeStep === "preview" ? (
+          <div className="border rounded-lg bg-white p-4">
+            <div className="text-sm font-semibold mb-3">印刷プレビュー</div>
+            <div className="mb-4 rounded-md border bg-gray-50 p-3">
+              <PreviewPanel
+                leagueCompetitionName={layout.leagueCompetitionName}
+                competitionNames={competitionNames}
+                onLeagueCompetitionNameChange={(next) =>
+                  setLayout((prev) => ({
+                    ...prev,
+                    leagueCompetitionName: next,
+                  }))
+                }
+                stats={stats}
+                cupCompetitionNames={cupCompetitionNames}
+                cups={layout.cups}
+                onCupsChange={(next) =>
+                  setLayout((prev) => ({
+                    ...prev,
+                    cups: next,
+                  }))
+                }
+                transfers={transfers}
+                coach={coach}
+              />
+            </div>
+            <Link
+              href={`/admin/teams/${encodeURIComponent(teamId)}/booklet/a3/print?season=${encodeURIComponent(season)}`}
+              className="inline-flex w-full items-center justify-center rounded-md bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              印刷プレビューを開く
+            </Link>
+          </div>
+          ) : null}
+          </div>
+
+          <div className="no-print fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur">
+            <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={goPrevStep}
+                disabled={activeStepIndex === 0}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-40"
+              >
+                戻る
+              </button>
+              <div className="min-w-0 text-center text-xs text-gray-500">
+                <span className="font-mono">{activeStepIndex + 1}/{steps.length}</span>
+                <span className="ml-2 font-semibold text-gray-700">{steps[activeStepIndex]?.label}</span>
+              </div>
+              <button
+                type="button"
+                onClick={goNextStep}
+                disabled={activeStepIndex === steps.length - 1}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                次へ
+              </button>
             </div>
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }

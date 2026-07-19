@@ -166,6 +166,7 @@ export default function TeamBookletA3PrintPage() {
   const [data, setData] = useState<BookletResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showParameterGraph, setShowParameterGraph] = useState(true);
 
   useEffect(() => {
     const run = async () => {
@@ -228,6 +229,21 @@ export default function TeamBookletA3PrintPage() {
 
   const [layout, setLayout] = useState<LayoutState>(() => createEmptyLayout());
   const [layoutSource, setLayoutSource] = useState<"saved" | "default">("default");
+
+  useEffect(() => {
+    if (!teamId || !season) return;
+    const saved = localStorage.getItem(`booklet_selection_${teamId}_${season}`);
+    if (!saved) {
+      setShowParameterGraph(true);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(saved);
+      setShowParameterGraph(parsed.showParameterGraph !== false);
+    } catch (e) {
+      setShowParameterGraph(true);
+    }
+  }, [teamId, season]);
 
   const layoutStorageKey = useMemo(() => {
     if (!teamId || !season) return "";
@@ -687,6 +703,7 @@ export default function TeamBookletA3PrintPage() {
               rightCards={rightCards}
               additionalPlayers={additionalPlayers}
               getPositionColor={getPositionColor}
+              showParameterGraph={showParameterGraph}
               stats={stats}
               cups={cups8}
               transfersIn={transfersIn12}
