@@ -1506,14 +1506,14 @@ export default async function PlayerPage({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-1">
                 <div className="w-full md:mx-auto md:w-[220px]">
-                  <div className="relative w-full h-52 sm:h-52 md:h-[220px] rounded-lg border bg-card overflow-hidden">
+                  <div className="relative w-full h-64 sm:h-64 md:h-[280px] rounded-lg border bg-card overflow-hidden">
                     {player.photoUrl ? (
                       <Image
                         src={player.photoUrl}
                         alt={player.name}
                         fill
                         sizes="(max-width: 768px) 100vw, 33vw"
-                        className="object-cover"
+className="object-cover object-[50%_45%] scale-75"
                       />
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center p-6">

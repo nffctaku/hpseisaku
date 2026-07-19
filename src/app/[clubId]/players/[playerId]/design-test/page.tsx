@@ -455,7 +455,7 @@ export default async function PlayerDesignTestPage({
               <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_20%_20%,rgba(34,197,94,0.9),transparent_45%),radial-gradient(circle_at_85%_15%,rgba(59,130,246,0.85),transparent_45%),radial-gradient(circle_at_60%_85%,rgba(244,63,94,0.75),transparent_45%)]" />
 
               <div className="relative">
-                <div className="md:hidden relative aspect-[16/10] sm:aspect-[16/9]">
+                <div className="md:hidden relative aspect-[3/4] bg-black/20">
                   {player.photoUrl ? (
                     <Image
                       src={player.photoUrl}
@@ -463,7 +463,7 @@ export default async function PlayerDesignTestPage({
                       fill
                       priority
                       sizes="(max-width: 768px) 100vw, 100vw"
-                      className="object-cover object-[50%_30%]"
+className="object-cover object-[50%_45%] scale-75"
                     />
                   ) : (
                     <div className="absolute inset-0 bg-white/5" />
@@ -487,7 +487,7 @@ export default async function PlayerDesignTestPage({
                 <div className="hidden md:block p-6">
                   <div className="flex gap-6 items-start">
                     <div className="w-[420px] shrink-0">
-                      <div className="relative h-[580px] w-[420px] overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                      <div className="relative h-[700px] w-[420px] overflow-hidden rounded-xl border border-white/10 bg-black/20">
                         {player.photoUrl ? (
                           <Image
                             src={player.photoUrl}
@@ -495,7 +495,7 @@ export default async function PlayerDesignTestPage({
                             fill
                             priority
                             sizes="(min-width: 768px) 420px, 100vw"
-                            className="object-cover"
+      className="object-cover object-[50%_45%] scale-75"
                           />
                         ) : (
                           <div className="absolute inset-0 bg-white/5" />
@@ -503,7 +503,7 @@ export default async function PlayerDesignTestPage({
                       </div>
                     </div>
 
-                    <div className="flex-1 min-w-0 h-[580px] min-h-0 flex flex-col gap-4">
+                    <div className="flex-1 min-w-0 h-[700px] min-h-0 flex flex-col gap-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                           <div className={`${numberFont.className} text-7xl font-black tracking-tighter leading-none`}>
