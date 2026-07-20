@@ -166,17 +166,14 @@ export default async function PlayerDesignTestPage({
       .slice(-5);
   })();
 
-  const [leagueStats, leagueCompetitionLabel, seasonCompetitionStats] = effectiveSeason
-    ? await Promise.all([
-        getLeaguePlayerStats(ownerUid, playerId, player, effectiveSeason),
-        getLeagueCompetitionLabel(ownerUid, effectiveSeason),
-        getSeasonCompetitionStats(ownerUid, playerId, player, effectiveSeason),
-      ])
-    : [
-        { appearances: 0, minutes: 0, goals: 0, assists: 0 },
-        null as string | null,
-        [],
-      ];
+  const [seasonLeagueStats, overallLeagueStats, leagueCompetitionLabel, seasonCompetitionStats] = await Promise.all([
+    getLeaguePlayerStats(ownerUid, playerId, player, effectiveSeason),
+    getLeaguePlayerStats(ownerUid, playerId, player, null),
+    effectiveSeason ? getLeagueCompetitionLabel(ownerUid, effectiveSeason) : Promise.resolve(null),
+    getSeasonCompetitionStats(ownerUid, playerId, player, effectiveSeason),
+  ]);
+
+  const leagueStats = effectiveSeason ? seasonLeagueStats : overallLeagueStats;
 
   const otherCompetitionStats = seasonCompetitionStats.filter((r) => r.format !== "league" && r.format !== "league_cup");
   const baseQuery = season ? `?season=${encodeURIComponent(season)}` : "";
@@ -425,7 +422,7 @@ export default async function PlayerDesignTestPage({
           </div>
         }
       >
-        <SeasonBreakdownSlide ownerUid={ownerUid} playerId={playerId} playerData={player} />
+        <SeasonBreakdownSlide ownerUid={ownerUid} playerId={playerId} playerData={player} season={effectiveSeason} />
       </Suspense>
     </div>
   );

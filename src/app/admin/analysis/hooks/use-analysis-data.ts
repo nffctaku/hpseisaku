@@ -7,13 +7,7 @@ import { MainStats, SeasonRecord, PlayerStats, Competition } from "../types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClub } from "@/contexts/ClubContext";
 
-const MAIN_STATS = [
-  { id: "possession", name: "ボール支配率", isPercentage: true },
-  { id: "shots", name: "シュート数", isPercentage: false },
-  { id: "xg", name: "xG", isPercentage: false },
-  { id: "passes", name: "パス数", isPercentage: false },
-  { id: "passAccuracy", name: "パス成功率", isPercentage: true },
-];
+// ユーザーが記録したカスタムスタッツを含め、teamStatsから動的に抽出
 
 export function useAnalysisData() {
   const { ownerUid, user } = useAuth();
@@ -26,6 +20,7 @@ export function useAnalysisData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
+  const [allPlayers, setAllPlayers] = useState<Array<{ playerId: string; playerName: string; position?: string }>>([]);
 
   const computePlayerStatsFromEvents = (events: any[]): Array<{ playerId: string; playerName?: string; goals: number; assists: number }> => {
     const map = new Map<string, { playerId: string; playerName?: string; goals: number; assists: number }>();
@@ -52,6 +47,34 @@ export function useAnalysisData() {
     }
     return Array.from(map.values());
   };
+
+  useEffect(() => {
+    if (!mainTeamId) return;
+    
+    const clubId = clubInfo.id;
+    const firestoreClubDocId = ownerUid || user?.uid || null;
+    
+    if (!firestoreClubDocId) return;
+    
+    const fetchAllPlayers = async () => {
+      try {
+        const playersSnap = await getDocs(collection(db, 'clubs', firestoreClubDocId, 'players'));
+        const players = playersSnap.docs.map(doc => {
+          const data = doc.data();
+          return {
+            playerId: doc.id,
+            playerName: data.name || data.displayName || 'Unknown',
+            position: data.position || undefined,
+          };
+        });
+        setAllPlayers(players);
+      } catch (err) {
+        console.error('Error fetching players:', err);
+      }
+    };
+    
+    fetchAllPlayers();
+  }, [mainTeamId, ownerUid, user, clubInfo.id]);
 
   useEffect(() => {
     // Try both clubId and ownerUid to find the data
@@ -606,33 +629,60 @@ export function useAnalysisData() {
 
   const mainStatsData = useMemo(() => {
     const stats: { [key: string]: MainStats } = {};
+    const statCounts: { [key: string]: number } = {};
     
-    MAIN_STATS.forEach(stat => {
-      stats[stat.id] = {
-        id: stat.id,
-        name: stat.name,
-        isPercentage: stat.isPercentage,
-        total: 0,
-        average: 0,
-      };
-    });
-
+    // teamStatsから全スタッツ名を収集
     filteredMatches.forEach(match => {
-      MAIN_STATS.forEach(stat => {
-        const value = match[stat.id as keyof typeof match];
-        if (typeof value === 'number') {
-          stats[stat.id].total += value;
+      const teamStats = match.teamStats as any[];
+      if (!Array.isArray(teamStats)) return;
+      
+      teamStats.forEach(ts => {
+        const statName = typeof ts?.name === 'string' ? ts.name : '';
+        if (!statName) return;
+        
+        if (!stats[statName]) {
+          stats[statName] = {
+            id: statName,
+            name: statName,
+            isPercentage: false,
+            total: 0,
+            average: 0,
+          };
+          statCounts[statName] = 0;
         }
       });
     });
-
-    const matchCount = filteredMatches.length;
-    MAIN_STATS.forEach(stat => {
-      stats[stat.id].average = matchCount > 0 ? stats[stat.id].total / matchCount : 0;
+    
+    // 各スタッツを集計
+    filteredMatches.forEach(match => {
+      const isHome = match.homeTeam === mainTeamId;
+      const teamStats = match.teamStats as any[];
+      
+      if (!Array.isArray(teamStats)) return;
+      
+      teamStats.forEach(ts => {
+        const statName = typeof ts?.name === 'string' ? ts.name : '';
+        if (!statName || !stats[statName]) return;
+        
+        const value = isHome ? ts.homeValue : ts.awayValue;
+        const numValue = typeof value === 'number' ? value : typeof value === 'string' ? parseFloat(value) : 0;
+        
+        if (Number.isFinite(numValue)) {
+          stats[statName].total += numValue;
+          statCounts[statName]++;
+        }
+      });
+    });
+    
+    // 平均値を計算
+    Object.keys(stats).forEach(statName => {
+      const count = statCounts[statName];
+      stats[statName].average = count > 0 ? stats[statName].total / count : 0;
+      stats[statName].isPercentage = statName.includes('率') || statName.includes('%');
     });
 
     return Object.values(stats);
-  }, [filteredMatches]);
+  }, [filteredMatches, mainTeamId]);
 
   const topGoalscorers = useMemo(() => {
     const goals: { [key: string]: PlayerStats } = {};
@@ -696,6 +746,70 @@ export function useAnalysisData() {
       .slice(0, 10);
   }, [filteredMatches]);
 
+  const playerStatsList = useMemo(() => {
+    const stats: { [key: string]: PlayerStats } = {};
+
+    // 全選手を初期化
+    allPlayers.forEach(player => {
+      stats[player.playerId] = {
+        playerId: player.playerId,
+        playerName: player.playerName,
+        position: player.position || undefined,
+        goals: 0,
+        assists: 0,
+        matches: 0,
+        starts: 0,
+        substitutions: 0,
+        rating: undefined,
+      };
+    });
+
+    filteredMatches.forEach(match => {
+      const sourcePlayerStats = (match.playerStats && Array.isArray(match.playerStats) && match.playerStats.length > 0)
+        ? match.playerStats
+        : computePlayerStatsFromEvents(Array.isArray(match.events) ? match.events : []);
+
+      if (sourcePlayerStats && Array.isArray(sourcePlayerStats)) {
+        sourcePlayerStats.forEach((player: any) => {
+          if (!stats[player.playerId]) {
+            stats[player.playerId] = {
+              playerId: player.playerId,
+              playerName: player.playerName || 'Unknown',
+              position: player.position || undefined,
+              goals: 0,
+              assists: 0,
+              matches: 0,
+              starts: 0,
+              substitutions: 0,
+              rating: undefined,
+            };
+          }
+          stats[player.playerId].goals += player.goals || 0;
+          stats[player.playerId].assists += player.assists || 0;
+          const isStarter = player.role === "starter" || !player.role;
+          stats[player.playerId].starts += isStarter ? 1 : 0;
+          const minutesPlayed = Number(player.minutesPlayed) || 0;
+          const actuallyPlayed = minutesPlayed > 0;
+          stats[player.playerId].substitutions += !isStarter && actuallyPlayed ? 1 : 0;
+          
+          if (player.rating !== undefined && player.rating !== null) {
+            const currentRating = stats[player.playerId].rating || 0;
+            const currentMatchesWithRating = (stats[player.playerId] as any).matchesWithRating || 0;
+            stats[player.playerId].rating = (currentRating * currentMatchesWithRating + player.rating) / (currentMatchesWithRating + 1);
+            (stats[player.playerId] as any).matchesWithRating = currentMatchesWithRating + 1;
+          }
+        });
+      }
+    });
+
+    // 試合数を先発＋途中出場の合計として再計算
+    Object.values(stats).forEach(player => {
+      player.matches = player.starts + player.substitutions;
+    });
+
+    return Object.values(stats).sort((a, b) => b.matches - a.matches);
+  }, [filteredMatches, allPlayers]);
+
   return {
     matches,
     competitions,
@@ -714,5 +828,6 @@ export function useAnalysisData() {
     topGoalscorers,
     topAssists,
     mainTeamId,
+    playerStatsList,
   };
 }

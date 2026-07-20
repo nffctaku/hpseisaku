@@ -5,12 +5,14 @@ export async function SeasonBreakdownSlide({
   ownerUid,
   playerId,
   playerData,
+  season,
 }: {
   ownerUid: string;
   playerId: string;
   playerData: any;
+  season?: string | null;
 }) {
-  const rows = await getPlayerSeasonBreakdowns(ownerUid, playerId, playerData);
+  const rows = await getPlayerSeasonBreakdowns(ownerUid, playerId, playerData, season);
 
   return (
     <>

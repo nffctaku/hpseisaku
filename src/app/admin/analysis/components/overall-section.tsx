@@ -33,6 +33,7 @@ export function OverallSection({
   const totalGoalsFor = completed.reduce((sum: number, m: any) => sum + (typeof m.goalsFor === 'number' ? m.goalsFor : 0), 0);
   const totalGoalsAgainst = completed.reduce((sum: number, m: any) => sum + (typeof m.goalsAgainst === 'number' ? m.goalsAgainst : 0), 0);
   const winRate = totalMatches > 0 ? ((totalWins / totalMatches) * 100).toFixed(1) : '0.0';
+  const goalDifference = totalGoalsFor - totalGoalsAgainst;
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
@@ -60,40 +61,43 @@ export function OverallSection({
   return (
     <div className="space-y-6">
       {/* 試合成績セクション */}
-      <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
-        <div className="relative p-6">
-          <h2 className="text-xl font-bold text-white mb-6">通算成績</h2>
+      <div className="rounded-3xl border border-slate-700 bg-slate-800/50 backdrop-blur-xl p-5 shadow-sm">
+        <div className="text-sm font-medium text-slate-300">勝率</div>
+        <div className="mt-2 flex items-end gap-3">
+          <div className="text-4xl font-bold leading-none tracking-tight text-white">{winRate}%</div>
+          <div className="pb-1 text-sm text-slate-400">{totalMatches}試合</div>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="h-1.5 rounded-full bg-green-600" />
+          <div className="h-1.5 rounded-full bg-slate-500" />
+          <div className="h-1.5 rounded-full bg-red-500" />
+        </div>
+      </div>
 
-          <div className="flex items-end justify-between gap-2 sm:gap-6">
-            <div className="text-center flex-1 min-w-0">
-              <p className="text-slate-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">試合数</p>
-              <p className="text-lg sm:text-2xl font-bold text-white leading-none">{totalMatches}</p>
-            </div>
-            <div className="text-center flex-1 min-w-0">
-              <p className="text-green-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">勝</p>
-              <p className="text-lg sm:text-2xl font-bold text-green-400 leading-none">{totalWins}</p>
-            </div>
-            <div className="text-center flex-1 min-w-0">
-              <p className="text-yellow-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">分</p>
-              <p className="text-lg sm:text-2xl font-bold text-yellow-400 leading-none">{totalDraws}</p>
-            </div>
-            <div className="text-center flex-1 min-w-0">
-              <p className="text-red-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">負</p>
-              <p className="text-lg sm:text-2xl font-bold text-red-400 leading-none">{totalLosses}</p>
-            </div>
-            <div className="text-center flex-1 min-w-0">
-              <p className="text-blue-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">得点</p>
-              <p className="text-lg sm:text-2xl font-bold text-blue-400 leading-none">{totalGoalsFor}</p>
-            </div>
-            <div className="text-center flex-1 min-w-0">
-              <p className="text-orange-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">失点</p>
-              <p className="text-lg sm:text-2xl font-bold text-orange-400 leading-none">{totalGoalsAgainst}</p>
-            </div>
-            <div className="text-center flex-1 min-w-0">
-              <p className="text-purple-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">勝率</p>
-              <p className="text-lg sm:text-2xl font-bold text-purple-400 leading-none">{winRate}%</p>
-            </div>
-          </div>
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+        <div className="rounded-2xl bg-slate-800/50 backdrop-blur-xl border border-slate-700 p-4 text-center shadow-sm">
+          <div className="text-sm text-slate-300">勝</div>
+          <div className="mt-2 text-xl font-bold text-green-400">{totalWins}</div>
+        </div>
+        <div className="rounded-2xl bg-slate-800/50 backdrop-blur-xl border border-slate-700 p-4 text-center shadow-sm">
+          <div className="text-sm text-slate-300">分</div>
+          <div className="mt-2 text-xl font-bold text-slate-300">{totalDraws}</div>
+        </div>
+        <div className="rounded-2xl bg-slate-800/50 backdrop-blur-xl border border-slate-700 p-4 text-center shadow-sm">
+          <div className="text-sm text-slate-300">負</div>
+          <div className="mt-2 text-xl font-bold text-red-400">{totalLosses}</div>
+        </div>
+        <div className="rounded-2xl bg-slate-800/50 backdrop-blur-xl border border-slate-700 p-4 text-center shadow-sm">
+          <div className="text-sm text-slate-300">得点</div>
+          <div className="mt-2 text-xl font-bold text-blue-400">{totalGoalsFor}</div>
+        </div>
+        <div className="rounded-2xl bg-slate-800/50 backdrop-blur-xl border border-slate-700 p-4 text-center shadow-sm">
+          <div className="text-sm text-slate-300">失点</div>
+          <div className="mt-2 text-xl font-bold text-orange-400">{totalGoalsAgainst}</div>
+        </div>
+        <div className="rounded-2xl bg-slate-800/50 backdrop-blur-xl border border-slate-700 p-4 text-center shadow-sm">
+          <div className="text-sm text-slate-300">得失差</div>
+          <div className={`mt-2 text-xl font-bold ${goalDifference >= 0 ? "text-green-400" : "text-red-400"}`}>{goalDifference}</div>
         </div>
       </div>
 

@@ -24,7 +24,7 @@ export async function MatchStatsSlide({
         {matchRows.length === 0 ? (
           <div className="py-6 text-sm text-white/70">試合データがありません</div>
         ) : (
-          matchRows.slice(0, 20).map((m) => {
+          matchRows.map((m) => {
             const d = (() => {
               const ms = Date.parse(m.matchDate);
               if (!Number.isFinite(ms)) return m.matchDate;
@@ -51,8 +51,8 @@ export async function MatchStatsSlide({
 
             return (
               <div key={`${m.competitionId}/${m.roundId}/${m.matchId}`} className="py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
                     <div className="text-xs text-white/60">{d}</div>
                     <div className="mt-1 flex items-center gap-2 text-sm font-semibold min-w-0">
                       {m.opponentLogoUrl ? (
@@ -65,29 +65,29 @@ export async function MatchStatsSlide({
                       <span className="truncate">{m.opponentName}</span>
                       <span className="text-white/70 shrink-0">{m.ha}</span>
                     </div>
-                    <div className="mt-0.5 text-xs text-white/70">
+                    <div className="mt-0.5 truncate whitespace-nowrap text-xs text-white/70">
                       <span className={outcomeClass}>{scoreText}</span>
-                      <span className="mx-2 text-white/30">|</span>
-                      {m.competitionName}
+                      <span className="mx-1.5 text-white/30">|</span>
+                      {m.competitionName}{m.roundName ? ` / ${m.roundName}` : ""}
                     </div>
                   </div>
 
-                  <div className="flex items-end gap-2 shrink-0">
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="text-[10px] leading-none text-white/50">MIN</div>
-                      <div className="h-8 w-12 rounded-full border border-white/10 bg-white/5 text-sm font-semibold tabular-nums inline-flex items-center justify-center">
+                  <div className="flex items-end gap-1.5 shrink-0">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="text-[9px] leading-none text-white/50">MIN</div>
+                      <div className="h-7 w-9 rounded-full border border-white/10 bg-white/5 text-xs font-semibold tabular-nums inline-flex items-center justify-center">
                         {minutesNumText}
                       </div>
                     </div>
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="text-[10px] leading-none text-white/50">G</div>
-                      <div className="h-8 w-10 rounded-full border border-white/10 bg-white/5 text-sm font-semibold tabular-nums inline-flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="text-[9px] leading-none text-white/50">G</div>
+                      <div className="h-7 w-8 rounded-full border border-white/10 bg-white/5 text-xs font-semibold tabular-nums inline-flex items-center justify-center">
                         {goalsNumText}
                       </div>
                     </div>
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="text-[10px] leading-none text-white/50">A</div>
-                      <div className="h-8 w-10 rounded-full border border-white/10 bg-white/5 text-sm font-semibold tabular-nums inline-flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="text-[9px] leading-none text-white/50">A</div>
+                      <div className="h-7 w-8 rounded-full border border-white/10 bg-white/5 text-xs font-semibold tabular-nums inline-flex items-center justify-center">
                         {assistsNumText}
                       </div>
                     </div>

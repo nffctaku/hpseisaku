@@ -10,6 +10,7 @@ import { OverallSection } from "./components/overall-section";
 import { TournamentTypeSelection } from "./components/tournament-type-selection";
 import { TournamentSelection } from "./components/tournament-selection";
 import { TeamVsTeamLeagueSection } from "./components/team-vs-team-league-section";
+import { MainStats } from "./components/main-stats";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -42,6 +43,7 @@ export default function AnalysisPage() {
     topGoalscorers,
     topAssists,
     mainTeamId,
+    playerStatsList,
   } = useAnalysisData();
 
   const LEAGUE_RANK_PLOT_PADDING_VB = 8;
@@ -49,6 +51,84 @@ export default function AnalysisPage() {
   const clubUid = ownerUid || user?.uid || null;
 
   const [resolvedTeamId, setResolvedTeamId] = useState<string | null>(null);
+  const [teamLogoById, setTeamLogoById] = useState<Record<string, string>>({});
+  const [seasonRankingTrendMode, setSeasonRankingTrendMode] = useState<'recent' | 'all'>('recent');
+  const [mainStatsView, setMainStatsView] = useState<'main' | 'player'>('main');
+  const [sortColumn, setSortColumn] = useState<string>('matches');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const sortedPlayerStatsList = useMemo(() => {
+    return [...playerStatsList].sort((a, b) => {
+      let comparison = 0;
+      const getValue = (player: any) => {
+        switch (sortColumn) {
+          case 'position': return player.position || '';
+          case 'name': return player.playerName;
+          case 'matches': return player.matches;
+          case 'starts': return player.starts;
+          case 'substitutions': return player.substitutions;
+          case 'goals': return player.goals;
+          case 'assists': return player.assists;
+          case 'rating': return player.rating || 0;
+          default: return 0;
+        }
+      };
+      const aValue = getValue(a);
+      const bValue = getValue(b);
+      
+      if (sortColumn === 'position') {
+        const positionOrder: { [key: string]: number } = {
+          'GK': 1,
+          'DF': 2,
+          'MF': 3,
+          'FW': 4,
+          '': 5,
+        };
+        const aOrder = positionOrder[aValue] || 99;
+        const bOrder = positionOrder[bValue] || 99;
+        comparison = aOrder - bOrder;
+      } else if (typeof aValue === 'string' && typeof bValue === 'string') {
+        comparison = aValue.localeCompare(bValue);
+      } else {
+        comparison = aValue - bValue;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [playerStatsList, sortColumn, sortDirection]);
+
+  useEffect(() => {
+    if (!clubUid) {
+      setTeamLogoById({});
+      return;
+    }
+
+    const fetchTeamLogos = async () => {
+      try {
+        const teamsSnap = await getDocs(collection(db, 'clubs', clubUid, 'teams'));
+        const logoMap: Record<string, string> = {};
+        teamsSnap.forEach((d) => {
+          const data = d.data() as any;
+          const logoUrl = typeof data?.logoUrl === 'string' ? data.logoUrl : typeof data?.logo === 'string' ? data.logo : '';
+          if (logoUrl) logoMap[d.id] = logoUrl;
+        });
+        setTeamLogoById(logoMap);
+      } catch {
+        setTeamLogoById({});
+      }
+    };
+
+    fetchTeamLogos();
+  }, [clubUid]);
 
   useEffect(() => {
     if (!canViewTournament && activeView === "tournament") {
@@ -106,6 +186,9 @@ export default function AnalysisPage() {
     const losses = completed.filter((m: any) => m.result === 'loss').length;
     const matchesCount = completed.length;
     const winRate = matchesCount > 0 ? (wins / matchesCount) * 100 : 0;
+    const goalsFor = completed.reduce((sum: number, m: any) => sum + (typeof m.goalsFor === 'number' ? m.goalsFor : 0), 0);
+    const goalsAgainst = completed.reduce((sum: number, m: any) => sum + (typeof m.goalsAgainst === 'number' ? m.goalsAgainst : 0), 0);
+    const goalDifference = goalsFor - goalsAgainst;
 
     const pointsBySeason: Record<string, number> = {};
     for (const m of completed) {
@@ -126,6 +209,9 @@ export default function AnalysisPage() {
       draws,
       losses,
       winRate,
+      goalsFor,
+      goalsAgainst,
+      goalDifference,
       seasonCount: seasonPoints.length,
       maxPoints,
       minPoints,
@@ -181,27 +267,140 @@ export default function AnalysisPage() {
       } else if (m.result === 'draw') {
         row.draws += 1;
         row.points += 1;
-      } else if (m.result === 'loss') {
+      } else {
         row.losses += 1;
       }
       row.goalsFor += typeof m.goalsFor === 'number' ? m.goalsFor : 0;
       row.goalsAgainst += typeof m.goalsAgainst === 'number' ? m.goalsAgainst : 0;
       row.goalDifference = row.goalsFor - row.goalsAgainst;
     }
+    return Object.values(bySeason);
+  }, [leagueMatches]);
 
-    // When comparing across all seasons, include seasons that have standings/rank even if there are no matches.
-    if (selectedSeason === 'all') {
-      for (const season of Object.keys(leagueRanksBySeason || {})) {
-        const s = typeof season === 'string' ? season.trim() : '';
-        if (!s) continue;
-        if (!bySeason[s]) {
-          bySeason[s] = { season: s, played: 0, wins: 0, draws: 0, losses: 0, points: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0 };
+  const seasonRankingTrend = useMemo(() => {
+    if (selectedSeason === 'all' || !mainTeamId) return null;
+
+    const selectedCompetition = competitions.find((competition: any) => {
+      const name = typeof competition?.name === 'string' ? competition.name.trim() : '';
+      return competition?.id === selectedCompetitionId || name === selectedCompetitionId;
+    });
+
+    const seasonMatches = matches.filter((m: any) => {
+      const season = typeof m?.competitionSeason === 'string' ? String(m.competitionSeason).trim() : '';
+      const competitionName = typeof m?.competitionName === 'string' ? String(m.competitionName).trim() : '';
+      const sameCompetition =
+        selectedCompetitionId === 'all' ||
+        m?.competitionId === selectedCompetitionId ||
+        competitionName === selectedCompetitionId;
+      return m?.competitionType === 'league' && season === selectedSeason && sameCompetition;
+    });
+
+    const completedMatches = seasonMatches.filter((m: any) => {
+      const scoreHome = typeof m?.scoreHome === 'number' ? m.scoreHome : Number(m?.scoreHome);
+      const scoreAway = typeof m?.scoreAway === 'number' ? m.scoreAway : Number(m?.scoreAway);
+      return Number.isFinite(scoreHome) && Number.isFinite(scoreAway);
+    });
+
+    if (completedMatches.length === 0) return null;
+
+    const matchesByRound: Record<string, any[]> = {};
+    completedMatches.forEach((m: any) => {
+      const roundId = typeof m?.roundId === 'string' ? m.roundId : '';
+      if (!roundId) return;
+      if (!matchesByRound[roundId]) matchesByRound[roundId] = [];
+      matchesByRound[roundId].push(m);
+    });
+
+    const sortedRounds = Object.keys(matchesByRound).sort((a, b) => {
+      const aMatches = matchesByRound[a];
+      const bMatches = matchesByRound[b];
+      const aTime = Math.min(...aMatches.map((m: any) => new Date(m?.matchDate || 0).getTime()).filter(Number.isFinite));
+      const bTime = Math.min(...bMatches.map((m: any) => new Date(m?.matchDate || 0).getTime()).filter(Number.isFinite));
+      if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) return aTime - bTime;
+      return a.localeCompare(b, 'ja');
+    });
+
+    const teamIds = new Set<string>();
+    const competitionTeams = Array.isArray((selectedCompetition as any)?.teams) ? (selectedCompetition as any).teams : [];
+    competitionTeams.forEach((teamId: any) => {
+      if (typeof teamId === 'string' && teamId.trim()) teamIds.add(teamId);
+    });
+    completedMatches.forEach((m: any) => {
+      if (typeof m?.homeTeam === 'string' && m.homeTeam.trim()) teamIds.add(m.homeTeam);
+      if (typeof m?.awayTeam === 'string' && m.awayTeam.trim()) teamIds.add(m.awayTeam);
+    });
+
+    const standings: Record<string, { played: number; wins: number; draws: number; losses: number; goalsFor: number; goalsAgainst: number; goalDifference: number; points: number }> = {};
+    teamIds.forEach((teamId) => {
+      standings[teamId] = { played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 0 };
+    });
+
+    const trend: Array<{ round: string; rank: number | null; points: number; opponentId?: string; opponentLogoUrl?: string }> = [];
+
+    sortedRounds.forEach((round, roundIndex) => {
+      matchesByRound[round].forEach((m: any) => {
+        const homeTeamId = typeof m?.homeTeam === 'string' ? m.homeTeam : '';
+        const awayTeamId = typeof m?.awayTeam === 'string' ? m.awayTeam : '';
+        const scoreHome = typeof m?.scoreHome === 'number' ? m.scoreHome : Number(m?.scoreHome);
+        const scoreAway = typeof m?.scoreAway === 'number' ? m.scoreAway : Number(m?.scoreAway);
+        if (!homeTeamId || !awayTeamId || !Number.isFinite(scoreHome) || !Number.isFinite(scoreAway)) return;
+        if (!standings[homeTeamId]) standings[homeTeamId] = { played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 0 };
+        if (!standings[awayTeamId]) standings[awayTeamId] = { played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 0 };
+
+        const home = standings[homeTeamId];
+        const away = standings[awayTeamId];
+        home.played += 1;
+        away.played += 1;
+        home.goalsFor += scoreHome;
+        home.goalsAgainst += scoreAway;
+        away.goalsFor += scoreAway;
+        away.goalsAgainst += scoreHome;
+        home.goalDifference = home.goalsFor - home.goalsAgainst;
+        away.goalDifference = away.goalsFor - away.goalsAgainst;
+
+        if (scoreHome > scoreAway) {
+          home.wins += 1;
+          home.points += 3;
+          away.losses += 1;
+        } else if (scoreHome < scoreAway) {
+          away.wins += 1;
+          away.points += 3;
+          home.losses += 1;
+        } else {
+          home.draws += 1;
+          away.draws += 1;
+          home.points += 1;
+          away.points += 1;
         }
-      }
-    }
+      });
 
-    return Object.values(bySeason).sort((a, b) => b.season.localeCompare(a.season, 'ja'));
-  }, [leagueMatches, leagueRanksBySeason, selectedSeason]);
+      const sortedTeams = Object.entries(standings).sort(([teamA, a], [teamB, b]) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+        if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+        return teamA.localeCompare(teamB, 'ja');
+      });
+      const myRank = sortedTeams.findIndex(([teamId]) => teamId === mainTeamId);
+      const myStanding = standings[mainTeamId];
+      const myMatch = matchesByRound[round].find((m: any) => m?.homeTeam === mainTeamId || m?.awayTeam === mainTeamId);
+      const opponentId = myMatch
+        ? myMatch.homeTeam === mainTeamId
+          ? myMatch.awayTeam
+          : myMatch.homeTeam
+        : undefined;
+      const opponentLogoUrl = typeof opponentId === 'string' ? teamLogoById[opponentId] : undefined;
+
+      trend.push({
+        round: String(roundIndex + 1),
+        rank: myRank >= 0 ? myRank + 1 : null,
+        points: myStanding?.points || 0,
+        opponentId,
+        opponentLogoUrl,
+      });
+    });
+
+    return trend;
+  }, [matches, competitions, selectedSeason, selectedCompetitionId, mainTeamId, teamLogoById]);
 
   const leagueCompareSeasons = useMemo(() => {
     const list = leagueSeasonRows.map((r) => r.season);
@@ -668,36 +867,34 @@ export default function AnalysisPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-4 md:space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-3 md:p-6">
+      <div className="mx-auto max-w-7xl space-y-5">
         <AnalysisHeader />
         
-        <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
-          <div className="relative p-6">
-            <div className="flex flex-col sm:flex-row gap-4">
+        <div className="rounded-2xl bg-slate-800/70 p-1.5 shadow-sm">
+          <div className="grid grid-cols-2 gap-1">
+            <button
+              onClick={() => setActiveView("overall")}
+              className={`rounded-xl px-6 py-3 text-sm font-semibold transition-all ${
+                activeView === "overall"
+                  ? "bg-[#4ade80] text-slate-950 shadow-sm"
+                  : "text-slate-300 hover:bg-slate-700/60"
+              }`}
+            >
+              通算
+            </button>
+            {canViewTournament ? (
               <button
-                onClick={() => setActiveView("overall")}
-                className={`flex-1 sm:flex-none px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-                  activeView === "overall"
-                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg"
-                    : "bg-slate-700/50 text-slate-300 hover:bg-slate-700/70 hover:text-white"
+                onClick={() => setActiveView("tournament")}
+                className={`rounded-xl px-6 py-3 text-sm font-semibold transition-all ${
+                  activeView === "tournament"
+                    ? "bg-[#4ade80] text-slate-950 shadow-sm"
+                    : "text-slate-300 hover:bg-slate-700/60"
                 }`}
               >
-                通算
+                大会別
               </button>
-              {canViewTournament ? (
-                <button
-                  onClick={() => setActiveView("tournament")}
-                  className={`flex-1 sm:flex-none px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-                    activeView === "tournament"
-                      ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg"
-                      : "bg-slate-700/50 text-slate-300 hover:bg-slate-700/70 hover:text-white"
-                  }`}
-                >
-                  大会別
-                </button>
-              ) : null}
-            </div>
+            ) : <div />}
           </div>
         </div>
 
@@ -782,30 +979,302 @@ export default function AnalysisPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-center flex-1 min-w-0">
-                          <p className="text-slate-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">試合</p>
-                          <p className="text-lg sm:text-2xl font-bold text-white leading-none">{leagueSummary.matchesCount}</p>
+                      <div className="space-y-4">
+                        <div className="rounded-3xl border border-[#263149] bg-[#141d2e] p-5 shadow-sm">
+                          <div className="text-sm font-medium text-slate-300">勝率</div>
+                          <div className="mt-2 flex items-end gap-3">
+                            <div className="text-4xl font-bold leading-none tracking-tight text-white">{leagueSummary.winRate.toFixed(1)}%</div>
+                            <div className="pb-1 text-sm text-slate-400">{leagueSummary.matchesCount}試合</div>
+                          </div>
+                          <div className="mt-4 grid grid-cols-3 gap-2">
+                            <div className="h-1.5 rounded-full bg-green-600" />
+                            <div className="h-1.5 rounded-full bg-slate-500" />
+                            <div className="h-1.5 rounded-full bg-red-500" />
+                          </div>
                         </div>
-                        <div className="text-center flex-1 min-w-0">
-                          <p className="text-green-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">勝</p>
-                          <p className="text-lg sm:text-2xl font-bold text-green-400 leading-none">{leagueSummary.wins}</p>
-                        </div>
-                        <div className="text-center flex-1 min-w-0">
-                          <p className="text-yellow-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">分</p>
-                          <p className="text-lg sm:text-2xl font-bold text-yellow-400 leading-none">{leagueSummary.draws}</p>
-                        </div>
-                        <div className="text-center flex-1 min-w-0">
-                          <p className="text-red-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">敗</p>
-                          <p className="text-lg sm:text-2xl font-bold text-red-400 leading-none">{leagueSummary.losses}</p>
-                        </div>
-                        <div className="text-center flex-1 min-w-0">
-                          <p className="text-purple-400 text-[11px] sm:text-sm mb-0.5 sm:mb-1">勝率</p>
-                          <p className="text-lg sm:text-2xl font-bold text-purple-400 leading-none">{leagueSummary.winRate.toFixed(1)}%</p>
+
+                        <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+                          <div className="rounded-2xl border border-[#263149] bg-[#141d2e] p-4 text-center shadow-sm">
+                            <div className="text-sm text-slate-300">勝</div>
+                            <div className="mt-2 text-xl font-bold text-green-400">{leagueSummary.wins}</div>
+                          </div>
+                          <div className="rounded-2xl border border-[#263149] bg-[#141d2e] p-4 text-center shadow-sm">
+                            <div className="text-sm text-slate-300">分</div>
+                            <div className="mt-2 text-xl font-bold text-white">{leagueSummary.draws}</div>
+                          </div>
+                          <div className="rounded-2xl border border-[#263149] bg-[#141d2e] p-4 text-center shadow-sm">
+                            <div className="text-sm text-slate-300">負</div>
+                            <div className="mt-2 text-xl font-bold text-red-400">{leagueSummary.losses}</div>
+                          </div>
+                          <div className="rounded-2xl border border-[#263149] bg-[#141d2e] p-4 text-center shadow-sm">
+                            <div className="text-sm text-slate-300">得点</div>
+                            <div className="mt-2 text-xl font-bold text-blue-400">{leagueSummary.goalsFor}</div>
+                          </div>
+                          <div className="rounded-2xl border border-[#263149] bg-[#141d2e] p-4 text-center shadow-sm">
+                            <div className="text-sm text-slate-300">失点</div>
+                            <div className="mt-2 text-xl font-bold text-red-400">{leagueSummary.goalsAgainst}</div>
+                          </div>
+                          <div className="rounded-2xl border border-[#263149] bg-[#141d2e] p-4 text-center shadow-sm">
+                            <div className="text-sm text-slate-300">得失差</div>
+                            <div className={`mt-2 text-xl font-bold ${leagueSummary.goalDifference >= 0 ? "text-green-400" : "text-red-400"}`}>{leagueSummary.goalDifference}</div>
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {selectedTournamentType === "league" && selectedCompetitionId !== "all" && selectedSeason !== 'all' && seasonRankingTrend && seasonRankingTrend.length > 0 && (
+              <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
+                <div className="relative pt-3 px-3 pb-3 sm:pt-4 sm:px-4 sm:pb-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div className="text-white text-sm font-semibold">シーズン順位推移（節ごと）</div>
+                    <div className="flex rounded-full border border-slate-700 bg-slate-900/50 p-0.5 text-[11px] font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setSeasonRankingTrendMode('recent')}
+                        className={`rounded-full px-3 py-1 transition ${seasonRankingTrendMode === 'recent' ? 'bg-[#4ade80] text-slate-950' : 'text-slate-300'}`}
+                      >
+                        直近5試合
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSeasonRankingTrendMode('all')}
+                        className={`rounded-full px-3 py-1 transition ${seasonRankingTrendMode === 'all' ? 'bg-[#4ade80] text-slate-950' : 'text-slate-300'}`}
+                      >
+                        全期間
+                      </button>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const graphPoints = seasonRankingTrendMode === 'recent' ? seasonRankingTrend.slice(-5) : seasonRankingTrend;
+                    const validPoints = graphPoints.filter((p) => p.rank !== null);
+                    const maxRank = Math.max(5, Math.ceil(Math.max(...seasonRankingTrend.map((p) => p.rank || 0)) / 5) * 5);
+                    const chartWidth = seasonRankingTrendMode === 'recent'
+                      ? Math.max(420, graphPoints.length * 88)
+                      : Math.max(640, graphPoints.length * 48);
+                    const chartHeight = 160;
+                    const chartTop = 18;
+                    const chartBottom = 132;
+                    const chartLeft = 42;
+                    const chartRight = 18;
+                    const plotWidth = chartWidth - chartLeft - chartRight;
+                    const plotHeight = chartBottom - chartTop;
+                    const toX = (index: number, length: number) => {
+                      const firstPointPadding = 24;
+                      const lastPointPadding = 24;
+                      const effectiveWidth = plotWidth - firstPointPadding - lastPointPadding;
+                      return chartLeft + firstPointPadding + (index / (length - 1 || 1)) * effectiveWidth;
+                    };
+                    const toY = (rank: number) => chartTop + ((rank - 1) / Math.max(1, maxRank - 1)) * plotHeight;
+                    const linePoints = validPoints.map((point, index, points) => `${toX(index, points.length)},${toY(point.rank!)}`).join(' ');
+                    const areaPoints = validPoints.length > 1 ? `${chartLeft},${chartBottom} ${linePoints} ${toX(validPoints.length - 1, validPoints.length)},${chartBottom}` : '';
+                    const yTicks = [1, ...Array.from({ length: Math.floor(maxRank / 5) }, (_, index) => (index + 1) * 5)].filter((rank) => rank <= maxRank);
+
+                    return (
+                      <div className="rounded-md border border-slate-700 bg-slate-900/30 overflow-hidden">
+                        <div className="flex">
+                          <div className="w-10 sm:w-12 border-r border-slate-700/60 relative">
+                            <div className="absolute left-0 top-0 bottom-0 w-10 sm:w-12 flex items-center justify-center pointer-events-none">
+                              <div className="text-[9px] text-slate-400 -rotate-90 tracking-widest">順位</div>
+                            </div>
+                          </div>
+                          <div className="min-w-0 flex-1 overflow-x-auto p-2 sm:p-3">
+                            <div className="relative" style={{ minWidth: `${chartWidth}px` }}>
+                              <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-44 w-full sm:h-52" preserveAspectRatio="none">
+                                {yTicks.map((rank) => {
+                                  const y = toY(rank);
+                                  return (
+                                    <g key={`rank-tick-${rank}`}>
+                                      <line x1={chartLeft} x2={chartWidth - chartRight} y1={y} y2={y} stroke="#263149" strokeWidth="1" />
+                                      <text x={chartLeft - 16} y={y + 3} textAnchor="end" fontSize="9" fill="#94a3b8">
+                                        {rank}
+                                      </text>
+                                    </g>
+                                  );
+                                })}
+                                {areaPoints && <polygon points={areaPoints} fill="#4ade80" opacity="0.08" />}
+                                {linePoints && (
+                                  <polyline
+                                    points={linePoints}
+                                    fill="none"
+                                    stroke="#4ade80"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                )}
+                                {validPoints.map((point, index, points) => {
+                                  const x = toX(index, points.length);
+                                  const y = toY(point.rank!);
+                                  return (
+                                    <g key={`rank-point-${point.round}`}>
+                                      <text x={x} y={Math.max(10, y - 10)} textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">
+                                        {point.rank}
+                                      </text>
+                                      {seasonRankingTrendMode === 'all' && (
+                                        <text x={x} y={Math.min(chartBottom - 4, y + 15)} textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">
+                                          {point.points}pt
+                                        </text>
+                                      )}
+                                    </g>
+                                  );
+                                })}
+                              </svg>
+                              {graphPoints.map((point, index) => {
+                                const x = toX(index, graphPoints.length);
+                                const y = point.rank !== null ? toY(point.rank) : null;
+                                return (
+                                  <div
+                                    key={`round-emblem-${point.round}`}
+                                    className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+                                    style={{ left: `${(x / chartWidth) * 100}%`, top: `${y ? (y / chartHeight) * 100 : 0}%` }}
+                                  >
+                                    {point.opponentLogoUrl ? (
+                                      <img src={point.opponentLogoUrl} alt="" className="h-[22px] w-[22px] rounded-full object-contain" />
+                                    ) : (
+                                      <div className="h-[22px] w-[22px] rounded-full bg-slate-600" />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              <div className="border-t border-slate-700/50 pt-2 relative" style={{ height: seasonRankingTrendMode === 'recent' ? '40px' : '24px' }}>
+                                {graphPoints.map((point, index) => {
+                                  const x = toX(index, graphPoints.length);
+                                  return (
+                                    <div
+                                      key={`round-label-${point.round}`}
+                                      className="absolute -translate-x-1/2 text-center"
+                                      style={{ left: `${(x / chartWidth) * 100}%` }}
+                                    >
+                                      <div className="flex flex-col items-center gap-0.5">
+                                        <span className="text-[11px] font-semibold text-slate-300">第{point.round}節</span>
+                                        {seasonRankingTrendMode === 'recent' && <span className="text-[10px] font-medium text-slate-400">{point.points}pt</span>}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {selectedTournamentType === "league" && selectedCompetitionId !== "all" && (
+              <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
+                <div className="relative pt-3 px-3 pb-3 sm:pt-4 sm:px-4 sm:pb-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div className="text-white text-sm font-semibold">主要スタッツ</div>
+                    <div className="flex rounded-full border border-slate-700 bg-slate-900/50 p-0.5 text-[11px] font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setMainStatsView('main')}
+                        className={`rounded-full px-3 py-1 transition ${mainStatsView === 'main' ? 'bg-[#4ade80] text-slate-950' : 'text-slate-300'}`}
+                      >
+                        チーム
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMainStatsView('player')}
+                        className={`rounded-full px-3 py-1 transition ${mainStatsView === 'player' ? 'bg-[#4ade80] text-slate-950' : 'text-slate-300'}`}
+                      >
+                        選手
+                      </button>
+                    </div>
+                  </div>
+
+                  {mainStatsView === 'main' ? (
+                    <MainStats mainStatsData={mainStats} />
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-700">
+                            <th 
+                              className="px-2 py-2 text-left text-slate-400 font-medium cursor-pointer hover:text-white transition"
+                              onClick={() => handleSort('position')}
+                            >
+                              POS {sortColumn === 'position' && (sortDirection === 'asc' ? '↑' : '↓')}
+                            </th>
+                            <th 
+                              className="px-2 py-2 text-left text-slate-400 font-medium cursor-pointer hover:text-white transition"
+                              onClick={() => handleSort('name')}
+                            >
+                              名前 {sortColumn === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+                            </th>
+                            <th 
+                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
+                              onClick={() => handleSort('matches')}
+                            >
+                              試合数 {sortColumn === 'matches' && (sortDirection === 'asc' ? '↑' : '↓')}
+                            </th>
+                            <th 
+                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
+                              onClick={() => handleSort('starts')}
+                            >
+                              先発 {sortColumn === 'starts' && (sortDirection === 'asc' ? '↑' : '↓')}
+                            </th>
+                            <th 
+                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
+                              onClick={() => handleSort('substitutions')}
+                            >
+                              途中出場 {sortColumn === 'substitutions' && (sortDirection === 'asc' ? '↑' : '↓')}
+                            </th>
+                            <th 
+                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
+                              onClick={() => handleSort('goals')}
+                            >
+                              G {sortColumn === 'goals' && (sortDirection === 'asc' ? '↑' : '↓')}
+                            </th>
+                            <th 
+                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
+                              onClick={() => handleSort('assists')}
+                            >
+                              A {sortColumn === 'assists' && (sortDirection === 'asc' ? '↑' : '↓')}
+                            </th>
+                            <th 
+                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
+                              onClick={() => handleSort('rating')}
+                            >
+                              評価点 {sortColumn === 'rating' && (sortDirection === 'asc' ? '↑' : '↓')}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedPlayerStatsList && sortedPlayerStatsList.length > 0 ? (
+                            sortedPlayerStatsList.map((player) => (
+                              <tr key={player.playerId} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                                <td className="px-2 py-2 text-slate-300">{player.position || '-'}</td>
+                                <td className="px-2 py-2 text-white font-medium">{player.playerName}</td>
+                                <td className="px-2 py-2 text-right text-slate-300">{player.matches}</td>
+                                <td className="px-2 py-2 text-right text-slate-300">{player.starts}</td>
+                                <td className="px-2 py-2 text-right text-slate-300">{player.substitutions}</td>
+                                <td className="px-2 py-2 text-right text-green-400 font-medium">{player.goals}</td>
+                                <td className="px-2 py-2 text-right text-blue-400 font-medium">{player.assists}</td>
+                                <td className="px-2 py-2 text-right text-slate-300">
+                                  {player.rating !== undefined && player.rating !== null ? player.rating.toFixed(2) : '-'}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={8} className="px-2 py-4 text-center text-slate-500">
+                                データがありません
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -867,8 +1336,8 @@ export default function AnalysisPage() {
 
                           <div className="flex-1 h-full relative">
                             <div className="absolute inset-0 z-0">
-                              <div className="absolute inset-x-0 top-0 h-1/2 bg-white/[0.02]" />
-                              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-white/[0.04]" />
+                              <div className="absolute inset-x-0 top-0 h-1/2 bg-slate-900/[0.02]" />
+                              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-slate-900/[0.04]" />
                             </div>
 
                             {!leagueRanksLoading && !leagueRankHistory.points.every((p) => p.rank == null) && (
