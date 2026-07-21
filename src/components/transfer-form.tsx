@@ -60,6 +60,7 @@ interface TransferFormProps {
 
 export function TransferForm({ onSubmit, defaultValues, season, direction, players, fixedCurrency }: TransferFormProps) {
   const [loading, setLoading] = useState(false);
+  const [playerInputMode, setPlayerInputMode] = useState<"existing" | "new">("existing");
 
   const playerOptions = useMemo(() => {
     return [...players].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
@@ -111,16 +112,16 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 pb-10">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 pb-20">
         <FormField
           control={form.control}
           name="kind"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>種類</FormLabel>
+              <FormLabel className="text-[#8b93a7]">種類</FormLabel>
               <Select value={(field.value || "完全") as any} onValueChange={field.onChange as any}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-[#101827] text-white border-[#263149]">
                     <SelectValue placeholder="種類" />
                   </SelectTrigger>
                 </FormControl>
@@ -137,101 +138,142 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="playerId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>選手</FormLabel>
-              <Select
-                value={(field.value && field.value.trim().length > 0 ? field.value : UNSELECTED_PLAYER_VALUE) as any}
-                onValueChange={(v) => {
-                  const next = v === UNSELECTED_PLAYER_VALUE ? "" : v;
-                  field.onChange(next);
-                  const selected = playerOptions.find((p) => p.id === next);
-                  if (selected) {
-                    form.setValue("playerName", selected.name || "");
-                    form.setValue("dateOfBirth", (selected as any).dateOfBirth ?? undefined);
-                    form.setValue("position", (selected as any).position ?? "");
-                  }
-                }}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="選手を選択（任意）" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value={UNSELECTED_PLAYER_VALUE}>未選択</SelectItem>
-                  {playerOptions.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
+        {/* Player Input Mode Toggle */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPlayerInputMode("existing")}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              playerInputMode === "existing"
+                ? "bg-[#141d2e] text-[#60a5fa] border border-[#60a5fa]"
+                : "bg-[#141d2e] text-[#8b93a7] border border-[#263149] hover:text-white"
+            }`}
+          >
+            登録済み選手から選ぶ
+          </button>
+          <button
+            type="button"
+            onClick={() => setPlayerInputMode("new")}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              playerInputMode === "new"
+                ? "bg-[#141d2e] text-[#60a5fa] border border-[#60a5fa]"
+                : "bg-[#141d2e] text-[#8b93a7] border border-[#263149] hover:text-white"
+            }`}
+          >
+            新規選手を追加
+          </button>
+        </div>
+
+        {playerInputMode === "existing" ? (
+          <FormField
+            control={form.control}
+            name="playerId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-[#8b93a7]">選手</FormLabel>
+                <Select
+                  value={(field.value && field.value.trim().length > 0 ? field.value : UNSELECTED_PLAYER_VALUE) as any}
+                  onValueChange={(v) => {
+                    const next = v === UNSELECTED_PLAYER_VALUE ? "" : v;
+                    field.onChange(next);
+                    const selected = playerOptions.find((p) => p.id === next);
+                    if (selected) {
+                      form.setValue("playerName", selected.name || "");
+                      form.setValue("dateOfBirth", (selected as any).dateOfBirth ?? undefined);
+                      form.setValue("position", (selected as any).position ?? "");
+                    }
+                  }}
+                >
+                  <FormControl>
+                    <SelectTrigger className="bg-[#101827] text-white border-[#263149]">
+                      <SelectValue placeholder="選手を選択（任意）" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value={UNSELECTED_PLAYER_VALUE}>未選択</SelectItem>
+                    {playerOptions.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <FormMessage />
             </FormItem>
           )}
         />
+        ) : (
+          <>
+            <FormField
+              control={form.control}
+              name="playerName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[#8b93a7]">選手名</FormLabel>
+                  <FormControl>
+                    <Input placeholder="例: 山田 太郎" {...field} className="bg-[#101827] text-white border-[#263149]" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <FormField
-          control={form.control}
-          name="playerName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>選手名</FormLabel>
-              <FormControl>
-                <Input placeholder="例: 山田 太郎" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="dateOfBirth"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-[#8b93a7]">生年月日</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        placeholder="2000-05-01"
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        className="bg-[#101827] text-white border-[#263149]"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        <div className="grid grid-cols-2 gap-3">
-          <FormField
-            control={form.control}
-            name="dateOfBirth"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>生年月日</FormLabel>
-                <FormControl>
-                  <Input
-                    type="date"
-                    placeholder="2000-05-01"
-                    value={field.value ?? ""}
-                    onChange={field.onChange}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="position"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Pos</FormLabel>
-                <FormControl>
-                  <Input placeholder="GK/DF/MF/FW" value={field.value ?? ""} onChange={field.onChange} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+              <FormField
+                control={form.control}
+                name="position"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-[#8b93a7]">Pos</FormLabel>
+                    <Select value={(field.value || "") as any} onValueChange={field.onChange as any}>
+                      <FormControl>
+                        <SelectTrigger className="bg-[#101827] text-white border-[#263149]">
+                          <SelectValue placeholder="選択" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="GK">GK</SelectItem>
+                        <SelectItem value="DF">DF</SelectItem>
+                        <SelectItem value="MF">MF</SelectItem>
+                        <SelectItem value="FW">FW</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </>
+        )}
 
         <FormField
           control={form.control}
           name="counterparty"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{label}</FormLabel>
+              <FormLabel className="text-[#8b93a7]">{label}</FormLabel>
               <FormControl>
-                <Input placeholder="例: FC ○○" {...field} />
+                <Input placeholder="例: FC ○○" {...field} className="bg-[#101827] text-white border-[#263149]" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -243,7 +285,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
           name="fee"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>金額</FormLabel>
+              <FormLabel className="text-[#8b93a7]">金額</FormLabel>
               <FormControl>
                 <div className="flex gap-2">
                   <FormField
@@ -256,7 +298,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
                         disabled={Boolean(fixedCurrency)}
                       >
                         <FormControl>
-                          <SelectTrigger className="w-24" disabled={Boolean(fixedCurrency)}>
+                          <SelectTrigger className="w-24 bg-[#101827] text-white border-[#263149]" disabled={Boolean(fixedCurrency)}>
                             <SelectValue placeholder="通貨" />
                           </SelectTrigger>
                         </FormControl>
@@ -282,6 +324,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
                     placeholder="例: 10,000"
                     value={(field.value as any) ?? ""}
                     onChange={(e) => field.onChange(e.target.value)}
+                    className="bg-[#101827] text-white border-[#263149]"
                   />
                 </div>
               </FormControl>
@@ -297,7 +340,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
               name="annualSalary"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>年俸</FormLabel>
+                  <FormLabel className="text-[#8b93a7]">年俸</FormLabel>
                   <FormControl>
                     <div className="flex gap-2">
                       <FormField
@@ -310,7 +353,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
                             disabled={Boolean(fixedCurrency)}
                           >
                             <FormControl>
-                              <SelectTrigger className="w-24" disabled={Boolean(fixedCurrency)}>
+                              <SelectTrigger className="w-24 bg-[#101827] text-white border-[#263149]" disabled={Boolean(fixedCurrency)}>
                                 <SelectValue placeholder="通貨" />
                               </SelectTrigger>
                             </FormControl>
@@ -336,6 +379,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
                         placeholder="例: 10,000"
                         value={(field.value as any) ?? ""}
                         onChange={(e) => field.onChange(e.target.value)}
+                        className="bg-[#101827] text-white border-[#263149]"
                       />
                     </div>
                   </FormControl>
@@ -349,7 +393,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
               name="contractYears"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>契約年数</FormLabel>
+                  <FormLabel className="text-[#8b93a7]">契約年数</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
@@ -357,6 +401,7 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
                       placeholder="例: 3"
                       value={field.value ?? ""}
                       onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                      className="bg-[#101827] text-white border-[#263149]"
                     />
                   </FormControl>
                   <FormMessage />
@@ -366,10 +411,13 @@ export function TransferForm({ onSubmit, defaultValues, season, direction, playe
           </>
         ) : null}
 
-        <Button type="submit" disabled={loading} className="w-full bg-emerald-600 text-white hover:bg-emerald-700">
-          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          保存する
-        </Button>
+        {/* Fixed Save Button */}
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#101827] border-t border-[#263149]">
+          <Button type="submit" disabled={loading} className="w-full bg-[#4ade80] text-[#052e13] hover:bg-[#22c55e] font-medium">
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            保存する
+          </Button>
+        </div>
       </form>
     </Form>
   );

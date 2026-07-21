@@ -149,7 +149,7 @@ export default function PlanPage() {
                 <svg className="w-5 h-5 text-[#4b5563] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-sm text-[#6b7280]">選手画像登録 20枚まで（1シーズン）</span>
+                <span className="text-sm text-[#6b7280]">選手画像登録 30枚まで</span>
               </li>
               <li className="flex items-start gap-2">
                 <svg className="w-5 h-5 text-[#4b5563] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -211,13 +211,13 @@ export default function PlanPage() {
                 <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-sm text-white">選手登録 30名まで（1シーズン）</span>
+                <span className="text-sm text-white">選手登録 50名まで（1シーズン）</span>
               </li>
               <li className="flex items-start gap-2">
                 <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-sm text-white">選手画像登録 30枚まで（1シーズン）</span>
+                <span className="text-sm text-white">選手画像登録 50枚まで（1シーズン）</span>
               </li>
               <li className="flex items-start gap-2">
                 <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -229,7 +229,13 @@ export default function PlanPage() {
                 <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-sm text-white">大会作成 <span className="text-[#60a5fa] font-semibold">無制限</span>（1シーズン）</span>
+                <span className="text-sm text-white">チーム画像登録 <span className="text-[#60a5fa] font-semibold">無制限</span></span>
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-white">大会作成 <span className="text-[#60a5fa] font-semibold">無制限</span></span>
               </li>
               <li className="flex items-start gap-2">
                 <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

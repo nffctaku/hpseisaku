@@ -84,7 +84,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
   const planTier = getPlanTier(user?.plan);
   const maxPlayers = getPlanLimit("players_per_team_per_season", planTier);
-  const maxPlayerPhotos = getPlanLimit("player_photos_per_team_per_season", planTier);
+  const maxPlayerPhotos = getPlanLimit("player_photos_per_team", planTier);
 
   const normalizeBasePosition = (input: unknown): (typeof POSITIONS)[number] | null => {
     const raw = typeof input === "string" ? input.trim() : "";

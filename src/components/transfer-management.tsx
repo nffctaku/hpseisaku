@@ -43,6 +43,7 @@ import { TransferForm, TransferFormValues } from "@/components/transfer-form";
 import { PlayersDataTable } from "@/components/players-data-table";
 import { transferColumns } from "@/components/transfers-columns";
 import { toSlashSeason } from "@/lib/season";
+import { formatMoneyWithSymbol } from "@/lib/money";
 
 interface TransferManagementProps {
   teamId: string;
@@ -78,6 +79,13 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
   const hideCurrencySelect = Boolean((arguments[0] as any)?.hideCurrencySelect);
 
   const transferFormKey = editing ? `${editing.id}-${currency}` : `new-${selectedSeason}-${direction}-${currency}`;
+
+  const formatCurrencyAmount = (currency: string, amount: number): string => {
+    if (currency === "EUR") {
+      return `€${(amount / 1000000).toFixed(1)}M`;
+    }
+    return formatMoneyWithSymbol(amount, currency);
+  };
 
   useEffect(() => {
     if (!clubUid || !teamId) return;
@@ -282,117 +290,144 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
 
   return (
     <>
-      <div className="mt-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              {!hideSeasonSelect && (
-                <>
-                  <span className="text-sm text-muted-foreground">シーズン</span>
-                  <Select value={selectedSeason} onValueChange={onChangeSeason}>
-                    <SelectTrigger className="w-40 bg-white text-gray-900">
-                      <SelectValue placeholder="シーズン" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {seasons.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </>
-              )}
-
-              {!hideCurrencySelect && (
-                <>
-                  <span className="ml-2 text-sm text-muted-foreground">通貨</span>
-                  <Select value={currency} onValueChange={(v) => setCurrency(v as any)}>
-                    <SelectTrigger className="w-28 bg-white text-gray-900">
-                      <SelectValue placeholder="通貨" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="JPY">JPY(￥)</SelectItem>
-                      <SelectItem value="EUR">EUR(€)</SelectItem>
-                      <SelectItem value="GBP">GBP(￡)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </>
-              )}
-            </div>
-
-            <div className="flex w-full overflow-hidden rounded-md border border-border">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setDirection("in")}
-                className={`flex-1 rounded-none border-r border-border ${
-                  direction === "in" ? "bg-green-600 text-white hover:bg-green-700" : "bg-white text-gray-900 hover:bg-gray-100"
-                }`}
-              >
-                IN
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setDirection("out")}
-                className={`flex-1 rounded-none ${
-                  direction === "out" ? "bg-red-600 text-white hover:bg-red-700" : "bg-white text-gray-900 hover:bg-gray-100"
-                }`}
-              >
-                OUT
-              </Button>
-            </div>
-          </div>
-
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openAddDialog} className="bg-sky-600 text-white hover:bg-sky-700">
-                選手の移籍を記録する
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh]">
-              <DialogHeader>
-                <DialogTitle>{editing ? "移籍ログを編集" : "移籍ログを追加"}</DialogTitle>
-              </DialogHeader>
-              <TransferForm
-                key={transferFormKey}
-                onSubmit={handleFormSubmit}
-                defaultValues={
-                  editing
-                    ? ({
-                        ...(editing as any),
-                        feeCurrency: currency,
-                        annualSalaryCurrency: currency,
-                      } as any)
-                    : ({
-                        feeCurrency: currency,
-                        annualSalaryCurrency: currency,
-                      } as any)
-                }
-                fixedCurrency={currency}
-                season={selectedSeason}
-                direction={direction}
-                players={filteredPlayers}
-              />
-            </DialogContent>
-          </Dialog>
+      <div className="mt-6 space-y-4">
+        {/* IN/OUT Pill Toggle */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDirection("in")}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              direction === "in"
+                ? "bg-[#141d2e] text-[#4ade80] border border-[#4ade80]"
+                : "bg-[#141d2e] text-[#8b93a7] border border-[#263149] hover:text-white"
+            }`}
+          >
+            IN
+          </button>
+          <button
+            type="button"
+            onClick={() => setDirection("out")}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              direction === "out"
+                ? "bg-[#141d2e] text-[#f87171] border border-[#f87171]"
+                : "bg-[#141d2e] text-[#8b93a7] border border-[#263149] hover:text-white"
+            }`}
+          >
+            OUT
+          </button>
         </div>
 
-        <PlayersDataTable columns={transferColumns(direction, openEditDialog, setDeleting)} data={filteredItems} />
+        {/* Add Button */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <button
+              type="button"
+              onClick={openAddDialog}
+              className="w-full py-3 rounded-xl bg-[#60a5fa] text-white font-medium hover:bg-[#3b82f6] transition-colors"
+            >
+              ＋ 選手の移籍を記録する
+            </button>
+          </DialogTrigger>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh] bg-[#101827] border-[#263149]">
+            <DialogHeader>
+              <DialogTitle className="text-white">{editing ? "移籍ログを編集" : "移籍ログを追加"}</DialogTitle>
+            </DialogHeader>
+            <TransferForm
+              key={transferFormKey}
+              onSubmit={handleFormSubmit}
+              defaultValues={
+                editing
+                  ? ({
+                      ...(editing as any),
+                      feeCurrency: currency,
+                      annualSalaryCurrency: currency,
+                    } as any)
+                  : ({
+                      feeCurrency: currency,
+                      annualSalaryCurrency: currency,
+                    } as any)
+              }
+              fixedCurrency={currency}
+              season={selectedSeason}
+              direction={direction}
+              players={filteredPlayers}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Transfer Cards List */}
+        {filteredItems.length === 0 ? (
+          <div className="rounded-xl border-2 border-dashed border-[#263149] bg-[#141d2e] p-8 text-center">
+            <p className="text-sm text-[#8b93a7] mb-2">まだ記録がありません</p>
+            <p className="text-xs text-[#6b7280]">「＋ 選手の移籍を記録する」ボタンから追加してください</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredItems.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => openEditDialog(item)}
+                className="rounded-xl border border-[#263149] bg-[#141d2e] p-4 cursor-pointer hover:border-[#60a5fa] transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  {/* Avatar */}
+                  <div className="w-[34px] h-[34px] rounded-full bg-[#101827] flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-medium text-[#8b93a7]">
+                      {(item.playerName || "").charAt(0) || "?"}
+                    </span>
+                  </div>
+
+                  {/* Player Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-white truncate">
+                      {item.playerName || "-"}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {/* Position Badge */}
+                      {item.position && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[rgba(96,165,250,0.12)] text-[#60a5fa]">
+                          {item.position}
+                        </span>
+                      )}
+                      {/* Metadata */}
+                      <span className="text-xs text-[#8b93a7] truncate">
+                        {item.counterparty || "-"}
+                        {item.age != null && ` · ${item.age}歳`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Amount */}
+                  <div className="text-right">
+                    {(item as any).fee != null && (
+                      <p className="text-sm font-semibold text-white">
+                        {formatCurrencyAmount((item as any).feeCurrency || currency, (item as any).fee)}
+                      </p>
+                    )}
+                    {direction === "in" && (item as any).annualSalary != null && (
+                      <p className="text-xs text-[#8b93a7]">
+                        年俸: {formatCurrencyAmount((item as any).annualSalaryCurrency || currency, (item as any).annualSalary)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <AlertDialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-[#101827] border-[#263149]">
           <AlertDialogHeader>
-            <AlertDialogTitle>本当に削除しますか？</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-white">本当に削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#8b93a7]">
               移籍ログ「{deleting?.playerName}」を削除します。この操作は元に戻せません。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>キャンセル</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>削除</AlertDialogAction>
+            <AlertDialogCancel className="bg-[#141d2e] text-white border-[#263149] hover:bg-[#263149]">キャンセル</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-[#f87171] text-white hover:bg-[#dc2626]">削除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
