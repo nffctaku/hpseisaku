@@ -125,69 +125,131 @@ export default function PlanPage() {
   };
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-2xl md:text-3xl font-bold mb-4">プラン</h1>
+    <div className="min-h-screen bg-[#0b1220] p-4 md:p-8">
+      <div className="mx-auto max-w-4xl">
+        <h1 className="text-2xl md:text-3xl font-bold text-white mb-8">プラン</h1>
 
-      <div className="mb-6">
-        <div className="relative w-full sm:hidden">
-          <Image
-            src="/最新プラン.jpg"
-            alt="プラン内容"
-            width={1170}
-            height={2532}
-            className="w-full h-auto"
-            sizes="100vw"
-            priority
-          />
-        </div>
-        <div className="hidden sm:block w-full max-w-5xl">
-          <Image
-            src="/プラン画像PC.png"
-            alt="プラン内容"
-            width={1920}
-            height={1080}
-            className="w-full h-auto"
-            sizes="(min-width: 768px) 1024px, 100vw"
-            priority
-          />
-        </div>
-      </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Free Card */}
+          <div className="relative rounded-xl border border-[#263149] bg-[#141d2e] p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-[14px] font-semibold text-white">Free プラン</h2>
+              <p className="text-[20px] font-semibold text-[#e5e7eb]">月額 0円</p>
+            </div>
+            <p className="text-[11px] text-[#8b93a7] mb-6">まずは無料で始められます</p>
+            
+            <ul className="space-y-3 mb-6">
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#4b5563] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-[#6b7280]">チーム画像登録 20枚まで</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#4b5563] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-[#6b7280]">チーム登録数 無制限</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#4b5563] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-[#6b7280]">選手登録 30名まで（1シーズン）</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#4b5563] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-[#6b7280]">選手画像登録 20枚まで（1シーズン）</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#4b5563] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-[#6b7280]">大会作成 3つまで（1シーズン）</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#4b5563] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-[#6b7280]">選手名鑑生成 A4ver</span>
+              </li>
+            </ul>
 
-      <div className="grid gap-4 max-w-5xl md:grid-cols-2">
-        <div className="space-y-4 bg-white text-gray-900 border rounded-lg p-6">
-          <div>
-            <h2 className="text-lg font-semibold mb-1">Free プラン</h2>
-            <p className="text-sm text-muted-foreground">月額 0円</p>
-          </div>
-          <div className="pt-4 flex flex-col gap-2">
             {!isPaid ? (
-              <p className="text-sm font-semibold text-emerald-700">現在 Free プランをご利用中です。</p>
+              <p className="text-sm font-semibold text-white">現在 Free プランをご利用中です。</p>
             ) : (
-              <p className="text-sm text-muted-foreground">現在 Pro プランをご利用中です。</p>
+              <Button
+                onClick={() => handleOpenBillingPortal({ flow: "cancel" })}
+                disabled={loading}
+                variant="outline"
+                className="w-full border-[#4b5563] text-[#6b7280] hover:bg-[#263149] hover:text-white"
+              >
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                プラン変更
+              </Button>
             )}
           </div>
-        </div>
 
-        <div className="space-y-4 bg-white text-gray-900 border rounded-lg p-6">
-          <div>
-            <h2 className="text-lg font-semibold mb-1">Pro プラン</h2>
-            <p className="text-sm text-muted-foreground">月額 380円</p>
-          </div>
-          <div className="pt-4 flex flex-col gap-2">
+          {/* Pro Card */}
+          <div className="relative rounded-xl border border-[#60a5fa] bg-[#1a2438] p-6 shadow-lg">
+            <div className="absolute -top-3 left-4">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#60a5fa] text-[#0b1220]">
+                おすすめ
+              </span>
+            </div>
+            
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-[14px] font-semibold text-white">Pro プラン</h2>
+              <p className="text-[20px] font-semibold text-[#60a5fa]">月額 380円</p>
+            </div>
+            <p className="text-[11px] text-[#8b93a7] mb-6">チーム運営を本格的にサポート</p>
+            
+            <ul className="space-y-3 mb-6">
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-white">選手登録 30名まで（1シーズン）</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-white">チーム登録数 <span className="text-[#60a5fa] font-semibold">無制限</span></span>
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-white">選手画像登録 30枚まで（1シーズン）</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-white">大会作成 <span className="text-[#60a5fa] font-semibold">無制限</span>（1シーズン）</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-white">選手名鑑生成 <span className="text-[#60a5fa] font-semibold">フル機能</span></span>
+              </li>
+            </ul>
+
             {isPro ? (
               <>
-                <p className="text-sm font-semibold text-emerald-700">現在 Pro プランをご利用中です。</p>
-                <p className="text-xs text-muted-foreground">
-                  決済と請求管理は Stripe 上で行われます。プランの変更や解約は、下記ボタンから開く Stripe の画面で行ってください。
-                </p>
+                <p className="text-sm font-semibold text-white mb-3">現在 Pro プランをご利用中です。</p>
                 <Button
                   onClick={() => handleOpenBillingPortal({ flow: "cancel" })}
                   disabled={loading}
                   variant="outline"
-                  className="w-full md:w-auto text-sm"
+                  className="w-full border-[#60a5fa] text-[#60a5fa] hover:bg-[#60a5fa] hover:text-[#0b1220]"
                 >
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  契約内容の確認・解約はこちら
+                  契約内容の確認・解約
                 </Button>
               </>
             ) : (
@@ -195,15 +257,22 @@ export default function PlanPage() {
                 <Button
                   onClick={() => handleUpgrade({ plan: "pro" })}
                   disabled={loading || isOfficia}
-                  className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm px-6 py-2 rounded-md shadow-md"
+                  className="w-full bg-[#60a5fa] hover:bg-[#3b82f6] text-white font-semibold"
                 >
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  有料プランにアップグレード
+                  Proプランにアップグレード
                 </Button>
-                <p className="text-xs text-muted-foreground">ボタンを押すと Stripe の決済画面が開きます。</p>
+                <p className="text-xs text-[#8b93a7] mt-2 text-center">ボタンを押すと Stripe の決済画面が開きます。</p>
               </>
             )}
           </div>
+        </div>
+
+        <div className="mt-8 p-4 rounded-lg border border-[#263149] bg-[#141d2e]">
+          <p className="text-xs text-[#8b93a7] leading-relaxed">
+            ※ 利用者の規模・運営体制により内容が変更になる可能性があります。<br />
+            ※ 悪質な無制限利用と運営が判断した場合は、該当ユーザーの利用を制限する場合があります。
+          </p>
         </div>
       </div>
     </div>

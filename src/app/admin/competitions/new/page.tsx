@@ -136,7 +136,7 @@ export default function NewCompetitionPage() {
   const clubUid = ownerUid || user?.uid;
 
   const planTier = getPlanTier(user?.plan);
-  const maxCompetitions = getPlanLimit("competitions_per_club", planTier);
+  const maxCompetitions = getPlanLimit("competitions_per_season", planTier);
 
   const getTeamInitial = (name: string) => {
     const s = (name || '').trim();

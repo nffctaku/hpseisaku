@@ -53,7 +53,7 @@ export default function CompetitionsPage() {
 
   const planTier = getPlanTier(user?.plan);
   const isPaid = planTier !== "free";
-  const maxCompetitions = getPlanLimit("competitions_per_club", planTier);
+  const maxCompetitions = getPlanLimit("competitions_per_season", planTier);
 
   const clubUid = ownerUid || user?.uid;
 
