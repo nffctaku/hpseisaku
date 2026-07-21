@@ -249,7 +249,7 @@ export default function PlanPage() {
                   className="w-full border-[#60a5fa] text-[#60a5fa] hover:bg-[#60a5fa] hover:text-[#0b1220]"
                 >
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  契約内容の確認・解約
+                  確認・解約
                 </Button>
               </>
             ) : (
