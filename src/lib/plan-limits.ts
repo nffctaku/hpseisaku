@@ -24,8 +24,8 @@ const LIMIT_TABLE: Record<LimitKey, Record<PlanTier, number>> = {
   videos_per_club: { free: Number.POSITIVE_INFINITY, pro: Number.POSITIVE_INFINITY, officia: Number.POSITIVE_INFINITY },
   competitions_per_season: { free: 3, pro: Number.POSITIVE_INFINITY, officia: Number.POSITIVE_INFINITY },
   players_per_team_per_season: { free: 30, pro: 50, officia: Number.POSITIVE_INFINITY },
-  player_photos_per_team_per_season: { free: 30, pro: 50, officia: Number.POSITIVE_INFINITY },
-  player_photos_per_team: { free: 30, pro: Number.POSITIVE_INFINITY, officia: Number.POSITIVE_INFINITY },
+  player_photos_per_team_per_season: { free: 20, pro: 50, officia: Number.POSITIVE_INFINITY },
+  player_photos_per_team: { free: 20, pro: Number.POSITIVE_INFINITY, officia: Number.POSITIVE_INFINITY },
   staff_per_season: { free: Number.POSITIVE_INFINITY, pro: Number.POSITIVE_INFINITY, officia: Number.POSITIVE_INFINITY },
   team_photos_per_team: { free: 20, pro: Number.POSITIVE_INFINITY, officia: Number.POSITIVE_INFINITY },
 };

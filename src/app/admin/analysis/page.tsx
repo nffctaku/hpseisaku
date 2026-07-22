@@ -295,10 +295,17 @@ export default function AnalysisPage() {
       return m?.competitionType === 'league' && season === selectedSeason && sameCompetition;
     });
 
+    const parseScore = (value: any): number | null => {
+      if (value === undefined || value === null || value === '') return null;
+      if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    };
+
     const completedMatches = seasonMatches.filter((m: any) => {
-      const scoreHome = typeof m?.scoreHome === 'number' ? m.scoreHome : Number(m?.scoreHome);
-      const scoreAway = typeof m?.scoreAway === 'number' ? m.scoreAway : Number(m?.scoreAway);
-      return Number.isFinite(scoreHome) && Number.isFinite(scoreAway);
+      const scoreHome = parseScore(m?.scoreHome);
+      const scoreAway = parseScore(m?.scoreAway);
+      return scoreHome !== null && scoreAway !== null;
     });
 
     if (completedMatches.length === 0) return null;
@@ -1105,6 +1112,7 @@ export default function AnalysisPage() {
                                     strokeWidth="1.5"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
+                                    strokeDasharray="2 5 16 5"
                                   />
                                 )}
                                 {validPoints.map((point, index, points) => {
@@ -1115,11 +1123,6 @@ export default function AnalysisPage() {
                                       <text x={x} y={Math.max(10, y - 10)} textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">
                                         {point.rank}
                                       </text>
-                                      {seasonRankingTrendMode === 'all' && (
-                                        <text x={x} y={Math.min(chartBottom - 4, y + 15)} textAnchor="middle" fontSize="7" fill="#94a3b8" fontWeight="600">
-                                          {point.points}pt
-                                        </text>
-                                      )}
                                     </g>
                                   );
                                 })}
@@ -1141,7 +1144,7 @@ export default function AnalysisPage() {
                                   </div>
                                 );
                               })}
-                              <div className="border-t border-slate-700/50 pt-2 relative" style={{ height: seasonRankingTrendMode === 'recent' ? '40px' : '24px' }}>
+                              <div className="border-t border-slate-700/50 pt-2 relative" style={{ height: '40px' }}>
                                 {graphPoints.map((point, index) => {
                                   const x = toX(index, graphPoints.length);
                                   return (
@@ -1152,7 +1155,7 @@ export default function AnalysisPage() {
                                     >
                                       <div className="flex flex-col items-center gap-0.5">
                                         <span className="text-[11px] font-semibold text-slate-300">第{point.round}節</span>
-                                        {seasonRankingTrendMode === 'recent' && <span className="text-[10px] font-medium text-slate-400">{point.points}pt</span>}
+                                        <span className="text-[10px] font-medium text-slate-400">{point.points}pt</span>
                                       </div>
                                     </div>
                                   );

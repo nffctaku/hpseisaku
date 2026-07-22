@@ -50,18 +50,17 @@ export default function LandingPage() {
           </div>
 
           <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden sm:hidden">
-            <div className="relative w-full h-[75svh]">
-              <Image
-                src="/top-hero-mobile.jpg"
-                alt="FootChorn"
-                fill
-                className="object-cover object-top"
-                sizes="100vw"
-                priority
-              />
-            </div>
+            <Image
+              src="/top-hero-mobile.jpg"
+              alt="FootChorn"
+              width={1080}
+              height={1920}
+              className="w-full h-auto"
+              sizes="100vw"
+              priority
+            />
 
-            <div className="absolute bottom-[10svh] left-1/2 -translate-x-1/2 z-20">
+            <div className="absolute bottom-[5.5%] left-1/2 -translate-x-1/2 z-20">
               <Link
                 href="/admin"
                 className="inline-flex items-center text-base px-12 py-4 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors whitespace-nowrap"
@@ -130,16 +129,55 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="sm:hidden relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
-            <Image
-              src="/リアルも、 ゲームも。 Webアプリで、 プロ級のクラブ管理。 (2).jpg"
-              alt="リアルも、ゲームも。Webアプリで、プロ級のクラブ管理。"
-              width={1080}
-              height={1920}
-              className="w-full h-auto"
-              sizes="100vw"
-              priority
-            />
+          <div className="sm:hidden relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white px-4 py-8">
+            <div className="mx-auto max-w-[420px] space-y-6">
+              <h2 className="text-center text-xl font-bold leading-snug text-slate-900">
+                本格的なクラブHP、自分だけのクラブの"顔"を、簡単に作成
+              </h2>
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+                <Image
+                  src="/紹介①.png"
+                  alt="FootChornの紹介"
+                  width={1546}
+                  height={1017}
+                  className="w-full h-auto"
+                  sizes="(max-width: 640px) calc(100vw - 32px), 420px"
+                  priority
+                />
+              </div>
+
+              <h2 className="text-center text-xl font-bold leading-snug text-slate-900">
+                試合ごとのスタッツやシーズンごとの大会成績まで選手成績が丸わかり。オリジナルチャート機能も搭載。
+              </h2>
+
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+                <Image
+                  src="/紹介②.png"
+                  alt="FootChornの紹介"
+                  width={1398}
+                  height={1125}
+                  className="w-full h-auto"
+                  sizes="(max-width: 640px) calc(100vw - 32px), 420px"
+                  priority
+                />
+              </div>
+
+              <h2 className="text-center text-xl font-bold leading-snug text-slate-900">
+                チーム分析ではシーズンの戦績を振り返れるのは勿論。シーズンごとの成績比較や対戦チームとの戦績も振り返り出来る。
+              </h2>
+
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+                <Image
+                  src="/紹介③.png"
+                  alt="FootChornの紹介"
+                  width={1473}
+                  height={1068}
+                  className="w-full h-auto"
+                  sizes="(max-width: 640px) calc(100vw - 32px), 420px"
+                  priority
+                />
+              </div>
+            </div>
           </div>
 
           <div className="hidden sm:block pt-0">
@@ -310,7 +348,7 @@ export default function LandingPage() {
                         <svg className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        <span className="text-sm text-gray-700">選手画像登録 30枚まで</span>
+                        <span className="text-sm text-gray-700">選手画像登録 20名まで（1シーズン）</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <svg className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

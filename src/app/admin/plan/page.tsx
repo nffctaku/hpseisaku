@@ -149,7 +149,7 @@ export default function PlanPage() {
                 <svg className="w-5 h-5 text-[#4b5563] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-sm text-[#6b7280]">選手画像登録 30枚まで</span>
+                <span className="text-sm text-[#6b7280]">選手画像登録 20名まで（1シーズン）</span>
               </li>
               <li className="flex items-start gap-2">
                 <svg className="w-5 h-5 text-[#4b5563] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
