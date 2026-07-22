@@ -14,6 +14,7 @@ export default function LandingPage() {
   const sliderContainerRef = React.useRef<HTMLDivElement | null>(null);
   const [slideIndex, setSlideIndex] = React.useState(0);
   const [currentInfoSlide, setCurrentInfoSlide] = React.useState(0);
+  const mobileInfoSlideCount = 2;
 
   React.useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -70,6 +71,18 @@ export default function LandingPage() {
             </div>
           </div>
 
+          <div className="sm:hidden relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
+            <Image
+              src="/リアルも、 ゲームも。 Webアプリで、 プロ級のクラブ管理。 (1).jpg"
+              alt="リアルも、ゲームも。Webアプリで、プロ級のクラブ管理。"
+              width={1080}
+              height={1920}
+              className="w-full h-auto"
+              sizes="100vw"
+              priority
+            />
+          </div>
+
           <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] hidden h-[65vw] min-h-[420px] max-h-[880px] bg-white overflow-hidden sm:block">
             <Image
               src="/PCトップ画像.png"
@@ -84,7 +97,7 @@ export default function LandingPage() {
           <div className="sm:hidden pt-0 relative">
             <div className="absolute top-1/2 left-2 z-10 transform -translate-y-1/2">
               <button
-                onClick={() => setCurrentInfoSlide((prev) => (prev === 0 ? 1 : 0))}
+                onClick={() => setCurrentInfoSlide((prev) => (prev - 1 + mobileInfoSlideCount) % mobileInfoSlideCount)}
                 className="bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
               >
                 &lt;
@@ -92,7 +105,7 @@ export default function LandingPage() {
             </div>
             <div className="absolute top-1/2 right-2 z-10 transform -translate-y-1/2">
               <button
-                onClick={() => setCurrentInfoSlide((prev) => (prev === 0 ? 1 : 0))}
+                onClick={() => setCurrentInfoSlide((prev) => (prev + 1) % mobileInfoSlideCount)}
                 className="bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
               >
                 &gt;
