@@ -50,7 +50,7 @@ export default function LandingPage() {
           </div>
 
           <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden sm:hidden">
-            <div className="relative w-full h-[75vh]">
+            <div className="relative w-full h-[75svh]">
               <Image
                 src="/top-hero-mobile.jpg"
                 alt="FootChorn"
@@ -61,7 +61,7 @@ export default function LandingPage() {
               />
             </div>
 
-            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20">
+            <div className="absolute bottom-[10svh] left-1/2 -translate-x-1/2 z-20">
               <Link
                 href="/admin"
                 className="inline-flex items-center text-base px-12 py-4 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors whitespace-nowrap"
@@ -69,18 +69,6 @@ export default function LandingPage() {
                 無料で始める
               </Link>
             </div>
-          </div>
-
-          <div className="sm:hidden relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
-            <Image
-              src="/リアルも、 ゲームも。 Webアプリで、 プロ級のクラブ管理。 (1).jpg"
-              alt="リアルも、ゲームも。Webアプリで、プロ級のクラブ管理。"
-              width={1080}
-              height={1920}
-              className="w-full h-auto"
-              sizes="100vw"
-              priority
-            />
           </div>
 
           <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] hidden h-[65vw] min-h-[420px] max-h-[880px] bg-white overflow-hidden sm:block">
@@ -140,6 +128,18 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="sm:hidden relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
+            <Image
+              src="/リアルも、 ゲームも。 Webアプリで、 プロ級のクラブ管理。 (2).jpg"
+              alt="リアルも、ゲームも。Webアプリで、プロ級のクラブ管理。"
+              width={1080}
+              height={1920}
+              className="w-full h-auto"
+              sizes="100vw"
+              priority
+            />
           </div>
 
           <div className="hidden sm:block pt-0">
