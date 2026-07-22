@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import * as React from "react";
 import { SystemAnnouncement } from "@/components/system-announcement";
+import { SnapPager } from "@/components/SnapPager";
 
 export default function LandingPage() {
   const { user } = useAuth();
@@ -12,6 +13,7 @@ export default function LandingPage() {
   const slideRefs = React.useRef<Array<HTMLDivElement | null>>([]);
   const sliderContainerRef = React.useRef<HTMLDivElement | null>(null);
   const [slideIndex, setSlideIndex] = React.useState(0);
+  const [currentInfoSlide, setCurrentInfoSlide] = React.useState(0);
 
   React.useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -47,22 +49,23 @@ export default function LandingPage() {
           </div>
 
           <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden sm:hidden">
-            <Image
-              src="/サイトトップモバイル最新.jpg"
-              alt="FootChorn"
-              width={576}
-              height={1024}
-              className="w-full h-auto"
-              sizes="100vw"
-              priority
-            />
+            <div className="relative w-full h-[75vh]">
+              <Image
+                src="/top-hero-mobile.jpg"
+                alt="FootChorn"
+                fill
+                className="object-cover object-top"
+                sizes="100vw"
+                priority
+              />
+            </div>
 
-            <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20">
+            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20">
               <Link
                 href="/admin"
-                className="inline-flex items-center text-base px-8 py-4 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors whitespace-nowrap"
+                className="inline-flex items-center text-base px-12 py-4 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors whitespace-nowrap"
               >
-                始める
+                無料で始める
               </Link>
             </div>
           </div>
@@ -78,29 +81,51 @@ export default function LandingPage() {
             />
           </div>
 
-          <div className="sm:hidden pt-0">
-            <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
-              <Image
-                src="/モバイル情報最新１.jpg"
-                alt="FootChorn"
-                width={1170}
-                height={2532}
-                className="w-full h-auto"
-                sizes="100vw"
-              />
+          <div className="sm:hidden pt-0 relative">
+            <div className="absolute top-1/2 left-2 z-10 transform -translate-y-1/2">
+              <button
+                onClick={() => setCurrentInfoSlide((prev) => (prev === 0 ? 1 : 0))}
+                className="bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+              >
+                &lt;
+              </button>
             </div>
-          </div>
-
-          <div className="sm:hidden pt-0">
+            <div className="absolute top-1/2 right-2 z-10 transform -translate-y-1/2">
+              <button
+                onClick={() => setCurrentInfoSlide((prev) => (prev === 0 ? 1 : 0))}
+                className="bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+              >
+                &gt;
+              </button>
+            </div>
             <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
-              <Image
-                src="/モバイル情報最新２.jpg"
-                alt="FootChorn"
-                width={1170}
-                height={2532}
-                className="w-full h-auto"
-                sizes="100vw"
-              />
+              <div className="relative w-full h-[80vh] overflow-hidden">
+                <div 
+                  className="flex transition-transform duration-700 ease-in-out"
+                  style={{ transform: `translateX(-${currentInfoSlide * 100}%)` }}
+                >
+                  <div className="w-full flex-shrink-0 h-[80vh] relative">
+                    <Image
+                      src="/モバイル情報最新１.jpg"
+                      alt="FootChorn"
+                      fill
+                      className="object-cover"
+                      sizes="100vw"
+                      priority
+                    />
+                  </div>
+                  <div className="w-full flex-shrink-0 h-[80vh] relative">
+                    <Image
+                      src="/モバイル情報最新２.jpg"
+                      alt="FootChorn"
+                      fill
+                      className="object-cover"
+                      sizes="100vw"
+                      priority
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -208,84 +233,165 @@ export default function LandingPage() {
                   <br className="sm:hidden" />
                   簡単に記録・公開が可能。
                 </p>
+              </div>
 
-                <div className="mt-5 text-center">
-                  <div className="text-sm sm:text-base font-semibold">サンプルページはこちら</div>
-                  <a
-                    href="https://www.f-main.com/kkk"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 inline-flex items-center justify-center h-12 px-8 rounded-md bg-orange-500 text-white font-semibold hover:bg-orange-600 transition-colors"
-                  >
-                    サンプルページを見る
-                  </a>
-                </div>
+              <div className="mt-6">
+                <div className="sm:hidden relative w-screen left-1/2 -ml-[50vw] bg-[#21c45a] text-white">
+                  <div className="mx-auto max-w-5xl px-6 py-6 text-center">
+                    <div className="text-lg font-bold">LINE登録で、最新情報をすぐゲット！</div>
+                    <div className="mt-2 text-sm text-white/90">アップデート情報をLINEでお届け</div>
 
-                <div className="mt-6">
-                  <div className="sm:hidden relative w-screen left-1/2 -ml-[50vw] bg-[#21c45a] text-white">
-                    <div className="mx-auto max-w-5xl px-6 py-6 text-center">
-                      <div className="text-lg font-bold">LINE登録で、最新情報をすぐゲット！</div>
-                      <div className="mt-2 text-sm text-white/90">アップデート情報をLINEでお届け</div>
-
-                      <a
-                        href="https://lin.ee/0IxYvaa"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-5 inline-flex items-center justify-center gap-2 bg-white text-[#21c45a] font-semibold rounded-full h-12 px-8"
-                      >
-                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#21c45a] text-white text-[10px] font-bold">
-                          LINE
-                        </span>
-                        <span>LINE登録する</span>
-                      </a>
-                    </div>
-                  </div>
-
-                  <div className="hidden sm:block relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-[#21c45a] text-white">
-                    <div className="mx-auto max-w-5xl px-6 py-6 text-center">
-                      <div className="text-lg font-bold">LINE登録で、最新情報をすぐゲット！</div>
-                      <div className="mt-2 text-sm text-white/90">アップデート情報をLINEでお届け</div>
-
-                      <a
-                        href="https://lin.ee/0IxYvaa"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-5 inline-flex items-center justify-center gap-2 bg-white text-[#21c45a] font-semibold rounded-full h-12 px-8"
-                      >
-                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#21c45a] text-white text-[10px] font-bold">
-                          LINE
-                        </span>
-                        <span>LINE登録する</span>
-                      </a>
-                    </div>
+                    <a
+                      href="https://lin.ee/0IxYvaa"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-5 inline-flex items-center justify-center gap-2 bg-white text-[#21c45a] font-semibold rounded-full h-12 px-8"
+                    >
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#21c45a] text-white text-[10px] font-bold">
+                        LINE
+                      </span>
+                      <span>LINE登録する</span>
+                    </a>
                   </div>
                 </div>
 
-                <div className="mt-0 flex justify-center">
-                  <div className="sm:hidden w-full">
-                    <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
-                      <Image
-                        src="/最新プラン.jpg"
-                        alt="最新プラン"
-                        width={1170}
-                        height={2532}
-                        className="w-full h-auto"
-                        sizes="100vw"
-                      />
+                <div className="hidden sm:block relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-[#21c45a] text-white">
+                  <div className="mx-auto max-w-5xl px-6 py-6 text-center">
+                    <div className="text-lg font-bold">LINE登録で、最新情報をすぐゲット！</div>
+                    <div className="mt-2 text-sm text-white/90">アップデート情報をLINEでお届け</div>
+
+                    <a
+                      href="https://lin.ee/0IxYvaa"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-5 inline-flex items-center justify-center gap-2 bg-white text-[#21c45a] font-semibold rounded-full h-12 px-8"
+                    >
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#21c45a] text-white text-[10px] font-bold">
+                        LINE
+                      </span>
+                      <span>LINE登録する</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Plan Cards */}
+              <div className="mt-8">
+                <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
+                  {/* Free Card */}
+                  <div className="relative rounded-xl border border-gray-200 bg-white p-6 shadow-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="text-[14px] font-semibold text-gray-900">Free プラン</h2>
+                      <p className="text-[20px] font-semibold text-gray-900">月額 0円</p>
                     </div>
+                    <p className="text-[11px] text-gray-600 mb-6">まずは無料で始められます</p>
+
+                    <ul className="space-y-3 mb-6">
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-700">選手登録 30名まで（1シーズン）</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-700">選手画像登録 30枚まで</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-700">チーム画像登録 20枚まで</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-700">チーム登録数 無制限</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-700">大会作成 3つまで（1シーズン）</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-700">選手名鑑生成 A4ver</span>
+                      </li>
+                    </ul>
+
+                    <Link
+                      href="/admin"
+                      className="block w-full text-center py-3 rounded-md bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition-colors"
+                    >
+                      無料で始める
+                    </Link>
                   </div>
 
-                  <div className="hidden sm:block w-full">
-                    <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white overflow-hidden">
-                      <Image
-                        src="/プラン画像PC.png"
-                        alt="プラン内容"
-                        width={1024}
-                        height={512}
-                        className="w-full h-auto"
-                        sizes="100vw"
-                      />
+                  {/* Pro Card */}
+                  <div className="relative rounded-xl border border-blue-500 bg-white p-6 shadow-lg">
+                    <div className="absolute -top-3 left-4">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-500 text-white">
+                        おすすめ
+                      </span>
                     </div>
+
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="text-[14px] font-semibold text-gray-900">Pro プラン</h2>
+                      <p className="text-[20px] font-semibold text-blue-600">月額 380円</p>
+                    </div>
+                    <p className="text-[11px] text-gray-600 mb-6">チーム運営を本格的にサポート</p>
+
+                    <ul className="space-y-3 mb-6">
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-900">選手登録 50名まで（1シーズン）</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-900">選手画像登録 50枚まで（1シーズン）</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-900">チーム登録数 無制限</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-900">チーム画像登録 無制限</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-900">大会作成 無制限</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-gray-900">選手名鑑生成 フル機能</span>
+                      </li>
+                    </ul>
+
+                    <Link
+                      href="/admin"
+                      className="block w-full text-center py-3 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
+                    >
+                      Proで始める
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -294,10 +400,9 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="bg-zinc-900 text-zinc-100">
+      <footer className="bg-zinc-900 text-zinc-100 mt-16">
         <div className="mx-auto max-w-5xl px-6 py-10">
           <div className="text-left">
-            <div className="text-sm font-semibold mb-4">法的事項</div>
             <div className="flex flex-col gap-3 text-sm text-zinc-200">
               <Link href="/privacy" className="hover:text-white transition-colors">
                 プライバシーポリシー

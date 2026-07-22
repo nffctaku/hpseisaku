@@ -80,6 +80,7 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
   const baseDefaults: PlayerFormValues = useMemo(
     () => ({
       name: "",
+      subName: "",
       number: undefined as any,
       position: "MF",
       mainPosition: undefined,
@@ -408,6 +409,20 @@ export function PlayerForm({ onSubmit, defaultValues, defaultSeason, ownerUid }:
                     <FormLabel>選手名 *</FormLabel>
                     <FormControl>
                       <Input placeholder="選手名" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="subName"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>サブネーム</FormLabel>
+                    <FormControl>
+                      <Input placeholder="例: フリガナなど" {...field} value={(field.value as any) ?? ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -276,6 +276,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const merged: Player = {
           ...p,
           number: (season?.number ?? p.number) as any,
+          subName: (season as any)?.subName ?? (p as any).subName,
           position: (season?.position ?? p.position) as any,
           mainPosition: (season as any)?.mainPosition ?? (p as any).mainPosition,
           subPositions: (season as any)?.subPositions ?? (p as any).subPositions,
@@ -330,6 +331,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     return {
       ...editingPlayer,
       number: season.number ?? editingPlayer.number,
+      subName: (season as any)?.subName ?? (editingPlayer as any).subName,
       position: season.position ?? editingPlayer.position,
       mainPosition: (season as any)?.mainPosition ?? (editingPlayer as any).mainPosition,
       subPositions: (season as any)?.subPositions ?? (editingPlayer as any).subPositions,
@@ -543,6 +545,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
       const seasonPayload: PlayerSeasonData = {
         number: valuesNormalized.number,
+        subName: (values as any).subName,
         position: valuesNormalized.position as any,
         mainPosition: (values as any).mainPosition,
         subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
@@ -575,6 +578,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const playerDocRef = doc(playersColRef, editingPlayer.id);
         const updatePayload = stripUndefinedDeep({
           name: valuesNormalized.name,
+          subName: (values as any).subName,
           position: valuesNormalized.position as any,
           mainPosition: (values as any).mainPosition,
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
@@ -595,6 +599,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster`, editingPlayer.id);
         const rosterPayload = stripUndefinedDeep({
           name: valuesNormalized.name,
+          subName: (values as any).subName,
           teamId,
           seasons: nextSeasons,
           seasonData: {
@@ -620,6 +625,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       } else {
         const createPayload = stripUndefinedDeep({
           ...valuesNormalized,
+          subName: (values as any).subName,
           joinedSeason,
           tenureYears,
           seasons: [selectedSeason],
@@ -639,6 +645,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           rosterDocRef,
           (stripUndefinedDeep({
             ...(createPayload || {}),
+            subName: (values as any).subName,
             teamId,
             seasons: [selectedSeason],
             seasonData: {

@@ -117,6 +117,7 @@ const optionalBoundedIntSchema = (opts: { min?: number; max?: number }) =>
 
 export const formSchema = z.object({
   name: z.string().min(2, { message: "選手名は2文字以上で入力してください。" }),
+  subName: z.string().max(80, { message: "サブネームは80文字以内です。" }).optional().or(z.literal("")),
   number: z.preprocess(
     (v) => {
       if (v === "" || v == null) return undefined;

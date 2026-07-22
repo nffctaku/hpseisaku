@@ -52,7 +52,7 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
 
   if (isLoading) {
     return (
-      <div className="relative h-[60vh] w-full bg-gray-800 flex flex-col items-center justify-center gap-4">
+      <div className="relative h-[40vh] w-full bg-gray-800 flex flex-col items-center justify-center gap-4">
         <Image
           src="/favicon.png"
           alt="Loading"
@@ -68,7 +68,7 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
 
   if (!news || news.length === 0) {
     return (
-      <div className="relative h-[60vh] w-full bg-gray-800 flex items-center justify-center">
+      <div className="relative h-[40vh] w-full bg-gray-800 flex items-center justify-center">
         <p className="text-white text-2xl">ニュースがありません</p>
       </div>
     );
@@ -86,7 +86,7 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
       <CarouselContent className="!-ml-0">
         {items.map((item, index) => (
           <CarouselItem key={item.id} className="!pl-0">
-            <div className="relative w-full h-[70vh] bg-muted">
+            <div className="relative w-full h-[45vh] bg-muted">
               {item.imageUrl ? (
                 <Image
                   src={toCloudinaryPadded16x9(item.imageUrl, 1600)}

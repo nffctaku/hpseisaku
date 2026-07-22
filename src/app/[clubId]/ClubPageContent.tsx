@@ -293,10 +293,10 @@ export default function ClubPageContent({
             </div>
 
             <div className="hidden md:block">
-              <div className="container mx-auto px-4 pt-6">
-                <div className="relative w-full aspect-[8/3]">
-                  <div className="absolute inset-0 grid grid-cols-3 gap-6">
-                    <div className="col-span-2">
+              <div className="container mx-auto px-4 pt-4 pb-8">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2 space-y-4">
+                    <div className="relative w-full aspect-[16/9]">
                       {mainHeroItem ? (
                         <Link
                           href={resolveNewsHref(mainHeroItem, clubId)}
@@ -333,69 +333,42 @@ export default function ClubPageContent({
                         <Hero news={heroNews} maxSlides={heroNewsLimit} isLoading={isLoading} />
                       )}
                     </div>
-
-                    <div className="col-span-1">
-                      <div className="h-full flex flex-col gap-3">
-                        {sideHeroItems.map((item) => (
-                          <Link
-                            key={item.id}
-                            href={resolveNewsHref(item, clubId)}
-                            target={isExternalNewsLink(item) ? "_blank" : undefined}
-                            rel={isExternalNewsLink(item) ? "noopener noreferrer" : undefined}
-                            className="flex-1 min-h-0 rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow border border-black/5"
-                          >
-                            <div className="h-full flex flex-col overflow-hidden">
-                              <div className="relative w-full flex-[0_0_72%] bg-muted">
-                                <Image
-                                  src={toCloudinaryPadded16x9((item as any).imageUrl || "/no-image.png", 640)}
-                                  alt={(item as any).imageUrl ? item.title : "No image available"}
-                                  fill
-                                  className="object-cover"
-                                  sizes="(min-width: 768px) 320px, 100vw"
-                                />
-                              </div>
-                              <div className="flex-1 min-h-0 px-3 py-2 overflow-hidden">
-                                <div className="text-[11px] text-muted-foreground">
-                                  {(() => {
-                                    const d = resolvePublishedDate((item as any).publishedAt);
-                                    return d ? format(d, "yyyy/MM/dd") : "";
-                                  })()}
-                                </div>
-                                <div className="mt-0.5 text-sm font-semibold leading-snug line-clamp-2 text-gray-900">
-                                  {item.title}
-                                </div>
-                              </div>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
+                    <MatchSection 
+                      nextMatch={clubInfo.nextMatch} 
+                      upcomingMatches={(clubInfo as any).upcomingMatches || []}
+                      recentMatches={recentMatches}
+                      mainTeamId={mainTeamId}
+                      backgroundColor={homeBgColor || null}
+                      clubSlug={clubId}
+                    />
+                    {videos.length > 0 && <ClubTv videos={videos} clubId={clubId} />}
+                  </div>
+                  <div className="col-span-1 space-y-4">
+                    <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} minCardOnMobile />
+                    <MatchResultsList
+                      matches={allRecentMatches}
+                      clubSlug={clubId}
+                      rounds={rounds}
+                      selectedRoundIndex={selectedRoundIndex}
+                      onRoundChange={setSelectedRoundIndex}
+                    />
                   </div>
                 </div>
               </div>
             </div>
-            <div className="container mx-auto px-4 pt-0 pb-8 md:pt-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-                    <div className="md:col-span-2 space-y-4 md:space-y-6">
-                        <div className="md:hidden">
-                          <NewsSection news={listNews} clubId={clubId} />
-                        </div>
-                        <MatchSection 
-                            nextMatch={clubInfo.nextMatch} 
-                            upcomingMatches={(clubInfo as any).upcomingMatches || []}
-                            recentMatches={recentMatches}
-                            mainTeamId={mainTeamId}
-                            backgroundColor={homeBgColor || null}
-                            clubSlug={clubId}
-                        />
-                        <div className="lg:hidden">
-                          {renderHomePanelContent()}
-                        </div>
-                        {videos.length > 0 && <ClubTv videos={videos} clubId={clubId} />}
-                    </div>
-                    <div className="hidden lg:block lg:col-span-1">
-                        {renderHomePanelContent()}
-                    </div>
+            <div className="container mx-auto px-4 pt-0 pb-8 md:hidden">
+                <div className="space-y-3">
+                    <NewsSection news={listNews} clubId={clubId} />
+                    <MatchSection 
+                        nextMatch={clubInfo.nextMatch} 
+                        upcomingMatches={(clubInfo as any).upcomingMatches || []}
+                        recentMatches={recentMatches}
+                        mainTeamId={mainTeamId}
+                        backgroundColor={homeBgColor || null}
+                        clubSlug={clubId}
+                    />
+                    {renderHomePanelContent()}
+                    {videos.length > 0 && <ClubTv videos={videos} clubId={clubId} />}
                 </div>
             </div>
             <PartnerStripClient clubId={clubId} />

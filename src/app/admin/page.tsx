@@ -208,7 +208,7 @@ export default function AdminHomePage() {
       { href: bookletHref, label: "選手名鑑", icon: BookOpen },
       { href: "/admin/analysis", label: "分析管理", icon: LineChart },
       { href: transfersHref, label: "移籍管理", icon: ArrowLeftRight },
-      { href: "/admin/settings", label: "変更履歴", icon: History },
+      { href: "/updates", label: "アップデート情報", icon: History },
     ],
     account: [
       { href: "/admin/plan", label: "プラン", icon: CreditCard },

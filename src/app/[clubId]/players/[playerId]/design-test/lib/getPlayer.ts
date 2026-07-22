@@ -34,7 +34,20 @@ function mergeWithoutUndefined(base: any, patch: any): any {
   const out: any = { ...(base || {}) };
   if (!patch || typeof patch !== "object") return out;
   for (const [k, v] of Object.entries(patch)) {
-    if (v !== undefined) out[k] = v;
+    if (v !== undefined) {
+      if (k === 'seasonData' && typeof v === 'object' && v !== null && typeof out[k] === 'object' && out[k] !== null) {
+        out[k] = { ...(out[k] || {}) };
+        for (const [sk, sv] of Object.entries(v)) {
+          if (sv !== undefined) {
+            out[k][sk] = typeof sv === 'object' && sv !== null && typeof out[k][sk] === 'object' && out[k][sk] !== null
+              ? { ...(out[k][sk] || {}), ...sv }
+              : sv;
+          }
+        }
+      } else {
+        out[k] = v;
+      }
+    }
   }
   return out;
 }

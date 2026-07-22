@@ -312,7 +312,20 @@ function mergeWithoutUndefined(base: any, patch: any): any {
   const out: any = { ...(base || {}) };
   if (!patch || typeof patch !== "object") return out;
   for (const [k, v] of Object.entries(patch)) {
-    if (v !== undefined) out[k] = v;
+    if (v !== undefined) {
+      if (k === 'seasonData' && typeof v === 'object' && v !== null && typeof out[k] === 'object' && out[k] !== null) {
+        out[k] = { ...(out[k] || {}) };
+        for (const [sk, sv] of Object.entries(v)) {
+          if (sv !== undefined) {
+            out[k][sk] = typeof sv === 'object' && sv !== null && typeof out[k][sk] === 'object' && out[k][sk] !== null
+              ? { ...(out[k][sk] || {}), ...sv }
+              : sv;
+          }
+        }
+      } else {
+        out[k] = v;
+      }
+    }
   }
   return out;
 }
@@ -1334,7 +1347,8 @@ export default async function PlayerPage({
         (toFiniteNumber((sd as any)?.height) != null) ||
         (typeof (sd as any)?.dateOfBirth === "string" && String((sd as any).dateOfBirth).trim().length > 0) ||
         (toFiniteNumber((sd as any)?.weight) != null) ||
-        (typeof (sd as any)?.preferredFoot === "string" && String((sd as any).preferredFoot).trim().length > 0);
+        (typeof (sd as any)?.preferredFoot === "string" && String((sd as any).preferredFoot).trim().length > 0) ||
+        (typeof (sd as any)?.profile === "string" && String((sd as any).profile).trim().length > 0);
       if (hasAny) return seasonId;
     }
     return candidates.length > 0 ? candidates[0] : null;
@@ -1491,6 +1505,18 @@ export default async function PlayerPage({
 
   const preferredFootText =
     preferredFootValue === "left" ? "左" : preferredFootValue === "right" ? "右" : preferredFootValue === "both" ? "両" : null;
+  const profileValue =
+    (profileSeasonData as any)?.profile
+      ? ((profileSeasonData as any).profile as string)
+      : (player as any)?.profile
+        ? ((player as any).profile as string)
+        : null;
+  const subNameValue =
+    (profileSeasonData as any)?.subName
+      ? ((profileSeasonData as any).subName as string)
+      : (player as any)?.subName
+        ? ((player as any).subName as string)
+        : null;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -1532,6 +1558,7 @@ className="object-cover object-[50%_45%] scale-75"
                   {currentSeasonData?.number ?? player.number ?? "-"}
                 </p>
                 <h1 className="text-5xl font-bold uppercase mt-1">{player.name}</h1>
+                {subNameValue && <p className="text-base font-semibold text-primary mt-1">{subNameValue}</p>}
                 {player.nationality && <p className="text-xl text-muted-foreground mt-1">{player.nationality}</p>}
                 <p className="text-2xl text-muted-foreground mt-0.5">
                   {currentSeasonData?.position ?? player.position ?? ""}
@@ -1619,10 +1646,10 @@ className="object-cover object-[50%_45%] scale-75"
                   </div>
                 ) : null}
 
-                {player.profile && (
+                {profileValue && (
                   <div className="mt-8">
                     <h2 className="text-xl font-bold">プロフィール</h2>
-                    <p className="mt-2 text-muted-foreground whitespace-pre-wrap">{player.profile}</p>
+                    <p className="mt-2 text-muted-foreground whitespace-pre-wrap">{profileValue}</p>
                   </div>
                 )}
 

@@ -108,6 +108,9 @@ export default async function PlayerDesignTestPage({
   const mainPosition = (currentSeasonData as any)?.mainPosition ?? (player as any)?.mainPosition ?? null;
   const subPositions = (currentSeasonData as any)?.subPositions ?? (player as any)?.subPositions ?? null;
 
+  const profileValue = (currentSeasonData as any)?.profile ?? (player as any)?.profile ?? null;
+  const subNameValue = (currentSeasonData as any)?.subName ?? (player as any)?.subName ?? player.name;
+
   const seasonParams = (currentSeasonData as any)?.params;
   const paramItems = Array.isArray((seasonParams as any)?.items)
     ? ((seasonParams as any).items as any[])
@@ -319,10 +322,10 @@ export default async function PlayerDesignTestPage({
         </div>
       ) : null}
 
-      {player.profile ? (
+      {profileValue ? (
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-sm font-semibold">選手紹介</div>
-          <p className="mt-3 text-sm text-white/80 whitespace-pre-wrap">{player.profile}</p>
+          <p className="mt-3 text-sm text-white/80 whitespace-pre-wrap">{profileValue}</p>
         </div>
       ) : null}
     </div>
@@ -482,61 +485,62 @@ className="object-cover object-[50%_45%] scale-75"
                 </div>
 
                 <div className="hidden md:block p-6">
-                  <div className="flex gap-6 items-start">
-                    <div className="w-[420px] shrink-0">
-                      <div className="relative h-[700px] w-[420px] overflow-hidden rounded-xl border border-white/10 bg-black/20">
-                        {player.photoUrl ? (
-                          <Image
-                            src={player.photoUrl}
-                            alt={player.name}
-                            fill
-                            priority
-                            sizes="(min-width: 768px) 420px, 100vw"
-      className="object-cover object-[50%_45%] scale-75"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 bg-white/5" />
-                        )}
-                      </div>
+                  <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-4 items-stretch">
+                    <div className="relative h-[540px] overflow-hidden rounded-xl border border-white/10 bg-black/20">
+                      {player.photoUrl ? (
+                        <Image
+                          src={player.photoUrl}
+                          alt={player.name}
+                          fill
+                          priority
+                          sizes="(min-width: 768px) 320px, 100vw"
+                          className="object-cover object-[50%_45%] scale-75"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-white/5" />
+                      )}
                     </div>
 
-                    <div className="flex-1 min-w-0 h-[700px] min-h-0 flex flex-col gap-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="min-w-0 h-[540px] min-h-0 grid grid-rows-[210px_minmax(0,1fr)] gap-4">
+                      <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)] gap-4 min-h-0">
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-5 flex flex-col justify-center">
                           <div className={`${numberFont.className} text-7xl font-black tracking-tighter leading-none`}>
                             {currentSeasonData?.number ?? player.number ?? "-"}
                           </div>
-                          <h1 className="mt-1 text-4xl font-black tracking-tight break-words">{player.name}</h1>
+                          <h1 className="mt-2 text-4xl font-black tracking-tight break-words">{player.name}</h1>
+                          {subNameValue ? (
+                            <div className="mt-2 text-sm font-semibold text-emerald-300 break-words">{subNameValue}</div>
+                          ) : null}
                         </div>
 
                         <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                          <div className="grid grid-cols-1 gap-2 text-sm">
-                            <div className="flex items-baseline justify-between gap-4">
+                          <div className="grid grid-cols-1 divide-y divide-white/10 text-sm">
+                            <div className="flex items-baseline justify-between gap-4 py-1.5">
                               <div className="text-white/70">出身</div>
                               <div className="font-semibold text-right break-words">{nationalityText ? String(nationalityText) : "-"}</div>
                             </div>
 
-                            <div className="flex items-baseline justify-between gap-4">
+                            <div className="flex items-baseline justify-between gap-4 py-1.5">
                               <div className="text-white/70">身長</div>
                               <div className="font-semibold tabular-nums text-right">{typeof heightValue === "number" && Number.isFinite(heightValue) ? `${heightValue} cm` : heightValue ? String(heightValue) : "-"}</div>
                             </div>
 
-                            <div className="flex items-baseline justify-between gap-4">
+                            <div className="flex items-baseline justify-between gap-4 py-1.5">
                               <div className="text-white/70">体重</div>
                               <div className="font-semibold tabular-nums text-right">{typeof weightValue === "number" && Number.isFinite(weightValue) ? `${weightValue} kg` : weightValue ? String(weightValue) : "-"}</div>
                             </div>
 
-                            <div className="flex items-baseline justify-between gap-4">
+                            <div className="flex items-baseline justify-between gap-4 py-1.5">
                               <div className="text-white/70">年齢</div>
                               <div className="font-semibold tabular-nums text-right">{calculatedAge != null ? `${calculatedAge} 歳` : "-"}</div>
                             </div>
 
-                            <div className="flex items-baseline justify-between gap-4">
+                            <div className="flex items-baseline justify-between gap-4 py-1.5">
                               <div className="text-white/70">在籍年数</div>
                               <div className="font-semibold tabular-nums text-right">{calculatedTenureYears != null ? `${calculatedTenureYears} 年目` : "-"}</div>
                             </div>
 
-                            <div className="flex items-baseline justify-between gap-4">
+                            <div className="flex items-baseline justify-between gap-4 py-1.5">
                               <div className="text-white/70">利き足</div>
                               <div className="font-semibold text-right">{preferredFootText ?? "-"}</div>
                             </div>
@@ -544,24 +548,22 @@ className="object-cover object-[50%_45%] scale-75"
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex-1 min-h-0">
-                        <div className="flex gap-4 items-start h-full min-h-0">
-                          <div className="w-[280px] min-h-0 flex flex-col">
-                            <div className="text-sm font-semibold">ポジション</div>
-                            <div className="mt-2 flex-1 min-h-0 rounded-xl border border-white/10 bg-white/5 p-2 overflow-hidden">
-                              <div className="mx-auto w-full max-w-[210px] h-full overflow-hidden">
-                                <PositionMap
-                                  mainPosition={typeof mainPosition === "string" ? mainPosition : undefined}
-                                  subPositions={Array.isArray(subPositions) ? subPositions : undefined}
-                                />
-                              </div>
+                      <div className="grid grid-cols-[minmax(280px,0.95fr)_minmax(0,1.25fr)] gap-4 min-h-0">
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-4 min-h-0 flex flex-col">
+                          <div className="text-sm font-semibold">ポジション</div>
+                          <div className="mt-3 flex-1 min-h-0 rounded-xl border border-white/10 bg-black/10 p-3 overflow-hidden">
+                            <div className="mx-auto h-full w-full max-w-[230px] overflow-hidden">
+                              <PositionMap
+                                mainPosition={typeof mainPosition === "string" ? mainPosition : undefined}
+                                subPositions={Array.isArray(subPositions) ? subPositions : undefined}
+                              />
                             </div>
                           </div>
+                        </div>
 
-                          <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                            <div className="text-sm font-semibold">選手紹介</div>
-                            <p className="mt-3 text-sm text-white/80 whitespace-pre-wrap line-clamp-12">{player.profile || "-"}</p>
-                          </div>
+                        <div className="rounded-xl border border-white/10 bg-white/5 p-4 min-h-0 flex flex-col">
+                          <div className="text-sm font-semibold">選手紹介</div>
+                          <p className="mt-3 text-sm leading-7 text-white/80 whitespace-pre-wrap overflow-hidden">{profileValue || "-"}</p>
                         </div>
                       </div>
                     </div>

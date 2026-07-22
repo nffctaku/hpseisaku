@@ -39,6 +39,7 @@ export interface ManualCompetitionStat {
 
 export interface PlayerSeasonData {
   number?: number;
+  subName?: string;
   position?: "GK" | "DF" | "MF" | "FW";
   mainPosition?: "ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK";
   subPositions?: ("ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK")[];
@@ -66,6 +67,7 @@ export interface PlayerSeasonData {
 export interface Player {
   id: string;
   name: string;
+  subName?: string;
   number: number;
   position: "GK" | "DF" | "MF" | "FW";
   mainPosition?: "ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK";
