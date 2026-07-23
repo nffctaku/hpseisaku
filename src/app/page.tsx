@@ -130,11 +130,11 @@ export default function LandingPage() {
           </div>
 
           <div className="sm:hidden relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-white px-4 py-8">
-            <div className="mx-auto max-w-[420px] space-y-6">
+            <div className="mx-auto max-w-[420px] space-y-8">
               <h2 className="text-center text-xl font-bold leading-snug text-slate-900">
                 本格的なクラブHP、自分だけのクラブの"顔"を、簡単に作成
               </h2>
-              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.12)]">
                 <Image
                   src="/紹介①.png"
                   alt="FootChornの紹介"
@@ -150,7 +150,7 @@ export default function LandingPage() {
                 試合ごとのスタッツやシーズンごとの大会成績まで選手成績が丸わかり。オリジナルチャート機能も搭載。
               </h2>
 
-              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.12)]">
                 <Image
                   src="/紹介②.png"
                   alt="FootChornの紹介"
@@ -166,7 +166,7 @@ export default function LandingPage() {
                 チーム分析ではシーズンの戦績を振り返れるのは勿論。シーズンごとの成績比較や対戦チームとの戦績も振り返り出来る。
               </h2>
 
-              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.12)]">
                 <Image
                   src="/紹介③.png"
                   alt="FootChornの紹介"
@@ -445,6 +445,20 @@ export default function LandingPage() {
                     </Link>
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-6 flex justify-center">
+                <a
+                  href="https://x.com/footchron_hp?s=20"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="公式X"
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-900 text-white hover:bg-slate-800 transition-colors"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                </a>
               </div>
             </div>
           </div>

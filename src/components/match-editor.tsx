@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { doc, deleteDoc, setDoc, increment } from "firebase/firestore";
@@ -48,6 +48,8 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
     return new Date();
   }, [match.matchDate, season]);
 
+  const [open, setOpen] = useState(false);
+
   const { user, ownerUid } = useAuth();
   const params = useParams();
   const competitionId = params.competitionId as string;
@@ -92,6 +94,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
   const handleDateSelect = (date?: Date) => {
     if (!date) return;
     onUpdate(match.id, 'matchDate', format(date, 'yyyy-MM-dd'));
+    setOpen(false);
   };
 
   const clampScore = (value: number) => (Number.isFinite(value) ? Math.max(0, value) : 0);
@@ -124,7 +127,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-3 text-gray-900 shadow-sm">
       <div className="mb-5 flex items-center justify-between gap-3">
-        <Popover>
+        <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
               type="button"
