@@ -23,6 +23,15 @@ const ratingOptions = (() => {
 })();
 const NONE_SELECT_VALUE = "__none__";
 
+const positionOrder = (position: any) => {
+  const value = String(position || '').toUpperCase();
+  if (value.includes('GK')) return 0;
+  if (value.includes('DF') || value.includes('CB') || value.includes('SB') || value.includes('RB') || value.includes('LB')) return 1;
+  if (value.includes('MF') || value.includes('DM') || value.includes('CM') || value.includes('AM') || value.includes('WB') || value.includes('SH')) return 2;
+  if (value.includes('FW') || value.includes('ST') || value.includes('CF') || value.includes('WG')) return 3;
+  return 99;
+};
+
 const getPositionPillClassName = (position: any) => {
   const value = String(position || '').toUpperCase();
   if (value.includes('GK')) return 'bg-yellow-100 text-yellow-800';
@@ -234,7 +243,21 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
   const starters = teamPlayerFields.filter(f => ((f as any).role ?? 'starter') === 'starter');
   const bench = teamPlayerFields.filter(f => (f as any).role === 'sub');
 
-  // Ensure starters have stable slot indices (0-10)
+  const sortedBench = useMemo(() => {
+    return [...bench].sort((a, b) => {
+      const orderA = positionOrder((a as any).position);
+      const orderB = positionOrder((b as any).position);
+      if (orderA !== orderB) return orderA - orderB;
+      const pA = allPlayers.find((p) => p.id === (a as any).playerId) as any;
+      const pB = allPlayers.find((p) => p.id === (b as any).playerId) as any;
+      const numA = typeof pA?.number === 'number' ? pA.number : Number.POSITIVE_INFINITY;
+      const numB = typeof pB?.number === 'number' ? pB.number : Number.POSITIVE_INFINITY;
+      if (numA !== numB) return numA - numB;
+      return String((a as any).playerName || '').localeCompare(String((b as any).playerName || ''), 'ja');
+    });
+  }, [bench, allPlayers]);
+
+  // スタメンをポジション順（GK→DF→MF→FW）に自動ソートして slot を振り直す
   useEffect(() => {
     const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
     const teamStarters = stats.filter((ps) => {
@@ -243,30 +266,35 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
       return (ps.role ?? 'starter') === 'starter';
     });
 
-    const used = new Set<number>();
-    teamStarters.forEach((ps) => {
-      const slot = ps?.starterSlot;
-      if (typeof slot === 'number' && Number.isInteger(slot) && slot >= 0 && slot <= 10) {
-        used.add(slot);
-      }
+    const getPlayerNumber = (pid: string) => {
+      const p = allPlayers.find((ap) => ap.id === pid);
+      const n = (p as any)?.number;
+      return typeof n === 'number' && Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
+    };
+
+    const sorted = [...teamStarters].sort((a, b) => {
+      const orderA = positionOrder(a?.position);
+      const orderB = positionOrder(b?.position);
+      if (orderA !== orderB) return orderA - orderB;
+      const numA = getPlayerNumber(a?.playerId);
+      const numB = getPlayerNumber(b?.playerId);
+      if (numA !== numB) return numA - numB;
+      return String(a?.playerName || '').localeCompare(String(b?.playerName || ''), 'ja');
     });
 
-    let next = 0;
-    teamStarters.forEach((ps) => {
-      const slot = ps?.starterSlot;
-      if (typeof slot === 'number' && Number.isInteger(slot) && slot >= 0 && slot <= 10) return;
-      while (used.has(next) && next <= 10) next += 1;
-      if (next > 10) return;
-
+    let changed = false;
+    sorted.forEach((ps, index) => {
       const playerId = ps?.playerId;
       if (!playerId) return;
-      const globalIndex = stats.findIndex((row) => row?.playerId === playerId);
+      const desiredSlot = index;
+      const currentSlot = ps?.starterSlot;
+      if (currentSlot === desiredSlot) return;
+      const globalIndex = stats.findIndex((row) => row?.playerId === playerId && row?.teamId === teamId);
       if (globalIndex === -1) return;
-      setValue(`playerStats.${globalIndex}.starterSlot` as any, next, { shouldDirty: false });
-      used.add(next);
-      next += 1;
+      changed = true;
+      setValue(`playerStats.${globalIndex}.starterSlot` as any, desiredSlot, { shouldDirty: false });
     });
-  }, [teamId, watchedPlayerStats, setValue]);
+  }, [teamId, watchedPlayerStats, setValue, allPlayers]);
 
   const handleAddPlayer = (playerId: string, role: 'starter' | 'sub') => {
     const player = allPlayers.find(p => p.id === playerId);
@@ -665,7 +693,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
           </Select>
         </div>
         <div className="grid grid-cols-1 gap-3">
-          {bench.map((field) => {
+          {sortedBench.map((field) => {
             const globalIndex = fields.findIndex((f) => f.id === (field as any).id);
             if (globalIndex === -1) return null;
             const currentPlayerId = String(watch(`playerStats.${globalIndex}.playerId`) || (field as any)?.playerId || '');

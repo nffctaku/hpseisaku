@@ -8,7 +8,7 @@ export const formatMinute = (minute: any): string => {
   if (Number.isInteger(n)) return `${n}`;
 
   const base = Math.floor(n);
-  const extra = Math.round((n - base) * 100);
+  const extra = Math.round((n - base) * 1000);
   
   if (base === 45 && extra >= 1) return `45+${extra}`;
   if (base === 90 && extra >= 1) return `90+${extra}`;
