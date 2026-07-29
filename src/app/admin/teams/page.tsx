@@ -54,6 +54,8 @@ export default function TeamsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [teamSeasons, setTeamSeasons] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 30;
 
   const getTeamInitial = (name: string) => {
     const s = (name || '').trim();
@@ -81,6 +83,24 @@ export default function TeamsPage() {
     return found?.name || '（不明）';
   };
 
+  // Filter and paginate teams
+  const filteredTeams = teams.filter((t) => {
+    if (categoryFilter === "all") return true;
+    if (categoryFilter === "uncategorized") return !t.categoryId;
+    return t.categoryId === categoryFilter;
+  });
+
+  const totalPages = Math.ceil(filteredTeams.length / itemsPerPage);
+  const paginatedTeams = filteredTeams.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [categoryFilter]);
+
   const form = useForm<TeamFormValues>({
     resolver: zodResolver(teamSchema),
     defaultValues: { name: '', categoryId: undefined },
@@ -101,6 +121,8 @@ export default function TeamsPage() {
               ...doc.data(),
             } as Team)
         );
+        // Sort alphabetically
+        teamsData.sort((a, b) => a.name.localeCompare(b.name, 'en-US'));
         setTeams(teamsData);
       },
       (error) => {
@@ -396,13 +418,7 @@ export default function TeamsPage() {
       </div>
 
       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-        {teams
-          .filter((t) => {
-            if (categoryFilter === "all") return true;
-            if (categoryFilter === "uncategorized") return !t.categoryId;
-            return t.categoryId === categoryFilter;
-          })
-          .map(team => (
+        {paginatedTeams.map(team => (
           <button
             type="button"
             key={team.id}
@@ -428,6 +444,32 @@ export default function TeamsPage() {
           </button>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-6">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+          >
+            前へ
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            {currentPage} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+          >
+            次へ
+          </Button>
+        </div>
+      )}
 
       <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
         <DialogContent>

@@ -61,6 +61,8 @@ export default function RootLayout({
     <html lang="ja" suppressHydrationWarning translate="no" className="notranslate">
       <head>
         <link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+        <link rel="preload" href="/top-hero-mobile.jpg" as="image" media="(max-width: 640px)" />
+        <link rel="preload" href="/PCトップ画像.png" as="image" media="(min-width: 641px)" />
         {shouldLoadAdsense ? (
           <Script
             async

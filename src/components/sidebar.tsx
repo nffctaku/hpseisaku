@@ -18,6 +18,7 @@ import {
   CreditCard,
   LineChart,
   BookOpen,
+  Shield,
   Mail,
   LayoutGrid,
   User,
@@ -139,6 +140,7 @@ export function Sidebar() {
       title: 'よく使う機能',
       items: [
         { href: `/admin/competitions`, label: '大会管理', icon: Trophy },
+        { href: `/admin/teams`, label: 'チーム登録', icon: Shield },
         { href: `/admin/matches`, label: '試合管理', icon: Calendar },
         { href: `/admin/friendly-matches`, label: '単発試合', icon: Calendar },
         { href: `/admin/players`, label: '選手管理', icon: Users },

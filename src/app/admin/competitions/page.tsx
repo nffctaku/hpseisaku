@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, deleteDoc, updateDoc, getDocs } from "firebase/firestore";
 import { z } from "zod";
 import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
 
@@ -21,7 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Pencil, Trash2, CalendarDays } from "lucide-react";
+import { Loader2, Pencil, Trash2, CalendarDays, Download } from "lucide-react";
 import Link from 'next/link';
 
 // Generate a list of seasons from 1960/61 to 2050/51
@@ -250,7 +250,7 @@ export default function CompetitionsPage() {
                   <Link href={`/admin/competitions/${comp.id}`} className="block">
                     <Button type="button" variant="outline" className="h-9 w-full border-orange-200 bg-orange-50 text-xs text-orange-700 hover:bg-orange-100 hover:text-orange-800">
                       <CalendarDays className="mr-1 h-3.5 w-3.5" />
-                      試合日程
+                      試合登録
                     </Button>
                   </Link>
                   <Link href={`/admin/competitions/${comp.id}/edit`} className="block">

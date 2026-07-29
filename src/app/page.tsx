@@ -57,7 +57,6 @@ export default function LandingPage() {
               height={1920}
               className="w-full h-auto"
               sizes="100vw"
-              priority
             />
 
             <div className="absolute bottom-[5.5%] left-1/2 -translate-x-1/2 z-20">
@@ -77,7 +76,6 @@ export default function LandingPage() {
               fill
               className="object-contain object-center"
               sizes="100vw"
-              priority
             />
           </div>
 
@@ -111,7 +109,6 @@ export default function LandingPage() {
                       fill
                       className="object-cover"
                       sizes="100vw"
-                      priority
                     />
                   </div>
                   <div className="w-full flex-shrink-0 h-[80vh] relative">
@@ -121,7 +118,6 @@ export default function LandingPage() {
                       fill
                       className="object-cover"
                       sizes="100vw"
-                      priority
                     />
                   </div>
                 </div>
@@ -287,7 +283,7 @@ export default function LandingPage() {
               </div>
 
               <div className="mt-6">
-                <div className="sm:hidden relative w-screen left-1/2 -ml-[50vw] bg-[#21c45a] text-white">
+                <div className="sm:hidden relative w-screen left-1/2 -ml-[50vw] bg-zinc-900 text-white">
                   <div className="mx-auto max-w-5xl px-6 py-6 text-center">
                     <div className="text-lg font-bold">LINE登録で、最新情報をすぐゲット！</div>
                     <div className="mt-2 text-sm text-white/90">アップデート情報をLINEでお届け</div>
@@ -296,9 +292,9 @@ export default function LandingPage() {
                       href="https://lin.ee/0IxYvaa"
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-5 inline-flex items-center justify-center gap-2 bg-white text-[#21c45a] font-semibold rounded-full h-12 px-8"
+                      className="mt-5 inline-flex items-center justify-center gap-2 bg-[#21c45a] text-white font-semibold rounded-full h-12 px-8"
                     >
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#21c45a] text-white text-[10px] font-bold">
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white text-[#21c45a] text-[10px] font-bold">
                         LINE
                       </span>
                       <span>LINE登録する</span>
@@ -306,7 +302,7 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                <div className="hidden sm:block relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-[#21c45a] text-white">
+                <div className="hidden sm:block relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-zinc-900 text-white">
                   <div className="mx-auto max-w-5xl px-6 py-6 text-center">
                     <div className="text-lg font-bold">LINE登録で、最新情報をすぐゲット！</div>
                     <div className="mt-2 text-sm text-white/90">アップデート情報をLINEでお届け</div>
@@ -315,9 +311,9 @@ export default function LandingPage() {
                       href="https://lin.ee/0IxYvaa"
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-5 inline-flex items-center justify-center gap-2 bg-white text-[#21c45a] font-semibold rounded-full h-12 px-8"
+                      className="mt-5 inline-flex items-center justify-center gap-2 bg-[#21c45a] text-white font-semibold rounded-full h-12 px-8"
                     >
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#21c45a] text-white text-[10px] font-bold">
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white text-[#21c45a] text-[10px] font-bold">
                         LINE
                       </span>
                       <span>LINE登録する</span>

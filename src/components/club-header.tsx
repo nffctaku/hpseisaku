@@ -218,7 +218,7 @@ export function ClubHeader({
     return () => {
       cancelled = true;
     };
-  }, [clubId, resolvedClubName, resolvedLogoUrl, resolvedHeaderBackgroundColor, resolvedSnsLinks]);
+  }, [clubId]);
 
   useEffect(() => {
     let cancelled = false;

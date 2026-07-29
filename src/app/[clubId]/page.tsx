@@ -117,15 +117,16 @@ export default async function ClubPage({ params }: ClubPageProps) {
       const ownerUid = (profileData as any).ownerUid || (clubProfileDoc ? clubProfileDoc.id : directSnap!.id);
       if (!ownerUid) return null;
 
-      const clubDataSnap = await db.collection("clubs").doc(ownerUid).get();
-      const clubData = clubDataSnap.exists ? (clubDataSnap.data() as any) : { headerImageUrl: null };
+      // Parallelize club data and main team fetch
+      const [clubDataSnap, mainTeamSnap] = await Promise.all([
+        db.collection("clubs").doc(ownerUid).get(),
+        (profileData as any)?.mainTeamId
+          ? db.collection(`clubs/${ownerUid}/teams`).doc((profileData as any).mainTeamId).get()
+          : Promise.resolve({ exists: false }),
+      ]);
 
-      const mainTeamId = (profileData as any)?.mainTeamId;
-      let mainTeamData: any = null;
-      if (mainTeamId) {
-        const mainTeamSnap = await db.collection(`clubs/${ownerUid}/teams`).doc(mainTeamId).get();
-        if (mainTeamSnap.exists) mainTeamData = mainTeamSnap.data();
-      }
+      const clubData = clubDataSnap.exists ? (clubDataSnap.data() as any) : { headerImageUrl: null };
+      const mainTeamData = mainTeamSnap.exists ? mainTeamSnap.data() : null;
 
       const resolvedProfile = {
         ...profileData,
@@ -138,36 +139,44 @@ export default async function ClubPage({ params }: ClubPageProps) {
       const baseLimit = Math.max(heroLimit * 3, 5);
 
       const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy("publishedAt", "desc").limit(baseLimit);
+      const videosQuery = db.collection(`clubs/${ownerUid}/videos`).orderBy("publishedAt", "desc").limit(4);
       const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
 
-      const [{ latestResult, nextMatch, recentMatches, upcomingMatches, allRecentMatches }, newsSnap, competitionsSnap] = await Promise.all([
+      const [{ latestResult, nextMatch, recentMatches, upcomingMatches, allRecentMatches }, newsSnap, videosSnap, competitionsSnap] = await Promise.all([
         getMatchDataForClub(ownerUid),
         newsQuery.get(),
+        videosQuery.get(),
         competitionsQuery.get(),
       ]);
 
       const allNews = newsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any));
-      const prioritized = allNews.slice().sort((a, b) => {
-        const af = a?.featuredInHero ? 1 : 0;
-        const bf = b?.featuredInHero ? 1 : 0;
-        return bf - af;
+      const sortedByLatest = allNews.slice().sort((a, b) => {
+        const ad = (a as any).publishedAt?.toDate ? (a as any).publishedAt.toDate() : (a as any).publishedAt;
+        const bd = (b as any).publishedAt?.toDate ? (b as any).publishedAt.toDate() : (b as any).publishedAt;
+        const at = ad instanceof Date ? ad.getTime() : 0;
+        const bt = bd instanceof Date ? bd.getTime() : 0;
+        return bt - at;
       });
-      const heroNews = prioritized.slice(0, heroLimit) as NewsArticle[];
+      const heroNews = sortedByLatest.slice(0, heroLimit) as NewsArticle[];
 
-      const latestNews = allNews
-        .slice()
-        .sort((a, b) => {
-          const ad = (a as any).publishedAt?.toDate ? (a as any).publishedAt.toDate() : (a as any).publishedAt;
-          const bd = (b as any).publishedAt?.toDate ? (b as any).publishedAt.toDate() : (b as any).publishedAt;
-          const at = ad instanceof Date ? ad.getTime() : 0;
-          const bt = bd instanceof Date ? bd.getTime() : 0;
-          return bt - at;
-        })
+      const heroNewsIds = new Set(heroNews.map(item => item.id));
+      const latestNews = sortedByLatest
+        .filter(item => !heroNewsIds.has(item.id))
         .slice(0, 5) as NewsArticle[];
 
       const competitions = competitionsSnap.docs.map((doc) => {
         const data = doc.data() as any;
         return { id: doc.id, ownerUid, name: data.name || "Unnamed Competition", ...data };
+      });
+
+      const videos = videosSnap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          title: data.title,
+          youtubeVideoId: data.youtubeVideoId,
+          publishedAt: data.publishedAt?.toDate?.() ? data.publishedAt.toDate().toISOString() : data.publishedAt,
+        };
       });
 
       return {
@@ -180,7 +189,7 @@ export default async function ClubPage({ params }: ClubPageProps) {
         allRecentMatches,
         news: latestNews,
         heroNews,
-        videos: [],
+        videos,
         competitions: Array.isArray(competitions) ? competitions : [competitions].filter(Boolean),
       };
     } catch {

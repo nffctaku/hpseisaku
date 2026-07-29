@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { notFound, useRouter } from 'next/navigation';
 import Link from "next/link";
 import Image from "next/image";
-import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { Hero } from "@/components/hero";
 import { LeagueTable } from "@/components/league-table";
@@ -66,6 +65,7 @@ export default function ClubPageContent({
       }
     );
     const [isLoading, setIsLoading] = useState(!initialClubInfo);
+    const [error, setError] = useState<string | null>(null);
     const [homePanel, setHomePanel] = useState<'standings' | 'results'>('standings');
     const [selectedRoundIndex, setSelectedRoundIndex] = useState(0);
     const [rounds, setRounds] = useState<{ roundId: string; roundName: string }[]>([]);
@@ -91,69 +91,21 @@ export default function ClubPageContent({
                 const fullRes = await fetch(`/api/club/${clubId}`);
                 if (!fullRes.ok) {
                     console.error(`Full club data HTTP error: ${fullRes.status}`);
+                    setError("データの読み込みに失敗しました");
                     return;
                 }
                 const fullData = await fullRes.json();
                 if (cancelled) return;
                 setClubInfo(fullData);
+                setError(null);
             } catch (fullErr) {
                 console.error("Failed to fetch full club data:", fullErr);
+                setError("データの読み込みに失敗しました");
             }
         };
 
-        const fetchSummaryThenFull = async () => {
-            try {
-                setIsLoading(true);
-                const summaryRes = await fetch(`/api/club-summary/${clubId}`);
-                if (!summaryRes.ok) {
-                    if (summaryRes.status === 404) {
-                        console.error("Club summary not found, clearing stored ID and redirecting.");
-                        localStorage.removeItem('selectedClubId');
-                        routerRef.current.push('/');
-                    } else {
-                        throw new Error(`Summary HTTP error! status: ${summaryRes.status}`);
-                    }
-                    return;
-                }
-                const summaryData = await summaryRes.json();
-                if (cancelled) return;
-                setClubInfo(summaryData);
-                setIsLoading(false);
-
-                const ric = (globalThis as any).requestIdleCallback as
-                    | ((cb: () => void) => number)
-                    | undefined;
-                if (ric) {
-                    idleHandle = ric(() => {
-                        runFullFetch();
-                    });
-                } else {
-                    timeoutHandle = setTimeout(() => {
-                        runFullFetch();
-                    }, 0);
-                }
-            } catch (e) {
-                console.error("Failed to fetch club summary:", e);
-                setIsLoading(false);
-            }
-        };
-
-        if (!initialClubInfo) {
-            fetchSummaryThenFull();
-        } else {
-            const ric = (globalThis as any).requestIdleCallback as
-                | ((cb: () => void) => number)
-                | undefined;
-            if (ric) {
-                idleHandle = ric(() => {
-                    runFullFetch();
-                });
-            } else {
-                timeoutHandle = setTimeout(() => {
-                    runFullFetch();
-                }, 0);
-            }
-        }
+        // Since SSR now includes all data including videos, client-side fetch is no longer needed
+        // Remove the redundant fetch to save bandwidth and Firestore read operations
 
         return () => {
             cancelled = true;
@@ -276,6 +228,30 @@ export default function ClubPageContent({
       );
     }
 
+    if (error) {
+      return (
+        <main className="min-h-screen flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 text-center px-4">
+            <div className="text-red-500">
+              <Loader2 className="w-12 h-12" />
+            </div>
+            <p className="text-lg font-semibold">エラーが発生しました</p>
+            <p className="text-sm text-muted-foreground">{error}</p>
+            <button
+              onClick={() => {
+                setError(null);
+                setIsLoading(true);
+                window.location.reload();
+              }}
+              className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              再読み込み
+            </button>
+          </div>
+        </main>
+      );
+    }
+
     return (
         <main
           className="min-h-screen"
@@ -344,6 +320,43 @@ export default function ClubPageContent({
                     {videos.length > 0 && <ClubTv videos={videos} clubId={clubId} />}
                   </div>
                   <div className="col-span-1 space-y-4">
+                    {sideHeroItems.length > 0 && (
+                      <div className="space-y-4">
+                        {sideHeroItems.map((item) => (
+                          <Link
+                            key={item.id}
+                            href={resolveNewsHref(item, clubId)}
+                            target={isExternalNewsLink(item) ? "_blank" : undefined}
+                            rel={isExternalNewsLink(item) ? "noopener noreferrer" : undefined}
+                            className="block group"
+                          >
+                            <div className="relative w-full aspect-[16/9] rounded-lg overflow-hidden bg-muted">
+                              <Image
+                                src={toCloudinaryPadded16x9((item as any).imageUrl || "/no-image.png", 800)}
+                                alt={(item as any).imageUrl ? item.title : "No image available"}
+                                fill
+                                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                                sizes="(min-width: 768px) 33vw, 100vw"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/15 to-transparent" />
+                              <div className="absolute left-0 right-0 bottom-0 p-4">
+                                <div className="text-white">
+                                  <div className="text-[10px] text-white/80">
+                                    {(() => {
+                                      const d = resolvePublishedDate((item as any).publishedAt);
+                                      return d ? format(d, "yyyy/MM/dd") : "";
+                                    })()}
+                                  </div>
+                                  <div className="mt-1 text-sm font-bold leading-tight line-clamp-2">
+                                    {item.title}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
                     <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} minCardOnMobile />
                     <MatchResultsList
                       matches={allRecentMatches}

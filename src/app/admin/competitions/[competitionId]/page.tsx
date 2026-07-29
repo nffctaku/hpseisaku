@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, updateDoc, addDoc, setDoc, increment } from "firebase/firestore";
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ChevronLeft, ChevronRight, PlusCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, PlusCircle, AlertTriangle, Upload, Download } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from "sonner";
-import { format } from 'date-fns';
+import { format, parse, isValid } from 'date-fns';
 import { MatchEditor } from '@/components/match-editor';
 import { Match, Team } from '@/types/match';
 import {
@@ -58,6 +58,66 @@ type MatchIndexRow = {
   scoreAway?: number | null;
 };
 
+function parseCSV(text: string): Record<string, string>[] {
+  const rows: Record<string, string>[] = [];
+  const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
+  if (lines.length === 0) return rows;
+
+  const parseLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      const next = line[i + 1];
+      if (inQuotes) {
+        if (c === '"') {
+          if (next === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          current += c;
+        }
+      } else {
+        if (c === '"') {
+          inQuotes = true;
+        } else if (c === ',') {
+          result.push(current);
+          current = '';
+        } else {
+          current += c;
+        }
+      }
+    }
+    result.push(current);
+    return result;
+  };
+
+  const headers = parseLine(lines[0]).map((h) => h.trim().replace(/^\uFEFF/, ''));
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseLine(lines[i]);
+    const row: Record<string, string> = {};
+    headers.forEach((h, idx) => {
+      row[h] = (values[idx] ?? '').trim();
+    });
+    rows.push(row);
+  }
+  return rows;
+}
+
+function normalizeDate(raw: string): string | null {
+  if (!raw) return null;
+  const formats = ['yyyy-MM-dd', 'yyyy/MM/dd', 'M/d/yyyy', 'MM/dd/yyyy', 'yyyy年M月d日'];
+  for (const fmt of formats) {
+    const d = parse(raw, fmt, new Date());
+    if (isValid(d)) return format(d, 'yyyy-MM-dd');
+  }
+  return null;
+}
+
 function getRoundSortKey(name: string): number {
   const s = (name || '').trim();
   if (!s) return Number.POSITIVE_INFINITY;
@@ -103,6 +163,7 @@ export default function CompetitionDetailPage() {
   const [competitionTeams, setCompetitionTeams] = useState<Team[]>([]);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchAllData = async () => {
     if (!user || !competitionId || !clubUid) return;
@@ -225,7 +286,7 @@ export default function CompetitionDetailPage() {
     return map;
   }, [currentRound?.matches]);
 
-  const syncPublicMatchIndex = async (roundId: string, matchId: string, patch?: Partial<Match>) => {
+  const syncPublicMatchIndex = async (roundId: string, matchId: string, patch?: Partial<Match>, roundNameOverride?: string) => {
     if (!user || !clubUid) return;
 
     const round = rounds.find((r) => r.id === roundId);
@@ -233,7 +294,7 @@ export default function CompetitionDetailPage() {
     const merged = { ...(match as any), ...(patch as any) } as any;
 
     const compName = competition?.name;
-    const roundName = round?.name;
+    const roundName = round?.name || roundNameOverride;
 
     const homeTeamId = typeof merged.homeTeam === 'string' ? merged.homeTeam : '';
     const awayTeamId = typeof merged.awayTeam === 'string' ? merged.awayTeam : '';
@@ -266,6 +327,257 @@ export default function CompetitionDetailPage() {
     const indexDocId = `${competitionId}__${roundId}__${matchId}`;
     const indexRef = doc(db, `clubs/${clubUid}/public_match_index`, indexDocId);
     await setDoc(indexRef, rowForFirestore, { merge: true });
+  };
+
+  const handleCsvDownload = async () => {
+    if (!competition || !clubUid) return;
+
+    const teamNameById = new Map<string, string>();
+    try {
+      const snap = await getDocs(collection(db, `clubs/${clubUid}/teams`));
+      snap.docs.forEach((d) => {
+        const data = d.data() as { name?: string; clubName?: string };
+        teamNameById.set(d.id, data.name || data.clubName || d.id);
+      });
+    } catch (e) {
+      console.warn('Failed to load team names for template:', e);
+    }
+    const toName = (id?: string) => (id ? teamNameById.get(id) || id : undefined);
+    const t1 = toName(competition.teams?.[0]) || 'チームA';
+    const t2 = toName(competition.teams?.[1]) || 'チームB';
+
+    const escape = (s: string) => {
+      const str = String(s);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const formatDate = (date: any) => {
+      if (!date) return '';
+      if (date instanceof Date) return date.toISOString().split('T')[0];
+      if (typeof date.toDate === 'function') return date.toDate().toISOString().split('T')[0];
+      if (typeof date === 'string') return date.split('T')[0];
+      if (typeof date._seconds === 'number') return new Date(date._seconds * 1000).toISOString().split('T')[0];
+      if (typeof date.seconds === 'number') return new Date(date.seconds * 1000).toISOString().split('T')[0];
+      return '';
+    };
+
+    const getRoundSortKey = (roundName: string): number => {
+      const match = roundName.match(/第(\d+)節/);
+      if (match) return parseInt(match[1], 10);
+      const match2 = roundName.match(/(\d+)節/);
+      if (match2) return parseInt(match2[1], 10);
+      return 999;
+    };
+
+    // Fetch existing rounds and matches
+    let existingMatches: any[] = [];
+    try {
+      const roundsSnap = await getDocs(collection(db, `clubs/${clubUid}/competitions/${competitionId}/rounds`));
+      const roundsData: Array<{ id: string; name: string; sortKey: number }> = [];
+      roundsSnap.docs.forEach((roundDoc) => {
+        const roundData = roundDoc.data();
+        const roundName = roundData.name || roundDoc.id;
+        roundsData.push({
+          id: roundDoc.id,
+          name: roundName,
+          sortKey: getRoundSortKey(roundName),
+        });
+      });
+      // Sort rounds by natural order
+      roundsData.sort((a, b) => a.sortKey - b.sortKey);
+
+      for (const round of roundsData) {
+        const matchesSnap = await getDocs(collection(db, `clubs/${clubUid}/competitions/${competitionId}/rounds/${round.id}/matches`));
+        matchesSnap.docs.forEach((matchDoc) => {
+          const matchData = matchDoc.data();
+          existingMatches.push({
+            round: round.name,
+            homeTeam: toName(matchData.homeTeam),
+            awayTeam: toName(matchData.awayTeam),
+            matchDate: formatDate(matchData.matchDate),
+            scoreHome: matchData.scoreHome ?? '',
+            scoreAway: matchData.scoreAway ?? '',
+          });
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to load existing matches for template:', e);
+    }
+
+    const headers = 'round,homeTeam,awayTeam,matchDate,scoreHome,scoreAway,participatingTeams\n';
+    const existingRows = existingMatches
+      .map((m) => `${escape(m.round)},${escape(m.homeTeam)},${escape(m.awayTeam)},${m.matchDate},${m.scoreHome},${m.scoreAway},\n`)
+      .join('');
+    const example = `第1節,${escape(t1)},${escape(t2)},2026-07-20,,,\n`;
+    const teamListRows = (competition.teams || [])
+      .map((id) => `,,,,,,${escape(toName(id) || id)}\n`)
+      .join('');
+    const content = '\uFEFF' + headers + existingRows + example + teamListRows;
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `schedule_template_${competitionId}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCsvImport = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !competition || !clubUid) return;
+
+    const text = await file.text();
+    const parsed = parseCSV(text);
+    if (parsed.length === 0) {
+      toast.error('CSVにデータが見つかりませんでした。');
+      e.target.value = '';
+      return;
+    }
+
+    const nameToTeam = new Map<string, Team>();
+    const idToTeam = new Map<string, Team>();
+    competitionTeams.forEach((t) => {
+      if (t.name) nameToTeam.set(t.name.trim(), t);
+      if (t.id) idToTeam.set(t.id.trim(), t);
+    });
+
+    const roundNameToRound = new Map<string, Round>();
+    rounds.forEach((r) => roundNameToRound.set(r.name.trim(), r));
+    const newRounds: Round[] = [];
+    const matchesByRound = new Map<string, any[]>();
+    const skipped: string[] = [];
+
+    for (let i = 0; i < parsed.length; i++) {
+      const row = parsed[i];
+      const homeRaw = row.homeTeam || row.home || row['ホーム'] || '';
+      const awayRaw = row.awayTeam || row.away || row['アウェイ'] || '';
+
+      if (!homeRaw.trim() && !awayRaw.trim()) continue;
+
+      const roundRaw = row.round || row['節'] || row['ラウンド'] || '';
+      const roundName = roundRaw.trim();
+
+      let roundObj: Round | null = null;
+      if (!roundName) {
+        if (!currentRound) {
+          skipped.push(`${i + 2}行目: 節が指定されていません`);
+          continue;
+        }
+        roundObj = currentRound;
+      } else if (roundNameToRound.has(roundName)) {
+        roundObj = roundNameToRound.get(roundName)!;
+      } else {
+        try {
+          const roundRef = await addDoc(collection(db, `clubs/${clubUid}/competitions/${competitionId}/rounds`), { name: roundName, matches: [] });
+          const createdRound: Round = { id: roundRef.id, name: roundName, matches: [] };
+          newRounds.push(createdRound);
+          roundNameToRound.set(roundName, createdRound);
+          roundObj = createdRound;
+        } catch (error) {
+          console.error('[CompetitionDetailPage] Error creating round:', { clubUid, competitionId, roundName, error });
+          skipped.push(`${i + 2}行目: 節の作成に失敗しました`);
+          continue;
+        }
+      }
+      const dateRaw = row.matchDate || row.date || row['日付'] || '';
+      const timeRaw = row.matchTime || row.time || row['時間'] || '';
+      const scoreHomeRaw = row.scoreHome ?? row.homeScore ?? row['ホーム得点'] ?? '';
+      const scoreAwayRaw = row.scoreAway ?? row.awayScore ?? row['アウェイ得点'] ?? '';
+
+      const homeTeam = nameToTeam.get(homeRaw.trim()) || idToTeam.get(homeRaw.trim());
+      const awayTeam = nameToTeam.get(awayRaw.trim()) || idToTeam.get(awayRaw.trim());
+      if (!homeTeam || !awayTeam) {
+        skipped.push(`${i + 2}行目: チームが見つかりません`);
+        continue;
+      }
+
+      const date = normalizeDate(dateRaw);
+      if (dateRaw && !date) {
+        skipped.push(`${i + 2}行目: 日付が不正です`);
+        continue;
+      }
+
+      let scoreHome: number | null = null;
+      let scoreAway: number | null = null;
+      if (scoreHomeRaw !== '') {
+        const num = Number(scoreHomeRaw);
+        if (!Number.isFinite(num) || num < 0 || !Number.isInteger(num)) {
+          skipped.push(`${i + 2}行目: ホーム得点が不正です`);
+          continue;
+        }
+        scoreHome = num;
+      }
+      if (scoreAwayRaw !== '') {
+        const num = Number(scoreAwayRaw);
+        if (!Number.isFinite(num) || num < 0 || !Number.isInteger(num)) {
+          skipped.push(`${i + 2}行目: アウェイ得点が不正です`);
+          continue;
+        }
+        scoreAway = num;
+      }
+
+      const newMatchData = {
+        homeTeam: homeTeam.id,
+        awayTeam: awayTeam.id,
+        matchDate: date,
+        matchTime: timeRaw || null,
+        scoreHome,
+        scoreAway,
+        pkScoreHome: null,
+        pkScoreAway: null,
+        competitionId,
+      };
+
+      try {
+        const matchesPath = `clubs/${clubUid}/competitions/${competitionId}/rounds/${roundObj.id}/matches`;
+        const matchRef = await addDoc(collection(db, matchesPath), newMatchData);
+        const newMatch = { id: matchRef.id, ...newMatchData };
+
+        const list = matchesByRound.get(roundObj.id) || [];
+        list.push(newMatch);
+        matchesByRound.set(roundObj.id, list);
+
+        try {
+          await syncPublicMatchIndex(roundObj.id, matchRef.id, newMatch as any, roundObj.name);
+        } catch (e) {
+          console.warn('[CompetitionDetailPage] Failed to sync public_match_index (continuing):', e);
+        }
+      } catch (error) {
+        console.error('[CompetitionDetailPage] Error adding CSV match:', { clubUid, competitionId, roundId: roundObj.id, row, error });
+        skipped.push(`${i + 2}行目: 保存に失敗しました`);
+      }
+    }
+
+    if (matchesByRound.size > 0 || newRounds.length > 0) {
+      setRounds((prev) => {
+        const nextMap = new Map(prev.map((r) => [r.id, r]));
+        newRounds.forEach((r) => nextMap.set(r.id, r));
+        const merged = Array.from(nextMap.values()).map((r) => {
+          const added = matchesByRound.get(r.id);
+          return added ? { ...r, matches: [...r.matches, ...added] } : r;
+        });
+        return merged;
+      });
+      try {
+        await setDoc(doc(db, `clubs/${clubUid}`), { statsCacheVersion: increment(1) }, { merge: true });
+      } catch (e) {
+        console.warn('[CompetitionDetailPage] Failed to bump statsCacheVersion (continuing):', e);
+      }
+    }
+
+    const totalAdded = [...matchesByRound.values()].reduce((a, v) => a + v.length, 0);
+    let message = `CSVを取り込みました（合計 ${totalAdded} 件`;
+    if (newRounds.length > 0) message += ` / 新規節 ${newRounds.length}`;
+    message += '）';
+    if (skipped.length > 0) message += ` / スキップ ${skipped.length} 件`;
+    toast.success(message);
+    if (skipped.length > 0) toast.error(`${skipped.length} 件の行をスキップしました。`);
+    e.target.value = '';
   };
 
   const handleResetAllScores = async () => {
@@ -454,8 +766,42 @@ export default function CompetitionDetailPage() {
   return (
     <div className="container mx-auto py-10">
       <div className="mb-4">
-        <h1 className="text-2xl font-bold">{competition?.name}</h1>
-        <p className="text-muted-foreground">{competition?.season}</p>
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold">{competition?.name}</h1>
+          <p className="text-muted-foreground">{competition?.season}</p>
+        </div>
+        <div className="flex justify-between gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+            onClick={handleCsvDownload}
+            disabled={!competition || !clubUid}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            CSVダウンロード
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!competition || !clubUid}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            CSVインポート
+          </Button>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            ref={fileInputRef}
+            className="hidden"
+            onChange={handleCsvImport}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          大会日程をCSVファイルから登録・編集できます
+        </p>
       </div>
 
       <div className="flex justify-between items-center bg-card p-2 rounded-lg mb-8">
@@ -494,16 +840,21 @@ export default function CompetitionDetailPage() {
           </div>
           <Button variant="outline" className="w-full text-gray-900" onClick={handleAddMatch}><PlusCircle className="mr-2 h-4 w-4" />試合を追加</Button>
           {canEditStandings ? (
-            <Link href={`/admin/competitions/${competitionId}/standings`}>
-              <Button className="w-full bg-green-600 text-white hover:bg-green-700">順位表を更新・編集</Button>
-            </Link>
+            <div>
+              <Link href={`/admin/competitions/${competitionId}/standings`}>
+                <Button className="w-full bg-green-600 text-white hover:bg-green-700">順位表を手動で更新・編集</Button>
+              </Link>
+              <p className="text-xs text-muted-foreground mt-2">
+                日程を登録せず、直接順位表を編集できます
+              </p>
+            </div>
           ) : null}
           
           <div className="flex justify-end mt-4">
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="bg-red-600 hover:bg-red-700 text-white text-xs py-2 px-3">
-                  <AlertTriangle className="mr-1 h-3 w-3" />
+                <Button variant="destructive" className="w-full bg-red-600 hover:bg-red-700 text-white">
+                  <AlertTriangle className="mr-2 h-4 w-4" />
                   すべての試合スコアをリセット
                 </Button>
               </AlertDialogTrigger>
