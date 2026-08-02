@@ -64,6 +64,8 @@ export async function getMatchesGroupedByCompetition(): Promise<Record<string, M
   return groupedMatches;
 }
 
+import { toSlashSeason } from './season';
+
 export async function getMatchDataForClub(ownerUid: string): Promise<{
   latestResult: MatchDetails | null;
   nextMatch: MatchDetails | null;
@@ -91,6 +93,44 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
   const teamsSnap = await teamsQuery.get();
   teamsSnap.forEach(doc => teamsMap.set(doc.id, { name: doc.data().name, logoUrl: doc.data().logoUrl }));
 
+  // 2.5. Fetch season visibility (same as results page)
+  const seasonVisibility = new Map<string, boolean>();
+  const loadSeasonsFrom = async (clubDocId: string) => {
+    try {
+      const snap = await db.collection(`clubs/${clubDocId}/seasons`).get();
+      snap.docs.forEach((doc) => {
+        const data = doc.data() as any;
+        const seasonIdRaw = typeof doc.id === 'string' ? doc.id.trim() : '';
+        const seasonId = seasonIdRaw ? toSlashSeason(seasonIdRaw) : '';
+        if (!seasonId) return;
+
+        const isPublic = data?.isPublic !== false;
+        if (seasonVisibility.has(seasonId)) {
+          if (!isPublic) seasonVisibility.set(seasonId, false);
+        } else {
+          seasonVisibility.set(seasonId, isPublic);
+        }
+      });
+    } catch (e) {
+      // Ignore season fetch errors
+      console.warn('[getMatchDataForClub] Failed to fetch seasons', { clubDocId }, e);
+    }
+  };
+
+  await loadSeasonsFrom(ownerUid);
+  const clubId = profileSnap.docs[0]?.id;
+  if (clubId && clubId !== ownerUid) {
+    await loadSeasonsFrom(clubId);
+  }
+
+  const publicSeasons = Array.from(seasonVisibility.entries())
+    .filter(([, isPublic]) => isPublic)
+    .map(([season]) => season);
+  const publicSeasonIdSet = new Set<string>(publicSeasons);
+  
+  // Disable season filtering to show all matches
+  const shouldFilterBySeason = false;
+
   // 3. Fetch all matches from all competitions/rounds
   const allMatches: MatchDetails[] = [];
   const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
@@ -98,6 +138,12 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
 
   const nestedMatches = await Promise.all(
     competitionsSnap.docs.map(async (compDoc) => {
+      const competitionData = compDoc.data() as any;
+      const compSeasonRaw = typeof competitionData?.season === 'string' ? competitionData.season.trim() : '';
+      const compSeason = compSeasonRaw ? toSlashSeason(compSeasonRaw) : '';
+      // Only filter out if season filtering is enabled AND the competition has a season that's not public
+      if (shouldFilterBySeason && compSeason && !publicSeasonIdSet.has(compSeason)) return [] as MatchDetails[];
+      
       const roundsQuery = db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`);
       const roundsSnap = await roundsQuery.get();
 
@@ -138,6 +184,11 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
   const friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
   friendlySnap.forEach((doc) => {
     const matchData = doc.data() as any;
+    const matchSeasonRaw = typeof matchData?.season === 'string' ? matchData.season.trim() : '';
+    const matchSeason = matchSeasonRaw ? toSlashSeason(matchSeasonRaw) : '';
+    // Only filter out if season filtering is enabled AND the match has a season that's not public
+    if (shouldFilterBySeason && matchSeason && !publicSeasonIdSet.has(matchSeason)) return;
+    
     const compId = (matchData.competitionId as string) === 'practice' ? 'practice' : 'friendly';
     const compName = matchData.competitionName || (compId === 'practice' ? '練習試合' : '親善試合');
     const homeTeam = teamsMap.get(matchData.homeTeam);
@@ -174,11 +225,35 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
   const latestResult = ownPastMatches.length > 0 ? ownPastMatches[0] : null;
   const nextMatch = ownFutureMatches.length > 0 ? ownFutureMatches[0] : null;
 
-  const recentMatches = ownPastMatches.slice(0, 5);
-  const upcomingMatches = ownFutureMatches.slice(0, 7);
+  // Simplify match data for serialization - only include fields needed for UI
+  const simplifyMatch = (m: any): MatchDetails => ({
+    id: m.id,
+    competitionId: m.competitionId,
+    roundId: m.roundId,
+    homeTeam: m.homeTeam,
+    awayTeam: m.awayTeam,
+    homeTeamName: m.homeTeamName,
+    awayTeamName: m.awayTeamName,
+    competitionName: m.competitionName,
+    competitionLogoUrl: m.competitionLogoUrl,
+    roundName: m.roundName,
+    homeTeamLogo: m.homeTeamLogo,
+    awayTeamLogo: m.awayTeamLogo,
+    matchDate: m.matchDate,
+    matchTime: m.matchTime,
+    scoreHome: m.scoreHome,
+    scoreAway: m.scoreAway,
+    pkScoreHome: m.pkScoreHome,
+    pkScoreAway: m.pkScoreAway,
+  });
+
+  const recentMatches = ownPastMatches.slice(0, 5).map(simplifyMatch);
+  const upcomingMatches = ownFutureMatches.slice(0, 7).map(simplifyMatch);
   const allRecentMatches = allMatches
     .filter(m => m.scoreHome !== null && m.scoreAway !== null)
+    .map(simplifyMatch)
     .sort((a, b) => getMatchSortMs(b) - getMatchSortMs(a));
+
 
   return { latestResult, nextMatch, clubName, recentMatches, upcomingMatches, allRecentMatches };
 }

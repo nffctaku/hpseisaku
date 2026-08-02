@@ -353,7 +353,7 @@ export function MatchResultsList({
     );
   }
   const currentRoundMatches = items
-    .filter((m) => m.roundId === currentRound.roundId || (!currentRound.roundId && m.roundName === currentRound.roundName))
+    .filter((m) => m.roundName === currentRound.roundName)
     .sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
 
   // 大会名を取得（最初の試合から）

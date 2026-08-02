@@ -451,6 +451,19 @@ export default function CompetitionDetailPage() {
     const newRounds: Round[] = [];
     const matchesByRound = new Map<string, any[]>();
     const skipped: string[] = [];
+    let createdCount = 0;
+    let updatedCount = 0;
+    
+    // Fetch existing matches to check for duplicates
+    const existingMatchesByRound = new Map<string, Map<string, any>>();
+    for (const round of rounds) {
+      const matchesMap = new Map<string, any>();
+      for (const match of round.matches) {
+        const key = `${match.homeTeam}-${match.awayTeam}`;
+        matchesMap.set(key, match);
+      }
+      existingMatchesByRound.set(round.id, matchesMap);
+    }
 
     for (let i = 0; i < parsed.length; i++) {
       const row = parsed[i];
@@ -535,15 +548,29 @@ export default function CompetitionDetailPage() {
 
       try {
         const matchesPath = `clubs/${clubUid}/competitions/${competitionId}/rounds/${roundObj.id}/matches`;
-        const matchRef = await addDoc(collection(db, matchesPath), newMatchData);
-        const newMatch = { id: matchRef.id, ...newMatchData };
+        const matchKey = `${homeTeam.id}-${awayTeam.id}`;
+        const existingMatches = existingMatchesByRound.get(roundObj.id);
+        const existingMatch = existingMatches?.get(matchKey);
+        
+        let newMatch: any;
+        if (existingMatch) {
+          // Update existing match
+          await updateDoc(doc(db, matchesPath, existingMatch.id), newMatchData);
+          newMatch = { id: existingMatch.id, ...newMatchData };
+          updatedCount++;
+        } else {
+          // Create new match
+          const matchRef = await addDoc(collection(db, matchesPath), newMatchData);
+          newMatch = { id: matchRef.id, ...newMatchData };
+          createdCount++;
+        }
 
         const list = matchesByRound.get(roundObj.id) || [];
         list.push(newMatch);
         matchesByRound.set(roundObj.id, list);
 
         try {
-          await syncPublicMatchIndex(roundObj.id, matchRef.id, newMatch as any, roundObj.name);
+          await syncPublicMatchIndex(roundObj.id, newMatch.id, newMatch as any, roundObj.name);
         } catch (e) {
           console.warn('[CompetitionDetailPage] Failed to sync public_match_index (continuing):', e);
         }
@@ -571,7 +598,7 @@ export default function CompetitionDetailPage() {
     }
 
     const totalAdded = [...matchesByRound.values()].reduce((a, v) => a + v.length, 0);
-    let message = `CSVを取り込みました（合計 ${totalAdded} 件`;
+    let message = `CSVを取り込みました（新規 ${createdCount} 件 / 更新 ${updatedCount} 件）`;
     if (newRounds.length > 0) message += ` / 新規節 ${newRounds.length}`;
     message += '）';
     if (skipped.length > 0) message += ` / スキップ ${skipped.length} 件`;

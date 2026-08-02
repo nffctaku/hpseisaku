@@ -553,20 +553,41 @@ export default function AnalysisPage() {
   }, [leagueRanksBySeason, leagueRankHistory.points, leagueRankHistory.segments]);
 
   useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && selectedSeason === 'all') {
+      // eslint-disable-next-line no-console
+      console.log('[analysis] leagueSeasonRows', leagueSeasonRows);
+      // eslint-disable-next-line no-console
+      console.log('[analysis] leagueRanksBySeason', leagueRanksBySeason);
+    }
+  }, [leagueSeasonRows, leagueRanksBySeason, selectedSeason]);
+
+  useEffect(() => {
     const fetchRanks = async () => {
       if (selectedTournamentType !== 'league') return;
-      if (selectedSeason !== 'all') return;
       if (!clubUid) return;
       if (!mainTeamId) return;
       const targetTeamId = resolvedTeamId || String(mainTeamId);
       if (selectedCompetitionId === 'all') return;
 
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.log('[analysis] fetchRanks called', {
+          selectedTournamentType,
+          selectedSeason,
+          selectedCompetitionId,
+          clubUid,
+          mainTeamId,
+          targetTeamId,
+        });
+      }
+
       setLeagueRanksLoading(true);
 
-      const selectedName = typeof selectedCompetitionId === 'string' ? selectedCompetitionId.trim() : '';
+      const selectedId = typeof selectedCompetitionId === 'string' ? selectedCompetitionId.trim() : '';
       const comps = (Array.isArray(competitions) ? competitions : []).filter((c: any) => {
+        const idKey = typeof c?.id === 'string' ? c.id : String(c?.id || '');
         const nameKey = typeof c?.name === 'string' ? c.name.trim() : '';
-        const matchesSelection = selectedName.length > 0 && selectedName !== 'all' && selectedName === nameKey;
+        const matchesSelection = selectedId.length > 0 && selectedId !== 'all' && (selectedId === idKey || selectedId === nameKey);
         if (!matchesSelection) return false;
         const formatRaw = typeof c?.format === 'string' ? String(c.format) : '';
         const typeRaw = typeof c?.type === 'string' ? String(c.type) : '';
@@ -790,6 +811,19 @@ export default function AnalysisPage() {
                       })()
                     : null;
 
+              // Debug log for ranking resolution
+              if (process.env.NODE_ENV === 'development') {
+                // eslint-disable-next-line no-console
+                console.log('[analysis] rank resolved for season', {
+                  season,
+                  normalizedSeasonKey,
+                  competitionId: String(c.id),
+                  targetTeamId,
+                  normalizedRank,
+                  originalRank: rank,
+                });
+              }
+
               const prevRank = next[season];
               if (typeof prevRank === 'number') {
                 if (typeof normalizedRank === 'number') {
@@ -798,6 +832,11 @@ export default function AnalysisPage() {
                   // Keep previously resolved rank for the same season.
                 }
               } else {
+                next[season] = normalizedRank;
+              }
+
+              // Force update if we found a valid rank
+              if (typeof normalizedRank === 'number') {
                 next[season] = normalizedRank;
               }
 
@@ -827,6 +866,14 @@ export default function AnalysisPage() {
         setLeagueTeamsBySeason(teamCounts);
         setLeagueStandingsBySeason(standingsBySeason);
         setLeagueRanksLoading(false);
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.log('[analysis] fetchRanks completed', {
+            leagueRanksBySeason: next,
+            leagueTeamsBySeason: teamCounts,
+            leagueStandingsBySeason: standingsBySeason,
+          });
+        }
       }
     };
 
@@ -960,6 +1007,16 @@ export default function AnalysisPage() {
                               {leagueSeasonRows.map((row) => {
                                 const rank = leagueRanksBySeason[row.season];
                                 const standings = leagueStandingsBySeason[row.season];
+                                if (process.env.NODE_ENV === 'development') {
+                                  // eslint-disable-next-line no-console
+                                  console.log('[analysis] table row rank', {
+                                    season: row.season,
+                                    rank,
+                                    rankType: typeof rank,
+                                    hasRank: typeof rank === 'number',
+                                    availableSeasons: Object.keys(leagueRanksBySeason),
+                                  });
+                                }
                                 const points = standings ? standings.points : row.points;
                                 const wins = standings ? standings.wins : row.wins;
                                 const draws = standings ? standings.draws : row.draws;

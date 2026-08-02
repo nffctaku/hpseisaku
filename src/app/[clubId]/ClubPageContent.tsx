@@ -5,6 +5,8 @@ import { notFound, useRouter } from 'next/navigation';
 import Link from "next/link";
 import Image from "next/image";
 import { format } from "date-fns";
+import { db } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { Hero } from "@/components/hero";
 import { LeagueTable } from "@/components/league-table";
 import { ClubTv } from "@/components/club-tv";
@@ -133,14 +135,102 @@ export default function ClubPageContent({
     const sideHeroItems = heroItems.slice(1, 4) as NewsArticle[];
     const mainTeamId = clubInfo.profile?.mainTeamId || null;
     const recentMatches = (clubInfo.recentMatches || []) as MatchDetails[];
-    const allRecentMatches = (clubInfo.allRecentMatches || recentMatches) as MatchDetails[];
+    
+    // Client-side fetch of all match data to avoid serialization issues
+    const [clientAllRecentMatches, setClientAllRecentMatches] = useState<MatchDetails[]>([]);
+
+    useEffect(() => {
+      const fetchAllMatches = async () => {
+        try {
+          if (!clubId) return;
+          
+          // Get the season from the competition shown on home page
+          const competitions = clubInfo.competitions || [];
+          const homeCompetition = competitions.find((c: any) => c.showOnHome) || competitions[0];
+          const targetSeason = homeCompetition?.season ? String(homeCompetition.season).trim() : null;
+          
+          const [competitionsSnap, teamsSnap] = await Promise.all([
+            getDocs(collection(db, `clubs/${clubId}/competitions`)),
+            getDocs(collection(db, `clubs/${clubId}/teams`)),
+          ]);
+          const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
+          teamsSnap.forEach((teamDoc) => {
+            const teamData = teamDoc.data();
+            teamsMap.set(teamDoc.id, { name: teamData.name || '', logoUrl: teamData.logoUrl });
+          });
+          
+          const allMatches: MatchDetails[] = [];
+          
+          for (const compDoc of competitionsSnap.docs) {
+            const competitionId = compDoc.id;
+            const competitionData = compDoc.data();
+            const compSeason = competitionData.season ? String(competitionData.season).trim() : '';
+            
+            // Filter matches by season if targetSeason is specified
+            if (targetSeason && compSeason && compSeason !== targetSeason) {
+              continue;
+            }
+            
+            // Fetch all rounds for this competition
+            const roundsSnap = await getDocs(collection(db, `clubs/${clubId}/competitions/${competitionId}/rounds`));
+            
+            for (const roundDoc of roundsSnap.docs) {
+              const roundId = roundDoc.id;
+              const roundData = roundDoc.data();
+              
+              // Fetch all matches for this round
+              const matchesSnap = await getDocs(collection(db, `clubs/${clubId}/competitions/${competitionId}/rounds/${roundId}/matches`));
+              
+              matchesSnap.forEach((matchDoc) => {
+                const matchData = matchDoc.data();
+                const homeTeam = teamsMap.get(matchData.homeTeam);
+                const awayTeam = teamsMap.get(matchData.awayTeam);
+                if (matchData.scoreHome !== null && matchData.scoreAway !== null) {
+                  allMatches.push({
+                    id: matchDoc.id,
+                    competitionId,
+                    roundId,
+                    homeTeam: matchData.homeTeam,
+                    awayTeam: matchData.awayTeam,
+                    homeTeamName: matchData.homeTeamName || homeTeam?.name || '不明',
+                    awayTeamName: matchData.awayTeamName || awayTeam?.name || '不明',
+                    competitionName: competitionData.name,
+                    competitionLogoUrl: competitionData.logoUrl,
+                    roundName: roundData.name,
+                    homeTeamLogo: matchData.homeTeamLogo || homeTeam?.logoUrl,
+                    awayTeamLogo: matchData.awayTeamLogo || awayTeam?.logoUrl,
+                    matchDate: matchData.matchDate,
+                    matchTime: matchData.matchTime,
+                    scoreHome: matchData.scoreHome,
+                    scoreAway: matchData.scoreAway,
+                    pkScoreHome: matchData.pkScoreHome,
+                    pkScoreAway: matchData.pkScoreAway,
+                  } as MatchDetails);
+                }
+              });
+            }
+          }
+          
+          allMatches.sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime());
+          
+          setClientAllRecentMatches(allMatches);
+        } catch (error) {
+          console.error('Error fetching matches:', error);
+        }
+      };
+
+      fetchAllMatches();
+    }, [clubId]);
+
+    const allRecentMatches = clientAllRecentMatches.length > 0 ? clientAllRecentMatches : (clubInfo.allRecentMatches || recentMatches) as MatchDetails[];
 
     useEffect(() => {
       if (allRecentMatches && allRecentMatches.length > 0) {
         const matches = allRecentMatches as MatchDetails[];
         const roundsMap = matches.reduce((map, match) => {
             if (!match) return map;
-            const key = `${match.roundId || ''}:${match.roundName || ''}`;
+            // Group by roundName only to include matches from all competitions
+            const key = match.roundName || '';
             if (!map.has(key)) {
               map.set(key, { roundId: match.roundId || '', roundName: match.roundName || '', latestDate: match.matchDate });
             } else {
@@ -149,6 +239,7 @@ export default function ClubPageContent({
               const currentLatestDate = new Date(current.latestDate).getTime();
               if (matchDate > currentLatestDate) {
                 current.latestDate = match.matchDate;
+                current.roundId = match.roundId || ''; // Use the latest match's roundId
               }
             }
             return map;
