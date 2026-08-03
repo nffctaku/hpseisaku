@@ -112,8 +112,8 @@ export function NewsSection({ news, clubId, fallbackLogoUrl }: NewsSectionProps)
                 </h3>
 
                 {item.content && (
-                  <p className="mt-2 hidden text-xs font-medium leading-6 text-slate-500 line-clamp-2 md:block">
-                    {item.content}
+                  <p className="mt-2 text-xs font-medium leading-6 text-slate-500 line-clamp-2 md:block">
+                    {item.content.length > 30 ? `${item.content.slice(0, 30)}...` : item.content}
                   </p>
                 )}
 
