@@ -44,7 +44,7 @@ async function getClubData(clubId: string) {
   const heroLimitRaw = (clubData as any)?.heroNewsLimit;
   const heroLimit = typeof heroLimitRaw === 'number' && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;
 
-  const baseLimit = Math.max(heroLimit * 3, 5);
+  const baseLimit = Math.max(heroLimit * 3, 6);
   const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy('publishedAt', 'desc').limit(baseLimit);
   const videosQuery = db.collection(`clubs/${ownerUid}/videos`).orderBy('publishedAt', 'desc').limit(4);
   const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
@@ -67,7 +67,7 @@ async function getClubData(clubId: string) {
   });
   const heroNews = prioritized.slice(0, heroLimit) as NewsArticle[];
 
-  // 一覧用: 常に最新順の上位 5 件を使用
+  // 一覧用: 常に最新順の上位 6 件を使用
   const latestNews = allNews
     .slice()
     .sort((a, b) => {
@@ -77,7 +77,7 @@ async function getClubData(clubId: string) {
       const bt = bd instanceof Date ? bd.getTime() : 0;
       return bt - at;
     })
-    .slice(0, 5) as NewsArticle[];
+    .slice(0, 6) as NewsArticle[];
 
   const videos = videosSnap.docs.map(doc => {
     const data = doc.data();

@@ -86,7 +86,7 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
       <CarouselContent className="!-ml-0">
         {items.map((item, index) => (
           <CarouselItem key={item.id} className="!pl-0">
-            <div className="relative w-full h-[45vh] bg-muted">
+            <div className="relative w-full h-[60vh] md:h-[70vh] bg-muted">
               {item.imageUrl ? (
                 <Image
                   src={toCloudinaryPadded16x9(item.imageUrl, 1600)}

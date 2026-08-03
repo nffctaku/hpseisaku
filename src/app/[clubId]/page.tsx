@@ -136,7 +136,7 @@ export default async function ClubPage({ params }: ClubPageProps) {
 
       const heroLimitRaw = (clubData as any)?.heroNewsLimit;
       const heroLimit = typeof heroLimitRaw === "number" && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;
-      const baseLimit = Math.max(heroLimit * 3, 5);
+      const baseLimit = Math.max(heroLimit * 3, 6);
 
       const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy("publishedAt", "desc").limit(baseLimit);
       const videosQuery = db.collection(`clubs/${ownerUid}/videos`).orderBy("publishedAt", "desc").limit(4);
@@ -162,7 +162,7 @@ export default async function ClubPage({ params }: ClubPageProps) {
       const heroNewsIds = new Set(heroNews.map(item => item.id));
       const latestNews = sortedByLatest
         .filter(item => !heroNewsIds.has(item.id))
-        .slice(0, 5) as NewsArticle[];
+        .slice(0, 6) as NewsArticle[];
 
       const competitions = competitionsSnap.docs.map((doc) => {
         const data = doc.data() as any;

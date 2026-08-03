@@ -34,7 +34,6 @@ export default function LandingPage() {
               </Link>
               <nav className="hidden items-center gap-9 text-sm font-medium text-slate-400 lg:flex">
                 <a href="#features" className="hover:text-white transition-colors">機能</a>
-                <a href="#demo" className="hover:text-white transition-colors">デモ</a>
                 <a href="#pricing" className="hover:text-white transition-colors">料金</a>
                 <a href="#faq" className="hover:text-white transition-colors">よくある質問</a>
               </nav>
@@ -59,9 +58,6 @@ export default function LandingPage() {
               <div className="mt-8 flex w-full flex-col gap-3 sm:mt-9 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
                 <Link href="/admin" className="rounded-xl bg-emerald-400 px-6 py-3.5 text-center text-sm font-black text-[#06111f] shadow-lg shadow-emerald-950/20 hover:bg-emerald-300 transition-colors sm:px-8 sm:py-4 sm:text-base">
                   無料でチームを作成する →
-                </Link>
-                <Link href="/clubs" className="rounded-xl border border-slate-700/80 bg-slate-950/30 px-6 py-3.5 text-center text-sm font-black text-white hover:bg-slate-900 transition-colors sm:px-8 sm:py-4 sm:text-base">
-                  デモを見る ▶
                 </Link>
               </div>
             </div>

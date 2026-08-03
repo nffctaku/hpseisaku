@@ -76,9 +76,10 @@ async function backfillPublicMatchIndex(ownerUid: string) {
   teamsSnap.forEach((d) => teamsMap.set(d.id, { name: (d.data() as any).name, logoUrl: (d.data() as any).logoUrl }));
 
   const competitionsSnap = await db.collection(`clubs/${ownerUid}/competitions`).get();
+  const publicCompetitionDocs = competitionsSnap.docs.filter((compDoc) => (compDoc.data() as any)?.showOnHome === true);
 
   const nestedMatches = await Promise.all(
-    competitionsSnap.docs.map(async (compDoc) => {
+    publicCompetitionDocs.map(async (compDoc) => {
       const compData = compDoc.data() as any;
       const roundsSnap = await db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`).get();
 
@@ -122,33 +123,7 @@ async function backfillPublicMatchIndex(ownerUid: string) {
     })
   );
 
-  const friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
-  const friendlyRows: MatchIndexRow[] = friendlySnap.docs.map((d) => {
-    const m = d.data() as any;
-    const compId = (m.competitionId as string) === 'practice' ? 'practice' : 'friendly';
-    const compName = m.competitionName || (compId === 'practice' ? '練習試合' : '親善試合');
-    const homeTeam = teamsMap.get(m.homeTeam);
-    const awayTeam = teamsMap.get(m.awayTeam);
-    return {
-      matchId: d.id,
-      competitionId: compId,
-      roundId: 'single',
-      matchDate: typeof m.matchDate === 'string' ? m.matchDate : '',
-      matchTime: typeof m.matchTime === 'string' ? m.matchTime : undefined,
-      competitionName: compName,
-      roundName: m.roundName || '単発',
-      homeTeam: m.homeTeam,
-      awayTeam: m.awayTeam,
-      homeTeamName: m.homeTeamName || homeTeam?.name,
-      awayTeamName: m.awayTeamName || awayTeam?.name,
-      homeTeamLogo: m.homeTeamLogo || homeTeam?.logoUrl,
-      awayTeamLogo: m.awayTeamLogo || awayTeam?.logoUrl,
-      scoreHome: typeof m.scoreHome === 'number' ? m.scoreHome : (m.scoreHome ?? null),
-      scoreAway: typeof m.scoreAway === 'number' ? m.scoreAway : (m.scoreAway ?? null),
-    };
-  });
-
-  const allRows = [...nestedMatches.flat(), ...friendlyRows].filter((r) => typeof r.matchDate === 'string' && r.matchDate);
+  const allRows = nestedMatches.flat().filter((r) => typeof r.matchDate === 'string' && r.matchDate);
 
   const commitBatch = async (rows: MatchIndexRow[]) => {
     const batch = db.batch();
@@ -214,6 +189,8 @@ async function getClubMatches(clubId: string): Promise<{
 
   const profileData = resolved.profileData as any;
   const ownerUid = resolved.ownerUid;
+  const publicCompetitionsSnap = await db.collection(`clubs/${ownerUid}/competitions`).where('showOnHome', '==', true).get();
+  const publicCompetitionIds = new Set(publicCompetitionsSnap.docs.map((doc) => doc.id));
   const clubName = (profileData as any).clubName || 'クラブ';
   const logoUrl = (profileData as any).logoUrl || null;
   const snsLinks = (profileData as any).snsLinks || {};
@@ -229,7 +206,8 @@ async function getClubMatches(clubId: string): Promise<{
     const rows = indexSnap.docs
       .filter((d) => d.id !== '_meta')
       .map((d) => d.data() as MatchIndexRow)
-      .filter((r) => typeof r.matchDate === 'string' && r.matchDate);
+      .filter((r) => typeof r.matchDate === 'string' && r.matchDate)
+      .filter((r) => publicCompetitionIds.has(r.competitionId));
 
     const matches: MatchDetails[] = rows
       .map((r) => ({
@@ -270,7 +248,8 @@ async function getClubMatches(clubId: string): Promise<{
     const rows = refetched.docs
       .filter((d) => d.id !== '_meta')
       .map((d) => d.data() as MatchIndexRow)
-      .filter((r) => typeof r.matchDate === 'string' && r.matchDate);
+      .filter((r) => typeof r.matchDate === 'string' && r.matchDate)
+      .filter((r) => publicCompetitionIds.has(r.competitionId));
 
     const matches: MatchDetails[] = rows
       .map((r) => ({

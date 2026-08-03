@@ -34,8 +34,11 @@ function toCloudinaryPadded16x9(url: string, width: number) {
   );
 }
 
+const NEWS_LABELS = ["お知らせ", "イベント", "スポンサー", "試合情報", "試合結果", "インタビュー", "チケット"] as const;
+
 const newsSchema = z.object({
   title: z.string().min(1, { message: "タイトルは必須です。" }),
+  category: z.enum(NEWS_LABELS),
   content: z.string().optional(),
   noteUrl: z.union([
     z.string().url({ message: "無効なURLです。" }),
@@ -52,9 +55,16 @@ const newsSchema = z.object({
   message: "本文または外部記事のURLを入力してください。",
 });
 
+type NewsLabel = (typeof NEWS_LABELS)[number];
+
+function normalizeNewsLabel(value: string | undefined): NewsLabel {
+  return NEWS_LABELS.includes(value as NewsLabel) ? (value as NewsLabel) : "お知らせ";
+}
+
 interface NewsArticle extends z.infer<typeof newsSchema> {
   id: string;
   createdAt: Timestamp;
+  category: NewsLabel;
   featuredInHero?: boolean;
 }
 
@@ -77,7 +87,7 @@ export default function NewsAdminPage() {
 
   const form = useForm<NewsFormValues>({
     resolver: zodResolver(newsSchema),
-    defaultValues: { title: '', content: '', noteUrl: '', publishedAt: new Date(), imageUrl: '' },
+    defaultValues: { title: '', category: 'お知らせ', content: '', noteUrl: '', publishedAt: new Date(), imageUrl: '' },
   });
 
   useEffect(() => {
@@ -95,6 +105,7 @@ export default function NewsAdminPage() {
         const articlesData = querySnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
+          category: normalizeNewsLabel((doc.data().category as string | undefined)),
           publishedAt: (doc.data().publishedAt as Timestamp).toDate(),
         } as NewsArticle));
         articlesData.sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
@@ -185,8 +196,8 @@ export default function NewsAdminPage() {
     setEditingArticle(article);
     form.reset(
       article
-        ? { ...article, imageUrl: article.imageUrl || '', noteUrl: (article as any).noteUrl || '' }
-        : { title: '', content: '', noteUrl: '', publishedAt: new Date(), imageUrl: '' }
+        ? { ...article, category: normalizeNewsLabel(article.category), imageUrl: article.imageUrl || '', noteUrl: article.noteUrl || '' }
+        : { title: '', category: 'お知らせ', content: '', noteUrl: '', publishedAt: new Date(), imageUrl: '' }
     );
     setIsDialogOpen(true);
   };
@@ -198,6 +209,7 @@ export default function NewsAdminPage() {
     try {
       const processedValues = { 
         ...values, 
+        category: normalizeNewsLabel(values.category),
         content: values.content?.trim() || "",
         noteUrl: values.noteUrl?.toString().trim() || "",
         publishedAt: Timestamp.fromDate(values.publishedAt),
@@ -271,7 +283,8 @@ export default function NewsAdminPage() {
           <TableHeader>
             <TableRow>
               <TableHead>画像</TableHead>
-              <TableHead className="w-[50%]">タイトル</TableHead>
+              <TableHead className="w-[44%]">タイトル</TableHead>
+              <TableHead>ラベル</TableHead>
               <TableHead>公開日</TableHead>
               <TableHead>スライド</TableHead>
               <TableHead className="text-right">操作</TableHead>
@@ -294,6 +307,7 @@ export default function NewsAdminPage() {
                   )}
                 </TableCell>
                 <TableCell className="font-medium">{article.title}</TableCell>
+                <TableCell>{article.category || 'お知らせ'}</TableCell>
                 <TableCell>{format(article.publishedAt, 'yyyy/MM/dd')}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -324,6 +338,29 @@ export default function NewsAdminPage() {
                 <FormItem>
                   <FormLabel>タイトル</FormLabel>
                   <FormControl><Input {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="category" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ラベル</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="ラベルを選択" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {NEWS_LABELS.map((label) => (
+                        <SelectItem key={label} value={label}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="text-xs text-muted-foreground">
+                    公開ページのニュース画像右上に表示されます。
+                  </div>
                   <FormMessage />
                 </FormItem>
               )} />
