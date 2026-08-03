@@ -14,10 +14,10 @@ export default function LandingPage() {
               alt=""
               fill
               priority
-              className="object-cover object-center opacity-55"
+              className="object-cover object-center opacity-85 sm:opacity-55"
               sizes="100vw"
             />
-            <div className="absolute inset-0 bg-[#07101f]/55" />
+            <div className="absolute inset-0 bg-[#07101f]/20 sm:bg-[#07101f]/55" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_42%_18%,rgba(52,211,153,0.12),transparent_30%),linear-gradient(90deg,rgba(7,16,31,0.70)_0%,rgba(7,16,31,0.46)_48%,rgba(7,16,31,0.64)_100%)]" />
             <div className="absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.05)_1px,transparent_1px)] bg-[size:96px_96px]" />
             <div className="absolute inset-x-0 top-0 h-px bg-slate-700/40" />
@@ -128,8 +128,8 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="container mx-auto px-0 pt-0 pb-0 sm:pb-6">
-            <div className="max-w-none mx-auto">
+          <div className="container mx-auto bg-[#08111f] px-0 pt-0 pb-0">
+            <div className="max-w-none mx-auto bg-[#08111f]">
               <div id="features" className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] overflow-hidden bg-[#0a2f1d] text-white">
                 <div className="absolute inset-0 bg-[linear-gradient(rgba(74,222,128,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(74,222,128,0.08)_1px,transparent_1px)] bg-[size:120px_120px]" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(34,197,94,0.30),transparent_32%),linear-gradient(180deg,rgba(22,163,74,0.56),rgba(5,46,22,0.92))]" />
@@ -464,25 +464,27 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-center">
-                <a
-                  href="https://x.com/footchron_hp?s=20"
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="公式X"
-                  className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-900 text-white hover:bg-slate-800 transition-colors"
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                  </svg>
-                </a>
+              <div className="relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-[#08111f] py-8">
+                <div className="mx-auto flex justify-center">
+                  <a
+                    href="https://x.com/footchron_hp?s=20"
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="公式X"
+                    className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-900 text-white hover:bg-slate-800 transition-colors"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                    </svg>
+                  </a>
+                </div>
               </div>
             </div>
           </div>
         </section>
       </main>
 
-      <footer className="bg-zinc-900 text-zinc-100 mt-16">
+      <footer className="bg-[#08111f] text-zinc-100 mt-0">
         <div className="mx-auto max-w-5xl px-6 py-10">
           <div className="text-left">
             <div className="flex flex-col gap-3 text-sm text-zinc-200">
