@@ -7,6 +7,11 @@ import { MainStats, SeasonRecord, PlayerStats, Competition } from "../types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClub } from "@/contexts/ClubContext";
 
+const DEBUG = process.env.NODE_ENV === "development";
+const debugLog = (...args: any[]) => {
+  if (DEBUG) console.log(...args);
+};
+
 // ユーザーが記録したカスタムスタッツを含め、teamStatsから動的に抽出
 
 export function useAnalysisData() {
@@ -80,10 +85,10 @@ export function useAnalysisData() {
     // Try both clubId and ownerUid to find the data
     const clubId = clubInfo.id;
     const firestoreClubDocId = ownerUid || user?.uid || null;
-    console.log(`[useAnalysisData] Hook called with clubId: ${clubId}, firestoreClubDocId: ${firestoreClubDocId}, ownerUid: ${ownerUid}, user:`, user);
+    debugLog(`[useAnalysisData] Hook called with clubId: ${clubId}, firestoreClubDocId: ${firestoreClubDocId}, ownerUid: ${ownerUid}, user:`, user);
     
     if (!firestoreClubDocId) {
-      console.log('[useAnalysisData] No clubId or ownerUid, returning');
+      debugLog('[useAnalysisData] No clubId or ownerUid, returning');
       setLoading(false);
       return;
     }
@@ -104,7 +109,7 @@ export function useAnalysisData() {
         if (!profilesSnapshot.empty) {
           const profileData = profilesSnapshot.docs[0].data() as any;
           const teamId = profileData.mainTeamId as string | undefined;
-          console.log(`[useAnalysisData] Found mainTeamId: ${teamId}`);
+          debugLog(`[useAnalysisData] Found mainTeamId: ${teamId}`);
           setMainTeamId(teamId || key || null);
           return;
         }
@@ -114,7 +119,7 @@ export function useAnalysisData() {
         if (directSnap.exists()) {
           const profileData = directSnap.data() as any;
           const teamId = profileData?.mainTeamId as string | undefined;
-          console.log(`[useAnalysisData] Found mainTeamId (direct): ${teamId}`);
+          debugLog(`[useAnalysisData] Found mainTeamId (direct): ${teamId}`);
           setMainTeamId(teamId || (profileData?.ownerUid as string | undefined) || key || null);
           return;
         }
@@ -125,13 +130,13 @@ export function useAnalysisData() {
           if (bySlugSnap.exists()) {
             const profileData = bySlugSnap.data() as any;
             const teamId = profileData?.mainTeamId as string | undefined;
-            console.log(`[useAnalysisData] Found mainTeamId (slug): ${teamId}`);
+            debugLog(`[useAnalysisData] Found mainTeamId (slug): ${teamId}`);
             setMainTeamId(teamId || (profileData?.ownerUid as string | undefined) || key || null);
             return;
           }
         }
 
-        console.log(`[useAnalysisData] No club profile found, using key: ${key}`);
+        debugLog(`[useAnalysisData] No club profile found, using key: ${key}`);
         setMainTeamId(key || null);
       } catch (err) {
         console.error('[useAnalysisData] Error fetching mainTeamId:', err);
@@ -145,7 +150,7 @@ export function useAnalysisData() {
       try {
         setLoading(true);
         
-        console.log('[useAnalysisData] Starting data fetch with firestoreClubDocId:', firestoreClubDocId, 'ownerUid:', ownerUid);
+        debugLog('[useAnalysisData] Starting data fetch with firestoreClubDocId:', firestoreClubDocId, 'ownerUid:', ownerUid);
         
         // Firestore上のclubs/{docId}は ownerUid / uid を使う（clubId(例:nffctaku)は公開URL用スラッグ）
         const possibleIds = [firestoreClubDocId].filter((id): id is string => Boolean(id));
@@ -154,13 +159,13 @@ export function useAnalysisData() {
         
         for (const id of possibleIds) {
           try {
-            console.log(`[useAnalysisData] Trying path: clubs/${id}`);
+            debugLog(`[useAnalysisData] Trying path: clubs/${id}`);
             
             // Check if club doc exists
             const clubDoc = await getDoc(doc(db, "clubs", id));
-            console.log(`[useAnalysisData] Club doc exists for ${id}:`, clubDoc.exists());
+            debugLog(`[useAnalysisData] Club doc exists for ${id}:`, clubDoc.exists());
             if (clubDoc.exists()) {
-              console.log(`[useAnalysisData] Club doc data for ${id}:`, clubDoc.data());
+              debugLog(`[useAnalysisData] Club doc data for ${id}:`, clubDoc.data());
             }
             
             // Try to access competitions
@@ -168,7 +173,7 @@ export function useAnalysisData() {
               collection(db, "clubs", id, "competitions")
             );
             const competitionsSnapshot = await getDocs(competitionsQuery);
-            console.log(`[useAnalysisData] Competitions snapshot size for ${id}:`, competitionsSnapshot.size);
+            debugLog(`[useAnalysisData] Competitions snapshot size for ${id}:`, competitionsSnapshot.size);
             
             if (competitionsSnapshot.size > 0) {
               competitionsData = competitionsSnapshot.docs.map(doc => ({
@@ -176,19 +181,19 @@ export function useAnalysisData() {
                 ...doc.data()
               })) as Competition[];
               foundPath = id;
-              console.log(`[useAnalysisData] Found competitions using path: clubs/${id}`);
-              console.log(`[useAnalysisData] Competition data:`, competitionsData);
+              debugLog(`[useAnalysisData] Found competitions using path: clubs/${id}`);
+              debugLog(`[useAnalysisData] Competition data:`, competitionsData);
               
               // Check if competitions have embedded matches
               competitionsData.forEach((comp, index) => {
-                console.log(`[useAnalysisData] Competition ${index + 1} (${comp.id}):`, comp);
-                console.log(`[useAnalysisData] Competition ${index + 1} keys:`, Object.keys(comp));
+                debugLog(`[useAnalysisData] Competition ${index + 1} (${comp.id}):`, comp);
+                debugLog(`[useAnalysisData] Competition ${index + 1} keys:`, Object.keys(comp));
                 
                 // Look for possible match fields
                 const possibleMatchFields = ['matches', 'games', 'fixtures', 'matchData', 'matchIds'];
                 possibleMatchFields.forEach(field => {
                   if (comp[field as keyof typeof comp]) {
-                    console.log(`[useAnalysisData] Found ${field} in competition ${comp.id}:`, comp[field as keyof typeof comp]);
+                    debugLog(`[useAnalysisData] Found ${field} in competition ${comp.id}:`, comp[field as keyof typeof comp]);
                   }
                 });
               });
@@ -201,7 +206,7 @@ export function useAnalysisData() {
         }
         
         if (competitionsData.length === 0) {
-          console.log('[useAnalysisData] No competitions found in any path');
+          debugLog('[useAnalysisData] No competitions found in any path');
           setCompetitions([]);
           setMatches([]);
           setLoading(false);
@@ -209,37 +214,36 @@ export function useAnalysisData() {
         }
         
         setCompetitions(competitionsData);
-        console.log('[useAnalysisData] Fetched competitions:', competitionsData.length, 'from path:', foundPath);
+        debugLog('[useAnalysisData] Fetched competitions:', competitionsData.length, 'from path:', foundPath);
         
         // Fetch all matches from all competitions using the found path
         const allMatches: any[] = [];
-        for (const comp of competitionsData) {
+        const competitionMatchesPromises = competitionsData.map(async (comp) => {
           try {
             // Add competition type info
             const competitionType = (comp as any).type || (comp.name?.includes('カップ') || comp.name?.includes('杯') ? 'cup' : 'league');
             
             // First check for rounds under this competition
             const roundsPath = `clubs/${foundPath}/competitions/${comp.id}/rounds`;
-            console.log(`[useAnalysisData] Querying rounds path: ${roundsPath}`);
+            debugLog(`[useAnalysisData] Querying rounds path: ${roundsPath}`);
             
             const roundsQuery = query(
               collection(db, "clubs", foundPath, "competitions", comp.id, "rounds")
             );
             const roundsSnapshot = await getDocs(roundsQuery);
-            console.log(`[useAnalysisData] Rounds for competition ${comp.id}:`, roundsSnapshot.size);
+            debugLog(`[useAnalysisData] Rounds for competition ${comp.id}:`, roundsSnapshot.size);
             
-            // For each round, get matches
-            for (const roundDoc of roundsSnapshot.docs) {
+            // For each round, get matches in parallel
+            const roundMatchesPromises = roundsSnapshot.docs.map(async (roundDoc) => {
               const roundId = roundDoc.id;
               const matchesPath = `clubs/${foundPath}/competitions/${comp.id}/rounds/${roundId}/matches`;
-              console.log(`[useAnalysisData] Querying matches path: ${matchesPath}`);
+              debugLog(`[useAnalysisData] Querying matches path: ${matchesPath}`);
               
               const matchesQuery = query(
                 collection(db, "clubs", foundPath, "competitions", comp.id, "rounds", roundId, "matches")
-                // Temporarily removed filters to see all matches
               );
               const matchesSnapshot = await getDocs(matchesQuery);
-              console.log(`[useAnalysisData] Matches for competition ${comp.id}, round ${roundId}:`, matchesSnapshot.size);
+              debugLog(`[useAnalysisData] Matches for competition ${comp.id}, round ${roundId}:`, matchesSnapshot.size);
               
               if (matchesSnapshot.size > 0) {
                 const matchesData = await Promise.all(
@@ -271,23 +275,31 @@ export function useAnalysisData() {
                     return base;
                   })
                 );
-                console.log(`[useAnalysisData] Sample match data:`, matchesData[0]);
-                allMatches.push(...matchesData);
+                debugLog(`[useAnalysisData] Sample match data:`, matchesData[0]);
+                return matchesData;
               }
-            }
+              return [];
+            });
+            
+            const roundMatches = await Promise.all(roundMatchesPromises);
+            return roundMatches.flat();
           } catch (matchErr) {
             console.error(`[useAnalysisData] Error fetching matches for competition ${comp.id}:`, matchErr);
+            return [];
           }
-        }
+        });
+        
+        const competitionMatches = await Promise.all(competitionMatchesPromises);
+        allMatches.push(...competitionMatches.flat());
 
-        // Also check friendly_matches
+        // Also check friendly_matches (always check as fallback)
         try {
-          console.log(`[useAnalysisData] Checking friendly_matches...`);
+          debugLog(`[useAnalysisData] Checking friendly_matches...`);
           const friendlyMatchesQuery = query(
             collection(db, "clubs", foundPath, "friendly_matches")
           );
           const friendlyMatchesSnapshot = await getDocs(friendlyMatchesQuery);
-          console.log(`[useAnalysisData] Friendly matches found:`, friendlyMatchesSnapshot.size);
+          debugLog(`[useAnalysisData] Friendly matches found:`, friendlyMatchesSnapshot.size);
           
           if (friendlyMatchesSnapshot.size > 0) {
             const friendlyMatchesData = friendlyMatchesSnapshot.docs.map(doc => ({
@@ -295,149 +307,39 @@ export function useAnalysisData() {
               competitionId: 'friendly',
               ...doc.data()
             }));
-            console.log(`[useAnalysisData] Sample friendly match data:`, friendlyMatchesData[0]);
+            debugLog(`[useAnalysisData] Sample friendly match data:`, friendlyMatchesData[0]);
             allMatches.push(...friendlyMatchesData);
           }
         } catch (friendlyErr) {
           console.error(`[useAnalysisData] Error fetching friendly matches:`, friendlyErr);
         }
 
-        // Also check direct matches collection
-        try {
-          console.log(`[useAnalysisData] Checking direct matches collection...`);
-          const directMatchesQuery = query(
-            collection(db, "clubs", foundPath, "matches")
-          );
-          const directMatchesSnapshot = await getDocs(directMatchesQuery);
-          console.log(`[useAnalysisData] Direct matches found:`, directMatchesSnapshot.size);
-          
-          if (directMatchesSnapshot.size > 0) {
-            const directMatchesData = directMatchesSnapshot.docs.map(doc => ({
-              id: doc.id,
-              competitionId: 'direct',
-              ...doc.data()
-            }));
-            console.log(`[useAnalysisData] Sample direct match data:`, directMatchesData[0]);
-            allMatches.push(...directMatchesData);
-          }
-        } catch (directErr) {
-          console.error(`[useAnalysisData] Error fetching direct matches:`, directErr);
-        }
-
-        // Also check teams collection for matches
-        try {
-          console.log(`[useAnalysisData] Checking teams collection...`);
-          const teamsQuery = query(
-            collection(db, "clubs", foundPath, "teams")
-          );
-          const teamsSnapshot = await getDocs(teamsQuery);
-          console.log(`[useAnalysisData] Teams found:`, teamsSnapshot.size);
-          
-          for (const teamDoc of teamsSnapshot.docs) {
-            const teamId = teamDoc.id;
-            console.log(`[useAnalysisData] Checking matches for team ${teamId}...`);
+        // Check direct matches collection only if no matches found from regular path
+        if (allMatches.length === 0) {
+          try {
+            debugLog(`[useAnalysisData] No matches found from regular path, checking direct matches collection...`);
+            const directMatchesQuery = query(
+              collection(db, "clubs", foundPath, "matches")
+            );
+            const directMatchesSnapshot = await getDocs(directMatchesQuery);
+            debugLog(`[useAnalysisData] Direct matches found:`, directMatchesSnapshot.size);
             
-            try {
-              const teamMatchesQuery = query(
-                collection(db, "clubs", foundPath, "teams", teamId, "matches")
-              );
-              const teamMatchesSnapshot = await getDocs(teamMatchesQuery);
-              console.log(`[useAnalysisData] Team ${teamId} matches found:`, teamMatchesSnapshot.size);
-              
-              if (teamMatchesSnapshot.size > 0) {
-                const teamMatchesData = teamMatchesSnapshot.docs.map(doc => ({
-                  id: doc.id,
-                  competitionId: `team-${teamId}`,
-                  teamId: teamId,
-                  ...doc.data()
-                }));
-                console.log(`[useAnalysisData] Sample team match data:`, teamMatchesData[0]);
-                allMatches.push(...teamMatchesData);
-              }
-            } catch (teamMatchErr) {
-              console.error(`[useAnalysisData] Error fetching matches for team ${teamId}:`, teamMatchErr);
+            if (directMatchesSnapshot.size > 0) {
+              const directMatchesData = directMatchesSnapshot.docs.map(doc => ({
+                id: doc.id,
+                competitionId: 'direct',
+                ...doc.data()
+              }));
+              debugLog(`[useAnalysisData] Sample direct match data:`, directMatchesData[0]);
+              allMatches.push(...directMatchesData);
             }
+          } catch (directErr) {
+            console.error(`[useAnalysisData] Error fetching direct matches:`, directErr);
           }
-        } catch (teamsErr) {
-          console.error(`[useAnalysisData] Error fetching teams:`, teamsErr);
         }
-
-        // Also check rounds collection which might contain matches
-        try {
-          console.log(`[useAnalysisData] Checking rounds collection...`);
-          const roundsQuery = query(
-            collection(db, "clubs", foundPath, "rounds")
-          );
-          const roundsSnapshot = await getDocs(roundsQuery);
-          console.log(`[useAnalysisData] Rounds found:`, roundsSnapshot.size);
-          
-          for (const roundDoc of roundsSnapshot.docs) {
-            const roundId = roundDoc.id;
-            console.log(`[useAnalysisData] Checking matches for round ${roundId}...`);
-            
-            try {
-              const roundMatchesQuery = query(
-                collection(db, "clubs", foundPath, "rounds", roundId, "matches")
-              );
-              const roundMatchesSnapshot = await getDocs(roundMatchesQuery);
-              console.log(`[useAnalysisData] Round ${roundId} matches found:`, roundMatchesSnapshot.size);
-              
-              if (roundMatchesSnapshot.size > 0) {
-                const roundMatchesData = roundMatchesSnapshot.docs.map(doc => ({
-                  id: doc.id,
-                  competitionId: `round-${roundId}`,
-                  roundId: roundId,
-                  ...doc.data()
-                }));
-                console.log(`[useAnalysisData] Sample round match data:`, roundMatchesData[0]);
-                allMatches.push(...roundMatchesData);
-              }
-            } catch (roundMatchErr) {
-              console.error(`[useAnalysisData] Error fetching matches for round ${roundId}:`, roundMatchErr);
-            }
-          }
-        } catch (roundsErr) {
-          console.error(`[useAnalysisData] Error fetching rounds:`, roundsErr);
-        }
-
-        // Check for global matches collection
-        try {
-          console.log(`[useAnalysisData] Checking global matches collection...`);
-          const globalMatchesQuery = query(
-            collection(db, "matches")
-          );
-          const globalMatchesSnapshot = await getDocs(globalMatchesQuery);
-          console.log(`[useAnalysisData] Global matches found:`, globalMatchesSnapshot.size);
-          
-          if (globalMatchesSnapshot.size > 0) {
-            const globalMatchesData = globalMatchesSnapshot.docs.map(doc => ({
-              id: doc.id,
-              competitionId: 'global',
-              ...doc.data()
-            }));
-            console.log(`[useAnalysisData] Sample global match data:`, globalMatchesData[0]);
-            allMatches.push(...globalMatchesData);
-          }
-        } catch (globalErr) {
-          console.error(`[useAnalysisData] Error fetching global matches:`, globalErr);
-        }
-
-        // Check teams field in competitions for match references
-        competitionsData.forEach((comp, index) => {
-          const compData = comp as any; // Type assertion to access dynamic fields
-          if (compData.teams && Array.isArray(compData.teams)) {
-            console.log(`[useAnalysisData] Competition ${comp.id} has teams:`, compData.teams);
-            compData.teams.forEach((team: any, teamIndex: number) => {
-              console.log(`[useAnalysisData] Team ${teamIndex}:`, team);
-              if (team.matches) {
-                console.log(`[useAnalysisData] Found matches in team ${teamIndex}:`, team.matches);
-              }
-            });
-          }
-        });
 
         setMatches(allMatches);
-        console.log('[useAnalysisData] Total matches fetched:', allMatches.length);
+        debugLog('[useAnalysisData] Total matches fetched:', allMatches.length);
         
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -471,8 +373,8 @@ export function useAnalysisData() {
     }
 
     // Filter for home team only (mainTeamId matches)
-    console.log(`[useAnalysisData] Filtering matches for mainTeamId: ${mainTeamId}`);
-    console.log(`[useAnalysisData] Sample match team IDs:`, matches.slice(0, 3).map(m => ({
+    debugLog(`[useAnalysisData] Filtering matches for mainTeamId: ${mainTeamId}`);
+    debugLog(`[useAnalysisData] Sample match team IDs:`, matches.slice(0, 3).map(m => ({
       homeTeam: m.homeTeam,
       awayTeam: m.awayTeam,
       homeTeamType: typeof m.homeTeam,
@@ -480,7 +382,7 @@ export function useAnalysisData() {
     })));
     
     if (!mainTeamId) {
-      console.log('[useAnalysisData] No mainTeamId available, using all matches');
+      debugLog('[useAnalysisData] No mainTeamId available, using all matches');
       return filtered.map(match => ({
         ...match,
         isCompleted: match.isCompleted !== undefined ? match.isCompleted : (
@@ -504,18 +406,18 @@ export function useAnalysisData() {
       const isHomeMatch = homeTeamId === mainTeamId || awayTeamId === mainTeamId;
       
       if (filtered.indexOf(match) < 5) {
-        console.log(`[useAnalysisData] Match check: home=${homeTeamId}, away=${awayTeamId}, isHome=${isHomeMatch}, mainTeam=${mainTeamId}`);
+        debugLog(`[useAnalysisData] Match check: home=${homeTeamId}, away=${awayTeamId}, isHome=${isHomeMatch}, mainTeam=${mainTeamId}`);
       }
       
       return isHomeMatch;
     });
 
-    console.log(`[useAnalysisData] Filtered ${filtered.length} total matches to ${homeTeamMatches.length} home team matches`);
+    debugLog(`[useAnalysisData] Filtered ${filtered.length} total matches to ${homeTeamMatches.length} home team matches`);
     
     // Log sample match data for debugging
     if (homeTeamMatches.length > 0) {
-      console.log(`[useAnalysisData] Sample filtered match:`, homeTeamMatches[0]);
-      console.log(`[useAnalysisData] Match fields:`, Object.keys(homeTeamMatches[0]));
+      debugLog(`[useAnalysisData] Sample filtered match:`, homeTeamMatches[0]);
+      debugLog(`[useAnalysisData] Match fields:`, Object.keys(homeTeamMatches[0]));
     }
 
     // Transform match data to expected structure

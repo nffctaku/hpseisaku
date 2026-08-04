@@ -278,8 +278,22 @@ export function TeamVsTeamLeagueSection({
                       </span>
                     </td>
                     <td className="text-center py-2 px-2">
-                      <span
-                        className={`font-medium text-xs ${
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-16 h-1.5 rounded-full bg-slate-700 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              opponent.matches > 0
+                                ? (opponent.wins / opponent.matches) * 100 >= 60
+                                  ? 'bg-green-400'
+                                  : (opponent.wins / opponent.matches) * 100 >= 40
+                                    ? 'bg-yellow-400'
+                                    : 'bg-red-400'
+                                : 'bg-slate-500'
+                            }`}
+                            style={{ width: `${Math.min(100, Math.max(0, opponent.matches > 0 ? (opponent.wins / opponent.matches) * 100 : 0))}%` }}
+                          />
+                        </div>
+                        <span className={`font-semibold tabular-nums text-xs ${
                           opponent.matches > 0
                             ? (opponent.wins / opponent.matches) * 100 >= 60
                               ? "text-green-400"
@@ -287,10 +301,10 @@ export function TeamVsTeamLeagueSection({
                                 ? "text-yellow-400"
                                 : "text-red-400"
                             : "text-slate-400"
-                        }`}
-                      >
-                        {opponent.matches > 0 ? ((opponent.wins / opponent.matches) * 100).toFixed(1) : "0.0"}%
-                      </span>
+                        }`}>
+                          {opponent.matches > 0 ? ((opponent.wins / opponent.matches) * 100).toFixed(1) : "0.0"}%
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 ))}

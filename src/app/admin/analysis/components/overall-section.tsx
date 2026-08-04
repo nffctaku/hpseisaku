@@ -5,6 +5,11 @@ import { SeasonRecord, PlayerStats } from "../types";
 import { Trophy, Target, Shield, TrendingUp, ChevronDown, ChevronUp, Users } from "lucide-react";
 import Link from "next/link";
 
+const DEBUG = process.env.NODE_ENV === "development";
+const debugLog = (...args: any[]) => {
+  if (DEBUG) console.log(...args);
+};
+
 interface OverallSectionProps {
   matches: Array<{ isCompleted: boolean }>;
   filteredMatches: any[];
@@ -44,14 +49,14 @@ export function OverallSection({
       return hasScores && !m?.isCompleted;
     });
 
-    console.log("[OverallSection] filteredMatches:", filteredMatches.length);
-    console.log("[OverallSection] completed (counted):", completed.length, { wins: totalWins, draws: totalDraws, losses: totalLosses });
-    console.log(
+    debugLog("[OverallSection] filteredMatches:", filteredMatches.length);
+    debugLog("[OverallSection] completed (counted):", completed.length, { wins: totalWins, draws: totalDraws, losses: totalLosses });
+    debugLog(
       "[OverallSection] completedButNoResult:",
       completedButNoResult.length,
       completedButNoResult.slice(0, 5).map((m: any) => ({ id: m.id, scoreHome: m.scoreHome, scoreAway: m.scoreAway, result: m.result, isHome: m.isHome }))
     );
-    console.log(
+    debugLog(
       "[OverallSection] hasScoresButNotCompleted:",
       hasScoresButNotCompleted.length,
       hasScoresButNotCompleted.slice(0, 5).map((m: any) => ({ id: m.id, scoreHome: m.scoreHome, scoreAway: m.scoreAway, isCompleted: m.isCompleted, result: m.result }))

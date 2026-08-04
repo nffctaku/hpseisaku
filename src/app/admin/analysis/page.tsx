@@ -16,6 +16,82 @@ import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getPlanTier } from "@/lib/plan-limits";
 
+type RankLabelColor = "green" | "red" | "orange" | "blue" | "yellow";
+
+interface RankLabelRule {
+  from: number;
+  to: number;
+  color: RankLabelColor;
+  name?: string;
+  label?: string;
+}
+
+const DEBUG = process.env.NODE_ENV === "development";
+const debugLog = (...args: any[]) => {
+  if (DEBUG) console.log(...args);
+};
+
+// 大会の試合結果から順位表を自動計算する
+// (league-table.tsx の LeagueTable コンポーネントの手入力なし時ロジックを移植)
+function calculateStandingsFromMatches(
+  teamIds: string[],
+  matches: any[],
+  teamsMap: Map<string, { name: string; logoUrl?: string }>
+) {
+  const standingsMap = new Map<string, any>();
+  for (const teamId of teamIds) {
+    const teamInfo = teamsMap.get(teamId);
+    standingsMap.set(teamId, {
+      id: teamId,
+      teamName: teamInfo?.name || 'Unknown Team',
+      logoUrl: teamInfo?.logoUrl,
+      rank: 0, played: 0, wins: 0, draws: 0, losses: 0,
+      goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 0,
+    });
+  }
+
+  for (const match of matches) {
+    if (match.scoreHome == null || match.scoreAway == null || match.scoreHome === '' || match.scoreAway === '') continue;
+
+    const homeStanding = standingsMap.get(match.homeTeam);
+    const awayStanding = standingsMap.get(match.awayTeam);
+    const homeScore = Number(match.scoreHome);
+    const awayScore = Number(match.scoreAway);
+
+    if (homeStanding) {
+      homeStanding.played += 1;
+      homeStanding.goalsFor += homeScore;
+      homeStanding.goalsAgainst += awayScore;
+      if (homeScore > awayScore) homeStanding.wins += 1;
+      else if (homeScore < awayScore) homeStanding.losses += 1;
+      else homeStanding.draws += 1;
+    }
+    if (awayStanding) {
+      awayStanding.played += 1;
+      awayStanding.goalsFor += awayScore;
+      awayStanding.goalsAgainst += homeScore;
+      if (awayScore > homeScore) awayStanding.wins += 1;
+      else if (awayScore < homeScore) awayStanding.losses += 1;
+      else awayStanding.draws += 1;
+    }
+  }
+
+  const finalStandings = Array.from(standingsMap.values()).map(s => {
+    s.points = s.wins * 3 + s.draws;
+    s.goalDifference = s.goalsFor - s.goalsAgainst;
+    return s;
+  });
+
+  finalStandings.sort((a, b) => {
+    if (a.points !== b.points) return b.points - a.points;
+    if (a.goalDifference !== b.goalDifference) return b.goalDifference - a.goalDifference;
+    if (a.goalsFor !== b.goalsFor) return b.goalsFor - a.goalsFor;
+    return a.teamName.localeCompare(b.teamName);
+  });
+
+  return finalStandings.map((s, index) => ({ ...s, rank: index + 1 }));
+}
+
 export default function AnalysisPage() {
   const { user, clubProfileExists, ownerUid } = useAuth();
   const [activeView, setActiveView] = useState<"overall" | "tournament" | "headtohead">("overall");
@@ -623,6 +699,19 @@ export default function AnalysisPage() {
           points: number;
         } | null
       > = {};
+
+      // Fetch teams data for fallback calculation
+      const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
+      try {
+        const teamsSnap = await getDocs(collection(db, 'clubs', clubUid, 'teams'));
+        teamsSnap.forEach(doc => {
+          const data = doc.data() as any;
+          teamsMap.set(doc.id, { name: data?.name || '', logoUrl: data?.logoUrl });
+        });
+      } catch (err) {
+        console.error('[analysis] Error fetching teams:', err);
+      }
+
       try {
         await Promise.all(
           comps.map(async (c: any) => {
@@ -801,7 +890,7 @@ export default function AnalysisPage() {
                 });
               }
 
-              const normalizedRank =
+              let normalizedRank =
                 typeof rank === 'number'
                   ? rank
                   : typeof rank === 'string'
@@ -811,12 +900,64 @@ export default function AnalysisPage() {
                       })()
                     : null;
 
+              // Fallback: if no manual standings found, calculate from matches
+              if (candidates.length === 0 && normalizedRank === null && Array.isArray(c.teams) && c.teams.length > 0) {
+                debugLog('[analysis] No manual standings found, calculating from matches', {
+                  season,
+                  competitionId: String(c.id),
+                  teamIds: c.teams,
+                });
+
+                const matchesForThisCompetition = matches.filter((m: any) => {
+                  const matchCompetitionId = m.competitionId || m.competitionName;
+                  const matchSeason = m.competitionSeason;
+                  const isSameCompetition = matchCompetitionId === String(c.id) || matchCompetitionId === c.name;
+                  const isSameSeason = selectedSeason === 'all' || matchSeason === season;
+                  return isSameCompetition && isSameSeason;
+                });
+
+                debugLog('[analysis] Matches for fallback calculation', {
+                  season,
+                  competitionId: String(c.id),
+                  matchCount: matchesForThisCompetition.length,
+                });
+
+                if (matchesForThisCompetition.length > 0) {
+                  try {
+                    const calculatedStandings = calculateStandingsFromMatches(c.teams, matchesForThisCompetition, teamsMap);
+                    const myTeamStanding = calculatedStandings.find(s => s.id === targetTeamId || s.id === mainTeamId);
+                    
+                    if (myTeamStanding && typeof myTeamStanding.rank === 'number') {
+                      normalizedRank = myTeamStanding.rank;
+                      debugLog('[analysis] Calculated rank from matches', {
+                        season,
+                        competitionId: String(c.id),
+                        calculatedRank: myTeamStanding.rank,
+                      });
+
+                      // Update standingsBySeason as well
+                      standingsBySeason[season] = {
+                        played: myTeamStanding.played,
+                        wins: myTeamStanding.wins,
+                        draws: myTeamStanding.draws,
+                        losses: myTeamStanding.losses,
+                        goalsFor: myTeamStanding.goalsFor,
+                        goalsAgainst: myTeamStanding.goalsAgainst,
+                        goalDifference: myTeamStanding.goalDifference,
+                        points: myTeamStanding.points,
+                      };
+                    }
+                  } catch (err) {
+                    console.error('[analysis] Error calculating standings from matches:', err);
+                  }
+                }
+              }
+
               // Debug log for ranking resolution
               if (process.env.NODE_ENV === 'development') {
                 // eslint-disable-next-line no-console
                 console.log('[analysis] rank resolved for season', {
                   season,
-                  normalizedSeasonKey,
                   competitionId: String(c.id),
                   targetTeamId,
                   normalizedRank,
@@ -878,7 +1019,7 @@ export default function AnalysisPage() {
     };
 
     fetchRanks();
-  }, [selectedTournamentType, selectedSeason, selectedCompetitionId, clubUid, mainTeamId, competitions, resolvedTeamId]);
+  }, [selectedTournamentType, selectedSeason, selectedCompetitionId, clubUid, mainTeamId, competitions, resolvedTeamId, matches]);
 
   if (!user) {
     return <div className="min-h-screen flex items-center justify-center">
@@ -1007,6 +1148,36 @@ export default function AnalysisPage() {
                               {leagueSeasonRows.map((row) => {
                                 const rank = leagueRanksBySeason[row.season];
                                 const standings = leagueStandingsBySeason[row.season];
+                                
+                                // Get rankLabels for this season's competition
+                                const competitionForSeason = competitions.find((c: any) => c.season === row.season);
+                                const rankLabels: RankLabelRule[] = Array.isArray(competitionForSeason?.rankLabels)
+                                  ? competitionForSeason.rankLabels
+                                  : [];
+                                const matchedLabel = typeof rank === 'number'
+                                  ? rankLabels.find((r) => rank >= r.from && rank <= r.to)
+                                  : null;
+
+                                const rankColorClass = matchedLabel
+                                  ? matchedLabel.color === 'green' ? 'text-green-400'
+                                    : matchedLabel.color === 'red' ? 'text-red-400'
+                                    : matchedLabel.color === 'orange' ? 'text-orange-400'
+                                    : matchedLabel.color === 'blue' ? 'text-blue-400'
+                                    : matchedLabel.color === 'yellow' ? 'text-yellow-400'
+                                    : 'text-white'
+                                  : 'text-white';
+                                
+                                const points = standings ? standings.points : row.points;
+                                const wins = standings ? standings.wins : row.wins;
+                                const draws = standings ? standings.draws : row.draws;
+                                const losses = standings ? standings.losses : row.losses;
+                                const goalsFor = standings ? standings.goalsFor : row.goalsFor;
+                                const goalsAgainst = standings ? standings.goalsAgainst : row.goalsAgainst;
+                                const goalDifference = standings ? standings.goalDifference : row.goalDifference;
+                                
+                                const diffColorClass = goalDifference > 0 ? 'text-green-400' : goalDifference < 0 ? 'text-red-400' : 'text-white';
+                                const lossesColorClass = losses > 0 ? 'text-red-400' : 'text-white';
+                                
                                 if (process.env.NODE_ENV === 'development') {
                                   // eslint-disable-next-line no-console
                                   console.log('[analysis] table row rank', {
@@ -1017,24 +1188,19 @@ export default function AnalysisPage() {
                                     availableSeasons: Object.keys(leagueRanksBySeason),
                                   });
                                 }
-                                const points = standings ? standings.points : row.points;
-                                const wins = standings ? standings.wins : row.wins;
-                                const draws = standings ? standings.draws : row.draws;
-                                const losses = standings ? standings.losses : row.losses;
-                                const goalsFor = standings ? standings.goalsFor : row.goalsFor;
-                                const goalsAgainst = standings ? standings.goalsAgainst : row.goalsAgainst;
-                                const goalDifference = standings ? standings.goalDifference : row.goalDifference;
                                 return (
                                   <TableRow key={row.season} className="border-slate-700">
                                     <TableCell className="text-white font-medium px-2 py-1 text-xs sm:text-sm">{row.season}</TableCell>
-                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{typeof rank === 'number' ? rank : '-'}</TableCell>
+                                    <TableCell className={`text-right px-2 py-1 text-xs sm:text-sm font-bold ${rankColorClass}`}>
+                                      {typeof rank === 'number' ? rank : '-'}
+                                    </TableCell>
                                     <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{points}</TableCell>
                                     <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{wins}</TableCell>
                                     <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{draws}</TableCell>
-                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{losses}</TableCell>
+                                    <TableCell className={`text-right px-2 py-1 text-xs sm:text-sm ${lossesColorClass}`}>{losses}</TableCell>
                                     <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{goalsFor}</TableCell>
                                     <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{goalsAgainst}</TableCell>
-                                    <TableCell className="text-white text-right px-2 py-1 text-xs sm:text-sm">{goalDifference}</TableCell>
+                                    <TableCell className={`text-right px-2 py-1 text-xs sm:text-sm ${diffColorClass}`}>{goalDifference}</TableCell>
                                   </TableRow>
                                 );
                               })}

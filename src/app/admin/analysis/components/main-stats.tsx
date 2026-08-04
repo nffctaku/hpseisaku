@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Activity } from "lucide-react";
+import { Bot } from "lucide-react";
 import type { MainStats } from "../types";
 
 interface MainStatsProps {
@@ -26,20 +26,14 @@ export function MainStats({ mainStatsData }: MainStatsProps) {
             <div key={stat.id} className="relative overflow-hidden rounded-lg bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm border border-slate-700/30 hover:border-blue-500/50 transition-all duration-300 group">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div className="relative p-3 md:p-4 text-center">
-                <div className="w-6 h-6 md:w-8 md:h-8 mx-auto mb-2 md:mb-3 bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg shadow-md flex items-center justify-center">
-                  <span className="text-white font-bold text-xs md:text-sm">{index + 1}</span>
-                </div>
-                <p className="text-blue-200 text-xs md:text-sm font-medium mb-1 md:mb-2">{stat.name}</p>
-                <p className="text-lg md:text-2xl font-bold text-white mb-1">
-                  {stat.isPercentage ? 
-                    `${stat.average.toFixed(1)}%` : 
-                    stat.average.toFixed(1)
-                  }
-                </p>
-                <div className="flex items-center justify-center gap-1 text-xs text-blue-400">
-                  <Activity className="h-2 w-2 md:h-3 md:w-3" />
-                  <span className="hidden md:inline">平均</span>
-                  <span className="md:hidden">平均</span>
+                <p className="text-slate-400 text-xs md:text-sm font-medium mb-1 md:mb-2">{stat.name}</p>
+                <div className="flex items-baseline justify-center gap-1">
+                  <p className="text-lg md:text-2xl font-bold text-white">
+                    {stat.average.toFixed(1)}
+                  </p>
+                  <p className="text-xs md:text-sm text-slate-400">
+                    {stat.isPercentage ? '%' : '/試合'}
+                  </p>
                 </div>
               </div>
             </div>
