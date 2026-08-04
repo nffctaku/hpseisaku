@@ -178,7 +178,7 @@ export default function TvAdminPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">動画管理</h1>
         <div className="flex flex-col items-end gap-1">
-          <Button onClick={handleAddNew} disabled={!isPro && videos.length >= maxVideos}>
+          <Button onClick={handleAddNew} disabled={!isPro && videos.length >= maxVideos} className="bg-blue-600 hover:bg-blue-700 text-white">
             新規追加
           </Button>
           {!isPro && (
@@ -225,7 +225,7 @@ export default function TvAdminPage() {
                 </FormItem>
               )} />
               <DialogFooter>
-                <Button type="submit" disabled={loading}>
+                <Button type="submit" disabled={loading} className="bg-green-600 hover:bg-green-700 text-white">
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {editingVideo ? '更新' : '追加'}
                 </Button>

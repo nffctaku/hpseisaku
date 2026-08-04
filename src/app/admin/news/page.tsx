@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, Timestamp, getDoc, setDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -18,7 +18,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
 import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -65,7 +64,6 @@ interface NewsArticle extends z.infer<typeof newsSchema> {
   id: string;
   createdAt: Timestamp;
   category: NewsLabel;
-  featuredInHero?: boolean;
 }
 
 type NewsFormValues = z.infer<typeof newsSchema>;
@@ -80,7 +78,6 @@ export default function NewsAdminPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
-  const [heroLimit, setHeroLimit] = useState<number>(3);
 
   const planTier = getPlanTier(user?.plan);
   const maxNews = getPlanLimit("news_per_club", planTier);
@@ -127,66 +124,10 @@ export default function NewsAdminPage() {
       }
     );
 
-    // Fetch hero news limit from club profile
-    const fetchHeroLimit = async () => {
-      try {
-        const clubDocRef = doc(db, "clubs", clubUid);
-        const snap = await getDoc(clubDocRef);
-        if (snap.exists()) {
-          const data = snap.data() as any;
-          if (typeof data.heroNewsLimit === "number" && data.heroNewsLimit >= 1 && data.heroNewsLimit <= 5) {
-            setHeroLimit(data.heroNewsLimit);
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load hero news limit", e);
-      }
-    };
-
-    fetchHeroLimit();
-
     return () => {
       unsubscribeNews();
     };
   }, [clubUid]);
-
-  const handleHeroLimitChange = async (value: number) => {
-    if (!clubUid) return;
-    try {
-      const clubDocRef = doc(db, "clubs", clubUid);
-      const snap = await getDoc(clubDocRef);
-      if (snap.exists()) {
-        await updateDoc(clubDocRef, { heroNewsLimit: value });
-      } else {
-        await setDoc(
-          clubDocRef,
-          { heroNewsLimit: value },
-          { merge: true }
-        );
-      }
-      setHeroLimit(value);
-      toast.success("スライドに表示するニュース枚数を更新しました。");
-    } catch (e) {
-      console.error("Failed to update hero news limit", e);
-      toast.error("スライド枚数の更新に失敗しました。");
-    }
-  };
-
-  const handleToggleFeatured = async (article: NewsArticle, next: boolean) => {
-    if (!clubUid) return;
-    const currentFeaturedCount = news.filter(n => n.featuredInHero).length;
-    if (next && !article.featuredInHero && currentFeaturedCount >= heroLimit) {
-      toast.info(`スライドに設定できるニュースは最大${heroLimit}件までです。`);
-      return;
-    }
-    try {
-      const articleDocRef = doc(db, `clubs/${clubUid}/news`, article.id);
-      await updateDoc(articleDocRef, { featuredInHero: next });
-    } catch (e) {
-      console.error("Failed to update featuredInHero", e);
-      toast.error("スライド表示フラグの更新に失敗しました。");
-    }
-  };
 
   const handleOpenDialog = (article: NewsArticle | null) => {
     if (!isPro && !article && news.length >= maxNews) {
@@ -256,44 +197,24 @@ export default function NewsAdminPage() {
       <div className="flex flex-col gap-4 mb-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">ニュース管理</h1>
-          <Button onClick={() => handleOpenDialog(null)}>新規ニュースを追加</Button>
-        </div>
-        <div className="flex flex-col gap-2 text-sm max-w-xs">
-          <span className="font-medium">トップのスライドに表示するニュース数</span>
-          <Select
-            value={String(heroLimit)}
-            onValueChange={(val) => handleHeroLimitChange(Number(val))}
-          >
-            <SelectTrigger className="bg-white text-gray-900 h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n}件
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-xs text-muted-foreground">※ 最新ニュースまたはチェックされたニュースが表示されます。</span>
+          <Button onClick={() => handleOpenDialog(null)} className="bg-blue-600 hover:bg-blue-700 text-white">新規ニュースを追加</Button>
         </div>
       </div>
       <div className="bg-card border rounded-lg">
-        <Table>
+        <Table className="table-auto">
           <TableHeader>
-            <TableRow>
-              <TableHead>画像</TableHead>
-              <TableHead className="w-[44%]">タイトル</TableHead>
-              <TableHead>ラベル</TableHead>
-              <TableHead>公開日</TableHead>
-              <TableHead>スライド</TableHead>
-              <TableHead className="text-right">操作</TableHead>
+            <TableRow className="bg-gray-100 border-b">
+              <TableHead className="w-16 text-gray-900 font-semibold">画像</TableHead>
+              <TableHead className="w-64 text-gray-900 font-semibold">タイトル</TableHead>
+              <TableHead className="w-24 text-gray-900 font-semibold">ラベル</TableHead>
+              <TableHead className="w-28 text-gray-900 font-semibold">公開日</TableHead>
+              <TableHead className="w-24 text-right text-gray-900 font-semibold">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {news.map(article => (
               <TableRow key={article.id}>
-                <TableCell>
+                <TableCell className="w-16">
                   {article.imageUrl ? (
                     <Image
                       src={toCloudinaryPadded16x9(article.imageUrl, 256)}
@@ -306,18 +227,10 @@ export default function NewsAdminPage() {
                     <div className="w-16 h-9 bg-muted rounded-md" />
                   )}
                 </TableCell>
-                <TableCell className="font-medium">{article.title}</TableCell>
-                <TableCell>{article.category || 'お知らせ'}</TableCell>
-                <TableCell>{format(article.publishedAt, 'yyyy/MM/dd')}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={!!article.featuredInHero}
-                      onCheckedChange={(checked) => handleToggleFeatured(article, checked)}
-                    />
-                  </div>
-                </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="font-medium w-64 max-w-64 truncate">{article.title}</TableCell>
+                <TableCell className="w-24">{article.category || 'お知らせ'}</TableCell>
+                <TableCell className="w-28">{format(article.publishedAt, 'yyyy/MM/dd')}</TableCell>
+                <TableCell className="w-24 text-right">
                   <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(article)}><Pencil className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => setDeletingArticle(article)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </TableCell>
@@ -404,7 +317,7 @@ export default function NewsAdminPage() {
                 </FormItem>
               )} />
               <DialogFooter>
-                <Button type="submit" disabled={loading}>
+                <Button type="submit" disabled={loading} className="bg-green-600 hover:bg-green-700 text-white">
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   保存する
                 </Button>
