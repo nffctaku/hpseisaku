@@ -1150,9 +1150,10 @@ export default function AnalysisPage() {
                                 const standings = leagueStandingsBySeason[row.season];
                                 
                                 // Get rankLabels for this season's competition
-                                const competitionForSeason = competitions.find((c: any) => c.season === row.season);
-                                const rankLabels: RankLabelRule[] = Array.isArray(competitionForSeason?.rankLabels)
-                                  ? competitionForSeason.rankLabels
+                                const competitionForSeason = competitions.find((c) => c.season === row.season) as (typeof competitions)[number] & { rankLabels?: RankLabelRule[] } | undefined;
+                                const rankLabelsRaw = competitionForSeason?.rankLabels;
+                                const rankLabels: RankLabelRule[] = Array.isArray(rankLabelsRaw)
+                                  ? rankLabelsRaw
                                   : [];
                                 const matchedLabel = typeof rank === 'number'
                                   ? rankLabels.find((r) => rank >= r.from && rank <= r.to)
@@ -1394,6 +1395,245 @@ export default function AnalysisPage() {
               </div>
             )}
 
+            {selectedTournamentType === "league" && selectedCompetitionId !== "all" && selectedSeason === 'all' && (
+              <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
+                <div className="relative p-4 sm:p-5">
+                  <div className="mb-4 flex items-center justify-between gap-2 border-b border-slate-700/60 pb-4">
+                    <div className="text-white text-base font-bold">シーズン比較</div>
+                    <div className="rounded-full bg-slate-700/50 px-3 py-1 text-[11px] font-semibold text-slate-400">リーグ戦</div>
+                  </div>
+
+                  {leagueRanksLoading ? (
+                    <div className="flex h-40 items-center justify-center text-sm text-slate-400">読み込み中...</div>
+                  ) : leagueRankHistory.points.every((p) => p.rank == null) ? (
+                    <div className="flex h-40 items-center justify-center text-sm text-slate-400">データがありません</div>
+                  ) : (() => {
+                    const SEASON_COMPARISON_CHART_THRESHOLD = 3;
+                    const useChartLayout = leagueCompareSeasons.length >= SEASON_COMPARISON_CHART_THRESHOLD;
+
+                    if (useChartLayout) {
+                      const topRank = leagueRankHistory.topRank;
+                      const denom = Math.max(1, topRank - 1);
+                      const minY = LEAGUE_RANK_PLOT_PADDING_VB;
+                      const maxY = 100 - minY;
+                      const yTickRanks = [1, ...Array.from({ length: Math.floor(topRank / 5) }, (_, i) => (i + 1) * 5)].filter((rank) => rank <= topRank);
+                      const toY = (rank: number) => minY + ((rank - 1) / denom) * (maxY - minY);
+                      const rankPoints = leagueRankHistory.points.filter((p) => typeof p.rank === 'number');
+                      const areaPolys = leagueRankHistory.segments
+                        .map((segment) => {
+                          const pts = segment.split(' ');
+                          if (pts.length < 2) return null;
+                          const firstX = pts[0].split(',')[0];
+                          const lastX = pts[pts.length - 1].split(',')[0];
+                          return `${segment} ${lastX},100 ${firstX},100`;
+                        })
+                        .filter((s): s is string => s !== null);
+
+                      return (
+                        <div className="space-y-6">
+                          <div>
+                            <div className="mb-3 text-sm font-semibold text-slate-400">リーグ順位履歴</div>
+                            <div className="rounded-xl border border-slate-700 bg-slate-900/30 p-3 sm:p-4">
+                              <div className="relative h-56 w-full">
+                                <svg viewBox="0 0 100 100" className="h-48 w-full" preserveAspectRatio="none">
+                                  <defs>
+                                    <linearGradient id="rankAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor="#4ade80" stopOpacity="0.25" />
+                                      <stop offset="100%" stopColor="#4ade80" stopOpacity="0" />
+                                    </linearGradient>
+                                  </defs>
+                                  {yTickRanks.map((rank) => {
+                                    const y = toY(rank);
+                                    return (
+                                      <g key={`rank-tick-${rank}`}>
+                                        <line x1="8" x2="92" y1={y} y2={y} stroke="#334155" strokeWidth="0.4" />
+                                        <text x="6" y={y + 1.5} textAnchor="end" fontSize="3.2" fill="#94a3b8">{rank}</text>
+                                      </g>
+                                    );
+                                  })}
+                                  {areaPolys.map((points, i) => (
+                                    <polygon key={`rank-area-${i}`} points={points} fill="url(#rankAreaGradient)" />
+                                  ))}
+                                  {leagueRankHistory.segments.map((segment, i) => (
+                                    <polyline
+                                      key={`rank-line-${i}`}
+                                      points={segment}
+                                      fill="none"
+                                      stroke="#4ade80"
+                                      strokeWidth="1"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  ))}
+                                  {rankPoints.map((p) => (
+                                    <g key={`rank-dot-${p.season}`}>
+                                      <circle cx={p.xPct} cy={p.yPct} r="1.6" fill="#0f172a" stroke="#4ade80" strokeWidth="0.7" />
+                                      <text
+                                        x={p.xPct}
+                                        y={Math.max(5, p.yPct - 3.5)}
+                                        textAnchor="middle"
+                                        fontSize="3.5"
+                                        fontWeight="bold"
+                                        fill="#4ade80"
+                                      >
+                                        {p.rank}位
+                                      </text>
+                                    </g>
+                                  ))}
+                                </svg>
+                                <div className="h-8 flex items-center">
+                                  {leagueRankHistory.points.map((p) => (
+                                    <div key={`x-axis-${p.season}`} className="flex-1 text-center text-[10px] text-slate-400">
+                                      {p.season}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="mb-3 flex items-center justify-between">
+                              <div className="text-sm font-semibold text-slate-400">得点 / 失点</div>
+                              <div className="flex items-center gap-3 text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-3 h-3 rounded-sm bg-green-600" />
+                                  <span className="text-slate-300">得点</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-3 h-3 rounded-sm bg-red-600" />
+                                  <span className="text-slate-300">失点</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="rounded-xl border border-slate-700 bg-slate-900/30 p-3 sm:p-4">
+                              <div className="flex items-end justify-around gap-2 h-56 px-2">
+                                {leagueGoalsBar.values.map((v) => {
+                                  const goalsMax = Math.max(1, leagueGoalsBar.max);
+                                  const hFor = (v.goalsFor / goalsMax) * 100;
+                                  const hAgainst = (v.goalsAgainst / goalsMax) * 100;
+                                  return (
+                                    <div key={v.season} className="flex flex-col items-center flex-1 min-w-0">
+                                      <div className="flex items-end gap-1 h-full">
+                                        <div className="flex flex-col items-center justify-end h-full">
+                                          <span className="text-[10px] font-bold text-green-400 mb-1">{v.goalsFor}</span>
+                                          <div className="w-5 sm:w-8 bg-green-600 rounded-t" style={{ height: `${Math.max(1, hFor)}%` }} />
+                                        </div>
+                                        <div className="flex flex-col items-center justify-end h-full">
+                                          <span className="text-[10px] font-bold text-red-400 mb-1">{v.goalsAgainst}</span>
+                                          <div className="w-5 sm:w-8 bg-red-600 rounded-t" style={{ height: `${Math.max(1, hAgainst)}%` }} />
+                                        </div>
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 mt-2 truncate w-full text-center">{v.season}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const validRankPoints = leagueRankHistory.points.filter((p) => typeof p.rank === 'number');
+                    const firstPoint = validRankPoints[0];
+                    const lastPoint = validRankPoints[validRankPoints.length - 1];
+                    const rankDelta = firstPoint && lastPoint ? firstPoint.rank! - lastPoint.rank! : 0;
+                    const maxGoalsValue = Math.max(1, ...leagueGoalsBar.values.flatMap((v) => [v.goalsFor, v.goalsAgainst]));
+
+                    return (
+                      <div className="space-y-6">
+                        <div>
+                          <div className="mb-4 text-sm font-semibold text-slate-400">リーグ順位履歴</div>
+                          <div className="flex items-center gap-3 sm:gap-4">
+                            {(() => {
+                              const firstRow = firstPoint ? leagueRowBySeason.get(firstPoint.season) : null;
+                              const lastRow = lastPoint ? leagueRowBySeason.get(lastPoint.season) : null;
+                              return (
+                                <>
+                                  <div className="flex-1 rounded-xl border border-slate-700 bg-slate-700/30 p-4 text-center sm:p-5">
+                                    <div className="text-xs font-medium text-slate-400">{firstPoint?.season || '-'}</div>
+                                    <div className="mt-4 text-5xl font-black leading-none tracking-tight text-slate-300">
+                                      {typeof firstPoint?.rank === 'number' ? firstPoint.rank : '-'}
+                                    </div>
+                                    <div className="mt-2 text-xs text-slate-400">位</div>
+                                    <div className="mt-3 text-sm font-bold text-slate-300">{firstRow ? `${firstRow.points}pt` : '-'}</div>
+                                  </div>
+
+                                  <div className="flex flex-col items-center justify-center gap-2 px-1">
+                                    <div className={rankDelta > 0 ? 'text-green-400' : rankDelta < 0 ? 'text-red-400' : 'text-slate-400'}>
+                                      {rankDelta > 0 ? '↑' : rankDelta < 0 ? '↓' : '→'}
+                                    </div>
+                                    <div className={`rounded-full px-2 py-1 text-xs font-bold ${rankDelta > 0 ? 'bg-green-500/20 text-green-400' : rankDelta < 0 ? 'bg-red-500/20 text-red-400' : 'bg-slate-700 text-slate-300'}`}>
+                                      {rankDelta > 0 ? `+${rankDelta}` : rankDelta}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex-1 rounded-xl border border-slate-700 bg-slate-700/30 p-4 text-center sm:p-5">
+                                    <div className="text-xs font-medium text-slate-400">{lastPoint?.season || '-'}</div>
+                                    <div className={`mt-4 text-5xl font-black leading-none tracking-tight ${rankDelta > 0 ? 'text-green-400' : 'text-slate-300'}`}>
+                                      {typeof lastPoint?.rank === 'number' ? lastPoint.rank : '-'}
+                                    </div>
+                                    <div className="mt-2 text-xs text-slate-400">位</div>
+                                    <div className="mt-3 text-sm font-bold text-slate-300">{lastRow ? `${lastRow.points}pt` : '-'}</div>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="mb-4 text-sm font-semibold text-slate-400">得点 / 失点</div>
+                          <div className="space-y-3">
+                            {leagueGoalsBar.values.map((v) => {
+                              const diff = v.goalsFor - v.goalsAgainst;
+                              const goalsForWidth = Math.max(2, (v.goalsFor / maxGoalsValue) * 100);
+                              const goalsAgainstWidth = Math.max(2, (v.goalsAgainst / maxGoalsValue) * 100);
+                              return (
+                                <div key={v.season} className="rounded-xl border border-slate-700 bg-slate-700/30 p-4">
+                                  <div className="mb-4 flex items-center justify-between gap-3">
+                                    <div className="text-sm font-bold text-white">{v.season}</div>
+                                    <div className="text-xs font-semibold text-slate-400">
+                                      得失点差 <span className={diff > 0 ? 'text-green-400' : diff < 0 ? 'text-red-400' : 'text-white'}>{diff > 0 ? `+${diff}` : diff}</span>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <div className="grid grid-cols-[42px_1fr_32px] items-center gap-3">
+                                      <div className="text-xs font-bold text-green-400">得点</div>
+                                      <div className="h-6 rounded-full bg-slate-600/60 overflow-hidden">
+                                        <div className="h-full rounded-full bg-green-500/50" style={{ width: `${goalsForWidth}%` }} />
+                                      </div>
+                                      <div className="text-right text-xs font-bold text-green-400">{v.goalsFor}</div>
+                                    </div>
+                                    <div className="grid grid-cols-[42px_1fr_32px] items-center gap-3">
+                                      <div className="text-xs font-bold text-red-400">失点</div>
+                                      <div className="h-6 rounded-full bg-slate-600/60 overflow-hidden">
+                                        <div className="h-full rounded-full bg-red-500/35" style={{ width: `${goalsAgainstWidth}%` }} />
+                                      </div>
+                                      <div className="text-right text-xs font-bold text-red-400">{v.goalsAgainst}</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {selectedTournamentType === "league" && selectedCompetitionId !== "all" && selectedSeason === 'all' && (
+              <TeamVsTeamLeagueSection
+                clubUid={clubUid || ''}
+                teamId={resolvedTeamId || (mainTeamId ? String(mainTeamId) : '')}
+                matches={filteredMatches}
+              />
+            )}
+
             {selectedTournamentType === "league" && selectedCompetitionId !== "all" && (
               <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
                 <div className="relative pt-3 px-3 pb-3 sm:pt-4 sm:px-4 sm:pb-4">
@@ -1424,52 +1664,28 @@ export default function AnalysisPage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-slate-700">
-                            <th 
-                              className="px-2 py-2 text-left text-slate-400 font-medium cursor-pointer hover:text-white transition"
-                              onClick={() => handleSort('position')}
-                            >
+                            <th className="px-2 py-2 text-left text-slate-400 font-medium cursor-pointer hover:text-white transition" onClick={() => handleSort('position')}>
                               POS {sortColumn === 'position' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </th>
-                            <th 
-                              className="px-2 py-2 text-left text-slate-400 font-medium cursor-pointer hover:text-white transition"
-                              onClick={() => handleSort('name')}
-                            >
+                            <th className="px-2 py-2 text-left text-slate-400 font-medium cursor-pointer hover:text-white transition" onClick={() => handleSort('name')}>
                               名前 {sortColumn === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </th>
-                            <th 
-                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
-                              onClick={() => handleSort('matches')}
-                            >
+                            <th className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition" onClick={() => handleSort('matches')}>
                               試合数 {sortColumn === 'matches' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </th>
-                            <th 
-                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
-                              onClick={() => handleSort('starts')}
-                            >
+                            <th className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition" onClick={() => handleSort('starts')}>
                               先発 {sortColumn === 'starts' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </th>
-                            <th 
-                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
-                              onClick={() => handleSort('substitutions')}
-                            >
+                            <th className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition" onClick={() => handleSort('substitutions')}>
                               途中出場 {sortColumn === 'substitutions' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </th>
-                            <th 
-                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
-                              onClick={() => handleSort('goals')}
-                            >
+                            <th className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition" onClick={() => handleSort('goals')}>
                               G {sortColumn === 'goals' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </th>
-                            <th 
-                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
-                              onClick={() => handleSort('assists')}
-                            >
+                            <th className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition" onClick={() => handleSort('assists')}>
                               A {sortColumn === 'assists' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </th>
-                            <th 
-                              className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition"
-                              onClick={() => handleSort('rating')}
-                            >
+                            <th className="px-2 py-2 text-right text-slate-400 font-medium cursor-pointer hover:text-white transition" onClick={() => handleSort('rating')}>
                               評価点 {sortColumn === 'rating' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </th>
                           </tr>
@@ -1503,264 +1719,6 @@ export default function AnalysisPage() {
                   )}
                 </div>
               </div>
-            )}
-
-            {selectedTournamentType === "league" && selectedCompetitionId !== "all" && selectedSeason === 'all' && (
-              <div className="relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-xl border border-slate-700">
-                <div className="relative pt-3 px-3 pb-2 sm:pt-4 sm:px-4 sm:pb-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="text-white text-sm font-semibold">リーグ表での順位履歴</div>
-                  </div>
-
-                  <div className="-mx-3 sm:-mx-4">
-                    <div className="space-y-1">
-                      <div className="h-52 sm:h-72 relative rounded-md border border-slate-700 bg-slate-900/30 overflow-hidden">
-                        {leagueRanksLoading && (
-                          <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
-                            読み込み中...
-                          </div>
-                        )}
-
-                        {!leagueRanksLoading && leagueRankHistory.points.every((p) => p.rank == null) && (
-                          <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
-                            データがありません
-                          </div>
-                        )}
-
-                        <div className="absolute inset-0 flex">
-                          <div className="w-10 sm:w-12 border-r border-slate-700/60 relative">
-                            <div className="absolute left-0 top-0 bottom-0 w-10 sm:w-12 flex items-center justify-center pointer-events-none">
-                              <div className="text-[9px] text-slate-400 -rotate-90 tracking-widest">順位</div>
-                            </div>
-                            {!leagueRanksLoading && (
-                              <>
-                                {leagueCompareTicks.ticks.map((t) => {
-                                  const denom = Math.max(1, leagueCompareTicks.top - 1);
-                                  const ratio = (t - 1) / denom;
-                                  const yPct = LEAGUE_RANK_PLOT_PADDING_VB + ratio * (100 - 2 * LEAGUE_RANK_PLOT_PADDING_VB);
-                                  return (
-                                    <div
-                                      key={t}
-                                      className="absolute left-0 right-0 text-[9px] text-slate-400 pr-1 text-right"
-                                      style={{
-                                        top: `${yPct}%`,
-                                        transform:
-                                          t === 1
-                                            ? 'translateY(0%)'
-                                            : t === leagueCompareTicks.top
-                                              ? 'translateY(-100%)'
-                                              : 'translateY(-50%)',
-                                      }}
-                                    >
-                                      {t}
-                                    </div>
-                                  );
-                                })}
-                              </>
-                            )}
-                          </div>
-
-                          <div className="flex-1 h-full relative">
-                            <div className="absolute inset-0 z-0">
-                              <div className="absolute inset-x-0 top-0 h-1/2 bg-slate-900/[0.02]" />
-                              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-slate-900/[0.04]" />
-                            </div>
-
-                            {!leagueRanksLoading && !leagueRankHistory.points.every((p) => p.rank == null) && (
-                              <>
-                                <div className="absolute inset-0 z-0">
-                                  {leagueCompareTicks.ticks.map((t) => {
-                                    const denom = Math.max(1, leagueCompareTicks.top - 1);
-                                    const ratio = (t - 1) / denom;
-                                    const yPct = LEAGUE_RANK_PLOT_PADDING_VB + ratio * (100 - 2 * LEAGUE_RANK_PLOT_PADDING_VB);
-                                    return (
-                                      <div
-                                        key={t}
-                                        className="absolute left-0 right-0 border-t border-slate-700/25"
-                                        style={{ top: `${yPct}%` }}
-                                      />
-                                    );
-                                  })}
-                                </div>
-
-                                <div className="absolute inset-0 z-0">
-                                  {leagueCompareSeasons.map((season, i) => (
-                                    <div
-                                      key={season}
-                                      className="absolute top-0 bottom-0 border-l border-slate-700/25"
-                                      style={{ left: `${((i + 0.5) / Math.max(1, leagueCompareSeasons.length)) * 100}%` }}
-                                    />
-                                  ))}
-                                </div>
-
-                                <div className="absolute inset-0 z-20 pointer-events-none">
-                                  {leagueRankHistory.points
-                                    .filter((p) => typeof p.rank === 'number')
-                                    .map((p) => (
-                                      <div
-                                        key={p.season}
-                                        className="absolute flex items-center justify-center font-semibold"
-                                        style={{
-                                          left: `${p.xPct}%`,
-                                          top: `${p.yPct}%`,
-                                          transform: 'translate(-50%, -50%)',
-                                          width: '26px',
-                                          height: '26px',
-                                          borderRadius: '9999px',
-                                          background: '#ffffff',
-                                          border: '2px solid rgba(20, 184, 166, 0.95)',
-                                          color: 'rgba(20, 184, 166, 0.95)',
-                                          fontSize: '12px',
-                                          lineHeight: '12px',
-                                        }}
-                                      >
-                                        {p.rank}
-                                      </div>
-                                    ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="h-10 sm:h-12 flex items-end">
-                        <div className="w-10 sm:w-12" />
-                        <div className="flex-1">
-                          <div className="flex items-end w-full">
-                            {leagueCompareSeasons.map((season, idx) => {
-                              const isLast = idx === leagueCompareSeasons.length - 1;
-                              return (
-                                <div key={season} className="flex-1 min-w-0 px-0.5 text-center">
-                                  <div
-                                    className={
-                                      isLast
-                                        ? 'text-[10px] text-white bg-teal-600 rounded-full px-2 py-0.5 inline-block'
-                                        : 'text-[10px] text-slate-400'
-                                    }
-                                  >
-                                    {season}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-white text-sm font-semibold">得点 / 失点</div>
-                          <div className="text-[11px] text-slate-400">シーズン別</div>
-                        </div>
-
-                        <div className="rounded-md border border-slate-700 bg-slate-900/20 overflow-hidden">
-                          <div className="h-28 sm:h-36 relative">
-                            <div className="absolute inset-0 flex">
-                              <div className="w-10 sm:w-12 border-r border-slate-700/60 relative">
-                                <div className="absolute left-0 top-0 bottom-0 w-10 sm:w-12 flex items-center justify-center pointer-events-none">
-                                  <div className="text-[9px] text-slate-400 -rotate-90 tracking-widest">得点/失点</div>
-                                </div>
-
-                                {leagueGoalsForTicks.ticks.map((t) => {
-                                  const ratio = leagueGoalsForTicks.top > 0 ? t / leagueGoalsForTicks.top : 0;
-                                  const yPct = 100 - ratio * 100;
-                                  return (
-                                    <div
-                                      key={t}
-                                      className="absolute left-0 right-0 text-[9px] text-slate-400 pr-1 text-right"
-                                      style={{
-                                        top: `${yPct}%`,
-                                        transform: t === 0 ? 'translateY(0%)' : t === leagueGoalsForTicks.top ? 'translateY(-100%)' : 'translateY(-50%)',
-                                      }}
-                                    >
-                                      {t}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              <div className="flex-1 h-full relative">
-                                <div className="absolute inset-0 z-0">
-                                  {leagueGoalsForTicks.ticks.map((t) => {
-                                    const ratio = leagueGoalsForTicks.top > 0 ? t / leagueGoalsForTicks.top : 0;
-                                    const yPct = 100 - ratio * 100;
-                                    return (
-                                      <div
-                                        key={t}
-                                        className="absolute left-0 right-0 border-t border-slate-700/25"
-                                        style={{ top: `${yPct}%` }}
-                                      />
-                                    );
-                                  })}
-                                </div>
-
-                                <div className="absolute inset-0 z-10 flex items-end gap-2 px-3 pb-2">
-                                  {leagueGoalsBar.values.map((v) => {
-                                    const ratioFor = leagueGoalsForTicks.top > 0 ? v.goalsFor / leagueGoalsForTicks.top : 0;
-                                    const ratioAgainst = leagueGoalsForTicks.top > 0 ? v.goalsAgainst / leagueGoalsForTicks.top : 0;
-                                    const hPctFor = Math.max(0, Math.min(100, ratioFor * 100));
-                                    const hPctAgainst = Math.max(0, Math.min(100, ratioAgainst * 100));
-                                    return (
-                                      <div key={v.season} className="flex-1 min-w-0 h-full flex flex-col items-center justify-end gap-1">
-                                        <div className="w-full flex-1 flex items-end justify-center">
-                                          <div className="flex items-end gap-0.5 h-full">
-                                            <div
-                                              className="w-4 sm:w-5 bg-gradient-to-t from-teal-600/90 to-teal-300/90 shadow-[0_0_0_1px_rgba(45,212,191,0.25)]"
-                                              style={{ height: `${Math.max(2, hPctFor)}%` }}
-                                            />
-                                            <div
-                                              className="w-4 sm:w-5 bg-gradient-to-t from-red-600/90 to-red-300/90 shadow-[0_0_0_1px_rgba(248,113,113,0.25)]"
-                                              style={{ height: `${Math.max(2, hPctAgainst)}%` }}
-                                            />
-                                          </div>
-                                        </div>
-                                        <div className="text-[10px] text-slate-300 tabular-nums">{v.goalsFor}/{v.goalsAgainst}</div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="h-10 sm:h-12 flex items-end">
-                            <div className="w-10 sm:w-12" />
-                            <div className="flex-1">
-                              <div className="flex items-end w-full">
-                                {leagueCompareSeasons.map((season, idx) => {
-                                  const isLast = idx === leagueCompareSeasons.length - 1;
-                                  return (
-                                    <div key={season} className="flex-1 min-w-0 px-0.5 text-center">
-                                      <div
-                                        className={
-                                          isLast
-                                            ? 'text-[10px] text-white bg-teal-600 rounded-full px-2 py-0.5 inline-block'
-                                            : 'text-[10px] text-slate-400'
-                                        }
-                                      >
-                                        {season}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {selectedTournamentType === "league" && selectedCompetitionId !== "all" && selectedSeason === 'all' && (
-              <TeamVsTeamLeagueSection
-                clubUid={clubUid || ''}
-                teamId={resolvedTeamId || (mainTeamId ? String(mainTeamId) : '')}
-                matches={filteredMatches as any}
-              />
             )}
           </div>
         )}

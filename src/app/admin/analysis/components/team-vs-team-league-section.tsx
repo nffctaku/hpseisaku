@@ -355,32 +355,35 @@ export function TeamVsTeamLeagueSection({
 
             <div className="p-4 overflow-y-auto max-h-[60vh]">
               <div className="space-y-2">
-                {opponentMatches.map((match: any) => (
-                  <div key={String(match.id)} className="bg-slate-700/40 rounded-lg overflow-hidden border border-slate-600/50">
-                    <div className="px-4 py-3">
-                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                        <div className="text-slate-200 text-sm truncate">{match.isHome ? "自チーム" : selectedOpponent.opponentName}</div>
-                        <div
-                          className={`px-3 py-1 rounded-full text-white font-bold text-sm flex-shrink-0 ${
-                            match.result === 'win'
-                              ? 'bg-emerald-600/80'
-                              : match.result === 'loss'
-                                ? 'bg-red-600/80'
-                                : 'bg-slate-900/40'
-                          }`}
-                        >
-                          {match.isHome ? `${match.myScore} - ${match.opponentScore}` : `${match.opponentScore} - ${match.myScore}`}
+                {(() => {
+                  const myTeamName = teamNames.get(teamId) || '自チーム';
+                  return opponentMatches.map((match: any) => (
+                    <div key={String(match.id)} className="bg-slate-700/40 rounded-lg overflow-hidden border border-slate-600/50">
+                      <div className="px-4 py-3">
+                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                          <div className="text-slate-200 text-sm truncate">{match.isHome ? myTeamName : selectedOpponent.opponentName}</div>
+                          <div
+                            className={`px-3 py-1 rounded-full text-white font-bold text-sm flex-shrink-0 ${
+                              match.result === 'win'
+                                ? 'bg-emerald-600/80'
+                                : match.result === 'loss'
+                                  ? 'bg-red-600/80'
+                                  : 'bg-slate-900/40'
+                            }`}
+                          >
+                            {match.isHome ? `${match.myScore} - ${match.opponentScore}` : `${match.opponentScore} - ${match.myScore}`}
+                          </div>
+                          <div className="text-slate-200 text-sm truncate text-right">{match.isHome ? selectedOpponent.opponentName : myTeamName}</div>
                         </div>
-                        <div className="text-slate-200 text-sm truncate text-right">{match.isHome ? selectedOpponent.opponentName : "自チーム"}</div>
-                      </div>
-                      <div className="mt-2 flex items-center justify-center gap-2 text-xs text-slate-300">
-                        <span>{typeof match.competitionName === "string" ? match.competitionName : "—"}</span>
-                        <span className="text-slate-500">/</span>
-                        <span>{match.matchDate ? new Date(match.matchDate).toLocaleDateString("ja-JP") : "—"}</span>
+                        <div className="mt-2 flex items-center justify-center gap-2 text-xs text-slate-300">
+                          <span>{typeof match.competitionName === "string" ? match.competitionName : "—"}</span>
+                          <span className="text-slate-500">/</span>
+                          <span>{match.matchDate ? new Date(match.matchDate).toLocaleDateString("ja-JP") : "—"}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ));
+                })()}
 
                 {opponentMatches.length === 0 && (
                   <div className="text-center text-slate-400 py-8">
