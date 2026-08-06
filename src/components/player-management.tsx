@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { toDashSeason } from "@/lib/season";
+import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc, getDocs, writeBatch } from "firebase/firestore";
 import Image from 'next/image';
@@ -80,6 +80,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const [importingCsv, setImportingCsv] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<Player | null>(null);
+  const [isCarryoverDialogOpen, setIsCarryoverDialogOpen] = useState(false);
+  const [selectedSourceSeason, setSelectedSourceSeason] = useState<string>('');
+  const [carryingOver, setCarryingOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
   const planTier = getPlanTier(user?.plan);
@@ -622,6 +625,43 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           (rosterPayload || {}) as any,
           { merge: true }
         );
+
+        // 基本情報の変更を他シーズンの roster / seasonData にも反映
+        const allSeasons = Array.from(new Set<string>([
+          ...(editingPlayer.seasons || []).map(s => toDashSeason(String(s || ''))).filter(Boolean),
+          ...Object.keys(editingPlayer.seasonData || {}),
+        ] as string[]));
+        const currentSeasonDash = toDashSeason(selectedSeason);
+        const otherSeasons = allSeasons.filter(s => s !== currentSeasonDash);
+        if (otherSeasons.length > 0) {
+          const syncBatch = writeBatch(db);
+          const playerSeasonDataUpdates: any = {};
+          for (const s of otherSeasons) {
+            if (valuesNormalized.photoUrl !== undefined) {
+              playerSeasonDataUpdates[`seasonData.${s}.photoUrl`] = valuesNormalized.photoUrl;
+            }
+            if ((values as any).subName !== undefined) {
+              playerSeasonDataUpdates[`seasonData.${s}.subName`] = (values as any).subName;
+            }
+            const otherRosterRef = doc(db, `clubs/${clubUid}/seasons/${s}/roster`, editingPlayer.id);
+            const seasonDataPatch: any = {};
+            if (valuesNormalized.photoUrl !== undefined) seasonDataPatch.photoUrl = valuesNormalized.photoUrl;
+            if ((values as any).subName !== undefined) seasonDataPatch.subName = (values as any).subName;
+            const rosterSync: any = {
+              name: valuesNormalized.name,
+            };
+            if ((values as any).subName !== undefined) rosterSync.subName = (values as any).subName;
+            if (valuesNormalized.photoUrl !== undefined) rosterSync.photoUrl = valuesNormalized.photoUrl;
+            if (Object.keys(seasonDataPatch).length > 0) {
+              rosterSync.seasonData = { [s]: seasonDataPatch };
+            }
+            syncBatch.set(otherRosterRef, rosterSync, { merge: true });
+          }
+          if (Object.keys(playerSeasonDataUpdates).length > 0) {
+            syncBatch.update(playerDocRef, playerSeasonDataUpdates);
+          }
+          await syncBatch.commit();
+        }
       } else {
         const createPayload = stripUndefinedDeep({
           ...valuesNormalized,
@@ -1033,6 +1073,130 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     }
   };
 
+  const openCarryoverDialog = () => {
+    setSelectedSourceSeason('');
+    setIsCarryoverDialogOpen(true);
+  };
+
+  const availableSourceSeasons = useMemo(() => {
+    if (!selectedSeason) return [];
+    const currentDash = toDashSeason(selectedSeason);
+    const seen = new Set<string>();
+    for (const p of mergedPlayers) {
+      for (const s of p.seasons || []) {
+        const dash = toDashSeason(s);
+        if (dash && dash !== currentDash) seen.add(dash);
+      }
+      for (const s of Object.keys(p.seasonData || {})) {
+        if (s && s !== currentDash) seen.add(s);
+      }
+    }
+    return Array.from(seen).sort();
+  }, [mergedPlayers, selectedSeason]);
+
+  const carryoverablePlayers = useMemo(() => {
+    if (!selectedSourceSeason || !selectedSeason) return [];
+    const sourceDash = toDashSeason(selectedSourceSeason);
+    const targetDash = toDashSeason(selectedSeason);
+    return mergedPlayers.filter((p) => {
+      const source = p.seasonData?.[sourceDash];
+      if (!source) return false;
+      if (p.seasons?.includes(selectedSeason)) return false;
+      if (p.seasons?.some((s) => toDashSeason(s) === targetDash)) return false;
+      if (p.seasonData?.[targetDash]) return false;
+      return true;
+    });
+  }, [mergedPlayers, selectedSourceSeason, selectedSeason]);
+
+  const handleCarryover = async () => {
+    if (!clubUid || !teamId || !selectedSeason || !selectedSourceSeason) return;
+    if (carryoverablePlayers.length === 0) {
+      toast.error('引き継ぎ可能な選手がいません。');
+      return;
+    }
+    if (Number.isFinite(maxPlayers) && filteredPlayers.length + carryoverablePlayers.length > maxPlayers) {
+      toast.error(`現在のプランでは1チームあたり選手は最大${maxPlayers}人まで登録できます。`);
+      return;
+    }
+    setCarryingOver(true);
+    try {
+      const targetDash = toDashSeason(selectedSeason);
+      const sourceDash = toDashSeason(selectedSourceSeason);
+      const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
+      const batch = writeBatch(db);
+      const touchedIds: string[] = [];
+      for (const p of carryoverablePlayers) {
+        const source = p.seasonData?.[sourceDash] as PlayerSeasonData | undefined;
+        if (!source) continue;
+        const nextSeasonData: PlayerSeasonData = { ...source };
+        const dateOfBirth = source.dateOfBirth ?? p.dateOfBirth;
+        const joinedSeason = source.joinedSeason ?? p.joinedSeason;
+        if (dateOfBirth) {
+          try {
+            (nextSeasonData as any).age = calculateAge(dateOfBirth, selectedSeason);
+          } catch { /* ignore */ }
+        }
+        if (joinedSeason && /^\d{4}/.test(joinedSeason)) {
+          try {
+            nextSeasonData.tenureYears = calculateTenureYears(joinedSeason, selectedSeason);
+          } catch { /* ignore */ }
+        }
+        const seasonPayloadClean = (stripUndefinedDeep(nextSeasonData) || {}) as any;
+        const currentSeasons = Array.isArray(p.seasons) ? p.seasons : [];
+        const nextSeasons = currentSeasons.includes(selectedSeason)
+          ? currentSeasons
+          : [...currentSeasons, selectedSeason];
+        const playerDocRef = doc(playersColRef, p.id);
+        batch.update(playerDocRef, stripUndefinedDeep({
+          seasons: nextSeasons,
+          [`seasonData.${targetDash}`]: seasonPayloadClean,
+        }) as any);
+        const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${targetDash}/roster`, p.id);
+        batch.set(rosterDocRef, (stripUndefinedDeep({
+          name: p.name,
+          subName: p.subName,
+          teamId,
+          seasons: nextSeasons,
+          seasonData: {
+            [targetDash]: seasonPayloadClean,
+          },
+          number: (nextSeasonData as any).number ?? p.number,
+          position: (nextSeasonData as any).position ?? p.position,
+          mainPosition: (nextSeasonData as any).mainPosition ?? (p as any).mainPosition,
+          subPositions: (nextSeasonData as any).subPositions ?? (p as any).subPositions,
+          nationality: (nextSeasonData as any).nationality ?? p.nationality,
+          dateOfBirth: (nextSeasonData as any).dateOfBirth ?? p.dateOfBirth,
+          joinedSeason,
+          tenureYears: (nextSeasonData as any).tenureYears,
+          height: (nextSeasonData as any).height ?? p.height,
+          weight: (nextSeasonData as any).weight ?? (p as any).weight,
+          profile: (nextSeasonData as any).profile ?? (p as any).profile,
+          preferredFoot: (nextSeasonData as any).preferredFoot ?? (p as any).preferredFoot,
+          annualSalary: (nextSeasonData as any).annualSalary ?? (p as any).annualSalary,
+          annualSalaryCurrency: (nextSeasonData as any).annualSalaryCurrency ?? (p as any).annualSalaryCurrency,
+          contractYears: (nextSeasonData as any).contractYears ?? (p as any).contractYears,
+          contractMonths: (nextSeasonData as any).contractMonths ?? (p as any).contractMonths,
+          contractEndDate: (nextSeasonData as any).contractEndDate ?? (p as any).contractEndDate,
+          photoUrl: (nextSeasonData as any).photoUrl ?? p.photoUrl,
+          snsLinks: (nextSeasonData as any).snsLinks ?? p.snsLinks,
+          params: (nextSeasonData as any).params ?? p.params,
+          manualCompetitionStats: (nextSeasonData as any).manualCompetitionStats ?? (p as any).manualCompetitionStats,
+          isPublished: typeof (nextSeasonData as any).isPublished === 'boolean' ? (nextSeasonData as any).isPublished : p.isPublished,
+        }) || {}) as any, { merge: true });
+        touchedIds.push(p.id);
+      }
+      await batch.commit();
+      await Promise.all(touchedIds.map((id) => invalidatePlayerStatsCache(id)));
+      toast.success(`${touchedIds.length}人の選手を引き継ぎました。`);
+      setIsCarryoverDialogOpen(false);
+      setSelectedSourceSeason('');
+    } catch (e: any) {
+      toast.error(e?.message || '引き継ぎに失敗しました。');
+    } finally {
+      setCarryingOver(false);
+    }
+  };
+
   return (
     <>
       <div className="mt-2">
@@ -1223,6 +1387,13 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
               </DialogContent>
             </Dialog>
           </div>
+          <Button
+            onClick={openCarryoverDialog}
+            disabled={!selectedSeason || availableSourceSeasons.length === 0 || (Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers)}
+            className="w-full mt-2 bg-white/10 text-white hover:bg-white/15 border border-white/15"
+          >
+            前シーズンから引き継ぎ
+          </Button>
         </div>
 
         <div className="sm:hidden space-y-3">
@@ -1319,6 +1490,46 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={isCarryoverDialogOpen} onOpenChange={setIsCarryoverDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>前シーズンから引き継ぎ</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block text-white">引き継ぐシーズン</label>
+              <select
+                value={selectedSourceSeason}
+                onChange={(e) => setSelectedSourceSeason(e.target.value)}
+                className="w-full rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white"
+              >
+                <option value="">選択してください</option>
+                {availableSourceSeasons.map((s) => (
+                  <option key={s} value={s}>{toSlashSeason(s)}</option>
+                ))}
+              </select>
+            </div>
+            {selectedSourceSeason && carryoverablePlayers.length > 0 && (
+              <div className="text-sm text-slate-300">
+                {carryoverablePlayers.length}人の選手を引き継ぎます
+              </div>
+            )}
+            {selectedSourceSeason && carryoverablePlayers.length === 0 && (
+              <div className="text-sm text-slate-400">
+                引き継ぎ可能な選手がいません
+              </div>
+            )}
+            <Button
+              onClick={handleCarryover}
+              disabled={!selectedSourceSeason || carryingOver || carryoverablePlayers.length === 0}
+              className="w-full bg-blue-600 text-white hover:bg-blue-700"
+            >
+              {carryingOver ? '引き継ぎ中...' : `${carryoverablePlayers.length}人を引き継ぎ`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

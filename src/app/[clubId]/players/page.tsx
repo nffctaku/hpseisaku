@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase/admin";
 import { notFound } from "next/navigation";
 import { PlayerList } from "./player-list";
+import { getMatchStatsForPlayers } from "./lib/get-match-stats";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
@@ -19,6 +20,7 @@ interface Player {
   seasons?: string[];
   isPublished?: boolean;
   __teamId?: string;
+  stats?: { appearances: number; goals: number; assists: number };
 }
 
 interface Staff {
@@ -497,6 +499,20 @@ async function getPlayersData(
       if (!pub) {
         add(debugExcluded.staff.unpublished, s, { reason: 'unpublished' });
       }
+    }
+  }
+
+  // 試合結果から選手成績を集計
+  if (ownerUid && activeSeason) {
+    try {
+      const playerIds = (filteredPlayers as any[]).map((p: any) => String(p?.id || "")).filter(Boolean);
+      const statsMap = await getMatchStatsForPlayers(ownerUid, playerIds, activeSeason);
+      for (const p of filteredPlayers as any[]) {
+        const s = statsMap.get(String(p?.id || ""));
+        p.stats = s || { appearances: 0, goals: 0, assists: 0 };
+      }
+    } catch (e) {
+      console.error("Failed to load match stats for players page", e);
     }
   }
 

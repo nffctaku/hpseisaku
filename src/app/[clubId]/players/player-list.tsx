@@ -1,19 +1,49 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import Image from 'next/image';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
+import { Barlow_Condensed } from 'next/font/google';
+import { calculateAge } from "@/lib/player-calculations";
+import { toDashSeason, toSlashSeason } from "@/lib/season";
 
-// This interface needs to be in sync with the one in page.tsx
+const barlow = Barlow_Condensed({
+  weight: '900',
+  style: 'italic',
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-barlow-condensed',
+});
+
+const POSITION_ORDER = ['GK', 'DF', 'MF', 'FW'] as const;
+
+const positionColors: Record<string, string> = {
+  GK: '#f59e0b',
+  DF: '#60a5fa',
+  MF: '#a78bfa',
+  FW: '#1fd760',
+};
+
+const positionNames: Record<string, string> = {
+  GK: 'ゴールキーパー',
+  DF: 'ディフェンダー',
+  MF: 'ミッドフィルダー',
+  FW: 'フォワード',
+  OTHER: 'その他',
+};
+
 interface Player {
   id: string;
   name: string;
   number: number;
   position: string;
   photoUrl?: string;
+  seasons?: string[];
+  isPublished?: boolean;
+  __teamId?: string;
+  seasonData?: Record<string, any>;
+  manualCompetitionStats?: any[];
+  stats?: { appearances: number; goals: number; assists: number };
 }
 
 interface Staff {
@@ -21,51 +51,29 @@ interface Staff {
   name: string;
   position?: string;
   nationality?: string;
+  age?: number;
   dateOfBirth?: string;
   joinedSeason?: string;
   profile?: string;
   photoUrl?: string;
+  seasons?: string[];
+  isPublished?: boolean;
+  __teamId?: string;
 }
 
-function parseColorToRgb(input: string): { r: number; g: number; b: number } | null {
-  const v = input.trim();
-
-  const hexMatch = v.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-  if (hexMatch) {
-    const hex = hexMatch[1];
-    if (hex.length === 3) {
-      const r = parseInt(hex[0] + hex[0], 16);
-      const g = parseInt(hex[1] + hex[1], 16);
-      const b = parseInt(hex[2] + hex[2], 16);
-      return { r, g, b };
-    }
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    return { r, g, b };
-  }
-
-  const rgbMatch = v.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d*\.?\d+)\s*)?\)$/i);
-  if (rgbMatch) {
-    const r = Math.min(255, Math.max(0, Number(rgbMatch[1])));
-    const g = Math.min(255, Math.max(0, Number(rgbMatch[2])));
-    const b = Math.min(255, Math.max(0, Number(rgbMatch[3])));
-    return { r, g, b };
-  }
-
-  return null;
+function normalizePosition(pos: unknown): string {
+  const raw = typeof pos === 'string' ? pos.trim() : '';
+  if (!raw) return 'OTHER';
+  const up = raw.toUpperCase();
+  if (up === 'GK' || up.includes('ゴール') || up.includes('キーパー')) return 'GK';
+  if (up === 'DF' || up.includes('ディフェンス') || up.includes('バック')) return 'DF';
+  if (up === 'MF' || up.includes('ミッドフィ')) return 'MF';
+  if (up === 'FW' || up.includes('フォワード') || up.includes('ストライカー')) return 'FW';
+  return 'OTHER';
 }
 
-function isDarkColor(input: string): boolean | null {
-  const rgb = parseColorToRgb(input);
-  if (!rgb) return null;
-  const { r, g, b } = rgb;
-  const srgb = [r, g, b].map((c) => {
-    const v = c / 255;
-    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-  });
-  const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
-  return luminance < 0.5;
+function getPositionColor(position: string): string {
+  return positionColors[normalizePosition(position)] || 'rgba(255,255,255,0.4)';
 }
 
 export function PlayerList({ clubId, clubName, players, staff, allSeasons, activeSeason, accentColor, debugInfo }: {
@@ -80,441 +88,408 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [activeTab, setActiveTab] = useState<'players' | 'staff'>('players');
-  const [seasonPickerOpen, setSeasonPickerOpen] = useState(false);
+  const [filter, setFilter] = useState<string>('ALL');
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
-  const [resolvedHeadingColor, setResolvedHeadingColor] = useState<string | null>(null);
 
-  // デバッグ情報をコンソールに出力
-  useEffect(() => {
-    if (debugInfo) {
-      console.log('=== DEBUG INFO ===');
-      console.log('Total players from teams:', debugInfo.counts?.teamsPlayers || 'N/A');
-      console.log('After season membership:', debugInfo.counts?.afterSeasonMembershipPlayers || 'N/A');
-      console.log('After roster disambiguation:', debugInfo.counts?.afterRosterDisambiguationPlayers || 'N/A');
-      console.log('After published filter:', debugInfo.counts?.afterPublishedPlayers || 'N/A');
-      console.log('Roster loaded:', debugInfo.roster?.loaded || 'N/A');
-      console.log('Roster count:', debugInfo.roster?.count || 'N/A');
-      console.log('Active season:', activeSeason);
-      console.log('==================');
-    }
-  }, [debugInfo, activeSeason]);
-
-  const baseTabBtn = useMemo(
-    () =>
-      "flex-1 min-w-0 px-2 py-1.5 text-[10px] font-semibold whitespace-nowrap text-center transition-colors",
-    []
-  );
-
-  const handleSeasonChange = (season: string) => {
-    router.push(`${pathname}?season=${season}`);
-    setSeasonPickerOpen(false);
+  const handleSeasonChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    router.push(`${pathname}?season=${encodeURIComponent(e.target.value)}`);
   };
 
-  const normalizePosition = (input: unknown): string => {
-    const raw = typeof input === 'string' ? input.trim() : '';
-    if (!raw) return 'OTHER';
-    const up = raw.toUpperCase();
-    if (up === 'GK' || up === 'GOALKEEPER' || up === 'KEEPER') return 'GK';
-    if (up === 'DF' || up === 'DEF' || up === 'DEFENDER') return 'DF';
-    if (up === 'MF' || up === 'MID' || up === 'MIDFIELDER') return 'MF';
-    if (up === 'FW' || up === 'ST' || up === 'CF' || up === 'FWD' || up === 'FORWARD' || up === 'STRIKER') return 'FW';
-    if (up.includes('GK')) return 'GK';
-    if (up.includes('DF') || up.includes('DEF')) return 'DF';
-    if (up.includes('MF') || up.includes('MID')) return 'MF';
-    if (up.includes('FW') || up.includes('FWD') || up.includes('ST') || up.includes('CF')) return 'FW';
-    return raw;
-  };
-
-  const groupedPlayers = players.reduce((acc, player) => {
-    const key = normalizePosition((player as any)?.position);
-    if (!acc[key]) {
-      acc[key] = [];
+  const groupedPlayers = useMemo(() => {
+    const groups: Record<string, Player[]> = {};
+    for (const p of players) {
+      const key = normalizePosition(p.position);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(p);
     }
-    acc[key].push(player);
-    return acc;
-  }, {} as Record<string, Player[]>);
+    for (const key of Object.keys(groups)) {
+      groups[key] = groups[key].sort((a, b) => a.number - b.number);
+    }
+    return groups;
+  }, [players]);
+
+  const sortedPositions = useMemo(() => {
+    const rest = Object.keys(groupedPlayers)
+      .filter((k) => !POSITION_ORDER.includes(k as any))
+      .sort((a, b) => a.localeCompare(b, 'ja'));
+    return [...POSITION_ORDER.filter((p) => groupedPlayers[p]), ...rest];
+  }, [groupedPlayers]);
+
+  const visiblePositions = useMemo(() => {
+    if (filter === 'ALL' || filter === 'スタッフ') return sortedPositions;
+    return sortedPositions.filter((p) => p === filter);
+  }, [filter, sortedPositions]);
+
+  const filters = useMemo(() => {
+    const base = ['ALL', 'GK', 'DF', 'MF', 'FW'];
+    if (staff.length > 0) base.push('スタッフ');
+    return base;
+  }, [staff.length]);
+
+  const showStaff = filter === 'ALL' || filter === 'スタッフ';
 
   const debugText = useMemo(() => {
-    const d = debugInfo;
-    if (!d) return "";
+    if (!debugInfo) return "";
     try {
-      return JSON.stringify(d, null, 2);
+      return JSON.stringify(debugInfo, null, 2);
     } catch {
-      return String(d);
+      return String(debugInfo);
     }
   }, [debugInfo]);
 
-  const debugExcludedSummary = useMemo(() => {
-    const excluded = debugInfo?.excluded;
-    if (!excluded) return null;
+  function getSeasonStats(player: Player) {
+    if (player.stats) return player.stats;
+    if (!activeSeason) return { appearances: 0, goals: 0, assists: 0 };
+    const candidates = Array.from(new Set(
+      [activeSeason, toSlashSeason(activeSeason), toDashSeason(activeSeason)].filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+    ));
 
-    const flatten = (items: any[]) =>
-      (Array.isArray(items) ? items : []).map((x) => {
-        const name = typeof x?.name === 'string' ? x.name : '';
-        const id = typeof x?.id === 'string' ? x.id : '';
-        const teamId = typeof x?.teamId === 'string' ? x.teamId : '';
-        const reason = typeof x?.reason === 'string' ? x.reason : '';
-        const seasons = Array.isArray(x?.seasons) ? x.seasons : [];
-        const seasonDataKeys = Array.isArray(x?.seasonDataKeys) ? x.seasonDataKeys : [];
-        const rosterTeamId = typeof x?.rosterTeamId === 'string' ? x.rosterTeamId : '';
-        const playerTeamId = typeof x?.playerTeamId === 'string' ? x.playerTeamId : '';
-        return {
-          name,
-          id,
-          teamId,
-          reason,
-          seasons,
-          seasonDataKeys,
-          rosterTeamId,
-          playerTeamId,
-        };
-      });
-
-    return {
-      playersNotInSeason: flatten(excluded?.players?.notInSeason),
-      playersRosterMismatch: flatten(excluded?.players?.rosterMismatch),
-      playersUnpublished: flatten(excluded?.players?.unpublished),
-      staffNotInSeason: flatten(excluded?.staff?.notInSeason),
-      staffUnpublished: flatten(excluded?.staff?.unpublished),
-    };
-  }, [debugInfo]);
-
-  const positionOrder = ['GK', 'DF', 'MF', 'FW'];
-  const sortedGroupedPlayers = (() => {
-    const out: Record<string, Player[]> = {};
-    positionOrder.forEach((position) => {
-      if (groupedPlayers[position]) {
-        out[position] = groupedPlayers[position];
-      }
-    });
-    Object.keys(groupedPlayers)
-      .filter((k) => !positionOrder.includes(k))
-      .sort((a, b) => a.localeCompare(b, 'ja'))
-      .forEach((k) => {
-        out[k] = groupedPlayers[k];
-      });
-    return out;
-  })();
-
-  const positionHeadingClass = (() => {
-    // Keep borders via inline style (resolvedHeadingColor). Class is only for base typography.
-    return "text-2xl font-bold border-b-2 pb-2 mb-6";
-  })();
-
-  useEffect(() => {
-    const bg = typeof accentColor === 'string' && accentColor.trim().length > 0 ? accentColor : null;
-    if (bg) {
-      const bgIsDark = isDarkColor(bg);
-      if (bgIsDark === true) {
-        setResolvedHeadingColor('#ffffff');
-        return;
-      }
-      if (bgIsDark === false) {
-        setResolvedHeadingColor('#000000');
-        return;
+    const rows: any[] = [];
+    for (const key of candidates) {
+      const seasonData = player.seasonData?.[key];
+      if (seasonData?.manualCompetitionStats && Array.isArray(seasonData.manualCompetitionStats)) {
+        rows.push(...seasonData.manualCompetitionStats);
       }
     }
 
-    // Fallback: decide by theme background color.
-    try {
-      if (typeof window === 'undefined') return;
-      const root = document.documentElement;
-      const styles = window.getComputedStyle(root);
-      const bgVar = styles.getPropertyValue('--background') || '';
-      const value = bgVar.trim();
-      // Tailwind/shadcn uses HSL vars like: "0 0% 100%".
-      const hslMatch = value.match(/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%$/);
-      if (hslMatch) {
-        const l = Number(hslMatch[3]);
-        if (Number.isFinite(l)) {
-          setResolvedHeadingColor(l < 50 ? '#ffffff' : '#000000');
-          return;
-        }
-      }
-
-      // Last resort: infer from `dark` class.
-      const isDark = root.classList.contains('dark');
-      setResolvedHeadingColor(isDark ? '#ffffff' : '#000000');
-      return;
-    } catch {
-      // ignore
+    if (rows.length === 0 && Array.isArray(player.manualCompetitionStats)) {
+      const seasonMatches = [activeSeason, toSlashSeason(activeSeason), toDashSeason(activeSeason)].filter(Boolean);
+      rows.push(...player.manualCompetitionStats.filter((r: any) => seasonMatches.includes(r?.season)));
     }
 
-    setResolvedHeadingColor('#000000');
-  }, [accentColor]);
+    let appearances = 0;
+    let goals = 0;
+    let assists = 0;
+    for (const r of rows) {
+      appearances += Number(r?.matches ?? 0);
+      goals += Number(r?.goals ?? 0);
+      assists += Number(r?.assists ?? 0);
+    }
+    return { appearances, goals, assists };
+  }
 
-
-  return (
-    <div className="container mx-auto px-4 py-8">
-      {debugInfo ? (
-        <div className="mb-4 rounded-xl border border-white/10 bg-white/5 p-3">
-          <div className="text-xs font-semibold text-white/80">DEBUG</div>
-          {debugExcludedSummary ? (
-            <div className="mt-2 space-y-2">
-              {debugExcludedSummary.playersNotInSeason.length > 0 ? (
-                <div className="rounded-lg border border-white/10 bg-black/20 p-2">
-                  <div className="text-[11px] font-semibold text-white/80">除外(選手): シーズン未所属</div>
-                  <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">
-                    {JSON.stringify(debugExcludedSummary.playersNotInSeason, null, 2)}
-                  </pre>
-                </div>
-              ) : null}
-              {debugExcludedSummary.playersRosterMismatch.length > 0 ? (
-                <div className="rounded-lg border border-white/10 bg-black/20 p-2">
-                  <div className="text-[11px] font-semibold text-white/80">除外(選手): roster不一致</div>
-                  <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">
-                    {JSON.stringify(debugExcludedSummary.playersRosterMismatch, null, 2)}
-                  </pre>
-                </div>
-              ) : null}
-              {debugExcludedSummary.playersUnpublished.length > 0 ? (
-                <div className="rounded-lg border border-white/10 bg-black/20 p-2">
-                  <div className="text-[11px] font-semibold text-white/80">除外(選手): 非公開</div>
-                  <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">
-                    {JSON.stringify(debugExcludedSummary.playersUnpublished, null, 2)}
-                  </pre>
-                </div>
-              ) : null}
-              {debugExcludedSummary.staffNotInSeason.length > 0 ? (
-                <div className="rounded-lg border border-white/10 bg-black/20 p-2">
-                  <div className="text-[11px] font-semibold text-white/80">除外(スタッフ): シーズン未所属</div>
-                  <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">
-                    {JSON.stringify(debugExcludedSummary.staffNotInSeason, null, 2)}
-                  </pre>
-                </div>
-              ) : null}
-              {debugExcludedSummary.staffUnpublished.length > 0 ? (
-                <div className="rounded-lg border border-white/10 bg-black/20 p-2">
-                  <div className="text-[11px] font-semibold text-white/80">除外(スタッフ): 非公開</div>
-                  <pre className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">
-                    {JSON.stringify(debugExcludedSummary.staffUnpublished, null, 2)}
-                  </pre>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <pre className="mt-2 whitespace-pre-wrap break-words text-[10px] leading-snug text-white/70">{debugText}</pre>
-        </div>
-      ) : null}
-      <div className="mb-8">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          {allSeasons.length > 0 && (
-            <div className="w-full sm:w-auto sm:ml-auto">
-              <button
-                type="button"
-                onClick={() => setSeasonPickerOpen((v) => !v)}
-                className="w-full h-8 px-3 text-xs rounded-xl bg-background/90 text-foreground border border-border hover:bg-background shadow-sm shadow-black/10 sm:w-[180px] sm:h-9 sm:text-sm dark:bg-zinc-800 dark:text-white dark:border-zinc-600 dark:hover:bg-zinc-700 dark:shadow-black/15"
+  function PlayerCard({ player }: { player: Player }) {
+    const color = getPositionColor(player.position);
+    const hasPhoto = typeof player.photoUrl === 'string' && player.photoUrl.trim().length > 0;
+    const stats = getSeasonStats(player);
+    return (
+      <div
+        onClick={() => setSelectedPlayer(player)}
+        className="group relative rounded-xl border border-white/[0.08] bg-black/[0.45] backdrop-blur-md overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(0,0,0,0.4)]"
+        style={{ ['--position-color' as any]: color }}
+      >
+        <div className="relative w-full h-40 sm:h-44 overflow-hidden">
+          {hasPhoto ? (
+            <>
+              <Image
+                src={player.photoUrl ?? ''}
+                alt={player.name}
+                fill
+                sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
+                className="object-cover object-top transition-all duration-250 group-hover:brightness-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+              <span
+                className={`absolute bottom-0 right-2 text-[80px] leading-none font-black italic pointer-events-none select-none ${barlow.className}`}
+                style={{ color: `${color}60` }}
               >
-                シーズン
-              </button>
-
-              {seasonPickerOpen && (
-                <div className="mt-2">
-                  <Select value={activeSeason} onValueChange={handleSeasonChange}>
-                    <SelectTrigger className="w-full h-8 px-3 text-xs rounded-xl bg-background text-foreground border border-border sm:h-9 sm:text-sm dark:bg-white/5 dark:text-white dark:border-white/15">
-                      <SelectValue placeholder="シーズン" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allSeasons.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <div className="mt-2 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm shadow-black/10 dark:border-white/15 dark:bg-white/5 dark:shadow-black/15">
-                <div className="flex items-stretch">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('players')}
-                    className={
-                      activeTab === 'players'
-                        ? `${baseTabBtn} bg-blue-600 text-white`
-                        : `${baseTabBtn} bg-background/90 text-foreground border-border hover:bg-background dark:bg-zinc-800 dark:text-white dark:border-zinc-600 dark:hover:bg-zinc-700`
-                    }
-                  >
-                    選手
-                  </button>
-                  <div className="w-px bg-border dark:bg-white/15" aria-hidden="true" />
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('staff')}
-                    className={
-                      activeTab === 'staff'
-                        ? `${baseTabBtn} bg-blue-600 text-white`
-                        : `${baseTabBtn} bg-background/90 text-foreground border-border hover:bg-background dark:bg-zinc-800 dark:text-white dark:border-zinc-600 dark:hover:bg-zinc-700`
-                    }
-                  >
-                    スタッフ
-                  </button>
-                </div>
+                {player.number}
+              </span>
+            </>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center" style={{ background: `linear-gradient(to bottom, ${color}18, ${color}06)` }}>
+              <span
+                className={`text-[96px] leading-none font-black italic ${barlow.className}`}
+                style={{ color: `${color}60` }}
+              >
+                {player.number}
+              </span>
+            </div>
+          )}
+          <div className="absolute bottom-0 left-0 right-0 h-[2px] transition-opacity duration-250 opacity-0 group-hover:opacity-100" style={{ backgroundColor: color }} />
+          <div className="hidden sm:block sm:absolute inset-x-0 bottom-0 p-3 pt-12 bg-gradient-to-t from-black/90 via-black/70 to-transparent opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+            <div className="flex justify-around text-white">
+              <div className="text-center">
+                <div className="text-[10px] text-white/60">出場</div>
+                <div className={`text-2xl font-black ${barlow.className}`}>{stats.appearances}</div>
               </div>
+              <div className="text-center">
+                <div className="text-[10px] text-white/60">得点</div>
+                <div className={`text-2xl font-black ${barlow.className}`}>{stats.goals}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[10px] text-white/60">アシスト</div>
+                <div className={`text-2xl font-black ${barlow.className}`}>{stats.assists}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="p-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className={`text-xs font-black italic ${barlow.className}`} style={{ color }}>#{player.number}</span>
+          </div>
+          <div className="text-sm font-semibold text-white leading-tight line-clamp-2">{player.name}</div>
+        </div>
+      </div>
+    );
+  }
+
+  function StaffCard({ staff: s }: { staff: Staff }) {
+    const color = 'rgba(255,255,255,0.4)';
+    const hasPhoto = typeof s.photoUrl === 'string' && s.photoUrl.trim().length > 0;
+    return (
+      <div
+        onClick={() => setSelectedStaff(s)}
+        className="group relative rounded-xl border border-white/[0.08] bg-black/[0.45] backdrop-blur-md overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(0,0,0,0.4)]"
+      >
+        <div className="relative w-full h-40 sm:h-44 overflow-hidden" style={{ background: `linear-gradient(to bottom, rgba(255,255,255,0.08), rgba(255,255,255,0.02))` }}>
+          {hasPhoto ? (
+            <>
+              <Image
+                src={s.photoUrl ?? ''}
+                alt={s.name}
+                fill
+                sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
+                className="object-cover object-top transition-all duration-250 group-hover:brightness-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+            </>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg className="w-20 h-20 opacity-20" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+              </svg>
             </div>
           )}
         </div>
+        <div className="p-3">
+          <div className="text-sm font-semibold text-white leading-tight line-clamp-2">{s.name}</div>
+          {s.position ? <div className="mt-1 text-xs text-white/55">{s.position}</div> : null}
+        </div>
+      </div>
+    );
+  }
+
+  function PlayerModal({ player }: { player: Player }) {
+    const color = getPositionColor(player.position);
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+        onClick={() => setSelectedPlayer(null)}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div
+          className="w-full max-w-md rounded-2xl border bg-[#111d2e] text-white shadow-2xl overflow-hidden"
+          style={{ borderColor: `${color}30` }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="relative h-56 overflow-hidden" style={{ background: `linear-gradient(135deg, #0b1320 0%, ${color}18 100%)` }}>
+            {player.photoUrl ? (
+              <Image
+                src={player.photoUrl ?? ''}
+                alt={player.name}
+                fill
+                sizes="(max-width: 768px) 100vw, 480px"
+                className="object-cover object-top"
+                style={{
+                  maskImage: 'linear-gradient(to left, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)',
+                  WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)',
+                }}
+              />
+            ) : null}
+            <div
+              className={`absolute right-10 bottom-0 text-[160px] leading-none font-black italic pointer-events-none select-none ${barlow.className}`}
+              style={{ color: `${color}60` }}
+            >
+              {player.number}
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedPlayer(null)}
+              className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/[0.08] text-white flex items-center justify-center hover:bg-white/[0.12]"
+              aria-label="閉じる"
+            >
+              ×
+            </button>
+            <div
+              className="absolute top-4 left-4 px-2.5 py-1 rounded-full text-[11px] font-black"
+              style={{ background: `${color}20`, color, border: `1px solid ${color}40` }}
+            >
+              {normalizePosition(player.position)}
+            </div>
+            <div className="absolute left-5 bottom-5">
+              <div className={`text-3xl sm:text-4xl font-black italic leading-none ${barlow.className}`}>{player.name}</div>
+              <div className="mt-1 text-xs text-white/55">年齢・国籍情報なし</div>
+            </div>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: '出場', value: '-' },
+                { label: '得点', value: '-' },
+                { label: 'AS', value: '-' },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-3 text-center" style={{ borderColor: `${color}15` }}>
+                  <div className={`text-2xl font-black italic ${barlow.className}`} style={{ color }}>{s.value}</div>
+                  <div className="text-xs text-white/40 mt-1">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function StaffModal({ staff: s }: { staff: Staff }) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+        onClick={() => setSelectedStaff(null)}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div
+          className="w-full max-w-md rounded-2xl border border-white/15 bg-[#111d2e] text-white shadow-2xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="relative h-40 overflow-hidden bg-zinc-900">
+            {s.photoUrl ? (
+              <Image
+                src={s.photoUrl ?? ''}
+                alt={s.name}
+                fill
+                sizes="(max-width: 768px) 100vw, 480px"
+                className="object-cover object-top"
+              />
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setSelectedStaff(null)}
+              className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/[0.08] text-white flex items-center justify-center hover:bg-white/[0.12]"
+              aria-label="閉じる"
+            >
+              ×
+            </button>
+            <div className="absolute left-5 bottom-5">
+              <div className={`text-3xl font-black italic leading-none ${barlow.className}`}>{s.name}</div>
+              {s.position ? <div className="mt-1 text-xs text-white/55">{s.position}</div> : null}
+            </div>
+          </div>
+          <div className="p-5 space-y-2 text-sm">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center">
+                <div className="text-[11px] text-white/60">国籍</div>
+                <div className="mt-0.5 font-semibold">{s.nationality ?? '-'}</div>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-center">
+                <div className="text-[11px] text-white/60">年齢</div>
+                <div className="mt-0.5 font-semibold">
+                  {typeof s.age === 'number' ? s.age : s.dateOfBirth && activeSeason ? calculateAge(s.dateOfBirth, activeSeason) : '-'}
+                </div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="text-[11px] text-white/60">プロフィール</div>
+              <div className="mt-1 whitespace-pre-wrap break-words text-sm">{s.profile ?? '-'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 text-white">
+      {debugInfo ? (
+        <pre className="mb-4 rounded-xl border border-white/10 bg-white/5 p-3 text-[10px] text-white/70 whitespace-pre-wrap break-words overflow-auto">
+          {debugText}
+        </pre>
+      ) : null}
+
+      <div className="pt-8 pb-6">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <div className={`text-4xl sm:text-5xl font-black italic ${barlow.className}`} style={{ color: accentColor || '#1fd760' }}>SQUAD</div>
+          </div>
+          {allSeasons.length > 0 && (
+            <select
+              value={activeSeason}
+              onChange={handleSeasonChange}
+              className="h-9 px-3 pr-8 text-sm rounded-lg border bg-zinc-900/80 text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-white/20"
+              style={{ borderColor: accentColor || '#1fd760' }}
+            >
+              {allSeasons.map((s) => (
+                <option key={s} value={s} className="bg-zinc-900">{s}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2 mt-4">
+          {filters.map((f) => {
+            const active = filter === f;
+            const color = f === 'ALL' ? (accentColor || '#1fd760') : f === 'スタッフ' ? 'rgba(255,255,255,0.4)' : getPositionColor(f);
+            return (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFilter(f)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-black tracking-wide border transition-all duration-200 ${barlow.className} ${active ? 'text-black border-transparent' : 'text-white/55 border-white/10 hover:bg-white/5'}`}
+                style={{ backgroundColor: active ? color : 'rgba(255,255,255,0.06)', borderColor: active ? color : undefined }}
+              >
+                {f}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {activeTab === 'staff' ? (
-        staff.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 gap-y-2 sm:gap-4">
-            {staff.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setSelectedStaff(s)}
-                className="rounded-xl border border-border bg-card text-card-foreground shadow-sm overflow-hidden text-left"
-              >
-                <div className="relative w-full h-40 sm:h-44 bg-muted">
-                  {s.photoUrl ? (
-                    <Image
-                      src={s.photoUrl}
-                      alt={s.name}
-                      fill
-                      sizes="(max-width: 768px) 50vw, 25vw"
-                      className="object-contain"
-                    />
-                  ) : null}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/15 to-transparent" />
-                  <div className="absolute left-3 right-3 bottom-3">
-                    <div className="text-white text-base sm:text-lg font-black tracking-tight leading-none drop-shadow-sm break-words">
-                      {s.name}
-                    </div>
-                    {s.position ? (
-                      <div className="mt-1 text-[11px] sm:text-xs text-white/80 drop-shadow-sm">{s.position}</div>
-                    ) : null}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="py-10 text-center text-sm text-muted-foreground">このシーズンに登録されているスタッフはいません。</div>
-        )
-      ) : players.length > 0 ? (
-        <div className="space-y-12">
-          {Object.entries(sortedGroupedPlayers).map(([position, players]) => (
-            <section key={position}>
-              <h2
-                className={positionHeadingClass}
-                style={
-                  resolvedHeadingColor
-                    ? { color: resolvedHeadingColor, borderBottomColor: resolvedHeadingColor }
-                    : undefined
-                }
-              >
-                {position}
-              </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-2 gap-y-2 sm:gap-4">
-                {players.map(player => (
-                  <Link href={`/${clubId}/players/${player.id}${activeSeason ? `?season=${activeSeason}` : ''}`} key={player.id} className="block">
-                    <div className="rounded-xl border bg-white shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                      <div className="relative w-full h-52 sm:h-52 md:h-60 bg-gray-100">
-                        {player.photoUrl ? (
-                          <Image
-                            src={player.photoUrl}
-                            alt={player.name}
-                            fill
-                            sizes="(max-width: 768px) 50vw, 25vw"
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <span
-                              className={`text-7xl font-black tracking-tighter ${accentColor ? '' : 'text-gray-700'}`}
-                              style={accentColor ? { color: accentColor } : undefined}
-                            >
-                              {player.number}
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="absolute left-0 right-0 bottom-0 h-20 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
-
-                        <div className="absolute top-4 left-4">
-                          <div
-                            className={`text-2xl font-semibold leading-none ${accentColor ? '' : 'text-white'}`}
-                            style={accentColor ? { color: accentColor } : undefined}
-                          >
-                            {player.number}
-                          </div>
-                          <div
-                            className={`h-1 w-6 mt-2 ${accentColor ? '' : 'bg-white'}`}
-                            style={accentColor ? { backgroundColor: accentColor } : undefined}
-                          />
-                        </div>
-
-                        <div className="absolute left-4 right-4 bottom-4">
-                          <h3 className="text-white text-xl sm:text-2xl md:text-3xl font-black tracking-tight leading-none drop-shadow-sm break-words">
-                            {player.name}
-                          </h3>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+      {visiblePositions.map((position) => {
+        const color = getPositionColor(position);
+        const list = groupedPlayers[position] || [];
+        return (
+          <section key={position} className="mb-12">
+            <div className="flex items-center gap-4 mb-5">
+              <span className={`text-5xl sm:text-6xl font-black italic leading-none ${barlow.className}`} style={{ color: `${color}60` }}>{position}</span>
+              <div>
+                <div className="text-xs text-white/40">{positionNames[position] || 'その他'} · {list.length}名</div>
               </div>
-            </section>
-          ))}
-        </div>
-      ) : (
-        <p>{allSeasons.length === 0 ? "公開されているシーズンはありません。" : "このシーズンに登録されている選手はいません。"}</p>
+              <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, ${color}40, transparent)` }} />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {list.map((player) => <PlayerCard key={player.id} player={player} />)}
+            </div>
+          </section>
+        );
+      })}
+
+      {showStaff && staff.length > 0 && (
+        <section className="mb-12">
+          <div className="flex items-center gap-4 mb-5">
+            <span className={`text-5xl sm:text-6xl font-black italic leading-none text-white/[0.08] ${barlow.className}`}>STAFF</span>
+            <div>
+              <div className={`text-xl font-black italic text-white/40 ${barlow.className}`}>スタッフ</div>
+              <div className="text-xs text-white/40">{staff.length}名</div>
+            </div>
+            <div className="flex-1 h-px bg-gradient-to-r from-white/40 to-transparent" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {staff.map((s) => <StaffCard key={s.id} staff={s} />)}
+          </div>
+        </section>
       )}
 
-      {selectedStaff && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
-          onClick={() => setSelectedStaff(null)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="w-full max-w-md rounded-2xl border border-white/15 bg-zinc-950 text-white shadow-2xl ring-1 ring-black/10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-3 p-4">
-              <div className="min-w-0 flex-1 text-center">
-                <div className="text-lg font-black tracking-tight">{selectedStaff.name}</div>
-                {selectedStaff.position ? (
-                  <div className="mt-0.5 text-sm text-white/70">{selectedStaff.position}</div>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedStaff(null)}
-                className="h-8 w-8 rounded-md border border-white/15 bg-white/5 text-white hover:bg-white/10"
-                aria-label="閉じる"
-              >
-                ×
-              </button>
-            </div>
+      {selectedPlayer && <PlayerModal player={selectedPlayer} />}
+      {selectedStaff && <StaffModal staff={selectedStaff} />}
 
-            <div className="p-4 pt-3 space-y-2 text-sm text-center">
-              {(selectedStaff.nationality || selectedStaff.dateOfBirth) ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-white/15 bg-white/5 p-3">
-                    <div className="text-[11px] text-white/60">国籍</div>
-                    <div className="mt-0.5 font-semibold break-words">{selectedStaff.nationality ? String(selectedStaff.nationality) : '-'}</div>
-                  </div>
-                  <div className="rounded-xl border border-white/15 bg-white/5 p-3">
-                    <div className="text-[11px] text-white/60">年齢</div>
-                    <div className="mt-0.5 font-semibold tabular-nums">
-                      {selectedStaff.dateOfBirth && activeSeason 
-                        ? calculateAge(selectedStaff.dateOfBirth, activeSeason) 
-                        : '-'}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="rounded-xl border border-white/15 bg-white/5 p-3">
-                <div className="text-[11px] text-white/60">プロフィール</div>
-                <div className="mt-1 whitespace-pre-wrap break-words text-sm">
-                  {selectedStaff.profile ? String(selectedStaff.profile) : '-'}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {players.length === 0 && staff.length === 0 && (
+        <p className="py-10 text-center text-sm text-white/60">
+          {allSeasons.length === 0 ? "公開されているシーズンはありません。" : "このシーズンに登録されている選手はいません。"}
+        </p>
       )}
     </div>
   );
