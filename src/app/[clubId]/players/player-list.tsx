@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Barlow_Condensed } from 'next/font/google';
@@ -273,6 +274,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
 
   function PlayerModal({ player }: { player: Player }) {
     const color = getPositionColor(player.position);
+    const stats = getSeasonStats(player);
     return (
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
@@ -327,9 +329,9 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
           <div className="p-5">
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: '出場', value: '-' },
-                { label: '得点', value: '-' },
-                { label: 'AS', value: '-' },
+                { label: '出場', value: stats.appearances },
+                { label: '得点', value: stats.goals },
+                { label: 'AS', value: stats.assists },
               ].map((s) => (
                 <div key={s.label} className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-3 text-center" style={{ borderColor: `${color}15` }}>
                   <div className={`text-2xl font-black italic ${barlow.className}`} style={{ color }}>{s.value}</div>
@@ -337,6 +339,13 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
                 </div>
               ))}
             </div>
+            <Link
+              href={`/${clubId}/players/${player.id}`}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-bold"
+              style={{ background: `${color}20`, color, border: `1px solid ${color}40` }}
+            >
+              詳細ページ
+            </Link>
           </div>
         </div>
       </div>
