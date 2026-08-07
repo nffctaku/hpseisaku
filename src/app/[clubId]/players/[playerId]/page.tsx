@@ -591,114 +591,144 @@ function computeOverall(items: PlayerParameterItem[] | undefined): number {
   return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
 }
 
-async function getPlayerStats(ownerUid: string, playerId: string, playerData: any, targetSeason?: string | null): Promise<PlayerStats> {
-  const aggregatedStats: PlayerStats = {
-    appearances: 0,
-    minutes: 0,
-    goals: 0,
-    assists: 0,
-    yellowCards: 0,
-    redCards: 0,
-    ratingSum: 0,
-    ratingCount: 0,
-  };
+type PlayerMatchRecord = {
+  competitionId: string;
+  competitionName: string;
+  competitionLogoUrl?: string;
+  competitionSeason: string;
+  appearances: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+  ratingSum: number;
+  ratingCount: number;
+};
 
-  const competitionsSnap = await getCompetitionsSnap(ownerUid);
+async function getAllPlayerMatchRecords(
+  ownerUid: string,
+  playerId: string,
+  playerData: any
+): Promise<PlayerMatchRecord[]> {
+  const [competitionsSnap, manualStatsMap] = await Promise.all([
+    getCompetitionsSnap(ownerUid),
+    buildManualStatsMapFromPlayer(playerData, null),
+  ]);
 
-  const manualStatsMap = buildManualStatsMapFromPlayer(playerData, targetSeason);
+  const records = await Promise.all(
+    competitionsSnap.docs.map(async (competitionDoc) => {
+      const competitionData = competitionDoc.data() as any;
+      const rawSeason =
+        typeof competitionData?.season === "string" && competitionData.season.trim().length > 0
+          ? competitionData.season
+          : "";
+      const competitionSeason = rawSeason ? toSlashSeason(rawSeason) : "";
+      if (!competitionSeason) return [];
 
-  const normalizedTargetSeason = typeof targetSeason === "string" && targetSeason.trim().length > 0 ? targetSeason.trim() : null;
+      const competitionId = competitionDoc.id;
+      const competitionName = (competitionData?.name as string) || competitionId;
+      const competitionLogoUrl =
+        typeof competitionData?.logoUrl === "string" && competitionData.logoUrl.trim().length > 0
+          ? competitionData.logoUrl
+          : undefined;
 
-  for (const competitionDoc of competitionsSnap.docs) {
-    const competitionData = competitionDoc.data() as any;
-    const competitionSeason = typeof competitionData?.season === "string" ? competitionData.season : null;
-    
-    // 強化されたシーズンマッチング
-    if (normalizedTargetSeason && competitionSeason) {
-      const targetSlash = toSlashSeason(normalizedTargetSeason);
-      const targetDash = toDashSeason(normalizedTargetSeason);
-      const competitionSlash = toSlashSeason(competitionSeason);
-      const competitionDash = toDashSeason(competitionSeason);
-      
-      const targetFormats = [
-        normalizedTargetSeason,
-        targetSlash,
-        targetDash
-      ];
-      const competitionFormats = [
-        competitionSeason,
-        competitionSlash,
-        competitionDash
-      ];
-      
-      const isMatch = targetFormats.some(tf => competitionFormats.includes(tf));
-      console.log("Final debug - Competition:", {
-        competitionId: competitionDoc.id,
-        originalCompetitionSeason: competitionSeason,
-        normalizedTargetSeason,
-        conversions: {
-          targetSlash,
-          targetDash,
-          competitionSlash,
-          competitionDash
-        },
-        targetFormats,
-        competitionFormats,
-        isMatch
-      });
-      
-      if (!isMatch) {
-        continue;
+      const manual = manualStatsMap.get(competitionId);
+      if (manual) {
+        const m = Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
+        const r = Number.isFinite(manual.avgRating as any) ? Number(manual.avgRating) : NaN;
+        return [
+          {
+            competitionId,
+            competitionName,
+            competitionLogoUrl,
+            competitionSeason,
+            appearances: m,
+            minutes: Number.isFinite(manual.minutes as any) ? Number(manual.minutes) : 0,
+            goals: Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0,
+            assists: Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0,
+            yellowCards: Number.isFinite(manual.yellowCards as any) ? Number(manual.yellowCards) : 0,
+            redCards: Number.isFinite(manual.redCards as any) ? Number(manual.redCards) : 0,
+            ratingSum: m > 0 && Number.isFinite(r) && r > 0 ? r * m : 0,
+            ratingCount: m > 0 && Number.isFinite(r) && r > 0 ? m : 0,
+          },
+        ];
       }
-    }
-    const manual = manualStatsMap.get(competitionDoc.id);
-    const roundsSnap = await competitionDoc.ref.collection('rounds').get();
-    const matchesByRound = await Promise.all(
-      roundsSnap.docs.map(async (roundDoc) => {
-        const matchesSnap = await roundDoc.ref.collection('matches').get();
-        return matchesSnap.docs.map((d) => d.data());
-      })
-    );
 
-    for (const matchData of matchesByRound.flat()) {
-      if (!matchData?.playerStats || !Array.isArray(matchData.playerStats)) continue;
-      const playerStat = matchData.playerStats.find((stat: any) => stat?.playerId === playerId);
-      if (!playerStat) continue;
+      const roundsSnap = await competitionDoc.ref.collection("rounds").get();
+      const matchesByRound = await Promise.all(
+        roundsSnap.docs.map(async (roundDoc) => {
+          const matchesSnap = await roundDoc.ref.collection("matches").get();
+          return matchesSnap.docs.map((d) => d.data());
+        })
+      );
 
-      const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
+      const perCompetition: PlayerMatchRecord[] = [];
+      for (const matchData of matchesByRound.flat()) {
+        if (!Array.isArray(matchData?.playerStats)) continue;
+        const playerStat = matchData.playerStats.find((stat: any) => stat?.playerId === playerId);
+        if (!playerStat) continue;
 
-      if (!manual) {
-        aggregatedStats.minutes += minutesPlayed;
-        aggregatedStats.yellowCards += Number(playerStat.yellowCards) || 0;
-        aggregatedStats.redCards += Number(playerStat.redCards) || 0;
-        aggregatedStats.appearances += minutesPlayed > 0 ? 1 : 0;
-        aggregatedStats.goals += Number(playerStat.goals) || 0;
-        aggregatedStats.assists += Number(playerStat.assists) || 0;
+        const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
+        const goals = Number(playerStat.goals) || 0;
+        const assists = Number(playerStat.assists) || 0;
+        const yellowCards = Number(playerStat.yellowCards) || 0;
+        const redCards = Number(playerStat.redCards) || 0;
         const rating = Number(playerStat.rating);
-        if (Number.isFinite(rating) && rating > 0) {
-          aggregatedStats.ratingSum += rating;
-          aggregatedStats.ratingCount += 1;
-        }
-      }
-    }
 
-    if (manual) {
-      aggregatedStats.appearances += Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
-      aggregatedStats.minutes += Number.isFinite(manual.minutes as any) ? Number(manual.minutes) : 0;
-      aggregatedStats.goals += Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0;
-      aggregatedStats.assists += Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0;
-      aggregatedStats.yellowCards += Number.isFinite(manual.yellowCards as any) ? Number(manual.yellowCards) : 0;
-      aggregatedStats.redCards += Number.isFinite(manual.redCards as any) ? Number(manual.redCards) : 0;
-      const m = Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
-      const r = Number.isFinite(manual.avgRating as any) ? Number(manual.avgRating) : NaN;
-      if (m > 0 && Number.isFinite(r) && r > 0) {
-        aggregatedStats.ratingSum += r * m;
-        aggregatedStats.ratingCount += m;
+        perCompetition.push({
+          competitionId,
+          competitionName,
+          competitionLogoUrl,
+          competitionSeason,
+          appearances: minutesPlayed > 0 ? 1 : 0,
+          minutes: minutesPlayed,
+          goals,
+          assists,
+          yellowCards,
+          redCards,
+          ratingSum: Number.isFinite(rating) && rating > 0 ? rating : 0,
+          ratingCount: Number.isFinite(rating) && rating > 0 ? 1 : 0,
+        });
       }
-    }
-  }
+      return perCompetition;
+    })
+  );
 
-  return aggregatedStats;
+  return records.flat();
+}
+
+function getPlayerStats(records: PlayerMatchRecord[], targetSeason?: string | null): PlayerStats {
+  const normalizedTargetSeason =
+    typeof targetSeason === "string" && targetSeason.trim().length > 0
+      ? toSlashSeason(targetSeason.trim())
+      : null;
+  const filtered = normalizedTargetSeason
+    ? records.filter((r) => seasonEquals(r.competitionSeason, normalizedTargetSeason))
+    : records;
+
+  return filtered.reduce(
+    (acc, r) => ({
+      appearances: acc.appearances + r.appearances,
+      minutes: acc.minutes + r.minutes,
+      goals: acc.goals + r.goals,
+      assists: acc.assists + r.assists,
+      yellowCards: acc.yellowCards + r.yellowCards,
+      redCards: acc.redCards + r.redCards,
+      ratingSum: acc.ratingSum + r.ratingSum,
+      ratingCount: acc.ratingCount + r.ratingCount,
+    }),
+    {
+      appearances: 0,
+      minutes: 0,
+      goals: 0,
+      assists: 0,
+      yellowCards: 0,
+      redCards: 0,
+      ratingSum: 0,
+      ratingCount: 0,
+    }
+  );
 }
 
 async function PlayerStatsSection({
@@ -755,33 +785,11 @@ async function PlayerStatsSection({
     return candidates.length > 0 ? candidates[0] : null;
   })();
 
-  const [stats, careerStats] = await Promise.all([
-    getPlayerStats(ownerUid, playerId, player, statsSeason),
-    getPlayerStats(ownerUid, playerId, player, null),
-  ]);
-
-  const legacyManualCompetitionStats = Array.isArray((player as any)?.manualCompetitionStats)
-    ? ((player as any).manualCompetitionStats as any[])
-    : [];
-  const legacyManualByCompetitionId = new Map<string, any>();
-  for (const r of legacyManualCompetitionStats) {
-    if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
-      legacyManualByCompetitionId.set(r.competitionId, r);
-    }
-  }
+  const allRecords = await getAllPlayerMatchRecords(ownerUid, playerId, player);
+  const stats = getPlayerStats(allRecords, statsSeason);
+  const careerStats = getPlayerStats(allRecords, null);
 
   const seasonData = (player as any)?.seasonData && typeof (player as any).seasonData === "object" ? ((player as any).seasonData as any) : {};
-  const manualCompetitionStatsBySeason = new Map<string, Map<string, any>>();
-  for (const [seasonKey, sd] of Object.entries(seasonData)) {
-    const rows = Array.isArray((sd as any)?.manualCompetitionStats) ? ((sd as any).manualCompetitionStats as any[]) : [];
-    const byComp = new Map<string, any>();
-    for (const r of rows) {
-      if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
-        byComp.set(r.competitionId, r);
-      }
-    }
-    manualCompetitionStatsBySeason.set(toSlashSeason(seasonKey), byComp);
-  }
 
   const overallBySeason = new Map<string, number | null>();
   for (const seasonId of registeredSeasonIds) {
@@ -798,7 +806,7 @@ async function PlayerStatsSection({
 
   const seasonSummaries =
     registeredSeasonIds.length > 0
-      ? await getPlayerSeasonSummaries(ownerUid, playerId, registeredSeasonIds, manualCompetitionStatsBySeason, legacyManualByCompetitionId, overallBySeason)
+      ? getPlayerSeasonSummaries(allRecords, registeredSeasonIds, overallBySeason)
       : [];
 
   return (
@@ -873,41 +881,11 @@ async function PlayerStatsSection({
   );
 }
 
-async function getPlayerSeasonSummaries(
-  ownerUid: string,
-  playerId: string,
+function getPlayerSeasonSummaries(
+  records: PlayerMatchRecord[],
   rosterSeasonIds: string[],
-  manualCompetitionStatsBySeason: Map<
-    string,
-    Map<
-      string,
-      {
-        competitionId: string;
-        matches?: number;
-        minutes?: number;
-        goals?: number;
-        assists?: number;
-        yellowCards?: number;
-        redCards?: number;
-        avgRating?: number;
-      }
-    >
-  >,
-  legacyManualByCompetitionId: Map<
-    string,
-    {
-      competitionId: string;
-      matches?: number;
-      minutes?: number;
-      goals?: number;
-      assists?: number;
-      yellowCards?: number;
-      redCards?: number;
-      avgRating?: number;
-    }
-  >,
   overallBySeason: Map<string, number | null>
-): Promise<SeasonSummaryRow[]> {
+): SeasonSummaryRow[] {
   type CompetitionAgg = {
     name: string;
     logoUrl?: string;
@@ -964,86 +942,22 @@ async function getPlayerSeasonSummaries(
     return created;
   };
 
-  const competitionsRef = db.collection(`clubs/${ownerUid}/competitions`);
-  const competitionsSnap = await competitionsRef.get();
+  for (const record of records) {
+    if (!rosterSeasonIds.some((s: string) => seasonEquals(s, record.competitionSeason))) continue;
 
-  for (const competitionDoc of competitionsSnap.docs) {
-    const compData = competitionDoc.data() as any;
-    const rawSeason =
-      typeof compData?.season === "string" && compData.season.trim().length > 0 ? compData.season : "unknown";
-    if (rawSeason === "unknown") continue;
-    const compSeason = toSlashSeason(rawSeason);
-    if (!rosterSeasonIds.some((s: string) => seasonEquals(s, compSeason))) continue;
+    const seasonAgg = getSeasonAgg(record.competitionSeason);
+    seasonAgg.matches += record.appearances;
+    seasonAgg.goals += record.goals;
+    seasonAgg.assists += record.assists;
+    seasonAgg.ratingSum += record.ratingSum;
+    seasonAgg.ratingCount += record.ratingCount;
 
-    const competitionId = competitionDoc.id;
-    const competitionName = (compData?.name as string) || competitionDoc.id;
-    const competitionLogoUrl = typeof compData?.logoUrl === "string" && compData.logoUrl.trim().length > 0 ? compData.logoUrl : undefined;
-
-    const manual = manualCompetitionStatsBySeason.get(compSeason)?.get(competitionId) || legacyManualByCompetitionId.get(competitionId);
-    if (manual) {
-      const seasonAgg = getSeasonAgg(compSeason);
-
-      const m = Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
-      const g = Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0;
-      const a = Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0;
-      const r = Number.isFinite(manual.avgRating as any) ? Number(manual.avgRating) : NaN;
-
-      seasonAgg.matches += m;
-      seasonAgg.goals += g;
-      seasonAgg.assists += a;
-      if (m > 0 && Number.isFinite(r) && r > 0) {
-        seasonAgg.ratingSum += r;
-        seasonAgg.ratingCount += 1;
-      }
-
-      const compAgg = getCompetitionAgg(seasonAgg, competitionId, competitionName, competitionLogoUrl);
-      compAgg.matches = m;
-      compAgg.goals = g;
-      compAgg.assists = a;
-      if (m > 0 && Number.isFinite(r) && r > 0) {
-        compAgg.ratingSum = r;
-        compAgg.ratingCount = 1;
-      }
-      continue;
-    }
-
-    const roundsRef = competitionDoc.ref.collection("rounds");
-    const roundsSnap = await roundsRef.get();
-
-    for (const roundDoc of roundsSnap.docs) {
-      const matchesRef = roundDoc.ref.collection("matches");
-      const matchesSnap = await matchesRef.get();
-
-      for (const matchDoc of matchesSnap.docs) {
-        const matchData = matchDoc.data() as any;
-        const playerStats = Array.isArray(matchData?.playerStats) ? matchData.playerStats : [];
-        const playerStat = playerStats.find((s: any) => s?.playerId === playerId);
-        if (!playerStat) continue;
-
-        const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
-        const goals = Number(playerStat.goals) || 0;
-        const assists = Number(playerStat.assists) || 0;
-        const rating = Number(playerStat.rating);
-
-        const seasonAgg = getSeasonAgg(compSeason);
-        seasonAgg.matches += minutesPlayed > 0 ? 1 : 0;
-        seasonAgg.goals += goals;
-        seasonAgg.assists += assists;
-        if (Number.isFinite(rating) && rating > 0) {
-          seasonAgg.ratingSum += rating;
-          seasonAgg.ratingCount += 1;
-        }
-
-        const compAgg = getCompetitionAgg(seasonAgg, competitionId, competitionName, competitionLogoUrl);
-        compAgg.matches += minutesPlayed > 0 ? 1 : 0;
-        compAgg.goals += goals;
-        compAgg.assists += assists;
-        if (Number.isFinite(rating) && rating > 0) {
-          compAgg.ratingSum += rating;
-          compAgg.ratingCount += 1;
-        }
-      }
-    }
+    const compAgg = getCompetitionAgg(seasonAgg, record.competitionId, record.competitionName, record.competitionLogoUrl);
+    compAgg.matches += record.appearances;
+    compAgg.goals += record.goals;
+    compAgg.assists += record.assists;
+    compAgg.ratingSum += record.ratingSum;
+    compAgg.ratingCount += record.ratingCount;
   }
 
   const rows: SeasonSummaryRow[] = Array.from(summaries.entries()).map(([season, v]) => {

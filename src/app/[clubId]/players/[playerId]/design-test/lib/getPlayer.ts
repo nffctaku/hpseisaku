@@ -1,4 +1,5 @@
 import { db } from "@/lib/firebase/admin";
+import { unstable_cache } from "next/cache";
 
 import { toSlashSeason } from "./season";
 
@@ -163,7 +164,7 @@ async function findBestPlayerDoc(
   return best?.data ?? null;
 }
 
-export async function getPlayer(
+async function getPlayerRaw(
   clubId: string,
   playerId: string
 ): Promise<{ clubName: string; player: any; ownerUid: string; legalPages: LegalPageItem[]; gameTeamUsage: boolean; publicPlayerParamsEnabled?: boolean } | null> {
@@ -249,3 +250,5 @@ export async function getPlayer(
 
   return null;
 }
+
+export const getPlayer = unstable_cache(getPlayerRaw, ["design-test-get-player"]);

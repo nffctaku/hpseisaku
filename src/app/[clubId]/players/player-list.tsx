@@ -45,6 +45,8 @@ interface Player {
   seasonData?: Record<string, any>;
   manualCompetitionStats?: any[];
   stats?: { appearances: number; goals: number; assists: number };
+  dateOfBirth?: string;
+  nationality?: string;
 }
 
 interface Staff {
@@ -275,6 +277,10 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
   function PlayerModal({ player }: { player: Player }) {
     const color = getPositionColor(player.position);
     const stats = getSeasonStats(player);
+    const age = (player.dateOfBirth && activeSeason) ? (() => {
+      try { return calculateAge(player.dateOfBirth, activeSeason); } catch { return null; }
+    })() : null;
+    const profile = [age !== null ? `${age}歳` : null, player.nationality].filter(Boolean).join(' · ') || '年齢・国籍情報なし';
     return (
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
@@ -283,11 +289,11 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
         aria-modal="true"
       >
         <div
-          className="w-full max-w-md rounded-2xl border bg-[#111d2e] text-white shadow-2xl overflow-hidden"
+          className="w-full max-w-lg rounded-2xl border bg-[#111d2e] text-white shadow-2xl overflow-hidden"
           style={{ borderColor: `${color}30` }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="relative h-56 overflow-hidden" style={{ background: `linear-gradient(135deg, #0b1320 0%, ${color}18 100%)` }}>
+          <div className="relative h-80 overflow-hidden" style={{ background: `linear-gradient(135deg, #0b1320 0%, ${color}18 100%)` }}>
             {player.photoUrl ? (
               <Image
                 src={player.photoUrl ?? ''}
@@ -323,7 +329,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
             </div>
             <div className="absolute left-5 bottom-5">
               <div className={`text-3xl sm:text-4xl font-black italic leading-none ${barlow.className}`}>{player.name}</div>
-              <div className="mt-1 text-xs text-white/55">年齢・国籍情報なし</div>
+              <div className="mt-1 text-xs text-white/55">{profile}</div>
             </div>
           </div>
           <div className="p-5">
@@ -447,7 +453,7 @@ export function PlayerList({ clubId, clubName, players, staff, allSeasons, activ
                 key={f}
                 type="button"
                 onClick={() => setFilter(f)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-black tracking-wide border transition-all duration-200 ${barlow.className} ${active ? 'text-black border-transparent' : 'text-white/55 border-white/10 hover:bg-white/5'}`}
+                className={`px-4 py-1.5 rounded-lg text-sm font-black tracking-wide border transition-all duration-200 ${barlow.className} ${active ? 'text-black border-transparent' : 'text-black/70 border-black/10 hover:bg-black/5'}`}
                 style={{ backgroundColor: active ? color : 'rgba(255,255,255,0.06)', borderColor: active ? color : undefined }}
               >
                 {f}

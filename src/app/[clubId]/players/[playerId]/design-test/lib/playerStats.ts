@@ -1,4 +1,5 @@
 import { db } from "@/lib/firebase/admin";
+import { unstable_cache } from "next/cache";
 
 import { expandSeasonVariants, getSeasonDataEntry, toSlashSeason } from "./season";
 import type { SimplePlayerStats, SeasonCompetitionStatsRow, PlayerSeasonSummaryRow, SeasonCompetitionBreakdownRow } from "./types";
@@ -7,13 +8,135 @@ import { buildManualStatsMapFromPlayer, buildManualStatsMapBySeason } from "./ma
 
 export type { SimplePlayerStats, SeasonCompetitionStatsRow, PlayerSeasonSummaryRow, SeasonCompetitionBreakdownRow, PlayerSeasonBreakdownRow } from "./types";
 
+type CompetitionMeta = {
+  id: string;
+  name: string;
+  logoUrl?: string;
+  season: string;
+  format?: string;
+};
+
+type PlayerMatchRecord = {
+  competitionId: string;
+  roundId: string;
+  roundName?: string;
+  matchId: string;
+  matchDate?: string;
+  minutesPlayed: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+  rating: number;
+  isBench: boolean;
+};
+
+async function fetchAllPlayerMatchRecords(
+  ownerUid: string,
+  playerId: string
+): Promise<{ competitions: CompetitionMeta[]; matches: PlayerMatchRecord[] }> {
+  if (!ownerUid) return { competitions: [], matches: [] };
+
+  const competitionsSnap = await db.collection(`clubs/${ownerUid}/competitions`).get();
+
+  const competitions: CompetitionMeta[] = [];
+  const matches: PlayerMatchRecord[] = [];
+
+  await Promise.all(
+    competitionsSnap.docs.map(async (compDoc) => {
+      const compData = compDoc.data() as any;
+      const compSeasonRaw = typeof compData?.season === "string" ? String(compData.season).trim() : "";
+      if (!compSeasonRaw) return;
+
+      const compSeason = toSlashSeason(compSeasonRaw);
+      const name =
+        typeof compData?.name === "string" && compData.name.trim().length > 0 ? compData.name : compDoc.id;
+      const logoUrl = typeof compData?.logoUrl === "string" ? compData.logoUrl : undefined;
+      const format = typeof compData?.format === "string" ? compData.format : undefined;
+
+      competitions.push({ id: compDoc.id, name, logoUrl, season: compSeason, format });
+
+      const roundsSnap = await compDoc.ref.collection("rounds").get();
+      const matchesByRound = await Promise.all(
+        roundsSnap.docs.map(async (roundDoc) => {
+          const roundData = roundDoc.data() as any;
+          const roundName =
+            typeof roundData?.name === "string" && roundData.name.trim().length > 0 ? roundData.name : roundDoc.id;
+          const matchesSnap = await roundDoc.ref.collection("matches").get();
+          return matchesSnap.docs.map((matchDoc) => ({ matchDoc, roundId: roundDoc.id, roundName }));
+        })
+      );
+
+      for (const { matchDoc, roundId, roundName } of matchesByRound.flat()) {
+        const m = matchDoc.data() as any;
+        const ps = Array.isArray(m?.playerStats) ? (m.playerStats as any[]) : [];
+        const stat = ps.find((s: any) => s?.playerId === playerId);
+        if (!stat) continue;
+
+        const minutesPlayed = Number(stat.minutesPlayed) || 0;
+        const goals = Number(stat.goals) || 0;
+        const assists = Number(stat.assists) || 0;
+        const yellowCards = Number(stat.yellowCards) || 0;
+        const redCards = Number(stat.redCards) || 0;
+        const rating = Number(stat.rating);
+        const role = typeof stat?.role === "string" ? String(stat.role) : "";
+        const isBench = Boolean(role) && role !== "starter" && minutesPlayed === 0;
+
+        matches.push({
+          competitionId: compDoc.id,
+          roundId,
+          roundName,
+          matchId: matchDoc.id,
+          matchDate: typeof m?.matchDate === "string" ? m.matchDate : undefined,
+          minutesPlayed,
+          goals,
+          assists,
+          yellowCards,
+          redCards,
+          rating: Number.isFinite(rating) && rating > 0 ? rating : 0,
+          isBench,
+        });
+      }
+    })
+  );
+
+  return { competitions, matches };
+}
+
+export const getAllPlayerMatchRecords = unstable_cache(fetchAllPlayerMatchRecords, [
+  "design-test-player-match-records",
+]);
+
+function matchesByCompetition(matches: PlayerMatchRecord[]): Map<string, PlayerMatchRecord[]> {
+  const map = new Map<string, PlayerMatchRecord[]>();
+  for (const m of matches) {
+    const arr = map.get(m.competitionId);
+    if (arr) {
+      arr.push(m);
+    } else {
+      map.set(m.competitionId, [m]);
+    }
+  }
+  return map;
+}
+
+function seasonMatches(targetSeasonSet: Set<string> | null, competitionSeason: string): boolean {
+  if (!targetSeasonSet) return true;
+  const variants = new Set(expandSeasonVariants(competitionSeason));
+  for (const v of variants) {
+    if (targetSeasonSet.has(v)) return true;
+  }
+  return false;
+}
+
 export async function getLeagueCompetitionLabel(
   ownerUid: string,
+  playerId: string,
   targetSeason?: string | null
 ): Promise<string | null> {
-  if (!ownerUid) return null;
-  const formats = ["league", "league_cup"];
-  const compsSnap = await db.collection(`clubs/${ownerUid}/competitions`).where("format", "in", formats as any).get();
+  if (!ownerUid || !playerId) return null;
+
+  const { competitions } = await getAllPlayerMatchRecords(ownerUid, playerId);
 
   const targetSeasonSet = (() => {
     const raw = typeof targetSeason === "string" ? targetSeason.trim() : "";
@@ -22,18 +145,10 @@ export async function getLeagueCompetitionLabel(
   })();
 
   const names: string[] = [];
-  for (const competitionDoc of compsSnap.docs) {
-    const competitionData = competitionDoc.data() as any;
-    const compSeasonRaw = typeof competitionData?.season === "string" ? String(competitionData.season).trim() : "";
-
-    if (targetSeasonSet) {
-      const variants = expandSeasonVariants(compSeasonRaw);
-      const match = variants.some((v) => targetSeasonSet.has(v));
-      if (!match) continue;
-    }
-
-    const compName = typeof competitionData?.name === "string" && competitionData.name.trim().length > 0 ? competitionData.name : competitionDoc.id;
-    names.push(compName);
+  for (const c of competitions) {
+    if (c.format !== "league" && c.format !== "league_cup") continue;
+    if (targetSeasonSet && !seasonMatches(targetSeasonSet, c.season)) continue;
+    names.push(c.name);
   }
 
   const uniq = Array.from(new Set(names));
@@ -104,8 +219,9 @@ export async function getLeaguePlayerStats(
 ): Promise<SimplePlayerStats> {
   const aggregated: SimplePlayerStats = { appearances: 0, minutes: 0, goals: 0, assists: 0 };
 
-  const formats = ["league", "league_cup"];
-  const compsSnap = await db.collection(`clubs/${ownerUid}/competitions`).where("format", "in", formats as any).get();
+  if (!ownerUid || !playerId) return aggregated;
+
+  const { competitions, matches } = await getAllPlayerMatchRecords(ownerUid, playerId);
 
   const targetSeasonSet = (() => {
     const raw = typeof targetSeason === "string" ? targetSeason.trim() : "";
@@ -114,47 +230,28 @@ export async function getLeaguePlayerStats(
   })();
 
   const manualStatsMap = buildManualStatsMapFromPlayer(playerData, targetSeason);
+  const matchesMap = matchesByCompetition(matches);
 
-  for (const competitionDoc of compsSnap.docs) {
-    const competitionData = competitionDoc.data() as any;
-    const compSeasonRaw = typeof competitionData?.season === "string" ? String(competitionData.season).trim() : "";
+  for (const c of competitions) {
+    if (c.format !== "league" && c.format !== "league_cup") continue;
+    if (targetSeason && !seasonMatches(targetSeasonSet, c.season)) continue;
 
-    if (targetSeason && compSeasonRaw) {
-      const variants = expandSeasonVariants(compSeasonRaw);
-      const match = variants.some((v) => targetSeasonSet?.has(v));
-      if (!match) continue;
-    }
-
-    const manual = manualStatsMap.get(competitionDoc.id);
-
-    const roundsSnap = await competitionDoc.ref.collection("rounds").get();
-    const matchesByRound = await Promise.all(
-      roundsSnap.docs.map(async (roundDoc) => {
-        const matchesSnap = await roundDoc.ref.collection("matches").get();
-        return matchesSnap.docs.map((d) => d.data());
-      })
-    );
-
-    for (const matchData of matchesByRound.flat()) {
-      if (!matchData?.playerStats || !Array.isArray(matchData.playerStats)) continue;
-      const playerStat = matchData.playerStats.find((stat: any) => stat?.playerId === playerId);
-      if (!playerStat) continue;
-
-      const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
-
-      if (!manual) {
-        aggregated.minutes += minutesPlayed;
-        aggregated.appearances += minutesPlayed > 0 ? 1 : 0;
-        aggregated.goals += Number(playerStat.goals) || 0;
-        aggregated.assists += Number(playerStat.assists) || 0;
-      }
-    }
-
+    const manual = manualStatsMap.get(c.id);
     if (manual) {
       aggregated.appearances += Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
       aggregated.minutes += Number.isFinite(manual.minutes as any) ? Number(manual.minutes) : 0;
       aggregated.goals += Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0;
       aggregated.assists += Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0;
+      continue;
+    }
+
+    const compMatches = matchesMap.get(c.id) || [];
+    for (const r of compMatches) {
+      if (r.isBench) continue;
+      aggregated.minutes += r.minutesPlayed;
+      aggregated.appearances += r.minutesPlayed > 0 ? 1 : 0;
+      aggregated.goals += r.goals;
+      aggregated.assists += r.assists;
     }
   }
 
@@ -167,7 +264,9 @@ export async function getSeasonCompetitionStats(
   playerData: any,
   targetSeason?: string | null
 ): Promise<SeasonCompetitionStatsRow[]> {
-  if (!ownerUid) return [];
+  if (!ownerUid || !playerId) return [];
+
+  const { competitions, matches } = await getAllPlayerMatchRecords(ownerUid, playerId);
 
   const targetSeasonSet = (() => {
     const raw = typeof targetSeason === "string" ? targetSeason.trim() : "";
@@ -176,28 +275,14 @@ export async function getSeasonCompetitionStats(
   })();
 
   const manualStatsMap = buildManualStatsMapFromPlayer(playerData, targetSeason);
-  const compsSnap = await db.collection(`clubs/${ownerUid}/competitions`).get();
+  const matchesMap = matchesByCompetition(matches);
 
   const rows: SeasonCompetitionStatsRow[] = [];
-  for (const competitionDoc of compsSnap.docs) {
-    const competitionData = competitionDoc.data() as any;
-    const compSeasonRaw = typeof competitionData?.season === "string" ? String(competitionData.season).trim() : "";
-
-    if (targetSeasonSet) {
-      const variants = expandSeasonVariants(compSeasonRaw);
-      const match = variants.some((v) => targetSeasonSet.has(v));
-      if (!match) continue;
-    }
-
-    const competitionName =
-      typeof competitionData?.name === "string" && competitionData.name.trim().length > 0
-        ? competitionData.name
-        : competitionDoc.id;
-    const competitionLogoUrl = typeof competitionData?.logoUrl === "string" ? competitionData.logoUrl : undefined;
-    const format = typeof competitionData?.format === "string" ? competitionData.format : undefined;
+  for (const c of competitions) {
+    if (targetSeasonSet && !seasonMatches(targetSeasonSet, c.season)) continue;
 
     const stats: SimplePlayerStats = { appearances: 0, minutes: 0, goals: 0, assists: 0 };
-    const manual = manualStatsMap.get(competitionDoc.id);
+    const manual = manualStatsMap.get(c.id);
 
     if (manual) {
       stats.appearances = Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
@@ -205,24 +290,12 @@ export async function getSeasonCompetitionStats(
       stats.goals = Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0;
       stats.assists = Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0;
     } else {
-      const roundsSnap = await competitionDoc.ref.collection("rounds").get();
-      const matchesByRound = await Promise.all(
-        roundsSnap.docs.map(async (roundDoc) => {
-          const matchesSnap = await roundDoc.ref.collection("matches").get();
-          return matchesSnap.docs.map((d) => d.data());
-        })
-      );
-
-      for (const matchData of matchesByRound.flat()) {
-        if (!matchData?.playerStats || !Array.isArray(matchData.playerStats)) continue;
-        const playerStat = matchData.playerStats.find((stat: any) => stat?.playerId === playerId);
-        if (!playerStat) continue;
-
-        const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
-        stats.minutes += minutesPlayed;
-        stats.appearances += minutesPlayed > 0 ? 1 : 0;
-        stats.goals += Number(playerStat.goals) || 0;
-        stats.assists += Number(playerStat.assists) || 0;
+      const compMatches = matchesMap.get(c.id) || [];
+      for (const r of compMatches) {
+        stats.minutes += r.minutesPlayed;
+        stats.appearances += r.minutesPlayed > 0 ? 1 : 0;
+        stats.goals += r.goals;
+        stats.assists += r.assists;
       }
     }
 
@@ -230,10 +303,10 @@ export async function getSeasonCompetitionStats(
     if (!hasAny) continue;
 
     rows.push({
-      competitionId: competitionDoc.id,
-      competitionName,
-      competitionLogoUrl,
-      format,
+      competitionId: c.id,
+      competitionName: c.name,
+      competitionLogoUrl: c.logoUrl,
+      format: c.format,
       stats,
     });
   }
@@ -318,13 +391,12 @@ export async function getPlayerSeasonBreakdowns(
   playerData: any,
   targetSeason?: string | null
 ): Promise<PlayerSeasonBreakdownRow[]> {
-  if (!ownerUid) return [];
+  if (!ownerUid || !playerId) return [];
 
-  const seasonData = playerData?.seasonData && typeof playerData.seasonData === "object" ? (playerData.seasonData as any) : {};
+  const { competitions, matches } = await getAllPlayerMatchRecords(ownerUid, playerId);
 
   const manualStatsMap = buildManualStatsMapFromPlayer(playerData, targetSeason);
-  const formats = ["league", "league_cup"];
-  const compsSnap = await db.collection(`clubs/${ownerUid}/competitions`).where("format", "in", formats as any).get();
+  const matchesMap = matchesByCompetition(matches);
 
   const seasonMap = new Map<string, { total: SimplePlayerStats; competitions: Map<string, SeasonCompetitionBreakdownRow> }>();
   const getSeasonEntry = (season: string) => {
@@ -344,65 +416,41 @@ export async function getPlayerSeasonBreakdowns(
     total.assists += s.assists;
   };
 
-  for (const compDoc of compsSnap.docs) {
-    const compData = compDoc.data() as any;
-    const compSeasonRaw = typeof compData?.season === "string" ? String(compData.season).trim() : "";
-    if (!compSeasonRaw) continue;
-    const compSeason = toSlashSeason(compSeasonRaw);
+  for (const c of competitions) {
+    if (c.format !== "league" && c.format !== "league_cup") continue;
+    if (!c.season) continue;
 
-    const competitionId = compDoc.id;
-    const competitionName = typeof compData?.name === "string" && compData.name.trim().length > 0 ? compData.name : competitionId;
-    const competitionLogoUrl = typeof compData?.logoUrl === "string" ? compData.logoUrl : undefined;
-    const format = typeof compData?.format === "string" ? compData.format : undefined;
-
-    const seasonEntry = getSeasonEntry(compSeason);
+    const seasonEntry = getSeasonEntry(c.season);
 
     const ensureComp = () => {
-      if (!seasonEntry.competitions.has(competitionId)) {
-        seasonEntry.competitions.set(competitionId, {
-          competitionId,
-          competitionName,
-          competitionLogoUrl,
-          format,
+      if (!seasonEntry.competitions.has(c.id)) {
+        seasonEntry.competitions.set(c.id, {
+          competitionId: c.id,
+          competitionName: c.name,
+          competitionLogoUrl: c.logoUrl,
+          format: c.format,
           stats: { appearances: 0, minutes: 0, goals: 0, assists: 0 },
         });
       }
-      return seasonEntry.competitions.get(competitionId)!;
+      return seasonEntry.competitions.get(c.id)!;
     };
 
-    const manual = manualStatsMap.get(competitionId);
+    const manual = manualStatsMap.get(c.id);
     const compRow = ensureComp();
-
-    const roundsSnap = await compDoc.ref.collection("rounds").get();
-    const matchesByRound = await Promise.all(
-      roundsSnap.docs.map(async (roundDoc) => {
-        const matchesSnap = await roundDoc.ref.collection("matches").get();
-        return matchesSnap.docs.map((d) => d.data());
-      })
-    );
-
-    for (const matchData of matchesByRound.flat()) {
-      if (!matchData?.playerStats || !Array.isArray(matchData.playerStats)) continue;
-      const playerStat = matchData.playerStats.find((stat: any) => stat?.playerId === playerId);
-      if (!playerStat) continue;
-
-      const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
-      const goals = Number(playerStat.goals) || 0;
-      const assists = Number(playerStat.assists) || 0;
-
-      if (!manual) {
-        compRow.stats.minutes += minutesPlayed;
-        compRow.stats.appearances += minutesPlayed > 0 ? 1 : 0;
-        compRow.stats.goals += goals;
-        compRow.stats.assists += assists;
-      }
-    }
+    const compMatches = matchesMap.get(c.id) || [];
 
     if (manual) {
-      compRow.stats.appearances += Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
-      compRow.stats.minutes += Number.isFinite(manual.minutes as any) ? Number(manual.minutes) : 0;
-      compRow.stats.goals += Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0;
-      compRow.stats.assists += Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0;
+      compRow.stats.appearances = Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
+      compRow.stats.minutes = Number.isFinite(manual.minutes as any) ? Number(manual.minutes) : 0;
+      compRow.stats.goals = Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0;
+      compRow.stats.assists = Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0;
+    } else {
+      for (const r of compMatches) {
+        compRow.stats.minutes += r.minutesPlayed;
+        compRow.stats.appearances += r.minutesPlayed > 0 ? 1 : 0;
+        compRow.stats.goals += r.goals;
+        compRow.stats.assists += r.assists;
+      }
     }
 
     addToTotals(seasonEntry.total, compRow.stats);

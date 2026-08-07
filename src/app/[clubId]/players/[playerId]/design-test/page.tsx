@@ -172,7 +172,7 @@ export default async function PlayerDesignTestPage({
   const [seasonLeagueStats, overallLeagueStats, leagueCompetitionLabel, seasonCompetitionStats] = await Promise.all([
     getLeaguePlayerStats(ownerUid, playerId, player, effectiveSeason),
     getLeaguePlayerStats(ownerUid, playerId, player, null),
-    effectiveSeason ? getLeagueCompetitionLabel(ownerUid, effectiveSeason) : Promise.resolve(null),
+    effectiveSeason ? getLeagueCompetitionLabel(ownerUid, playerId, effectiveSeason) : Promise.resolve(null),
     getSeasonCompetitionStats(ownerUid, playerId, player, effectiveSeason),
   ]);
 
