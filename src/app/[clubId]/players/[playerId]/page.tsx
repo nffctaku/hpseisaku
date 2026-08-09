@@ -1,4 +1,5 @@
 import { db } from "@/lib/firebase/admin";
+import { unstable_cache } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -606,56 +607,51 @@ type PlayerMatchRecord = {
   ratingCount: number;
 };
 
-async function getAllPlayerMatchRecords(
+type CompetitionMeta = {
+  id: string;
+  name: string;
+  logoUrl?: string;
+  season: string;
+};
+
+async function fetchAllPlayerMatchRecordsRaw(
   ownerUid: string,
-  playerId: string,
-  playerData: any
-): Promise<PlayerMatchRecord[]> {
-  const [competitionsSnap, manualStatsMap] = await Promise.all([
-    getCompetitionsSnap(ownerUid),
-    buildManualStatsMapFromPlayer(playerData, null),
-  ]);
+  playerId: string
+): Promise<{ competitions: CompetitionMeta[]; records: PlayerMatchRecord[] }> {
+  if (!ownerUid || !playerId) return { competitions: [], records: [] };
 
-  const records = await Promise.all(
-    competitionsSnap.docs.map(async (competitionDoc) => {
-      const competitionData = competitionDoc.data() as any;
+  const competitionsSnap = await db.collection(`clubs/${ownerUid}/competitions`).get();
+
+  const competitions: CompetitionMeta[] = [];
+  const allRecords: PlayerMatchRecord[] = [];
+
+  const competitionDocs = competitionsSnap.docs.map((doc) => ({
+    id: doc.id,
+    ref: doc.ref,
+    data: doc.data() as any,
+  }));
+
+  await Promise.all(
+    competitionDocs.map(async ({ id, ref, data }) => {
       const rawSeason =
-        typeof competitionData?.season === "string" && competitionData.season.trim().length > 0
-          ? competitionData.season
-          : "";
+        typeof data?.season === "string" && data.season.trim().length > 0 ? data.season : "";
       const competitionSeason = rawSeason ? toSlashSeason(rawSeason) : "";
-      if (!competitionSeason) return [];
+      if (!competitionSeason) return;
 
-      const competitionId = competitionDoc.id;
-      const competitionName = (competitionData?.name as string) || competitionId;
+      const competitionName = (data?.name as string) || id;
       const competitionLogoUrl =
-        typeof competitionData?.logoUrl === "string" && competitionData.logoUrl.trim().length > 0
-          ? competitionData.logoUrl
+        typeof data?.logoUrl === "string" && data.logoUrl.trim().length > 0
+          ? data.logoUrl
           : undefined;
 
-      const manual = manualStatsMap.get(competitionId);
-      if (manual) {
-        const m = Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
-        const r = Number.isFinite(manual.avgRating as any) ? Number(manual.avgRating) : NaN;
-        return [
-          {
-            competitionId,
-            competitionName,
-            competitionLogoUrl,
-            competitionSeason,
-            appearances: m,
-            minutes: Number.isFinite(manual.minutes as any) ? Number(manual.minutes) : 0,
-            goals: Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0,
-            assists: Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0,
-            yellowCards: Number.isFinite(manual.yellowCards as any) ? Number(manual.yellowCards) : 0,
-            redCards: Number.isFinite(manual.redCards as any) ? Number(manual.redCards) : 0,
-            ratingSum: m > 0 && Number.isFinite(r) && r > 0 ? r * m : 0,
-            ratingCount: m > 0 && Number.isFinite(r) && r > 0 ? m : 0,
-          },
-        ];
-      }
+      competitions.push({
+        id,
+        name: competitionName,
+        logoUrl: competitionLogoUrl,
+        season: competitionSeason,
+      });
 
-      const roundsSnap = await competitionDoc.ref.collection("rounds").get();
+      const roundsSnap = await ref.collection("rounds").get();
       const matchesByRound = await Promise.all(
         roundsSnap.docs.map(async (roundDoc) => {
           const matchesSnap = await roundDoc.ref.collection("matches").get();
@@ -663,7 +659,6 @@ async function getAllPlayerMatchRecords(
         })
       );
 
-      const perCompetition: PlayerMatchRecord[] = [];
       for (const matchData of matchesByRound.flat()) {
         if (!Array.isArray(matchData?.playerStats)) continue;
         const playerStat = matchData.playerStats.find((stat: any) => stat?.playerId === playerId);
@@ -676,8 +671,8 @@ async function getAllPlayerMatchRecords(
         const redCards = Number(playerStat.redCards) || 0;
         const rating = Number(playerStat.rating);
 
-        perCompetition.push({
-          competitionId,
+        allRecords.push({
+          competitionId: id,
           competitionName,
           competitionLogoUrl,
           competitionSeason,
@@ -691,11 +686,53 @@ async function getAllPlayerMatchRecords(
           ratingCount: Number.isFinite(rating) && rating > 0 ? 1 : 0,
         });
       }
-      return perCompetition;
     })
   );
 
-  return records.flat();
+  return { competitions, records: allRecords };
+}
+
+const getAllPlayerMatchRecordsRaw = unstable_cache(fetchAllPlayerMatchRecordsRaw, [
+  "legacy-player-match-records",
+]);
+
+async function getAllPlayerMatchRecords(
+  ownerUid: string,
+  playerId: string,
+  playerData: any
+): Promise<PlayerMatchRecord[]> {
+  if (!ownerUid || !playerId) return [];
+
+  const { competitions, records } = await getAllPlayerMatchRecordsRaw(ownerUid, playerId);
+  const manualStatsMap = buildManualStatsMapFromPlayer(playerData, null);
+  const competitionsMap = new Map(competitions.map((c) => [c.id, c]));
+
+  const nonManualRecords = records.filter((r) => !manualStatsMap.has(r.competitionId));
+  const manualRecords: PlayerMatchRecord[] = [];
+
+  for (const [competitionId, manual] of manualStatsMap.entries()) {
+    const c = competitionsMap.get(competitionId);
+    if (!c) continue;
+
+    const m = Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
+    const r = Number.isFinite(manual.avgRating as any) ? Number(manual.avgRating) : NaN;
+    manualRecords.push({
+      competitionId,
+      competitionName: c.name,
+      competitionLogoUrl: c.logoUrl,
+      competitionSeason: c.season,
+      appearances: m,
+      minutes: Number.isFinite(manual.minutes as any) ? Number(manual.minutes) : 0,
+      goals: Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0,
+      assists: Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0,
+      yellowCards: Number.isFinite(manual.yellowCards as any) ? Number(manual.yellowCards) : 0,
+      redCards: Number.isFinite(manual.redCards as any) ? Number(manual.redCards) : 0,
+      ratingSum: m > 0 && Number.isFinite(r) && r > 0 ? r * m : 0,
+      ratingCount: m > 0 && Number.isFinite(r) && r > 0 ? m : 0,
+    });
+  }
+
+  return [...nonManualRecords, ...manualRecords];
 }
 
 function getPlayerStats(records: PlayerMatchRecord[], targetSeason?: string | null): PlayerStats {
@@ -1006,7 +1043,7 @@ function getPlayerSeasonSummaries(
   return merged;
 }
 
-async function getPlayer(
+async function getPlayerRaw(
   clubId: string,
   playerId: string
 ): Promise<{
@@ -1114,6 +1151,8 @@ async function getPlayer(
 
   return null;
 }
+
+const getPlayer = unstable_cache(getPlayerRaw, ["legacy-get-player"]);
 
 export default async function PlayerPage({
   params,

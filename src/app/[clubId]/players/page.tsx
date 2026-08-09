@@ -1,7 +1,7 @@
 import { db } from "@/lib/firebase/admin";
 import { notFound } from "next/navigation";
 import { PlayerList } from "./player-list";
-import { getMatchStatsForPlayers } from "./lib/get-match-stats";
+import { getMatchStatsForPlayers, MatchRecord } from "./lib/get-match-stats";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
@@ -21,6 +21,7 @@ interface Player {
   isPublished?: boolean;
   __teamId?: string;
   stats?: { appearances: number; goals: number; assists: number };
+  matchRecords?: MatchRecord[];
 }
 
 interface Staff {
@@ -509,7 +510,8 @@ async function getPlayersData(
       const statsMap = await getMatchStatsForPlayers(ownerUid, playerIds, activeSeason);
       for (const p of filteredPlayers as any[]) {
         const s = statsMap.get(String(p?.id || ""));
-        p.stats = s || { appearances: 0, goals: 0, assists: 0 };
+        p.stats = s?.stats || { appearances: 0, goals: 0, assists: 0 };
+        p.matchRecords = s?.matches || [];
       }
     } catch (e) {
       console.error("Failed to load match stats for players page", e);
