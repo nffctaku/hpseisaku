@@ -507,7 +507,7 @@ async function getPlayersData(
   if (ownerUid && activeSeason) {
     try {
       const playerIds = (filteredPlayers as any[]).map((p: any) => String(p?.id || "")).filter(Boolean);
-      const statsMap = await getMatchStatsForPlayers(ownerUid, playerIds, activeSeason);
+      const statsMap = await getMatchStatsForPlayers(ownerUid, playerIds, allSeasons, activeSeason);
       for (const p of filteredPlayers as any[]) {
         const s = statsMap.get(String(p?.id || ""));
         p.stats = s?.stats || { appearances: 0, goals: 0, assists: 0 };
@@ -515,6 +515,25 @@ async function getPlayersData(
       }
     } catch (e) {
       console.error("Failed to load match stats for players page", e);
+    }
+  }
+
+  // seasonData から params を抽出して player オブジェクトにマージ
+  for (const p of filteredPlayers as any[]) {
+    if (!p.params) {
+      const seasonData = p?.seasonData && typeof p.seasonData === "object" ? (p.seasonData as any) : null;
+      if (seasonData) {
+        for (const key of [activeSeason, toSlashSeason(activeSeason), toDashSeason(activeSeason)].filter(Boolean)) {
+          const sd = seasonData[key];
+          if (sd && sd.params) {
+            p.params = sd.params;
+            if (typeof sd.showParamsOnPublic === "boolean") {
+              p.showParamsOnPublic = sd.showParamsOnPublic;
+            }
+            break;
+          }
+        }
+      }
     }
   }
 

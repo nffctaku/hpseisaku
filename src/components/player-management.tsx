@@ -591,6 +591,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           tenureYears,
           seasons: nextSeasons,
           [`seasonData.${selectedSeasonDash}`]: seasonPayloadClean,
+          params: paramsNormalized as any,
+          showParamsOnPublic: (values as any).showParamsOnPublic,
         });
         console.log("[PlayerManagement] write players", {
           path: `clubs/${clubUid}/teams/${teamId}/players/${editingPlayer.id}`,
@@ -672,6 +674,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           seasonData: {
             [selectedSeasonDash]: seasonPayloadClean,
           },
+          params: paramsNormalized as any,
+          showParamsOnPublic: (values as any).showParamsOnPublic,
         });
         const created = await addDoc(playersColRef, (createPayload || {}) as any);
         savedPlayerId = created.id;

@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase/admin";
 import { expandSeasonVariants } from "../[playerId]/design-test/lib/season";
 
 export interface MatchRecord {
+  season: string;
   competitionName: string;
   roundName: string;
   matchDate: string;
@@ -24,11 +25,15 @@ export interface PlayerStatsWithRecords {
 export async function getMatchStatsForPlayers(
   ownerUid: string,
   playerIds: string[],
-  activeSeason: string
+  allSeasons: string[],
+  activeSeason?: string
 ): Promise<Map<string, PlayerStatsWithRecords>> {
   const stats = new Map<string, PlayerStatsWithRecords>();
   const idSet = new Set(playerIds);
-  const variants = new Set(expandSeasonVariants(activeSeason));
+  const allVariants = new Set(allSeasons.flatMap((s) => expandSeasonVariants(s)));
+  const activeVariants = activeSeason
+    ? new Set(expandSeasonVariants(activeSeason))
+    : null;
 
   for (const pid of playerIds) {
     stats.set(pid, {
@@ -50,7 +55,7 @@ export async function getMatchStatsForPlayers(
     const compData = compDoc.data() as any;
     const compSeasonRaw =
       typeof compData?.season === "string" ? String(compData.season).trim() : "";
-    if (!compSeasonRaw || !variants.has(compSeasonRaw)) continue;
+    if (!compSeasonRaw || !allVariants.has(compSeasonRaw)) continue;
 
     const compName =
       typeof compData?.name === "string" && compData.name.trim().length > 0
@@ -92,6 +97,9 @@ export async function getMatchStatsForPlayers(
           byPlayer.set(pid, s);
         }
 
+        const isActiveSeason =
+          activeVariants && activeVariants.has(compSeasonRaw);
+
         for (const [pid, s] of byPlayer.entries()) {
           const playerTeamId = typeof s?.teamId === "string" ? s.teamId : "";
           const isHome = Boolean(playerTeamId)
@@ -130,13 +138,14 @@ export async function getMatchStatsForPlayers(
           const entry = stats.get(pid);
           if (!entry) continue;
 
-          if ((minutes ?? 0) > 0) {
+          if (isActiveSeason && (minutes ?? 0) > 0) {
             entry.stats.appearances += 1;
             entry.stats.goals += goalsVal ?? 0;
             entry.stats.assists += assistsVal ?? 0;
           }
 
           entry.matches.push({
+            season: compSeasonRaw,
             competitionName: compName,
             roundName,
             matchDate,

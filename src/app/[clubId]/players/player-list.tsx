@@ -7,6 +7,7 @@ import { Barlow_Condensed } from 'next/font/google';
 import { calculateAge } from "@/lib/player-calculations";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { MatchRecord } from "./lib/get-match-stats";
+import { PositionMap } from "./[playerId]/design-test/components/PositionMap";
 
 const barlow = Barlow_Condensed({
   weight: '900',
@@ -17,6 +18,13 @@ const barlow = Barlow_Condensed({
 });
 
 const POSITION_ORDER = ['GK', 'DF', 'MF', 'FW'] as const;
+
+const MATCH_RESULT_COLORS: Record<string, string> = {
+  W: '#22c55e',
+  D: '#f59e0b',
+  L: '#ef4444',
+  '-': 'rgba(255,255,255,0.4)',
+};
 
 const positionColors: Record<string, string> = {
   GK: '#f59e0b',
@@ -46,6 +54,27 @@ interface Player {
   manualCompetitionStats?: any[];
   stats?: { appearances: number; goals: number; assists: number };
   matchRecords?: MatchRecord[];
+  subName?: string;
+  mainPosition?: string;
+  subPositions?: string[];
+  preferredFoot?: 'left' | 'right' | 'both';
+  profile?: string;
+  snsLinks?: {
+    x?: string;
+    youtube?: string;
+    tiktok?: string;
+    instagram?: string;
+  };
+  params?: {
+    overall?: number;
+    items: { name: string; value: number }[];
+  };
+  showParamsOnPublic?: boolean;
+  tenureYears?: number;
+  annualSalary?: number;
+  annualSalaryCurrency?: 'JPY' | 'GBP' | 'EUR';
+  contractEndYear?: number;
+  contractEndMonth?: number;
   dateOfBirth?: string;
   nationality?: string;
   height?: number;
@@ -129,9 +158,18 @@ function getPlayerSeasonCards(player: Player, allSeasons: string[]) {
   const seen = new Set<string>();
   const add = (season: string, competitionName: string, matches: number, goals: number, assists: number) => {
     const key = `${season}||${competitionName}`;
-    if (seen.has(key)) return;
+    const slash = toSlashSeason(season);
+    if (seen.has(key)) {
+      const existing = cards.find((c) => `${c.season}||${c.competitionName}` === key);
+      if (existing) {
+        existing.matches += matches;
+        existing.goals += goals;
+        existing.assists += assists;
+      }
+      return;
+    }
     seen.add(key);
-    cards.push({ season: toSlashSeason(season), competitionName: competitionName || '-', matches, goals, assists });
+    cards.push({ season: slash, competitionName: competitionName || '-', matches, goals, assists });
   };
 
   const sources: any[] = [];
@@ -153,6 +191,18 @@ function getPlayerSeasonCards(player: Player, allSeasons: string[]) {
       Number(r?.goals ?? 0),
       Number(r?.assists ?? 0)
     );
+  }
+
+  if (Array.isArray(player.matchRecords)) {
+    for (const r of player.matchRecords) {
+      add(
+        r.season,
+        r.competitionName,
+        (r.minutesPlayed ?? 0) > 0 ? 1 : 0,
+        r.goals ?? 0,
+        r.assists ?? 0
+      );
+    }
   }
 
   for (const season of allSeasons) {
@@ -351,17 +401,45 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
     const age = getPlayerAge(player, activeSeason);
     const profile = [age !== null ? `${age}歳` : null, player.nationality].filter(Boolean).join(' · ') || '年齢・国籍情報なし';
     const seasonCards = getPlayerSeasonCards(player, allSeasons);
+    const [expandedSeasons, setExpandedSeasons] = useState<Set<string>>(new Set());
+
+    const groupedSeasons = useMemo(() => {
+      const map = new Map<string, typeof seasonCards>();
+      for (const c of seasonCards) {
+        if (!map.has(c.season)) map.set(c.season, []);
+        map.get(c.season)!.push(c);
+      }
+      return new Map([...map.entries()].sort((a, b) => b[0].localeCompare(a[0])));
+    }, [seasonCards]);
+
+    const toggleSeason = (season: string) => {
+      const next = new Set(expandedSeasons);
+      if (next.has(season)) next.delete(season);
+      else next.add(season);
+      setExpandedSeasons(next);
+    };
 
     const close = () => setSelectedPlayer(null);
 
-    const basicItems = [
-      { label: '出身', value: player.birthplace || player.nationality || '-' },
-      { label: '年齢', value: age !== null ? `${age}歳` : '-' },
-      { label: '身長', value: player.height ? `${player.height}cm` : '-' },
-      { label: '体重', value: player.weight ? `${player.weight}kg` : '-' },
-      { label: '利き足', value: player.foot || '-' },
-      { label: '在籍年数', value: Array.isArray(player.seasons) ? `${player.seasons.length}年` : '-' },
+    const footText = player.preferredFoot
+      ? { left: '左足', right: '右足', both: '両足' }[player.preferredFoot]
+      : (player.foot || '未設定');
+    const basicItems: { label: string; value: string }[] = [
+      { label: '身長', value: player.height ? `${player.height}cm` : '未設定' },
+      { label: '体重', value: player.weight ? `${player.weight}kg` : '未設定' },
+      { label: '利き足', value: footText },
     ];
+    if (player.subName) basicItems.push({ label: 'サブネーム', value: player.subName });
+    if (player.dateOfBirth) basicItems.push({ label: '生年月日', value: player.dateOfBirth });
+    if (typeof player.tenureYears === 'number' || Array.isArray(player.seasons)) {
+      basicItems.push({ label: '在籍年数', value: typeof player.tenureYears === 'number' ? `${player.tenureYears}年目` : `${player.seasons!.length}年` });
+    }
+    if (typeof player.annualSalary === 'number') {
+      basicItems.push({ label: '年俸', value: `${player.annualSalary.toLocaleString()} ${player.annualSalaryCurrency || ''}` });
+    }
+    if (typeof player.contractEndYear === 'number' && typeof player.contractEndMonth === 'number') {
+      basicItems.push({ label: '契約満了', value: `${player.contractEndYear}年${player.contractEndMonth}月` });
+    }
 
     const summaryItems = [
       { label: '出場', value: stats.appearances },
@@ -412,9 +490,15 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                 ×
               </button>
             </div>
+            {player.mainPosition || (Array.isArray(player.subPositions) && player.subPositions.length > 0) ? (
+              <div className="absolute bottom-4 right-4 h-28 w-20 rounded-xl overflow-hidden bg-white/[0.03] border border-white/[0.05] z-10">
+                <PositionMap mainPosition={player.mainPosition} subPositions={player.subPositions} />
+              </div>
+            ) : null}
             <div className="absolute bottom-5 left-5 z-10">
-              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>#{player.number}</div>
+              <div className="text-2xl font-black leading-none" style={{ color: mainAccent }}>#{player.number}</div>
               <div className="text-2xl sm:text-[2.6rem] font-black leading-none text-white mt-1">{player.name}</div>
+              {player.subName ? <div className="mt-0.5 text-sm font-semibold text-white/80">{player.subName}</div> : null}
               <div className="mt-1 text-xs text-white/55">{profile}</div>
             </div>
           </div>
@@ -440,11 +524,239 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
             {tab === 'basic' && (
               <div className="space-y-0">
                 {basicItems.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between border-b border-white/[0.07] py-3 last:border-b-0">
+                  <div key={item.label} className="flex items-center justify-between border-b border-white/[0.07] py-4 last:border-b-0">
                     <span className="text-sm text-white/40">{item.label}</span>
-                    <span className="text-sm text-[#f0f4ff] font-semibold">{item.value}</span>
+                    <span className={
+                      `text-sm font-semibold ${item.value === '未設定' ? 'text-white/30' : 'text-[#f0f4ff]'}`
+                    }>{item.value}</span>
                   </div>
                 ))}
+
+                {player.profile ? (
+                  <div className="mt-4 rounded-xl border border-white/[0.05] bg-white/[0.03] p-3">
+                    <div className="text-[10px] text-[#9CA3AF] mb-1">プロフィール</div>
+                    <p className="text-sm text-[#f0f4ff] leading-relaxed whitespace-pre-wrap">{player.profile}</p>
+                  </div>
+                ) : null}
+
+                {player.snsLinks && (player.snsLinks.x || player.snsLinks.youtube || player.snsLinks.tiktok || player.snsLinks.instagram) ? (
+                  <div className="mt-4">
+                    <div className="text-[10px] text-[#9CA3AF] mb-2">SNS</div>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { key: 'x', label: 'X' },
+                        { key: 'youtube', label: 'YouTube' },
+                        { key: 'tiktok', label: 'TikTok' },
+                        { key: 'instagram', label: 'Instagram' },
+                      ].map(({ key, label }) => {
+                        const url = (player.snsLinks as any)?.[key];
+                        if (!url) return null;
+                        return (
+                          <a
+                            key={key}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs px-2 py-1 rounded-full bg-white/[0.06] text-[#f0f4ff] hover:bg-white/[0.1]"
+                          >
+                            {label}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {player.params && Array.isArray(player.params.items) && player.params.items.length > 0 ? (
+                  <div className="mt-4 rounded-xl border border-white/[0.05] bg-white/[0.03] p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] text-[#9CA3AF]">能力値</span>
+                      <div className="text-2xl font-black italic leading-none" style={{ color: mainAccent }}>{player.params.overall ?? '-'}</div>
+                    </div>
+                    <div className="flex justify-center py-2">
+                      <svg viewBox="0 0 200 200" width="180" height="180" className="mx-auto">
+                        {/* Background hexagon grid */}
+                        {[0.2, 0.4, 0.6, 0.8, 1.0].map((scale) => {
+                          const points = player.params!.items.map((item, i) => {
+                            const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+                            const r = 80 * scale;
+                            const x = 100 + r * Math.cos(angle);
+                            const y = 100 + r * Math.sin(angle);
+                            return `${x},${y}`;
+                          }).join(' ');
+                          return (
+                            <polygon
+                              key={scale}
+                              points={points}
+                              fill="none"
+                              stroke="rgba(255,255,255,0.1)"
+                              strokeWidth="1"
+                            />
+                          );
+                        })}
+                        {/* Axis lines */}
+                        {player.params!.items.map((item, i) => {
+                          const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+                          const x = 100 + 80 * Math.cos(angle);
+                          const y = 100 + 80 * Math.sin(angle);
+                          return (
+                            <line
+                              key={i}
+                              x1={100}
+                              y1={100}
+                              x2={x}
+                              y2={y}
+                              stroke="rgba(255,255,255,0.1)"
+                              strokeWidth="1"
+                            />
+                          );
+                        })}
+                        {/* Data polygon */}
+                        <polygon
+                          points={player.params!.items.map((item, i) => {
+                            const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+                            const r = 80 * (item.value / 99);
+                            const x = 100 + r * Math.cos(angle);
+                            const y = 100 + r * Math.sin(angle);
+                            return `${x},${y}`;
+                          }).join(' ')}
+                          fill={`${mainAccent}33`}
+                          stroke={mainAccent}
+                          strokeWidth="2"
+                        />
+                        {/* Data points */}
+                        {player.params!.items.map((item, i) => {
+                          const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+                          const r = 80 * (item.value / 99);
+                          const x = 100 + r * Math.cos(angle);
+                          const y = 100 + r * Math.sin(angle);
+                          return (
+                            <circle
+                              key={i}
+                              cx={x}
+                              cy={y}
+                              r="4"
+                              fill={mainAccent}
+                              stroke="white"
+                              strokeWidth="1"
+                            />
+                          );
+                        })}
+                        {/* Labels */}
+                        {player.params!.items.map((item, i) => {
+                          const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+                          const r = 95;
+                          const x = 100 + r * Math.cos(angle);
+                          const y = 100 + r * Math.sin(angle);
+                          return (
+                            <text
+                              key={i}
+                              x={x}
+                              y={y}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fontSize="10"
+                              fill="rgba(255,255,255,0.9)"
+                              fontWeight="600"
+                            >
+                              {item.name}
+                            </text>
+                          );
+                        })}
+                      </svg>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Overall trend chart for last 5 seasons */}
+                {(() => {
+                  const seasonData = player?.seasonData && typeof player.seasonData === "object" ? (player.seasonData as any) : null;
+                  if (!seasonData) return null;
+                  const overallTrend: Array<{ season: string; overall: number }> = [];
+                  const allSeasons = Object.keys(seasonData).sort().reverse().slice(0, 5);
+                  for (const s of allSeasons) {
+                    const sd = seasonData[s];
+                    if (sd && sd.params && typeof sd.params.overall === "number") {
+                      overallTrend.push({ season: toSlashSeason(s), overall: sd.params.overall });
+                    }
+                  }
+                  if (overallTrend.length === 0) return null;
+                  overallTrend.reverse();
+                  return (
+                    <div className="mt-4 rounded-xl border border-white/[0.05] bg-white/[0.03] p-3">
+                      <div className="text-[10px] text-[#9CA3AF] mb-2">総合値推移（直近5シーズン）</div>
+                      <svg viewBox="0 0 300 100" width="100%" height="80" className="mx-auto">
+                        {/* Grid lines */}
+                        {[0, 25, 50, 75, 100].map((val) => (
+                          <line
+                            key={val}
+                            x1={40}
+                            y1={10 + (90 - val)}
+                            x2={290}
+                            y2={10 + (90 - val)}
+                            stroke="rgba(255,255,255,0.1)"
+                            strokeWidth="1"
+                          />
+                        ))}
+                        {/* Y-axis labels */}
+                        {[0, 25, 50, 75, 100].map((val) => (
+                          <text
+                            key={val}
+                            x={35}
+                            y={14 + (90 - val)}
+                            textAnchor="end"
+                            fontSize="8"
+                            fill="rgba(255,255,255,0.5)"
+                          >
+                            {val}
+                          </text>
+                        ))}
+                        {/* Data points */}
+                        {overallTrend.map((d, i) => {
+                          const x = 40 + (250 * i) / Math.max(overallTrend.length - 1, 1);
+                          const y = 10 + (90 - d.overall);
+                          return (
+                            <g key={i}>
+                              <circle
+                                cx={x}
+                                cy={y}
+                                r="4"
+                                fill={mainAccent}
+                                stroke="white"
+                                strokeWidth="1"
+                              />
+                              <text
+                                x={x}
+                                y={y + 12}
+                                textAnchor="middle"
+                                fontSize="7"
+                                fill="rgba(255,255,255,0.7)"
+                              >
+                                {d.overall}
+                              </text>
+                            </g>
+                          );
+                        })}
+                        {/* X-axis labels */}
+                        {overallTrend.map((d, i) => {
+                          const x = 40 + (250 * i) / Math.max(overallTrend.length - 1, 1);
+                          return (
+                            <text
+                              key={i}
+                              x={x}
+                              y={98}
+                              textAnchor="middle"
+                              fontSize="7"
+                              fill="rgba(255,255,255,0.5)"
+                            >
+                              {d.season.slice(-5)}
+                            </text>
+                          );
+                        })}
+                      </svg>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -454,7 +766,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                   {summaryItems.map((s) => (
                     <div key={s.label} className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-3 text-center" style={{ borderColor: `${mainAccent}15` }}>
                       <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{s.value}</div>
-                      <div className="text-[10px] text-white/40 mt-1">{s.label}</div>
+                      <div className="text-[10px] text-[#9CA3AF] mt-1">{s.label}</div>
                     </div>
                   ))}
                 </div>
@@ -464,31 +776,40 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                       const myScore = r.ha === '(A)' ? r.scoreAway : r.scoreHome;
                       const oppScore = r.ha === '(A)' ? r.scoreHome : r.scoreAway;
                       const scoreText = typeof myScore === 'number' && typeof oppScore === 'number' ? `${myScore}-${oppScore}` : '-';
-                      const resultColor = r.result === 'W' ? '#1fd760' : r.result === 'D' ? '#f59e0b' : r.result === 'L' ? '#ef4444' : 'rgba(255,255,255,0.4)';
+                      const resultColor = MATCH_RESULT_COLORS[r.result] ?? 'rgba(255,255,255,0.4)';
+                      const minuteRatio = Math.min(100, ((r.minutesPlayed ?? 0) / 90) * 100);
+                      const isBench = r.minutesPlayed === 0;
+                      const minutesDisplay = isBench ? 'B' : (r.minutesPlayed ?? '−');
+                      const minutesLabel = isBench ? '' : (r.minutesPlayed == null ? '' : '分');
                       return (
                         <div key={idx} className="rounded-xl border border-white/[0.05] bg-white/[0.03] p-3 text-sm">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
                               <div className="text-[10px] text-white/40">{r.matchDate || '日付不明'} · {r.competitionName} · {r.roundName}</div>
-                              <div className="font-semibold text-white truncate mt-0.5">vs {r.opponentName} <span className="text-white/40 text-xs">{r.ha}</span></div>
+                              <div className="font-semibold text-white truncate mt-0.5">vs {r.opponentName} <span className="text-[#9CA3AF] text-xs">{r.ha}</span></div>
                             </div>
-                            <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
                               <div className="text-[10px] font-bold" style={{ color: resultColor }}>{r.result}</div>
-                              <div className="text-[10px] text-white/40">{scoreText}</div>
+                              <div className="text-[10px] text-[#9CA3AF]">{scoreText}</div>
                             </div>
                           </div>
                           <div className="mt-3 grid grid-cols-3 gap-2">
-                            <div className="rounded-lg bg-white/[0.04] p-2 flex items-baseline justify-center gap-1">
-                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{r.minutesPlayed ?? 0}</div>
-                              <div className="text-[10px] text-white/40">分</div>
+                            <div className="rounded-lg bg-white/[0.04] p-2">
+                              <div className="flex items-baseline justify-center gap-1">
+                                <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{minutesDisplay}</div>
+                                <div className="text-[10px] text-[#9CA3AF]">{minutesLabel}</div>
+                              </div>
+                              <div className="mt-1.5 h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full" style={{ width: `${minuteRatio}%`, background: mainAccent }} />
+                              </div>
                             </div>
                             <div className="rounded-lg bg-white/[0.04] p-2 flex items-baseline justify-center gap-1">
                               <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{r.goals ?? 0}</div>
-                              <div className="text-[10px] text-white/40">G</div>
+                              <div className="text-[10px] text-[#9CA3AF]">G</div>
                             </div>
                             <div className="rounded-lg bg-white/[0.04] p-2 flex items-baseline justify-center gap-1">
                               <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{r.assists ?? 0}</div>
-                              <div className="text-[10px] text-white/40">A</div>
+                              <div className="text-[10px] text-[#9CA3AF]">A</div>
                             </div>
                           </div>
                         </div>
@@ -503,28 +824,60 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
 
             {tab === 'seasons' && (
               <div className="space-y-3">
-                {seasonCards.length > 0 ? seasonCards.map((c, idx) => (
-                  <div key={idx} className="rounded-xl border border-white/[0.05] overflow-hidden" style={{ background: `${mainAccent}0e` }}>
-                    <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.05]" style={{ background: `${mainAccent}0e` }}>
-                      <span className="text-sm font-black italic" style={{ color: mainAccent }}>{c.season}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: `${mainAccent}1f`, color: mainAccent }}>{c.competitionName}</span>
-                    </div>
-                    <div className="grid grid-cols-3 divide-x divide-white/[0.06] p-3">
-                      <div className="text-center">
-                        <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{c.matches}</div>
-                        <div className="text-[10px] text-white/40 mt-1">試合</div>
+                {groupedSeasons.size > 0 ? (
+                  Array.from(groupedSeasons.entries()).map(([season, cards]) => {
+                    const total = cards.reduce((acc, c) => ({
+                      matches: acc.matches + c.matches,
+                      goals: acc.goals + c.goals,
+                      assists: acc.assists + c.assists,
+                    }), { matches: 0, goals: 0, assists: 0 });
+                    const isExpanded = expandedSeasons.has(season);
+                    return (
+                      <div key={season} className="rounded-xl border border-white/[0.05] overflow-hidden bg-white/[0.03]">
+                        <button
+                          type="button"
+                          onClick={() => toggleSeason(season)}
+                          className="w-full text-left"
+                        >
+                          <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.05] bg-white/[0.04]">
+                            <span className="text-sm font-black" style={{ color: mainAccent }}>{season}</span>
+                            <span className="text-lg leading-none text-white/80">{isExpanded ? '−' : '+'}</span>
+                          </div>
+                          <div className="grid grid-cols-3 divide-x divide-white/[0.06] p-3">
+                            <div className="text-center">
+                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{total.matches}</div>
+                              <div className="text-[10px] text-[#9CA3AF] mt-1">出</div>
+                            </div>
+                            <div className="text-center">
+                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{total.goals}</div>
+                              <div className="text-[10px] text-[#9CA3AF] mt-1">G</div>
+                            </div>
+                            <div className="text-center">
+                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{total.assists}</div>
+                              <div className="text-[10px] text-[#9CA3AF] mt-1">A</div>
+                            </div>
+                          </div>
+                        </button>
+                        {isExpanded && (
+                          <div className="px-4 pb-3 space-y-2 border-t border-white/[0.06] pt-3">
+                            {cards
+                              .filter((c) => c.competitionName !== '-' || c.matches + c.goals + c.assists > 0)
+                              .map((c, i) => (
+                                <div key={i} className="rounded-lg bg-white/[0.04] px-3 py-2 flex items-center justify-between text-sm ml-2">
+                                  <span className="text-white/80 font-medium truncate pr-2">{c.competitionName}</span>
+                                  <div className="flex gap-3 text-[11px] flex-shrink-0">
+                                    <span><span className="text-[#9CA3AF]">出</span> <span className="font-black" style={{ color: mainAccent }}>{c.matches}</span></span>
+                                    <span><span className="text-[#9CA3AF]">G</span> <span className="font-black" style={{ color: mainAccent }}>{c.goals}</span></span>
+                                    <span><span className="text-[#9CA3AF]">A</span> <span className="font-black" style={{ color: mainAccent }}>{c.assists}</span></span>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-center">
-                        <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{c.goals}</div>
-                        <div className="text-[10px] text-white/40 mt-1">得点</div>
-                      </div>
-                      <div className="text-center">
-                        <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{c.assists}</div>
-                        <div className="text-[10px] text-white/40 mt-1">アシスト</div>
-                      </div>
-                    </div>
-                  </div>
-                )) : (
+                    );
+                  })
+                ) : (
                   <p className="text-sm text-white/40 text-center py-6">シーズンデータがありません。</p>
                 )}
               </div>
