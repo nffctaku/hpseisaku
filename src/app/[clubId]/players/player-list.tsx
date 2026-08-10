@@ -777,39 +777,35 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                       const oppScore = r.ha === '(A)' ? r.scoreHome : r.scoreAway;
                       const scoreText = typeof myScore === 'number' && typeof oppScore === 'number' ? `${myScore}-${oppScore}` : '-';
                       const resultColor = MATCH_RESULT_COLORS[r.result] ?? 'rgba(255,255,255,0.4)';
-                      const minuteRatio = Math.min(100, ((r.minutesPlayed ?? 0) / 90) * 100);
                       const isBench = r.minutesPlayed === 0;
                       const minutesDisplay = isBench ? 'B' : (r.minutesPlayed ?? '−');
                       const minutesLabel = isBench ? '' : (r.minutesPlayed == null ? '' : '分');
+                      const haLabel = r.ha === '(A)' ? 'A' : r.ha === '(H)' ? 'H' : String(r.ha || '').replace(/[()]/g, '');
                       return (
-                        <div key={idx} className="rounded-xl border border-white/[0.05] bg-white/[0.03] p-3 text-sm">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <div className="text-[10px] text-white/40">{r.matchDate || '日付不明'} · {r.competitionName} · {r.roundName}</div>
-                              <div className="font-semibold text-white truncate mt-0.5">vs {r.opponentName} <span className="text-[#9CA3AF] text-xs">{r.ha}</span></div>
-                            </div>
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              <div className="text-[10px] font-bold" style={{ color: resultColor }}>{r.result}</div>
-                              <div className="text-[10px] text-[#9CA3AF]">{scoreText}</div>
-                            </div>
-                          </div>
-                          <div className="mt-3 grid grid-cols-3 gap-2">
-                            <div className="rounded-lg bg-white/[0.04] p-2">
-                              <div className="flex items-baseline justify-center gap-1">
-                                <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{minutesDisplay}</div>
-                                <div className="text-[10px] text-[#9CA3AF]">{minutesLabel}</div>
+                        <div key={idx} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 flex-1 items-start gap-2">
+                              <div
+                                className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[9px] font-black"
+                                style={{ color: resultColor, backgroundColor: `${resultColor}22` }}
+                              >
+                                {r.result}
                               </div>
-                              <div className="mt-1.5 h-1 w-full bg-white/10 rounded-full overflow-hidden">
-                                <div className="h-full rounded-full" style={{ width: `${minuteRatio}%`, background: mainAccent }} />
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-base font-black text-white">{r.opponentName}</div>
+                                <div className="mt-0.5 truncate text-[10px] font-normal tracking-tight text-white/30">{r.matchDate || '日付不明'} · {r.competitionName}{r.roundName ? ` · ${r.roundName}` : ''}</div>
                               </div>
                             </div>
-                            <div className="rounded-lg bg-white/[0.04] p-2 flex items-baseline justify-center gap-1">
-                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{r.goals ?? 0}</div>
-                              <div className="text-[10px] text-[#9CA3AF]">G</div>
-                            </div>
-                            <div className="rounded-lg bg-white/[0.04] p-2 flex items-baseline justify-center gap-1">
-                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{r.assists ?? 0}</div>
-                              <div className="text-[10px] text-[#9CA3AF]">A</div>
+                            <div className="flex flex-shrink-0 flex-col items-end gap-2">
+                              <div className="flex items-center gap-5">
+                                <span className="rounded-md bg-white/[0.08] px-2 py-0.5 text-[10px] font-black text-white/35">{haLabel}</span>
+                                <span className={`text-lg font-black italic leading-none text-white ${barlow.className}`}>{scoreText}</span>
+                              </div>
+                              <div className="flex items-baseline gap-2 text-xs font-black">
+                                <span><span style={{ color: mainAccent }}>{minutesDisplay}</span><span className="ml-0.5 text-white/35">{minutesLabel}</span></span>
+                                <span><span className="text-white/35">{r.goals ?? 0}</span><span className="ml-0.5" style={{ color: mainAccent }}>G</span></span>
+                                <span><span className="text-white/35">{r.assists ?? 0}</span><span className="ml-0.5" style={{ color: mainAccent }}>A</span></span>
+                              </div>
                             </div>
                           </div>
                         </div>

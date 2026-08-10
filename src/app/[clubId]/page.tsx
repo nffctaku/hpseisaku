@@ -122,14 +122,15 @@ export default async function ClubPage({ params }: ClubPageProps) {
         db.collection("clubs").doc(ownerUid).get(),
         (profileData as any)?.mainTeamId
           ? db.collection(`clubs/${ownerUid}/teams`).doc((profileData as any).mainTeamId).get()
-          : Promise.resolve({ exists: false }),
+          : Promise.resolve(null),
       ]);
 
       const clubData = clubDataSnap.exists ? (clubDataSnap.data() as any) : { headerImageUrl: null };
-      const mainTeamData = mainTeamSnap.exists ? mainTeamSnap.data() : null;
+      const mainTeamData = mainTeamSnap?.exists ? mainTeamSnap.data() : null;
 
       const resolvedProfile = {
         ...profileData,
+        ownerUid,
         clubName: (mainTeamData as any)?.name || (profileData as any).clubName,
         logoUrl: (mainTeamData as any)?.logoUrl || (profileData as any).logoUrl,
       } as any;

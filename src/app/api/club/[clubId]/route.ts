@@ -38,6 +38,7 @@ async function getClubData(clubId: string) {
 
   const resolvedProfile = {
     ...profileData,
+    ownerUid,
     clubName: (mainTeamData as any)?.name || (profileData as any).clubName,
     logoUrl: (mainTeamData as any)?.logoUrl || (profileData as any).logoUrl,
   } as any;

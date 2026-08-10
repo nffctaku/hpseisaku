@@ -59,6 +59,9 @@ export default function LandingPage() {
                 <Link href="/admin" className="rounded-xl bg-emerald-400 px-6 py-3.5 text-center text-sm font-black text-[#06111f] shadow-lg shadow-emerald-950/20 hover:bg-emerald-300 transition-colors sm:px-8 sm:py-4 sm:text-base">
                   無料でチームを作成する →
                 </Link>
+                <Link href="/0Px6FAwAafT2ssDGa0xz61FJro03" className="rounded-xl border border-white/20 bg-white/10 px-6 py-3.5 text-center text-sm font-black text-white shadow-lg shadow-black/20 backdrop-blur-sm transition-colors hover:bg-white/15 sm:px-8 sm:py-4 sm:text-base">
+                  サンプルページを見る
+                </Link>
               </div>
             </div>
           </div>

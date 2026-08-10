@@ -66,6 +66,20 @@ export async function getMatchesGroupedByCompetition(): Promise<Record<string, M
 
 import { toSlashSeason } from './season';
 
+function getSeasonFromMatchDate(matchDate: string): string | null {
+  if (typeof matchDate !== 'string') return null;
+  const raw = matchDate.trim();
+  if (!raw) return null;
+  const normalized = raw
+    .replace(/\//g, '-')
+    .replace(/^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})$/, (_m, y, mo, d) => `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+  const dt = new Date(normalized);
+  if (Number.isNaN(dt.getTime())) return null;
+  const year = dt.getFullYear();
+  const month = dt.getMonth();
+  return month >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
+}
+
 export async function getMatchDataForClub(ownerUid: string): Promise<{
   latestResult: MatchDetails | null;
   nextMatch: MatchDetails | null;
@@ -85,13 +99,36 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
   const profileSnap = await profileQuery.get();
   const clubProfileData = !profileSnap.empty ? profileSnap.docs[0].data() : null;
   const clubName = clubProfileData?.clubName ?? null;
-  const mainTeamId = (clubProfileData as any)?.mainTeamId || ownerUid;
+  const mainTeamId = typeof (clubProfileData as any)?.mainTeamId === 'string' && (clubProfileData as any).mainTeamId.trim().length > 0
+    ? (clubProfileData as any).mainTeamId
+    : null;
 
   // 2. Fetch all teams for the club
-  const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
+  const teamsMap = new Map<string, { id: string; name: string; logoUrl?: string }>();
   const teamsQuery = db.collection(`clubs/${ownerUid}/teams`);
   const teamsSnap = await teamsQuery.get();
-  teamsSnap.forEach(doc => teamsMap.set(doc.id, { name: doc.data().name, logoUrl: doc.data().logoUrl }));
+  teamsSnap.forEach(doc => teamsMap.set(doc.id, { id: doc.id, name: doc.data().name, logoUrl: doc.data().logoUrl }));
+
+  let resolvedMainTeamId: string | null = null;
+  if (mainTeamId) {
+    const direct = teamsMap.get(mainTeamId);
+    if (direct) {
+      resolvedMainTeamId = direct.id;
+    } else {
+      teamsSnap.forEach((doc) => {
+        if (resolvedMainTeamId) return;
+        const data = doc.data() as any;
+        if (
+          data?.teamId === mainTeamId ||
+          data?.teamUid === mainTeamId ||
+          data?.uid === mainTeamId ||
+          data?.ownerUid === mainTeamId
+        ) {
+          resolvedMainTeamId = doc.id;
+        }
+      });
+    }
+  }
 
   // 2.5. Fetch season visibility (same as results page)
   const seasonVisibility = new Map<string, boolean>();
@@ -128,23 +165,17 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
     .map(([season]) => season);
   const publicSeasonIdSet = new Set<string>(publicSeasons);
   
-  // Disable season filtering to show all matches
-  const shouldFilterBySeason = false;
-
   // 3. Fetch all matches from all competitions/rounds
   const allMatches: MatchDetails[] = [];
   const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
   const competitionsSnap = await competitionsQuery.get();
 
-  const publicCompetitionDocs = competitionsSnap.docs.filter((compDoc) => (compDoc.data() as any)?.showOnHome === true);
-
   const nestedMatches = await Promise.all(
-    publicCompetitionDocs.map(async (compDoc) => {
+    competitionsSnap.docs.map(async (compDoc) => {
       const competitionData = compDoc.data() as any;
       const compSeasonRaw = typeof competitionData?.season === 'string' ? competitionData.season.trim() : '';
       const compSeason = compSeasonRaw ? toSlashSeason(compSeasonRaw) : '';
-      // Only filter out if season filtering is enabled AND the competition has a season that's not public
-      if (shouldFilterBySeason && compSeason && !publicSeasonIdSet.has(compSeason)) return [] as MatchDetails[];
+      if (publicSeasonIdSet.size > 0 && (!compSeason || !publicSeasonIdSet.has(compSeason))) return [] as MatchDetails[];
       
       const roundsQuery = db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`);
       const roundsSnap = await roundsQuery.get();
@@ -182,11 +213,46 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
 
   allMatches.push(...nestedMatches.flat());
 
+  const friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
+  friendlySnap.forEach((matchDoc) => {
+    const matchData = matchDoc.data() as any;
+    if (publicSeasonIdSet.size > 0) {
+      const sRaw = getSeasonFromMatchDate(String(matchData.matchDate || ''));
+      const s = sRaw ? toSlashSeason(sRaw) : null;
+      if (s && !publicSeasonIdSet.has(s)) return;
+    }
+    const compId = (matchData.competitionId as string) === 'practice' ? 'practice' : 'friendly';
+    const compName = matchData.competitionName || (compId === 'practice' ? '練習試合' : '親善試合');
+    const homeTeam = teamsMap.get(matchData.homeTeam);
+    const awayTeam = teamsMap.get(matchData.awayTeam);
+
+    allMatches.push({
+      id: matchDoc.id,
+      competitionId: compId,
+      roundId: 'single',
+      homeTeam: matchData.homeTeam,
+      awayTeam: matchData.awayTeam,
+      homeTeamName: matchData.homeTeamName || homeTeam?.name || '不明なチーム',
+      awayTeamName: matchData.awayTeamName || awayTeam?.name || '不明なチーム',
+      competitionName: compName,
+      competitionLogoUrl: matchData.competitionLogoUrl,
+      roundName: typeof matchData.roundName === 'string' ? matchData.roundName : '',
+      homeTeamLogo: matchData.homeTeamLogo || homeTeam?.logoUrl,
+      awayTeamLogo: matchData.awayTeamLogo || awayTeam?.logoUrl,
+      matchDate: matchData.matchDate,
+      matchTime: matchData.matchTime,
+      scoreHome: matchData.scoreHome,
+      scoreAway: matchData.scoreAway,
+      pkScoreHome: matchData.pkScoreHome,
+      pkScoreAway: matchData.pkScoreAway,
+    } as MatchDetails);
+  });
+
   // 4. Filter for own team's matches based on mainTeamId.
   // If該当試合が1件もない場合は、他クラブ同士の試合は出さず、null を返す。
-  const ownMatches = allMatches.filter(
-    (m) => (m as any).homeTeam === mainTeamId || (m as any).awayTeam === mainTeamId
-  );
+  const ownMatches = resolvedMainTeamId
+    ? allMatches.filter((m) => (m as any).homeTeam === resolvedMainTeamId || (m as any).awayTeam === resolvedMainTeamId)
+    : allMatches;
 
   // 5. Find latest result and next match based on score presence
   const ownPastMatches = ownMatches.filter(m => m.scoreHome !== null && m.scoreAway !== null);

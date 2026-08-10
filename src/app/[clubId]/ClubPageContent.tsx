@@ -98,6 +98,7 @@ export default function ClubPageContent({
     const videos = clubInfo.videos || [];
 
     const mainTeamId = clubInfo.profile?.mainTeamId || null;
+    const dataClubId = clubInfo.profile?.ownerUid || clubId;
     const recentMatches = (clubInfo.recentMatches || []) as MatchDetails[];
     
     // Client-side fetch of all match data to avoid serialization issues
@@ -108,19 +109,9 @@ export default function ClubPageContent({
         try {
           if (!clubId) return;
           
-          // Get the season from the competition shown on home page
-          const competitions = clubInfo.competitions || [];
-          const publicCompetitionIds = new Set(
-            competitions
-              .filter((c: any) => c?.showOnHome === true && typeof c?.id === 'string')
-              .map((c: any) => c.id)
-          );
-          const homeCompetition = competitions.find((c: any) => c.showOnHome);
-          const targetSeason = homeCompetition?.season ? String(homeCompetition.season).trim() : null;
-          
           const [competitionsSnap, teamsSnap] = await Promise.all([
-            getDocs(collection(db, `clubs/${clubId}/competitions`)),
-            getDocs(collection(db, `clubs/${clubId}/teams`)),
+            getDocs(collection(db, `clubs/${dataClubId}/competitions`)),
+            getDocs(collection(db, `clubs/${dataClubId}/teams`)),
           ]);
           const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
           teamsSnap.forEach((teamDoc) => {
@@ -132,26 +123,17 @@ export default function ClubPageContent({
           
           for (const compDoc of competitionsSnap.docs) {
             const competitionId = compDoc.id;
-            if (!publicCompetitionIds.has(competitionId)) {
-              continue;
-            }
             const competitionData = compDoc.data();
-            const compSeason = competitionData.season ? String(competitionData.season).trim() : '';
-            
-            // Filter matches by season if targetSeason is specified
-            if (targetSeason && compSeason && compSeason !== targetSeason) {
-              continue;
-            }
             
             // Fetch all rounds for this competition
-            const roundsSnap = await getDocs(collection(db, `clubs/${clubId}/competitions/${competitionId}/rounds`));
+            const roundsSnap = await getDocs(collection(db, `clubs/${dataClubId}/competitions/${competitionId}/rounds`));
             
             for (const roundDoc of roundsSnap.docs) {
               const roundId = roundDoc.id;
               const roundData = roundDoc.data();
               
               // Fetch all matches for this round
-              const matchesSnap = await getDocs(collection(db, `clubs/${clubId}/competitions/${competitionId}/rounds/${roundId}/matches`));
+              const matchesSnap = await getDocs(collection(db, `clubs/${dataClubId}/competitions/${competitionId}/rounds/${roundId}/matches`));
               
               matchesSnap.forEach((matchDoc) => {
                 const matchData = matchDoc.data();
@@ -183,6 +165,36 @@ export default function ClubPageContent({
             }
           }
           
+          const friendlySnap = await getDocs(collection(db, `clubs/${dataClubId}/friendly_matches`));
+          friendlySnap.forEach((matchDoc) => {
+            const matchData = matchDoc.data();
+            const homeTeam = teamsMap.get(matchData.homeTeam);
+            const awayTeam = teamsMap.get(matchData.awayTeam);
+            if (matchData.scoreHome !== null && matchData.scoreAway !== null) {
+              const compId = matchData.competitionId === 'practice' ? 'practice' : 'friendly';
+              allMatches.push({
+                id: matchDoc.id,
+                competitionId: compId,
+                roundId: 'single',
+                homeTeam: matchData.homeTeam,
+                awayTeam: matchData.awayTeam,
+                homeTeamName: matchData.homeTeamName || homeTeam?.name || '不明',
+                awayTeamName: matchData.awayTeamName || awayTeam?.name || '不明',
+                competitionName: matchData.competitionName || (compId === 'practice' ? '練習試合' : '親善試合'),
+                competitionLogoUrl: matchData.competitionLogoUrl,
+                roundName: typeof matchData.roundName === 'string' ? matchData.roundName : '',
+                homeTeamLogo: matchData.homeTeamLogo || homeTeam?.logoUrl,
+                awayTeamLogo: matchData.awayTeamLogo || awayTeam?.logoUrl,
+                matchDate: matchData.matchDate,
+                matchTime: matchData.matchTime,
+                scoreHome: matchData.scoreHome,
+                scoreAway: matchData.scoreAway,
+                pkScoreHome: matchData.pkScoreHome,
+                pkScoreAway: matchData.pkScoreAway,
+              } as MatchDetails);
+            }
+          });
+
           allMatches.sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime());
           
           setClientAllRecentMatches(allMatches);
@@ -192,7 +204,7 @@ export default function ClubPageContent({
       };
 
       fetchAllMatches();
-    }, [clubId]);
+    }, [clubId, dataClubId, clubInfo.competitions]);
 
     const allRecentMatches = clientAllRecentMatches.length > 0 ? clientAllRecentMatches : (clubInfo.allRecentMatches || recentMatches) as MatchDetails[];
 
