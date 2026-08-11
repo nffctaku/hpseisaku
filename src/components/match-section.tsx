@@ -51,8 +51,8 @@ function resolveReadableTextColor(background: string | null | undefined): string
   return luminance > 0.5 ? '#000000' : '#ffffff';
 }
 
-function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | undefined): number {
-  const md: any = (m as any)?.matchDate;
+function getMatchSortMs(m: { matchDate?: string | Date | { toDate?: () => Date }; matchTime?: string } | null | undefined): number {
+  const md = m?.matchDate;
   let base: Date | null = null;
 
   if (md?.toDate && typeof md.toDate === 'function') {
@@ -82,11 +82,14 @@ function UpcomingMatchesCarousel({
   matches,
   mainTeamId,
   backgroundColor,
+  colorTheme = 'dark',
 }: {
   matches: MatchDetails[];
   mainTeamId?: string | null;
   backgroundColor?: string | null;
+  colorTheme?: 'dark' | 'light';
 }) {
+  const isDark = colorTheme === 'dark';
   const list = (Array.isArray(matches) ? matches : []).filter(Boolean).slice(0, 3);
   if (list.length === 0) return null;
 
@@ -114,7 +117,7 @@ function UpcomingMatchesCarousel({
             return (
               <CarouselItem key={m.id} className="pl-4 basis-full">
                 <div className="w-full px-0 sm:px-2">
-                  <div className="w-full rounded-xl bg-gray-50 border border-black/5 shadow-sm overflow-hidden">
+                  <div className={`w-full rounded-xl shadow-sm overflow-hidden border ${isDark ? 'bg-[#15161b] border-white/10 text-slate-100' : 'bg-gray-50 border-black/5 text-gray-900'}`}>
                     <div className="px-4 py-3 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         {m.competitionLogoUrl ? (
@@ -129,8 +132,8 @@ function UpcomingMatchesCarousel({
                           <div className="h-7 w-7" />
                         )}
                         <div className="min-w-0">
-                          <div className="text-xs font-semibold text-gray-900">今後の試合</div>
-                          <div className="mt-0.5 text-sm font-semibold text-gray-700 truncate">
+                          <div className={`text-xs font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>今後の試合</div>
+                          <div className={`mt-0.5 text-sm font-semibold truncate ${isDark ? 'text-slate-400' : 'text-gray-700'}`}>
                             {dateLabel}{timeLabel ? ` ${timeLabel}` : ''}
                           </div>
                         </div>
@@ -144,7 +147,7 @@ function UpcomingMatchesCarousel({
                       </div>
                     </div>
 
-                    <div className="border-t" />
+                    <div className={`border-t ${isDark ? 'border-white/10' : 'border-gray-100'}`} />
 
                     <div className="px-4 py-5 flex items-center gap-4">
                       {opponentLogo ? (
@@ -160,14 +163,14 @@ function UpcomingMatchesCarousel({
                       )}
 
                       <div className="min-w-0">
-                        <div className="text-[11px] font-semibold text-gray-500 truncate">
+                        <div className={`text-[11px] font-semibold truncate ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
                           {(m.competitionName || '').toString()}
                         </div>
-                        <div className="mt-0.5 text-xl font-black leading-tight text-gray-900 truncate">
+                        <div className={`mt-0.5 text-xl font-black leading-tight truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                           {opponentName}
                         </div>
                         {!isPracticeMatch && !isSingleRound && roundNameText ? (
-                          <div className="mt-0.5 text-sm text-gray-600 truncate">
+                          <div className={`mt-0.5 text-sm truncate ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
                             {roundNameText}
                           </div>
                         ) : null}
@@ -218,14 +221,17 @@ function RecentMatchesStrip({
   matches,
   mainTeamId,
   clubSlug,
+  colorTheme = 'dark',
 }: {
   matches: MatchDetails[];
   mainTeamId?: string | null;
   clubSlug: string;
+  colorTheme?: 'dark' | 'light';
 }) {
+  const isDark = colorTheme === 'dark';
   const items = (matches || [])
     .filter((m) => m && typeof m === "object")
-    .filter((m) => typeof (m as any).scoreHome === 'number' && typeof (m as any).scoreAway === 'number')
+    .filter((m) => typeof m.scoreHome === 'number' && typeof m.scoreAway === 'number')
     .slice()
     .sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
   if (items.length === 0) return null;
@@ -251,16 +257,16 @@ function RecentMatchesStrip({
       logo: isHome ? m.awayTeamLogo : m.homeTeamLogo,
       name: isHome ? m.awayTeamName : m.homeTeamName,
       ha: isHome ? '(H)' : '(A)',
-      scoreText: `${m.scoreHome ?? '-'} - ${m.scoreAway ?? '-'}`,
+      scoreText: `${m.scoreHome ?? '-'}-${m.scoreAway ?? '-'}`,
       outcome: resolveOutcome(m),
       roundLabel: getRoundLabel(m.roundName),
     };
   };
 
   const outcomeClass = (o: 'win' | 'loss' | 'draw') => {
-    if (o === 'win') return 'bg-emerald-600';
-    if (o === 'loss') return 'bg-red-600';
-    return 'bg-gray-500';
+    if (o === 'win') return 'bg-emerald-950/70 text-emerald-300 ring-1 ring-emerald-500/35';
+    if (o === 'loss') return 'bg-red-950/70 text-red-300 ring-1 ring-red-500/35';
+    return 'bg-slate-800 text-slate-300 ring-1 ring-white/10';
   };
 
   return (
@@ -270,9 +276,9 @@ function RecentMatchesStrip({
           const opp = resolveOpponent(m);
           const href = `/${clubSlug}/matches/${m.competitionId}/${m.roundId}/${m.id}`;
           return (
-            <Link key={m.id} href={href} className="flex-shrink-0 w-[110px] md:w-full md:min-w-[110px]">
-              <div className="rounded-md p-1 hover:bg-muted/50 transition-colors">
-                <div className="mb-2 flex items-center justify-center gap-1 text-[11px] font-semibold text-muted-foreground">
+            <Link key={m.id} href={href} className="flex-shrink-0 w-[146px] md:w-full md:min-w-[110px]">
+              <div className={`rounded-xl border p-3 transition-colors ${isDark ? 'border-white/10 bg-[#15161b] hover:bg-white/10' : 'border-black/10 bg-white hover:bg-muted/50'}`}>
+                <div className={`mb-2 flex items-center justify-center gap-1 text-[11px] font-semibold ${isDark ? 'text-slate-500' : 'text-muted-foreground'}`}>
                   {opp.competitionLogoUrl ? (
                     <Image
                       src={opp.competitionLogoUrl}
@@ -288,15 +294,15 @@ function RecentMatchesStrip({
                   {opp.logo ? (
                     <Image src={opp.logo} alt={opp.name} width={44} height={44} className="w-11 h-11 rounded-full object-contain" />
                   ) : (
-                    <div className="w-11 h-11 rounded-full bg-gray-700 flex items-center justify-center text-white font-bold text-lg">
+                    <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-lg ${isDark ? 'bg-white/10 text-white' : 'bg-gray-700 text-white'}`}>
                       {opp.name.charAt(0)}
                     </div>
                   )}
-                  <div className="text-[11px] font-semibold leading-tight text-center">
-                    <div className="truncate max-w-[110px]">{opp.name}</div>
-                    <div className="text-[10px] text-muted-foreground">{opp.ha}</div>
+                  <div className={`text-[12px] font-semibold leading-tight text-center ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
+                    <div className="truncate max-w-[118px]">{opp.name}</div>
+                    <div className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-muted-foreground'}`}>{opp.ha}</div>
                   </div>
-                  <div className={"w-full rounded-full px-2 py-1 text-center text-xs font-bold text-white " + outcomeClass(opp.outcome)}>
+                  <div className={"w-full rounded-lg px-2 py-1 text-center text-xs font-black " + outcomeClass(opp.outcome)}>
                     {opp.scoreText}
                   </div>
                 </div>
@@ -315,30 +321,25 @@ export function MatchResultsList({
   rounds,
   selectedRoundIndex,
   onRoundChange,
+  colorTheme = 'dark',
 }: {
   matches: MatchDetails[];
   clubSlug: string;
   rounds: { roundId: string; roundName: string }[];
   selectedRoundIndex: number;
   onRoundChange: (index: number) => void;
+  colorTheme?: 'dark' | 'light';
 }) {
+  const isDark = colorTheme === 'dark';
   const items = (matches || [])
     .filter((m) => m && typeof m === "object")
     .filter((m) => typeof m.scoreHome === 'number' && typeof m.scoreAway === 'number')
     .slice()
     .sort((a, b) => getMatchSortMs(b) - getMatchSortMs(a));
 
-  if (items.length === 0) {
+  if (items.length === 0 || rounds.length === 0) {
     return (
-      <div className="bg-white text-gray-900 p-4 rounded-2xl text-center text-muted-foreground shadow-sm border border-black/10">
-        <p>表示できる試合結果がありません。</p>
-      </div>
-    );
-  }
-
-  if (rounds.length === 0) {
-    return (
-      <div className="bg-white text-gray-900 p-4 rounded-2xl text-center text-muted-foreground shadow-sm border border-black/10">
+      <div className={`p-4 rounded-2xl text-center shadow-sm border ${isDark ? 'bg-[#101116] text-slate-400 border-white/10' : 'bg-white text-muted-foreground border-black/10'}`}>
         <p>表示できる試合結果がありません。</p>
       </div>
     );
@@ -347,7 +348,7 @@ export function MatchResultsList({
   const currentRound = rounds[selectedRoundIndex];
   if (!currentRound) {
     return (
-      <div className="bg-white text-gray-900 p-4 rounded-2xl text-center text-muted-foreground shadow-sm border border-black/10">
+      <div className={`p-4 rounded-2xl text-center shadow-sm border ${isDark ? 'bg-[#101116] text-slate-400 border-white/10' : 'bg-white text-muted-foreground border-black/10'}`}>
         <p>表示できる試合結果がありません。</p>
       </div>
     );
@@ -355,8 +356,6 @@ export function MatchResultsList({
   const currentRoundMatches = items
     .filter((m) => m.roundName === currentRound.roundName)
     .sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
-
-  // 大会名を取得（最初の試合から）
   const competitionName = currentRoundMatches[0]?.competitionName;
   const competitionLogoUrl = currentRoundMatches[0]?.competitionLogoUrl;
 
@@ -374,21 +373,17 @@ export function MatchResultsList({
   }, new Map<string, MatchDetails[]>());
 
   const handlePrevRound = () => {
-    if (selectedRoundIndex > 0) {
-      onRoundChange(selectedRoundIndex - 1);
-    }
+    if (selectedRoundIndex > 0) onRoundChange(selectedRoundIndex - 1);
   };
 
   const handleNextRound = () => {
-    if (selectedRoundIndex < rounds.length - 1) {
-      onRoundChange(selectedRoundIndex + 1);
-    }
+    if (selectedRoundIndex < rounds.length - 1) onRoundChange(selectedRoundIndex + 1);
   };
 
   return (
-    <div className="bg-white text-gray-900 rounded-2xl shadow-sm border border-black/10 overflow-hidden">
+    <div className={`rounded-2xl shadow-sm border overflow-hidden ${isDark ? 'bg-[#101116] text-slate-100 border-white/10' : 'bg-white text-gray-900 border-black/10'}`}>
       {competitionName && (
-        <div className="px-3 sm:px-4 py-2 border-b border-gray-100 flex items-center gap-2">
+        <div className={`px-3 sm:px-4 py-2 border-b flex items-center gap-2 ${isDark ? 'border-white/10' : 'border-gray-100'}`}>
           {competitionLogoUrl && (
             <Image
               src={competitionLogoUrl}
@@ -398,7 +393,7 @@ export function MatchResultsList({
               className="rounded-full object-contain"
             />
           )}
-          <span className="text-[10px] font-semibold text-gray-600">{competitionName}</span>
+          <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>{competitionName}</span>
         </div>
       )}
       <div className="px-3 sm:px-4 py-3 flex items-center justify-between">
@@ -406,20 +401,20 @@ export function MatchResultsList({
           type="button"
           onClick={handlePrevRound}
           disabled={selectedRoundIndex === 0}
-          className="h-8 w-8 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+          className={`h-8 w-8 rounded-full disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center ${isDark ? 'bg-white/10 text-slate-200 hover:bg-white/15' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
         </button>
-        <div className="text-sm font-bold text-gray-900">
+        <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {currentRound.roundName || '節'}
         </div>
         <button
           type="button"
           onClick={handleNextRound}
           disabled={selectedRoundIndex === rounds.length - 1}
-          className="h-8 w-8 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+          className={`h-8 w-8 rounded-full disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center ${isDark ? 'bg-white/10 text-slate-200 hover:bg-white/15' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="9 18 15 12 9 6"></polyline>
@@ -429,35 +424,35 @@ export function MatchResultsList({
       <div className="p-3 sm:p-4 space-y-3">
         {Array.from(grouped.entries()).map(([date, dateMatches]) => (
           <div key={date}>
-            <div className="mb-1 rounded-xl bg-gray-100 px-4 py-3 text-sm font-black text-gray-950">
+            <div className={`mb-1 rounded-xl px-4 py-3 text-sm font-black ${isDark ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-950'}`}>
               {date}
             </div>
-            <div className="divide-y divide-gray-100">
+            <div className={isDark ? 'divide-y divide-white/10' : 'divide-y divide-gray-100'}>
               {dateMatches.map((match) => {
                 const href = `/${clubSlug}/matches/${match.competitionId}/${match.roundId}/${match.id}`;
                 return (
-                  <Link key={match.id} href={href} className="grid grid-cols-[34px_1fr_auto_1fr] items-center gap-2 py-3 hover:bg-gray-50 transition-colors">
+                  <Link key={match.id} href={href} className={`grid grid-cols-[34px_1fr_auto_1fr] items-center gap-2 py-3 transition-colors ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
                     <div className="flex justify-center">
-                      <span className="rounded-full bg-gray-100 px-2 py-1 text-[11px] font-black text-gray-400">FT</span>
+                      <span className={`rounded-full px-2 py-1 text-[11px] font-black ${isDark ? 'bg-white/10 text-slate-500' : 'bg-gray-100 text-gray-400'}`}>FT</span>
                     </div>
                     <div className="flex min-w-0 items-center justify-end gap-2 text-right">
-                      <span className="truncate text-xs font-bold leading-tight text-gray-700 sm:text-sm">{match.homeTeamName}</span>
+                      <span className={`truncate text-xs font-bold leading-tight sm:text-sm ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>{match.homeTeamName}</span>
                       {match.homeTeamLogo ? (
                         <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={26} height={26} className="h-6 w-6 flex-shrink-0 object-contain" />
                       ) : (
-                        <div className="h-6 w-6 flex-shrink-0 rounded-full bg-gray-100" />
+                        <div className={`h-6 w-6 flex-shrink-0 rounded-full ${isDark ? 'bg-white/10' : 'bg-gray-100'}`} />
                       )}
                     </div>
-                    <div className="min-w-[54px] text-center text-base font-black tabular-nums text-gray-950 sm:text-lg">
+                    <div className={`min-w-[54px] text-center text-base font-black tabular-nums sm:text-lg ${isDark ? 'text-white' : 'text-gray-950'}`}>
                       {match.scoreHome ?? '-'} - {match.scoreAway ?? '-'}
                     </div>
                     <div className="flex min-w-0 items-center justify-start gap-2">
                       {match.awayTeamLogo ? (
                         <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={26} height={26} className="h-6 w-6 flex-shrink-0 object-contain" />
                       ) : (
-                        <div className="h-6 w-6 flex-shrink-0 rounded-full bg-gray-100" />
+                        <div className={`h-6 w-6 flex-shrink-0 rounded-full ${isDark ? 'bg-white/10' : 'bg-gray-100'}`} />
                       )}
-                      <span className="truncate text-xs font-bold leading-tight text-gray-700 sm:text-sm">{match.awayTeamName}</span>
+                      <span className={`truncate text-xs font-bold leading-tight sm:text-sm ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>{match.awayTeamName}</span>
                     </div>
                   </Link>
                 );
@@ -470,13 +465,14 @@ export function MatchResultsList({
   );
 }
 
-function NextMatch({ match }: { match: MatchDetails | null }) {
+function NextMatch({ match, colorTheme = 'dark' }: { match: MatchDetails | null; colorTheme?: 'dark' | 'light' }) {
+  const isDark = colorTheme === 'dark';
   if (!match) return <div className="text-center p-8">No upcoming matches.</div>;
 
   const matchDate = new Date(match.matchDate);
 
   return (
-    <div className="bg-white rounded-lg p-4 md:p-6 flex flex-col items-center shadow-lg hover:shadow-xl transition-shadow">
+    <div className={`rounded-xl border p-4 md:p-6 flex flex-col items-center shadow-sm transition-colors ${isDark ? 'bg-[#15161b] text-slate-100 border-white/10 hover:bg-white/10' : 'bg-white text-gray-900 border-black/10 hover:shadow-xl'}`}>
       <div className="w-full flex justify-around items-center">
         <TeamDisplay logo={match.homeTeamLogo} name={match.homeTeamName} />
         <div className="text-center px-1">
@@ -514,6 +510,7 @@ interface MatchSectionProps {
   mainTeamId?: string | null;
   clubSlug: string;
   backgroundColor?: string | null;
+  colorTheme?: 'dark' | 'light';
 }
 
 export function MatchSection({
@@ -523,18 +520,20 @@ export function MatchSection({
   mainTeamId,
   clubSlug,
   backgroundColor,
+  colorTheme = 'dark',
 }: MatchSectionProps) {
+  const isDark = colorTheme === 'dark';
   const upcoming = (Array.isArray(upcomingMatches) ? upcomingMatches : []).slice(0, 3);
   return (
     <section className="pt-0 pb-8 md:pb-12">
-      <div className="bg-gray-100 border border-black/5 rounded-lg shadow-sm p-4 md:p-6 w-full lg:min-h-[520px] flex flex-col">
-        <h2 className="text-2xl md:text-3xl font-bold mb-4 text-center">MATCHES</h2>
-        <RecentMatchesStrip matches={recentMatches} mainTeamId={mainTeamId} clubSlug={clubSlug} />
+      <div className={`rounded-2xl shadow-sm p-4 md:p-6 w-full lg:min-h-[520px] flex flex-col border ${isDark ? 'bg-[#101116] border-white/10 text-slate-100' : 'bg-gray-100 border-black/5 text-gray-900'}`}>
+        <h2 className={`text-2xl md:text-3xl font-bold mb-4 text-center ${isDark ? 'text-white' : 'text-gray-900'}`}>MATCHES</h2>
+        <RecentMatchesStrip matches={recentMatches} mainTeamId={mainTeamId} clubSlug={clubSlug} colorTheme={colorTheme} />
         <div className="mt-4">
           {upcoming.length > 0 ? (
-            <UpcomingMatchesCarousel matches={upcoming} mainTeamId={mainTeamId} backgroundColor={backgroundColor} />
+            <UpcomingMatchesCarousel matches={upcoming} mainTeamId={mainTeamId} backgroundColor={backgroundColor} colorTheme={colorTheme} />
           ) : (
-            <NextMatch match={nextMatch} />
+            <NextMatch match={nextMatch} colorTheme={colorTheme} />
           )}
         </div>
       </div>

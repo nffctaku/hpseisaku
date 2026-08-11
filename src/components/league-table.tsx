@@ -50,6 +50,7 @@ interface LeagueTableProps {
   clubId?: string;
   variant?: 'home' | 'table';
   minCardOnMobile?: boolean;
+  colorTheme?: 'dark' | 'light';
 }
 
 function isLeagueRoundName(name: unknown): boolean {
@@ -59,7 +60,8 @@ function isLeagueRoundName(name: unknown): boolean {
   return /^第\s*\d+\s*節$/.test(s);
 }
 
-export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnMobile = false }: LeagueTableProps) {
+export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnMobile = false, colorTheme = 'dark' }: LeagueTableProps) {
+  const isDark = colorTheme === 'dark';
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompetition, setSelectedCompetition] = useState<{ name: string; logoUrl?: string } | null>(null);
@@ -296,7 +298,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
 
   if (!competitions || competitions.length === 0) {
     return (
-      <div className="bg-white text-gray-900 p-4 rounded-2xl text-center text-muted-foreground shadow-sm border border-black/10">
+      <div className={`p-4 rounded-2xl text-center shadow-sm border ${isDark ? 'bg-[#101116] text-slate-400 border-white/10' : 'bg-white text-muted-foreground border-black/10'}`}>
         <p>表示できる大会がありません。</p>
       </div>
     );
@@ -305,29 +307,29 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
   return (
     <>
       {loading ? (
-        <div className="flex justify-center items-center h-48">
+        <div className={`flex justify-center items-center h-48 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
           <Loader2 className="h-8 w-8 animate-spin" />
         </div>
       ) : errorMessage ? (
         <div className="text-center py-10">
-          <p className="text-muted-foreground">{errorMessage}</p>
+          <p className={isDark ? 'text-slate-400' : 'text-muted-foreground'}>{errorMessage}</p>
         </div>
       ) : standings.length > 0 ? (
         <div className={variant === 'table' ? 'overflow-x-auto' : 'overflow-hidden'}>
           <div className={
             variant === 'table'
               ? 'border-0 [&>*]:border-0'
-              : 'bg-white p-2 rounded-xl shadow-none border border-black/10 sm:p-3 sm:rounded-2xl sm:shadow-sm'
+              : `${isDark ? 'bg-[#101116] text-slate-100 border-white/10' : 'bg-white text-gray-900 border-black/10'} p-2 rounded-xl shadow-none border sm:p-3 sm:rounded-2xl sm:shadow-sm`
           } style={variant === 'table' ? { border: 'none' } : undefined}>
             <Table
               className={
                 variant === 'table'
                   ? 'w-full min-w-[500px] table-auto text-xs border-0 [&_th]:border-0 [&_td]:border-0 [&_tr]:border-0'
-                  : 'w-full table-auto text-xs border-0 [&_th]:border-0 [&_td]:border-0 [&_tr]:border-0'
+                  : `w-full table-auto text-xs border-0 [&_th]:border-0 [&_td]:border-0 [&_tr]:border-0 ${isDark ? 'text-slate-100' : 'text-gray-900'}`
               }
               style={{ border: 'none' }}
             >
-            <TableHeader className={variant === 'table' ? "[&_tr]:border-0 [&_th]:border-0 border-0" : "[&_tr]:border-0 [&_th]:border-0 border-0"} style={{ borderBottom: 'none' }}>
+            <TableHeader className={variant === 'table' ? `[&_tr]:border-0 [&_th]:border-0 border-0 ${isDark ? 'text-slate-400' : 'text-gray-500'}` : `[&_tr]:border-0 [&_th]:border-0 border-0 ${isDark ? 'text-slate-400' : 'text-gray-500'}`} style={{ borderBottom: 'none' }}>
               <TableRow className={variant === 'table' ? "border-0 [&_th]:border-0" : "border-0 [&_th]:border-0"} style={{ border: 'none', borderBottom: 'none' }}>
                 <TableHead className="w-[32px] text-center tabular-nums px-1 py-1 sm:px-2 sm:py-1">順</TableHead>
                 <TableHead className={variant === 'table' ? "min-w-[120px] px-2 py-1 sm:px-2 sm:py-1" : "px-2 py-1 sm:px-2 sm:py-1"}>
@@ -342,7 +344,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
                           className="flex-shrink-0 h-7 w-7 rounded-full object-contain"
                         />
                       ) : null}
-                      <span className="font-semibold truncate">{selectedCompetition.name}</span>
+                      <span className={`font-semibold truncate ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{selectedCompetition.name}</span>
                     </div>
                   ) : (
                     'Club'
@@ -396,7 +398,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
                             className="rounded-full object-contain"
                           />
                         ) : (
-                          <div className="w-[18px] h-[18px] bg-muted rounded-full" />
+                          <div className={`w-[18px] h-[18px] rounded-full ${isDark ? 'bg-white/10' : 'bg-muted'}`} />
                         )}
                         <span className={variant === 'table' ? "truncate max-w-[200px] sm:max-w-none text-[13px] sm:text-xs" : "truncate text-[13px] sm:text-xs"}>{team.teamName}</span>
                       </div>
@@ -432,7 +434,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
                       label.color === 'yellow' ? 'bg-yellow-500' :
                       'bg-gray-500'
                     }`} />
-                    <span className="text-gray-900">
+                    <span className={isDark ? 'text-slate-400' : 'text-gray-900'}>
                       {label.name || label.label || `順位 ${label.from}-${label.to}`}
                     </span>
                   </div>
@@ -444,7 +446,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
         </div>
       ) : (
         <div className="text-center py-10">
-          <p className="text-muted-foreground">表示できる順位情報がありません</p>
+          <p className={isDark ? 'text-slate-400' : 'text-muted-foreground'}>表示できる順位情報がありません</p>
         </div>
       )}
     </>

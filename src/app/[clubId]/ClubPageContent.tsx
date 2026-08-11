@@ -85,6 +85,13 @@ export default function ClubPageContent({
     }, [clubId, initialClubInfo]);
 
     const homeBgColor = clubInfo.profile?.homeBgColor as string | undefined;
+    const homeColorTheme = (clubInfo.profile?.homeColorTheme === 'dark' || clubInfo.profile?.homeColorTheme === 'light')
+      ? clubInfo.profile.homeColorTheme
+      : 'dark';
+    const headerLayout = (clubInfo.profile?.headerLayout === 'center' || clubInfo.profile?.headerLayout === 'left')
+      ? clubInfo.profile.headerLayout
+      : 'left';
+    const isDarkHomeTheme = homeColorTheme === 'dark';
     const heroNewsLimit =
         (clubInfo.data?.heroNewsLimit as number | undefined) ??
         (clubInfo.profile?.heroNewsLimit as number | undefined) ??
@@ -263,24 +270,24 @@ export default function ClubPageContent({
 
     const renderHomePanelContent = () => (
       <div className="space-y-3">
-        <div className="grid grid-cols-2 rounded-full bg-gray-100 p-1 text-sm font-bold text-gray-500">
+        <div className={`grid grid-cols-2 rounded-full p-1 text-sm font-bold ${isDarkHomeTheme ? 'bg-white/10 text-slate-400' : 'bg-gray-100 text-gray-500'}`}>
           <button
             type="button"
             onClick={() => setHomePanel('standings')}
-            className={homePanel === 'standings' ? 'rounded-full bg-white px-3 py-2 text-gray-950 shadow-sm' : 'rounded-full px-3 py-2 hover:text-gray-900'}
+            className={homePanel === 'standings' ? `rounded-full px-3 py-2 shadow-sm ${isDarkHomeTheme ? 'bg-[#101116] text-white' : 'bg-white text-gray-950'}` : `rounded-full px-3 py-2 ${isDarkHomeTheme ? 'hover:text-white' : 'hover:text-gray-900'}`}
           >
             順位表
           </button>
           <button
             type="button"
             onClick={() => setHomePanel('results')}
-            className={homePanel === 'results' ? 'rounded-full bg-white px-3 py-2 text-gray-950 shadow-sm' : 'rounded-full px-3 py-2 hover:text-gray-900'}
+            className={homePanel === 'results' ? `rounded-full px-3 py-2 shadow-sm ${isDarkHomeTheme ? 'bg-[#101116] text-white' : 'bg-white text-gray-950'}` : `rounded-full px-3 py-2 ${isDarkHomeTheme ? 'hover:text-white' : 'hover:text-gray-900'}`}
           >
             試合結果
           </button>
         </div>
         {homePanel === 'standings' ? (
-          <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} minCardOnMobile />
+          <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} minCardOnMobile colorTheme={homeColorTheme} />
         ) : (
           <MatchResultsList
             matches={allRecentMatches}
@@ -288,6 +295,7 @@ export default function ClubPageContent({
             rounds={rounds}
             selectedRoundIndex={selectedRoundIndex}
             onRoundChange={setSelectedRoundIndex}
+            colorTheme={homeColorTheme}
           />
         )}
       </div>
@@ -338,13 +346,14 @@ export default function ClubPageContent({
     return (
         <main
           className="min-h-screen"
-          style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}
+          style={{ backgroundColor: homeBgColor || (isDarkHomeTheme ? '#050506' : '#ffffff') }}
         >
-            <ClubHeader 
-                clubId={clubId} 
-                clubName={clubInfo.profile?.clubName || ""} 
-                logoUrl={clubInfo.profile?.logoUrl || null} 
+            <ClubHeader
+                clubId={clubId}
+                clubName={clubInfo.profile?.clubName || ""}
+                logoUrl={clubInfo.profile?.logoUrl || null}
                 headerBackgroundColor={homeBgColor}
+                headerLayout={headerLayout}
                 snsLinks={clubInfo.profile?.snsLinks || {}}
             />
             <div className="md:hidden">
@@ -353,7 +362,7 @@ export default function ClubPageContent({
 
             <div className="hidden md:block">
               <Hero news={heroNews} maxSlides={heroNewsLimit} isLoading={isLoading} />
-              <NewsSection news={listNews} clubId={clubId} fallbackLogoUrl={clubInfo.profile?.logoUrl || null} />
+              <NewsSection news={listNews} clubId={clubId} fallbackLogoUrl={clubInfo.profile?.logoUrl || null} colorTheme={homeColorTheme} />
               <div className="container mx-auto px-4 pt-12 pb-8">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-4">
@@ -364,24 +373,26 @@ export default function ClubPageContent({
                       mainTeamId={mainTeamId}
                       backgroundColor={homeBgColor || null}
                       clubSlug={clubId}
+                      colorTheme={homeColorTheme}
                     />
                     {videos.length > 0 && <ClubTv videos={videos} clubId={clubId} />}
                   </div>
                   <div className="space-y-4">
-                    <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} minCardOnMobile />
+                    <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} minCardOnMobile colorTheme={homeColorTheme} />
                     <MatchResultsList
                       matches={allRecentMatches}
                       clubSlug={clubId}
                       rounds={rounds}
                       selectedRoundIndex={selectedRoundIndex}
                       onRoundChange={setSelectedRoundIndex}
+                      colorTheme={homeColorTheme}
                     />
                   </div>
                 </div>
               </div>
             </div>
             <div className="md:hidden">
-              <NewsSection news={listNews} clubId={clubId} fallbackLogoUrl={clubInfo.profile?.logoUrl || null} />
+              <NewsSection news={listNews} clubId={clubId} fallbackLogoUrl={clubInfo.profile?.logoUrl || null} colorTheme={homeColorTheme} />
             </div>
             <div className="container mx-auto px-4 pt-12 pb-8 md:hidden">
                 <div className="space-y-3">
@@ -392,6 +403,7 @@ export default function ClubPageContent({
                         mainTeamId={mainTeamId}
                         backgroundColor={homeBgColor || null}
                         clubSlug={clubId}
+                        colorTheme={homeColorTheme}
                     />
                     {renderHomePanelContent()}
                     {videos.length > 0 && <ClubTv videos={videos} clubId={clubId} />}

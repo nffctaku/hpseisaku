@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClub } from "@/contexts/ClubContext";
@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import { collection, getDocs, limit, query, where, doc, getDoc } from "firebase/firestore";
 import { LayoutTab } from "@/app/admin/club/info/components/LayoutTab";
 import { toast } from "sonner";
 
@@ -18,7 +18,10 @@ export default function AdminDesignPage() {
   const { clubInfo } = useClub();
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [homeBgColor, setHomeBgColor] = useState<string>("");
+  const [homeColorTheme, setHomeColorTheme] = useState<'dark' | 'light'>('dark');
+  const [headerLayout, setHeaderLayout] = useState<'center' | 'left'>('left');
   const [savingLayout, setSavingLayout] = useState(false);
+  const isSavingRef = useRef(false);
 
   const [menuShowNews, setMenuShowNews] = useState(true);
   const [menuShowTv, setMenuShowTv] = useState(true);
@@ -33,7 +36,7 @@ export default function AdminDesignPage() {
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      const clubId = clubInfo?.id;
+      const clubId = user?.uid;
       if (!clubId) return;
       try {
         const res = await fetch(`/api/public/club/${encodeURIComponent(clubId)}/menu-settings`, {
@@ -57,11 +60,34 @@ export default function AdminDesignPage() {
         }
 
         const profilesRef = collection(db, "club_profiles");
-        const profilesSnap = await getDocs(query(profilesRef, where("clubId", "==", clubId), limit(1)));
-        if (!cancelled && !profilesSnap.empty) {
-          const data = profilesSnap.docs[0].data() as any;
-          if (typeof data.homeBgColor === "string") {
-            setHomeBgColor(data.homeBgColor);
+        const docRef = doc(db, "club_profiles", clubId);
+        const docSnap = await getDoc(docRef);
+        if (!cancelled && docSnap.exists()) {
+          const data = docSnap.data() as any;
+          console.log("[admin/design] Loaded profile data by doc ID", { clubId, headerLayout: data.headerLayout, homeBgColor: data.homeBgColor, homeColorTheme: data.homeColorTheme });
+          setHomeBgColor(data.homeBgColor || "");
+          if (data.homeColorTheme === "dark" || data.homeColorTheme === "light") {
+            setHomeColorTheme(data.homeColorTheme);
+          }
+          if (data.headerLayout === "center" || data.headerLayout === "left") {
+            setHeaderLayout(data.headerLayout);
+          }
+        } else {
+          console.log("[admin/design] No profile data found by doc ID, trying clubId field query", clubId);
+          // Fallback: try querying by clubId field
+          const profilesSnap = await getDocs(query(profilesRef, where("clubId", "==", clubId), limit(1)));
+          if (!cancelled && !profilesSnap.empty) {
+            const data = profilesSnap.docs[0].data() as any;
+            console.log("[admin/design] Loaded profile data by clubId field", { clubId, headerLayout: data.headerLayout, homeBgColor: data.homeBgColor, homeColorTheme: data.homeColorTheme });
+            setHomeBgColor(data.homeBgColor || "");
+            if (data.homeColorTheme === "dark" || data.homeColorTheme === "light") {
+              setHomeColorTheme(data.homeColorTheme);
+            }
+            if (data.headerLayout === "center" || data.headerLayout === "left") {
+              setHeaderLayout(data.headerLayout);
+            }
+          } else {
+            console.log("[admin/design] No profile data found at all", clubId);
           }
         }
       } catch {
@@ -80,10 +106,8 @@ export default function AdminDesignPage() {
       return false;
     }
 
-    if (!clubInfo?.id) {
-      toast.error("クラブIDの取得中です。少し待ってからもう一度お試しください。");
-      return false;
-    }
+    isSavingRef.current = true;
+
     try {
       const idToken = await auth.currentUser.getIdToken();
       const res = await fetch("/api/club/update", {
@@ -93,7 +117,7 @@ export default function AdminDesignPage() {
           Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({
-          clubId: clubInfo.id,
+          ...(user?.uid ? { clubId: user.uid } : {}),
           ...payload,
         }),
       });
@@ -108,67 +132,50 @@ export default function AdminDesignPage() {
         console.log("[admin/design] /api/club/update ok", okJson);
         try {
           console.log("[admin/design] /api/club/update ok (json)", JSON.stringify(okJson));
+
+          // Reload data from Firestore after successful save to ensure consistency
+          const clubIdForReload = user?.uid;
+          if (clubIdForReload) {
+            const docRef = doc(db, "club_profiles", clubIdForReload);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              const data = docSnap.data() as any;
+              console.log("[admin/design] Reloaded profile data", { clubId: clubIdForReload, headerLayout: data.headerLayout, homeBgColor: data.homeBgColor, homeColorTheme: data.homeColorTheme });
+              if (typeof data.homeBgColor === "string") {
+                setHomeBgColor(data.homeBgColor);
+              }
+              if (data.homeColorTheme === "dark" || data.homeColorTheme === "light") {
+                setHomeColorTheme(data.homeColorTheme);
+              }
+              if (data.headerLayout === "center" || data.headerLayout === "left") {
+                setHeaderLayout(data.headerLayout);
+              }
+            }
+          }
         } catch {
-          // ignore
-        }
-        const keys = (okJson?.debug?.displaySettingsKeys as any) || [];
-        if (Array.isArray(keys) && keys.length === 0) {
-          toast.error("保存リクエストに displaySettings が入っていない可能性があります");
+          // ignore reload errors
         }
 
         const clubIdForUpdate = okJson?.debug?.clubIdForUpdate;
         const clubSlugDocId = okJson?.debug?.writeTargets?.clubSlugDocId;
         toast(
-          `debug clubIdForUpdate=${clubIdForUpdate || ""} clubSlugDocId=${clubSlugDocId || ""} keys=${Array.isArray(keys) ? keys.join(",") : ""}`
+          `debug clubIdForUpdate=${clubIdForUpdate || ""} clubSlugDocId=${clubSlugDocId || ""}`
         );
       }
 
-      if (refreshUserProfile) {
-        await refreshUserProfile();
-      }
-
-      // Ensure UI reflects canonical persisted values even if user profile is stale
-      if (clubInfo?.id) {
-        try {
-          const res2 = await fetch(`/api/public/club/${encodeURIComponent(clubInfo.id)}/menu-settings?debug=1`, {
-            method: "GET",
-            cache: "no-store",
-          });
-          if (res2.ok) {
-            const json2 = (await res2.json()) as any;
-            const s2 = (json2?.settings || {}) as any;
-            const dbg = (json2?.debug || {}) as any;
-            setMenuShowNews(s2.menuShowNews !== false);
-            setMenuShowTv(s2.menuShowTv !== false);
-            setMenuShowClub(s2.menuShowClub !== false);
-            setMenuShowTransfers(s2.menuShowTransfers !== false);
-            setMenuShowMatches(s2.menuShowMatches !== false);
-            setMenuShowTable(s2.menuShowTable !== false);
-            setMenuShowStats(s2.menuShowStats !== false);
-            setMenuShowSquad(s2.menuShowSquad !== false);
-            setMenuShowPartner(s2.menuShowPartner !== false);
-
-            const ds = (dbg?.rawDisplaySettings || {}) as any;
-            const dsKeys = Object.keys(ds);
-            toast(
-              `menu-settings debug: docId=${dbg?.profileDocId || ""} storedClubId=${dbg?.storedClubId || ""} storedOwnerUid=${dbg?.storedOwnerUid || ""} dsKeys=${dsKeys.slice(0, 8).join(",")}${dsKeys.length > 8 ? "..." : ""}`
-            );
-          }
-        } catch {
-          // ignore
-        }
-      }
       return true;
     } catch (e: any) {
       toast.error(e?.message || "保存に失敗しました");
       return false;
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
   const saveLayout = async () => {
     setSavingLayout(true);
-    const ok = await save({ homeBgColor });
-    if (ok) toast.success("背景色を保存しました");
+    const ok = await save({ homeBgColor, homeColorTheme, headerLayout });
+    if (ok) toast.success("デザインを保存しました");
     setSavingLayout(false);
   };
 
@@ -187,15 +194,22 @@ export default function AdminDesignPage() {
           <CardDescription>公開HPトップの見た目を設定します。</CardDescription>
         </CardHeader>
         <CardContent>
-          <LayoutTab homeBgColor={homeBgColor} setHomeBgColor={setHomeBgColor} />
+          <LayoutTab
+            homeBgColor={homeBgColor}
+            setHomeBgColor={setHomeBgColor}
+            homeColorTheme={homeColorTheme}
+            setHomeColorTheme={setHomeColorTheme}
+            headerLayout={headerLayout}
+            setHeaderLayout={setHeaderLayout}
+          />
           <div className="mt-6 flex justify-center">
             <Button
               type="button"
               onClick={() => void saveLayout()}
-              disabled={savingLayout || !user || !clubInfo?.id}
+              disabled={savingLayout}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              {savingLayout ? "保存中..." : "背景色を保存する"}
+              {savingLayout ? "保存中..." : "デザインを保存する"}
             </Button>
           </div>
         </CardContent>

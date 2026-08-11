@@ -42,6 +42,8 @@ export async function POST(request: Request) {
       snsLinks,
       legalPages,
       homeBgColor,
+      homeColorTheme,
+      headerLayout,
       foundedYear,
       hometown,
       stadiumName,
@@ -242,6 +244,23 @@ export async function POST(request: Request) {
 
     if (typeof homeBgColor === 'string') {
       updateData.homeBgColor = homeBgColor;
+    }
+
+    if (homeColorTheme === 'dark' || homeColorTheme === 'light') {
+      updateData.homeColorTheme = homeColorTheme;
+    }
+
+    if (headerLayout === 'center' || headerLayout === 'left') {
+      updateData.headerLayout = headerLayout;
+    }
+
+    // Ensure clubId is preserved in the update
+    if (clubIdForUpdate) {
+      updateData.clubId = clubIdForUpdate;
+    } else if (existingClubId) {
+      updateData.clubId = existingClubId;
+    } else if (requestedClubId) {
+      updateData.clubId = requestedClubId;
     }
 
     if (typeof foundedYear === 'string') {

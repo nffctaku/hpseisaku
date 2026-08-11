@@ -25,18 +25,18 @@ export function Header({
   isAdminPage = false
 }: HeaderProps) {
   return (
-    <header className="bg-gray-900 text-white p-4 flex justify-between items-center">
+    <header className="bg-gray-900 text-white px-2 py-6 sm:px-4 flex justify-between items-center">
       <div className="flex items-center">
         {isAdminPage ? (
           <div className="flex items-center space-x-2 text-xl font-bold">
             {logoUrl && (
-              <Image src={logoUrl} alt={clubName || 'Club Logo'} width={32} height={32} className="rounded-full object-contain" />
+              <Image src={logoUrl} alt={clubName || 'Club Logo'} width={48} height={48} className="rounded-full object-contain" />
             )}
           </div>
         ) : (
           <Link href={homePath} className="flex items-center space-x-2 text-xl font-bold">
             {logoUrl && (
-              <Image src={logoUrl} alt={clubName || 'Club Logo'} width={32} height={32} className="rounded-full object-contain" />
+              <Image src={logoUrl} alt={clubName || 'Club Logo'} width={48} height={48} className="rounded-full object-contain" />
             )}
             <span>{clubName || 'CLUB'}</span>
           </Link>

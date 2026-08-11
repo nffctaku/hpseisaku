@@ -16,6 +16,7 @@ interface ClubHeaderProps {
   logoUrl?: string | null;
   headerForeground?: "auto" | "light" | "dark";
   headerBackgroundColor?: string;
+  headerLayout?: "center" | "left";
   snsLinks?: {
     x?: string;
     youtube?: string;
@@ -81,6 +82,7 @@ export function ClubHeader({
   logoUrl,
   headerForeground = "auto",
   headerBackgroundColor,
+  headerLayout = "left",
   snsLinks,
 }: ClubHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -339,156 +341,256 @@ export function ClubHeader({
 
   return (
     <header
-      className={`w-full border-b border-border/60 relative z-20 ${computedForeground} ${
-        resolvedHeaderBackgroundColor ? "" : "bg-background/80 backdrop-blur"
-      }`}
-      style={resolvedHeaderBackgroundColor ? { backgroundColor: resolvedHeaderBackgroundColor } : undefined}
+      className={`w-full border-b border-border/60 relative z-20 ${computedForeground}`}
+      style={{ backgroundColor: resolvedHeaderBackgroundColor }}
     >
-      <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3 sm:gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link href={`/${clubId}`} className="w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 rounded-full flex items-center justify-center overflow-hidden">
-            {resolvedLogoUrl ? (
-              <Image
-                src={resolvedLogoUrl}
-                alt={resolvedClubName || clubName || "Club emblem"}
-                width={72}
-                height={72}
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <span className="text-xs text-muted-foreground">LOGO</span>
-            )}
-          </Link>
-          <div className="flex flex-col min-w-0">
-            <span className="text-xs sm:text-sm md:text-lg font-semibold leading-tight max-w-[8rem] xs:max-w-[10rem] sm:max-w-none truncate">
-              {resolvedClubName || clubName || "クラブ名未設定"}
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-[11px] sm:text-xs md:text-sm">
-          <button
-            type="button"
-            className="p-2 flex items-center justify-center hover:opacity-80"
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            aria-label="テーマ切替"
-          >
-            {isDark ? <Sun className="w-5 h-5" strokeWidth={2.2} /> : <Moon className="w-5 h-5" strokeWidth={2.2} />}
-          </button>
+      <div className="container mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-3 sm:gap-4">
+        {headerLayout === 'left' ? (
+          <>
+            <div className="flex items-center gap-3 min-w-0">
+              <Link href={`/${clubId}`} className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center overflow-hidden">
+                {resolvedLogoUrl ? (
+                  <Image
+                    src={resolvedLogoUrl}
+                    alt={resolvedClubName || clubName || "Club emblem"}
+                    width={72}
+                    height={72}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <span className="text-xs text-muted-foreground">LOGO</span>
+                )}
+              </Link>
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs sm:text-sm md:text-lg font-semibold leading-tight max-w-[8rem] xs:max-w-[10rem] sm:max-w-none truncate">
+                  {resolvedClubName || clubName || "クラブ名未設定"}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] sm:text-xs md:text-sm">
+              <button
+                type="button"
+                className="sm:hidden p-2 flex items-center justify-center hover:opacity-80 relative z-30"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen((prev) => !prev);
+                }}
+                aria-label="メニューを開く"
+              >
+                <Menu className="w-5 h-5" strokeWidth={2.2} />
+              </button>
 
-          <button
-            type="button"
-            className="p-2 flex items-center justify-center hover:opacity-80"
-            onClick={handleShare}
-            aria-label="共有"
-          >
-            <Share2 className="w-5 h-5" strokeWidth={2.2} />
-          </button>
+              <nav className="hidden sm:flex items-center gap-2.5 sm:gap-4 md:gap-6">
+                {menuSettings.menuShowNews && (
+                  <Link
+                    href={`/${clubId}/news`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/news`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/news`)}
+                  >
+                    News
+                  </Link>
+                )}
+                {menuSettings.menuShowTv && (
+                  <Link
+                    href={`/${clubId}/tv`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/tv`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/tv`)}
+                  >
+                    TV
+                  </Link>
+                )}
+                {menuSettings.menuShowClub && (
+                  <Link
+                    href={`/${clubId}/club`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/club`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/club`)}
+                  >
+                    Club
+                  </Link>
+                )}
+                {menuSettings.menuShowTransfers && (
+                  <Link
+                    href={`/${clubId}/transfers`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/transfers`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/transfers`)}
+                  >
+                    Transfers
+                  </Link>
+                )}
+                {menuSettings.menuShowMatches && (
+                  <Link
+                    href={`/${clubId}/results`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/results`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/results`)}
+                  >
+                    Matches
+                  </Link>
+                )}
+                {menuSettings.menuShowTable && (
+                  <Link
+                    href={`/${clubId}/table`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/table`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/table`)}
+                  >
+                    Table
+                  </Link>
+                )}
+                {menuSettings.menuShowStats && (
+                  <Link
+                    href={`/${clubId}/stats`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/stats`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/stats`)}
+                  >
+                    Stats
+                  </Link>
+                )}
+                {menuSettings.menuShowSquad && (
+                  <Link
+                    href={`/${clubId}/players`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/players`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/players`)}
+                  >
+                    Squad
+                  </Link>
+                )}
+                {partnersEnabled && menuSettings.menuShowPartner && (
+                  <Link
+                    href={`/${clubId}/partner`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/partner`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/partner`)}
+                  >
+                    Partner
+                  </Link>
+                )}
+                {isNavigating && (
+                  <span className="inline-flex items-center text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  </span>
+                )}
+              </nav>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <Link href={`/${clubId}`} className="pointer-events-auto w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center overflow-hidden">
+                {resolvedLogoUrl ? (
+                  <Image
+                    src={resolvedLogoUrl}
+                    alt={resolvedClubName || clubName || "Club emblem"}
+                    width={72}
+                    height={72}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <span className="text-xs text-muted-foreground">LOGO</span>
+                )}
+              </Link>
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <button
+                type="button"
+                className="sm:hidden p-2 flex items-center justify-center hover:opacity-80 relative z-30"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen((prev) => !prev);
+                }}
+                aria-label="メニューを開く"
+              >
+                <Menu className="w-5 h-5" strokeWidth={2.2} />
+              </button>
 
-          {/* Mobile hamburger */}
-          <button
-            type="button"
-            className="sm:hidden p-2 flex items-center justify-center hover:opacity-80 relative z-30"
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpen((prev) => !prev);
-            }}
-            aria-label="メニューを開く"
-          >
-            <Menu className="w-5 h-5" strokeWidth={2.2} />
-          </button>
-
-          {/* Desktop navigation */}
-          <nav className="hidden sm:flex items-center gap-2.5 sm:gap-4 md:gap-6">
-            {menuSettings.menuShowNews && (
-              <Link
-                href={`/${clubId}/news`}
-                className={navLinkClass(pathname?.startsWith(`/${clubId}/news`) ?? false, isNavigating)}
-                onClick={() => setNavigatingTo(`/${clubId}/news`)}
-              >
-                News
-              </Link>
-            )}
-            {menuSettings.menuShowTv && (
-              <Link
-                href={`/${clubId}/tv`}
-                className={navLinkClass(pathname?.startsWith(`/${clubId}/tv`) ?? false, isNavigating)}
-                onClick={() => setNavigatingTo(`/${clubId}/tv`)}
-              >
-                TV
-              </Link>
-            )}
-            {menuSettings.menuShowClub && (
-              <Link
-                href={`/${clubId}/club`}
-                className={navLinkClass(pathname?.startsWith(`/${clubId}/club`) ?? false, isNavigating)}
-                onClick={() => setNavigatingTo(`/${clubId}/club`)}
-              >
-                Club
-              </Link>
-            )}
-            {menuSettings.menuShowTransfers && (
-              <Link
-                href={`/${clubId}/transfers`}
-                className={navLinkClass(pathname?.startsWith(`/${clubId}/transfers`) ?? false, isNavigating)}
-                onClick={() => setNavigatingTo(`/${clubId}/transfers`)}
-              >
-                Transfers
-              </Link>
-            )}
-            {menuSettings.menuShowMatches && (
-              <Link
-                href={`/${clubId}/results`}
-                className={navLinkClass(pathname?.startsWith(`/${clubId}/results`) ?? false, isNavigating)}
-                onClick={() => setNavigatingTo(`/${clubId}/results`)}
-              >
-                Matches
-              </Link>
-            )}
-            {menuSettings.menuShowTable && (
-              <Link
-                href={`/${clubId}/table`}
-                className={navLinkClass(pathname?.startsWith(`/${clubId}/table`) ?? false, isNavigating)}
-                onClick={() => setNavigatingTo(`/${clubId}/table`)}
-              >
-                Table
-              </Link>
-            )}
-            {menuSettings.menuShowStats && (
-              <Link
-                href={`/${clubId}/stats`}
-                className={navLinkClass(pathname?.startsWith(`/${clubId}/stats`) ?? false, isNavigating)}
-                onClick={() => setNavigatingTo(`/${clubId}/stats`)}
-              >
-                Stats
-              </Link>
-            )}
-            {menuSettings.menuShowSquad && (
-              <Link
-                href={`/${clubId}/players`}
-                className={navLinkClass(pathname?.startsWith(`/${clubId}/players`) ?? false, isNavigating)}
-                onClick={() => setNavigatingTo(`/${clubId}/players`)}
-              >
-                Squad
-              </Link>
-            )}
-
-            {partnersEnabled && menuSettings.menuShowPartner && (
-              <Link
-                href={`/${clubId}/partner`}
-                className={navLinkClass(pathname?.startsWith(`/${clubId}/partner`) ?? false, isNavigating)}
-                onClick={() => setNavigatingTo(`/${clubId}/partner`)}
-              >
-                Partner
-              </Link>
-            )}
-
-            {isNavigating && (
-              <span className="inline-flex items-center text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-              </span>
-            )}
-          </nav>
-        </div>
+              <nav className="hidden sm:flex items-center gap-2.5 sm:gap-4 md:gap-6">
+                {menuSettings.menuShowNews && (
+                  <Link
+                    href={`/${clubId}/news`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/news`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/news`)}
+                  >
+                    News
+                  </Link>
+                )}
+                {menuSettings.menuShowTv && (
+                  <Link
+                    href={`/${clubId}/tv`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/tv`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/tv`)}
+                  >
+                    TV
+                  </Link>
+                )}
+                {menuSettings.menuShowClub && (
+                  <Link
+                    href={`/${clubId}/club`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/club`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/club`)}
+                  >
+                    Club
+                  </Link>
+                )}
+                {menuSettings.menuShowTransfers && (
+                  <Link
+                    href={`/${clubId}/transfers`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/transfers`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/transfers`)}
+                  >
+                    Transfers
+                  </Link>
+                )}
+                {menuSettings.menuShowMatches && (
+                  <Link
+                    href={`/${clubId}/results`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/results`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/results`)}
+                  >
+                    Matches
+                  </Link>
+                )}
+                {menuSettings.menuShowTable && (
+                  <Link
+                    href={`/${clubId}/table`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/table`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/table`)}
+                  >
+                    Table
+                  </Link>
+                )}
+                {menuSettings.menuShowStats && (
+                  <Link
+                    href={`/${clubId}/stats`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/stats`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/stats`)}
+                  >
+                    Stats
+                  </Link>
+                )}
+                {menuSettings.menuShowSquad && (
+                  <Link
+                    href={`/${clubId}/players`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/players`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/players`)}
+                  >
+                    Squad
+                  </Link>
+                )}
+                {partnersEnabled && menuSettings.menuShowPartner && (
+                  <Link
+                    href={`/${clubId}/partner`}
+                    className={navLinkClass(pathname?.startsWith(`/${clubId}/partner`) ?? false, isNavigating)}
+                    onClick={() => setNavigatingTo(`/${clubId}/partner`)}
+                  >
+                    Partner
+                  </Link>
+                )}
+                {isNavigating && (
+                  <span className="inline-flex items-center text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  </span>
+                )}
+              </nav>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Mobile dropdown menu */}
@@ -602,6 +704,25 @@ export function ClubHeader({
                         )}
                       </div>
                     )}
+
+                  <div className={`mt-6 pt-6 border-t ${menuBorderClass} flex justify-center gap-4`}>
+                    <button
+                      type="button"
+                      className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center hover:opacity-80`}
+                      onClick={() => setTheme(isDark ? "light" : "dark")}
+                      aria-label="テーマ切替"
+                    >
+                      {isDark ? <Sun className="w-5 h-5" strokeWidth={2.2} /> : <Moon className="w-5 h-5" strokeWidth={2.2} />}
+                    </button>
+                    <button
+                      type="button"
+                      className={`w-10 h-10 rounded-full ${menuIconBgClass} flex items-center justify-center hover:opacity-80`}
+                      onClick={() => void handleShare()}
+                      aria-label="共有"
+                    >
+                      <Share2 className="w-5 h-5" strokeWidth={2.2} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>,
