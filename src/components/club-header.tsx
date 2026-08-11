@@ -344,11 +344,11 @@ export function ClubHeader({
       className={`w-full border-b border-border/60 relative z-20 ${computedForeground}`}
       style={{ backgroundColor: resolvedHeaderBackgroundColor }}
     >
-      <div className="container mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-3 sm:gap-4">
+      <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-4">
         {headerLayout === 'left' ? (
           <>
             <div className="flex items-center gap-3 min-w-0">
-              <Link href={`/${clubId}`} className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center overflow-hidden">
+              <Link href={`/${clubId}`} className="w-8 h-8 sm:w-9 sm:h-9 md:w-11 md:h-11 rounded-full flex items-center justify-center overflow-hidden">
                 {resolvedLogoUrl ? (
                   <Image
                     src={resolvedLogoUrl}
@@ -473,7 +473,7 @@ export function ClubHeader({
         ) : (
           <>
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <Link href={`/${clubId}`} className="pointer-events-auto w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center overflow-hidden">
+              <Link href={`/${clubId}`} className="pointer-events-auto w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-16 rounded-full flex items-center justify-center overflow-hidden">
                 {resolvedLogoUrl ? (
                   <Image
                     src={resolvedLogoUrl}

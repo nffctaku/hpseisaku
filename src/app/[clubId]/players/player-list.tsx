@@ -233,7 +233,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
   const handleSeasonChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    router.push(`${pathname}?season=${encodeURIComponent(e.target.value)}`);
+    router.replace(`${pathname}?season=${encodeURIComponent(e.target.value)}`);
   };
 
   const groupedPlayers = useMemo(() => {

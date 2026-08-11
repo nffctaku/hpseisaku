@@ -40,7 +40,7 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
 
   if (isLoading) {
     return (
-      <div className="relative h-[40vh] w-full bg-gray-800 flex flex-col items-center justify-center gap-4">
+      <div className="relative h-[50vh] w-full bg-gray-800 flex flex-col items-center justify-center gap-4">
         <Image
           src="/favicon.png"
           alt="Loading"
@@ -89,7 +89,7 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
   const relativeTime = publishedDate ? formatDistanceToNow(publishedDate, { addSuffix: true, locale: ja }) : '';
 
   return (
-    <div className="relative w-full aspect-[9/11] sm:aspect-[16/6.5] overflow-hidden rounded-2xl">
+    <div className="relative w-full aspect-[9/11] sm:aspect-[16/7] overflow-hidden rounded-2xl">
       {/* 背景画像 */}
       {currentArticle.imageUrl ? (
         <Image
