@@ -41,10 +41,9 @@ export async function GET(request: Request) {
       return new NextResponse(JSON.stringify({ message: "認証されていません。" }), { status: 401 });
     }
 
-    const ownerUid = await resolveOwnerUidFromUid(uid);
-    if (!ownerUid) {
-      return new NextResponse(JSON.stringify({ message: "クラブ情報が見つかりません。" }), { status: 404 });
-    }
+    // admin デザインページと同様に、ユーザーの UID を直接 ownerUid として使用
+    const ownerUid = uid;
+    const clubId = uid; // 公開ページと同じ API を使用するために clubId を設定
 
     const url = new URL(request.url);
     const teamId = (url.searchParams.get("teamId") || "").trim();
@@ -56,8 +55,22 @@ export async function GET(request: Request) {
     const teamSnap = await db.doc(`clubs/${ownerUid}/teams/${teamId}`).get();
     const teamName = teamSnap.exists ? safeString((teamSnap.data() as any)?.name) : "";
 
-    const profileSnap = await db.collection("club_profiles").doc(ownerUid).get();
-    const profile = profileSnap.exists ? (profileSnap.data() as any) : null;
+    // 公開ページと同じ API を使用してプロフィールデータを取得
+    let profile: any = null;
+    try {
+      const summaryRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/club-summary/${encodeURIComponent(clubId)}`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      if (summaryRes.ok) {
+        const summaryJson = await summaryRes.json();
+        profile = summaryJson?.profile || null;
+      }
+    } catch (e) {
+      // エラーの場合はフォールバックして直接取得
+      const profileSnap = await db.collection("club_profiles").doc(ownerUid).get();
+      profile = profileSnap.exists ? (profileSnap.data() as any) : null;
+    }
 
     const rosterSeasonDocId = toDashSeason(seasonId);
     const rosterSnap = await db.collection(`clubs/${ownerUid}/seasons/${rosterSeasonDocId}/roster`).get();
@@ -111,7 +124,8 @@ export async function GET(request: Request) {
 
     const seasonRosterPlayersFiltered = seasonRosterPlayers.filter((p) => teamPlayerIds.has(String((p as any)?.id || "").trim()));
 
-    const rosterPlayers = teamPlayers.length > seasonRosterPlayersFiltered.length ? teamPlayers : seasonRosterPlayersFiltered;
+    // チームの選手コレクションを優先（選手管理はここに保存するため）
+    const rosterPlayers = teamPlayers;
 
     const players = await Promise.all(
       rosterPlayers.map(async (p) => {

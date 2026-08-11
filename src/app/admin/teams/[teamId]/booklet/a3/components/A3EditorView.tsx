@@ -233,11 +233,53 @@ export function A3EditorView({
             </label>
 
             <div className="mb-5 text-[13px] font-bold text-[#1B1F27]">ポジション選択(〇をクリック)</div>
-            <div className="relative mb-5 aspect-[16/11] w-full overflow-hidden rounded-lg border-2 border-[#B7C3CE] bg-[#276B4B] shadow-inner">
+            <div className="relative mb-5 aspect-[16/11] w-full overflow-hidden rounded-lg border-2 border-[#B7C3CE] bg-[#2D5A3D] shadow-inner">
               <svg viewBox="0 0 100 66" className="absolute inset-0 h-full w-full">
-                <rect x="0" y="0" width="100" height="66" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="0.7" />
-                <line x1="0" y1="33" x2="100" y2="33" stroke="rgba(255,255,255,0.45)" strokeWidth="0.7" />
-                <circle cx="50" cy="33" r="8" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="0.7" />
+                {/* 外枠ライン */}
+                <rect x="1" y="1" width="98" height="64" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                
+                {/* センターライン */}
+                <line x1="0" y1="33" x2="100" y2="33" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                
+                {/* センターサークル */}
+                <circle cx="50" cy="33" r="9" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                <circle cx="50" cy="33" r="0.5" fill="rgba(255,255,255,0.6)" />
+                
+                {/* 左ペナルティエリア */}
+                <rect x="0" y="13" width="16" height="40" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                
+                {/* 左ゴールエリア */}
+                <rect x="0" y="24" width="6" height="18" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                
+                {/* 左ペナルティアーク */}
+                <path d="M 16 24 A 8 8 0 0 1 16 42" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                
+                {/* 左ペナルティマーク */}
+                <circle cx="11" cy="33" r="0.5" fill="rgba(255,255,255,0.6)" />
+                
+                {/* 左ゴール */}
+                <rect x="-0.5" y="28" width="1.5" height="10" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                
+                {/* 右ペナルティエリア */}
+                <rect x="84" y="13" width="16" height="40" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                
+                {/* 右ゴールエリア */}
+                <rect x="94" y="24" width="6" height="18" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                
+                {/* 右ペナルティアーク */}
+                <path d="M 84 24 A 8 8 0 0 0 84 42" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                
+                {/* 右ペナルティマーク */}
+                <circle cx="89" cy="33" r="0.5" fill="rgba(255,255,255,0.6)" />
+                
+                {/* 右ゴール */}
+                <rect x="99" y="28" width="1.5" height="10" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                
+                {/* コーナーアーク */}
+                <path d="M 0 1.5 A 1.5 1.5 0 0 0 1.5 0" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                <path d="M 0 64.5 A 1.5 1.5 0 0 1 1.5 66" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                <path d="M 100 1.5 A 1.5 1.5 0 0 1 98.5 0" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
+                <path d="M 100 64.5 A 1.5 1.5 0 0 0 98.5 66" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.8" />
               </svg>
               {formation.positions.map((pos) => {
                 const isActive = activeFormationPosId === pos.id;
