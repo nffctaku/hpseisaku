@@ -310,19 +310,12 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
               </span>
             </>
           ) : (
-            <>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <svg className="w-20 h-20 opacity-25" fill="currentColor" viewBox="0 0 24 24" style={{ color: hex }}>
-                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                </svg>
-              </div>
-              <span
-                className={`absolute inset-0 flex items-center justify-center text-[112px] leading-none font-black italic ${barlow.className}`}
-                style={{ color: hex.startsWith('#') ? `${hex}30` : 'rgba(0,0,0,0.10)' }}
-              >
-                {player.number}
-              </span>
-            </>
+            <span
+              className={`absolute inset-0 flex items-center justify-center text-[112px] leading-none font-black italic ${barlow.className}`}
+              style={{ color: hex.startsWith('#') ? `${hex}30` : 'rgba(0,0,0,0.10)' }}
+            >
+              {player.number}
+            </span>
           )}
           <div
             className="absolute bottom-0 left-0 right-0 h-[2px] transition-opacity duration-250 opacity-0 group-hover:opacity-100"
@@ -957,7 +950,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
             <div className="text-[10px] uppercase tracking-[0.15em] font-black" style={{ color: mainAccent }}>SQUAD</div>
             <h1 className={`text-4xl sm:text-5xl font-black italic text-zinc-900 ${barlow.className}`}>選手一覧</h1>
           </div>
-          {allSeasons.length > 1 && (
+          {allSeasons.length > 0 && (
             <select
               value={activeSeason}
               onChange={handleSeasonChange}
