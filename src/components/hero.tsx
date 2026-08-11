@@ -14,7 +14,7 @@ function toCloudinaryPadded16x9(url: string, width: number) {
   if (!url.includes('/image/upload/')) return url;
   return url.replace(
     '/image/upload/',
-    `/image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_auto/`
+    `/image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_90/`
   );
 }
 
@@ -67,17 +67,17 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
   }
 
   if (!news || news.length === 0) {
-    return (
-      <div className="relative h-[40vh] w-full bg-gray-800 flex items-center justify-center">
-        <p className="text-white text-2xl">ニュースがありません</p>
-      </div>
-    );
+    return null;
   }
   const limit = maxSlides ?? 3;
-  const sorted = (news || []).slice().sort((a: any, b: any) => {
-    const af = a?.featuredInHero ? 1 : 0;
-    const bf = b?.featuredInHero ? 1 : 0;
-    return bf - af; // featured を優先
+  const featuredOnly = (news || []).filter((a: any) => a?.featuredInHero === true);
+  const sorted = featuredOnly.slice().sort((a: any, b: any) => {
+    // 日付でソート（最新優先）
+    const ad = a?.publishedAt instanceof Date ? a.publishedAt.getTime() : 
+                a?.publishedAt?.toDate?.() ? a.publishedAt.toDate().getTime() : 0;
+    const bd = b?.publishedAt instanceof Date ? b.publishedAt.getTime() : 
+                b?.publishedAt?.toDate?.() ? b.publishedAt.toDate().getTime() : 0;
+    return bd - ad;
   });
   const items = sorted.slice(0, limit);
 
@@ -86,7 +86,7 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
       <CarouselContent className="!-ml-0">
         {items.map((item, index) => (
           <CarouselItem key={item.id} className="!pl-0">
-            <div className="relative w-full h-[60vh] md:h-[70vh] bg-muted">
+            <div className="relative w-full h-[80vh] md:h-[90vh] bg-muted">
               {item.imageUrl ? (
                 <Image
                   src={toCloudinaryPadded16x9(item.imageUrl, 1600)}

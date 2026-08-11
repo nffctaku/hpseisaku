@@ -46,7 +46,7 @@ async function getClubData(clubId: string) {
   const heroLimit = typeof heroLimitRaw === 'number' && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;
 
   const baseLimit = Math.max(heroLimit * 3, 6);
-  const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy('publishedAt', 'desc').limit(baseLimit);
+  const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy('publishedAt', 'desc').limit(baseLimit * 2);
   const videosQuery = db.collection(`clubs/${ownerUid}/videos`).orderBy('publishedAt', 'desc').limit(4);
   const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
 
@@ -60,16 +60,39 @@ async function getClubData(clubId: string) {
 
   const allNews = newsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
-  // スライド用: featuredInHero を優先して heroLimit 件に絞る
-  const prioritized = allNews.slice().sort((a, b) => {
-    const af = a?.featuredInHero ? 1 : 0;
-    const bf = b?.featuredInHero ? 1 : 0;
-    return bf - af;
-  });
-  const heroNews = prioritized.slice(0, heroLimit) as NewsArticle[];
+  console.log('[API Route] allNews count:', allNews.length);
+  console.log('[API Route] allNews sample:', allNews.slice(0, 2));
 
-  // 一覧用: 常に最新順の上位 6 件を使用
-  const latestNews = allNews
+  // ヒーローセクション: statusフィルタリングなし、すべての記事を対象
+  const heroNewsAll = allNews.filter((article) => {
+    if (!article || typeof article !== 'object') return false;
+    return true;
+  });
+
+  // NEWSセクション: 公開済みまたはステータス未設定の記事のみフィルタリング
+  const publishedNews = allNews.filter((article) => {
+    if (!article || typeof article !== 'object') return false;
+    const status = (article as any).status;
+    return status === 'published' || status === undefined || status === null;
+  });
+
+  console.log('[API Route] heroNewsAll count:', heroNewsAll.length);
+  console.log('[API Route] publishedNews count:', publishedNews.length);
+
+  // スライド用: statusフィルタリングなし、featuredInHero=true の記事のみ対象
+  const featuredOnly = heroNewsAll.filter((article) => (article as any).featuredInHero === true);
+  const heroSorted = featuredOnly.slice().sort((a, b) => {
+    // 日付でソート（最新優先）
+    const ad = (a as any).publishedAt?.toDate ? (a as any).publishedAt.toDate() : (a as any).publishedAt;
+    const bd = (b as any).publishedAt?.toDate ? (b as any).publishedAt.toDate() : (b as any).publishedAt;
+    const at = ad instanceof Date ? ad.getTime() : 0;
+    const bt = bd instanceof Date ? bd.getTime() : 0;
+    return bt - ad;
+  });
+  const heroNews = heroSorted.slice(0, heroLimit) as NewsArticle[];
+
+  // 一覧用: ヒーローセクションの記事も含める
+  const latestNews = publishedNews
     .slice()
     .sort((a, b) => {
       const ad = (a as any).publishedAt?.toDate ? (a as any).publishedAt.toDate() : (a as any).publishedAt;

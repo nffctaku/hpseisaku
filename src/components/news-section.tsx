@@ -4,14 +4,14 @@ import { format } from 'date-fns';
 import { CalendarDays, Tag } from "lucide-react";
 import { NewsArticle } from '@/types/news';
 
-function toCloudinaryPadded16x9(url: string, width: number) {
+function toCloudinaryPadded16x9(url: string, width: number, quality: string = 'q_auto') {
   if (!url) return url;
   // Works for standard Cloudinary delivery URLs.
   // Example: https://res.cloudinary.com/<cloud>/image/upload/<publicId>
   if (!url.includes('/image/upload/')) return url;
   return url.replace(
     '/image/upload/',
-    `/image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_auto/`
+    `/image/upload/c_fill,ar_16:9,w_${width},f_auto,${quality}/`
   );
 }
 
@@ -96,11 +96,12 @@ export function NewsSection({ news, clubId, fallbackLogoUrl }: NewsSectionProps)
               >
                 <div className="relative aspect-[16/9] overflow-hidden bg-white ring-1 ring-slate-100">
                   <Image
-                    src={isFallback ? (item.imageUrl || "/favicon.png") : toCloudinaryPadded16x9(item.imageUrl || "/no-image.png", 720)}
+                    src={isFallback ? (item.imageUrl || "/favicon.png") : toCloudinaryPadded16x9(item.imageUrl || "/no-image.png", 1200, 'q_90')}
                     alt={item.imageUrl ? item.title : "No image available"}
                     fill
                     className={isFallback ? "object-contain p-8" : "object-cover transition-transform duration-300 group-hover:scale-105"}
                     sizes="(min-width: 768px) 25vw, 50vw"
+                    quality={90}
                   />
                   <div className="absolute right-0 top-0 bg-[#bd8424] px-3 py-2 text-xs font-black text-white md:px-4">
                     {category}

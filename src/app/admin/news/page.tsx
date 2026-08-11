@@ -18,7 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Trash2, Star, StarOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { ImageUploader } from "@/components/image-uploader";
@@ -45,6 +45,8 @@ const newsSchema = z.object({
   ]).optional(),
   publishedAt: z.date(),
   imageUrl: z.string().url({ message: "無効なURLです。" }).optional(),
+  featuredInHero: z.boolean().optional(),
+  status: z.enum(["draft", "published"]).optional(),
 }).refine((data) => {
   const hasContent = !!data.content && data.content.trim() !== "";
   const hasNoteUrl = !!data.noteUrl && data.noteUrl !== "";
@@ -84,7 +86,7 @@ export default function NewsAdminPage() {
 
   const form = useForm<NewsFormValues>({
     resolver: zodResolver(newsSchema),
-    defaultValues: { title: '', category: 'お知らせ', content: '', noteUrl: '', publishedAt: new Date(), imageUrl: '' },
+    defaultValues: { title: '', category: 'お知らせ', content: '', noteUrl: '', publishedAt: new Date(), imageUrl: '', featuredInHero: false, status: 'published' },
   });
 
   useEffect(() => {
@@ -105,6 +107,7 @@ export default function NewsAdminPage() {
           category: normalizeNewsLabel((doc.data().category as string | undefined)),
           publishedAt: (doc.data().publishedAt as Timestamp).toDate(),
         } as NewsArticle));
+        console.log('[NewsAdminPage] articlesData sample:', articlesData.slice(0, 2));
         articlesData.sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
         setNews(articlesData);
         setPageLoading(false);
@@ -137,8 +140,8 @@ export default function NewsAdminPage() {
     setEditingArticle(article);
     form.reset(
       article
-        ? { ...article, category: normalizeNewsLabel(article.category), imageUrl: article.imageUrl || '', noteUrl: article.noteUrl || '' }
-        : { title: '', category: 'お知らせ', content: '', noteUrl: '', publishedAt: new Date(), imageUrl: '' }
+        ? { ...article, category: normalizeNewsLabel(article.category), imageUrl: article.imageUrl || '', noteUrl: article.noteUrl || '', featuredInHero: article.featuredInHero || false, status: article.status || 'published' }
+        : { title: '', category: 'お知らせ', content: '', noteUrl: '', publishedAt: new Date(), imageUrl: '', featuredInHero: false, status: 'published' }
     );
     setIsDialogOpen(true);
   };
@@ -148,12 +151,14 @@ export default function NewsAdminPage() {
     setLoading(true);
 
     try {
-      const processedValues = { 
-        ...values, 
+      const processedValues = {
+        ...values,
         category: normalizeNewsLabel(values.category),
         content: values.content?.trim() || "",
         noteUrl: values.noteUrl?.toString().trim() || "",
         publishedAt: Timestamp.fromDate(values.publishedAt),
+        featuredInHero: values.featuredInHero || false,
+        status: values.status || 'published',
         updatedAt: serverTimestamp(),
       };
 
@@ -188,6 +193,41 @@ export default function NewsAdminPage() {
     }
   };
 
+  const handleToggleHero = async (article: NewsArticle) => {
+    if (!clubUid) return;
+    try {
+      const currentFeatured = (article as any).featuredInHero;
+      console.log('[handleToggleHero] current featuredInHero:', currentFeatured);
+      const newFeatured = !currentFeatured;
+      console.log('[handleToggleHero] new featuredInHero:', newFeatured);
+      const articleDocRef = doc(db, `clubs/${clubUid}/news`, article.id);
+      await updateDoc(articleDocRef, {
+        featuredInHero: newFeatured,
+        updatedAt: serverTimestamp(),
+      });
+      toast.success("ヒーロー表示を更新しました。");
+    } catch (error) {
+      console.error("Error toggling hero: ", error);
+      toast.error("更新に失敗しました。");
+    }
+  };
+
+  const handleToggleStatus = async (article: NewsArticle) => {
+    if (!clubUid) return;
+    try {
+      const articleDocRef = doc(db, `clubs/${clubUid}/news`, article.id);
+      const newStatus = (article as any).status === 'published' ? 'draft' : 'published';
+      await updateDoc(articleDocRef, {
+        status: newStatus,
+        updatedAt: serverTimestamp(),
+      });
+      toast.success(`記事を${newStatus === 'published' ? '公開' : '非公開'}にしました。`);
+    } catch (error) {
+      console.error("Error toggling status: ", error);
+      toast.error("更新に失敗しました。");
+    }
+  };
+
   if (pageLoading) {
     return <div className="container mx-auto py-10 flex justify-center items-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
@@ -207,6 +247,8 @@ export default function NewsAdminPage() {
               <TableHead className="w-16 text-gray-900 font-semibold">画像</TableHead>
               <TableHead className="w-64 text-gray-900 font-semibold">タイトル</TableHead>
               <TableHead className="w-24 text-gray-900 font-semibold">ラベル</TableHead>
+              <TableHead className="w-20 text-gray-900 font-semibold">ヒーロー</TableHead>
+              <TableHead className="w-20 text-gray-900 font-semibold">ステータス</TableHead>
               <TableHead className="w-28 text-gray-900 font-semibold">公開日</TableHead>
               <TableHead className="w-24 text-right text-gray-900 font-semibold">操作</TableHead>
             </TableRow>
@@ -229,6 +271,33 @@ export default function NewsAdminPage() {
                 </TableCell>
                 <TableCell className="font-medium w-64 max-w-64 truncate">{article.title}</TableCell>
                 <TableCell className="w-24">{article.category || 'お知らせ'}</TableCell>
+                <TableCell className="w-20">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleHero(article)}
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                      (article as any).featuredInHero
+                        ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {(article as any).featuredInHero ? <Star className="w-3 h-3" /> : <StarOff className="w-3 h-3" />}
+                    {(article as any).featuredInHero ? '表示中' : '表示しない'}
+                  </button>
+                </TableCell>
+                <TableCell className="w-20">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStatus(article)}
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                      (article as any).status === 'published'
+                        ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {(article as any).status === 'published' ? '公開' : '非公開'}
+                  </button>
+                </TableCell>
                 <TableCell className="w-28">{format(article.publishedAt, 'yyyy/MM/dd')}</TableCell>
                 <TableCell className="w-24 text-right">
                   <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(article)}><Pencil className="h-4 w-4" /></Button>
@@ -313,6 +382,25 @@ export default function NewsAdminPage() {
                 <FormItem>
                   <FormLabel>公開日</FormLabel>
                   <FormControl><Input type="date" value={format(field.value, 'yyyy-MM-dd')} onChange={e => field.onChange(new Date(e.target.value))} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="featuredInHero" render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                  <FormControl>
+                    <input
+                      type="checkbox"
+                      checked={field.value || false}
+                      onChange={field.onChange}
+                      className="h-4 w-4 mt-1"
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>トップページの大きいトピック（ヒーロー）に表示</FormLabel>
+                    <div className="text-xs text-muted-foreground">
+                      チェックすると、公開ページの一番上の大きなトピックとして表示されます。最大3件まで表示されます。
+                    </div>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )} />

@@ -26,6 +26,7 @@ import {
   Share2,
   History,
   Copy,
+  Image as ImageIcon,
 } from "lucide-react";
 import { collection, doc, getDoc, getDocs, limit, query, setDoc, where } from "firebase/firestore";
 import { toast } from "sonner";

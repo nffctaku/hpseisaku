@@ -139,7 +139,7 @@ export default async function ClubPage({ params }: ClubPageProps) {
       const heroLimit = typeof heroLimitRaw === "number" && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;
       const baseLimit = Math.max(heroLimit * 3, 6);
 
-      const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy("publishedAt", "desc").limit(baseLimit);
+      const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy("publishedAt", "desc").limit(baseLimit * 2);
       const videosQuery = db.collection(`clubs/${ownerUid}/videos`).orderBy("publishedAt", "desc").limit(4);
       const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
 
@@ -151,19 +151,47 @@ export default async function ClubPage({ params }: ClubPageProps) {
       ]);
 
       const allNews = newsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any));
-      const sortedByLatest = allNews.slice().sort((a, b) => {
-        const ad = (a as any).publishedAt?.toDate ? (a as any).publishedAt.toDate() : (a as any).publishedAt;
-        const bd = (b as any).publishedAt?.toDate ? (b as any).publishedAt.toDate() : (b as any).publishedAt;
-        const at = ad instanceof Date ? ad.getTime() : 0;
-        const bt = bd instanceof Date ? bd.getTime() : 0;
-        return bt - at;
-      });
-      const heroNews = sortedByLatest.slice(0, heroLimit) as NewsArticle[];
 
-      const heroNewsIds = new Set(heroNews.map(item => item.id));
-      const latestNews = sortedByLatest
-        .filter(item => !heroNewsIds.has(item.id))
-        .slice(0, 6) as NewsArticle[];
+  // ヒーローセクション: statusフィルタリングなし、すべての記事を対象
+  const heroNewsAll = allNews.filter((article) => {
+    if (!article || typeof article !== 'object') return false;
+    return true;
+  });
+
+  // NEWSセクション: 公開済みまたはステータス未設定の記事のみフィルタリング
+  const publishedNews = allNews.filter((article) => {
+    if (!article || typeof article !== 'object') return false;
+    const status = (article as any).status;
+    return status === 'published' || status === undefined || status === null;
+  });
+
+  // ヒーローセクション: statusフィルタリングなし、featuredInHero=true の記事のみ対象
+  const featuredOnly = heroNewsAll.filter((article) => (article as any).featuredInHero === true);
+  console.log('[Server] heroNewsAll count:', heroNewsAll.length);
+  console.log('[Server] featuredOnly count:', featuredOnly.length);
+  console.log('[Server] heroNewsAll sample:', heroNewsAll.slice(0, 2).map(a => ({ id: a.id, featuredInHero: a.featuredInHero, status: a.status })));
+  const heroSorted = featuredOnly.slice().sort((a, b) => {
+    // 日付でソート（最新優先）
+    const ad = (a as any).publishedAt?.toDate ? (a as any).publishedAt.toDate() : (a as any).publishedAt;
+    const bd = (b as any).publishedAt?.toDate ? (b as any).publishedAt.toDate() : (b as any).publishedAt;
+    const at = ad instanceof Date ? ad.getTime() : 0;
+    const bt = bd instanceof Date ? bd.getTime() : 0;
+    return bt - ad;
+  });
+  const heroNews = heroSorted.slice(0, heroLimit) as NewsArticle[];
+  console.log('[Server] heroNews count:', heroNews.length);
+  // heroNews をディープコピーしてシリアライズ問題を回避
+  const heroNewsCopy = heroNews.map(article => ({ ...article }));
+
+  // NEWSセクション: 常に最新順の上位 6 件を使用
+  const sortedByLatest = publishedNews.slice().sort((a, b) => {
+    const ad = (a as any).publishedAt?.toDate ? (a as any).publishedAt.toDate() : (a as any).publishedAt;
+    const bd = (b as any).publishedAt?.toDate ? (b as any).publishedAt.toDate() : (b as any).publishedAt;
+    const at = ad instanceof Date ? ad.getTime() : 0;
+    const bt = bd instanceof Date ? bd.getTime() : 0;
+    return bt - at;
+  });
+  const latestNews = sortedByLatest.slice(0, 6) as NewsArticle[];
 
       const competitions = competitionsSnap.docs.map((doc) => {
         const data = doc.data() as any;
@@ -189,7 +217,7 @@ export default async function ClubPage({ params }: ClubPageProps) {
         upcomingMatches,
         allRecentMatches,
         news: latestNews,
-        heroNews,
+        heroNews: heroNewsCopy,
         videos,
         competitions: Array.isArray(competitions) ? competitions : [competitions].filter(Boolean),
       };
@@ -199,6 +227,8 @@ export default async function ClubPage({ params }: ClubPageProps) {
   })();
 
   const serializedInitialClubInfo = initialClubInfo ? serializeForClient(initialClubInfo) : null;
+  console.log('[Server] serializedInitialClubInfo.heroNews:', serializedInitialClubInfo?.heroNews);
+  console.log('[Server] serializedInitialClubInfo.news:', serializedInitialClubInfo?.news);
 
   return <ClubPageContent clubId={clubId} initialClubInfo={serializedInitialClubInfo} />;
 }

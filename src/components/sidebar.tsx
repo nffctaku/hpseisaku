@@ -22,6 +22,7 @@ import {
   Mail,
   LayoutGrid,
   User,
+  Image as ImageIcon,
   type LucideIcon,
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';

@@ -93,8 +93,16 @@ export default function ClubPageContent({
     const heroNewsRaw = (clubInfo as any).heroNews || clubInfo.news || [];
     const listNewsRaw = clubInfo.news || [];
 
+    console.log('[ClubPageContent] heroNewsRaw:', heroNewsRaw);
+    console.log('[ClubPageContent] listNewsRaw:', listNewsRaw);
+    console.log('[ClubPageContent] clubInfo.heroNews:', (clubInfo as any).heroNews);
+    console.log('[ClubPageContent] clubInfo.news:', clubInfo.news);
+
     const heroNews = (Array.isArray(heroNewsRaw) ? heroNewsRaw : []).filter((x) => x && typeof x === "object");
     const listNews = (Array.isArray(listNewsRaw) ? listNewsRaw : []).filter((x) => x && typeof x === "object");
+
+    console.log('[ClubPageContent] heroNews:', heroNews);
+    console.log('[ClubPageContent] listNews:', listNews);
     const videos = clubInfo.videos || [];
 
     const mainTeamId = clubInfo.profile?.mainTeamId || null;
