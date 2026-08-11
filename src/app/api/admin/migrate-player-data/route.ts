@@ -35,6 +35,26 @@ function calculateJoinedSeasonFromTenureYears(tenureYears: number): string {
   return `${joinedYear}/${nextYear}`;
 }
 
+// 配列形式のシーズンデータをオブジェクト形式に変換する関数
+function convertArraySeasonDataToObject(arrayData: any[]): Record<string, any> {
+  if (!Array.isArray(arrayData)) return arrayData;
+  return {
+    number: arrayData[0],
+    subName: arrayData[1],
+    position: arrayData[2],
+    mainPosition: arrayData[3],
+    subPositions: arrayData[4],
+    nationality: arrayData[5],
+    dateOfBirth: arrayData[6],
+    joinedSeason: arrayData[7],
+    tenureYears: arrayData[8],
+    height: arrayData[9],
+    weight: arrayData[10],
+    profile: arrayData[11],
+    preferredFoot: arrayData[12],
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const uid = await getUidFromRequest(req);
@@ -42,79 +62,112 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "認証が必要です" }, { status: 401 });
     }
 
-    // 管理者権限チェック（必要に応じて実装）
-    // const userProfile = await getUserProfile(authUser.uid);
-    // if (!userProfile?.isAdmin) {
-    //   return NextResponse.json({ message: "管理者権限が必要です" }, { status: 403 });
-    // }
-
     let migratedCount = 0;
-
-    // すべてのクラブの選手データを取得
+    
+    // 全クラブを取得
     const clubsSnap = await db.collection("clubs").get();
+    
+    console.log(`[Migration] Processing ${clubsSnap.docs.length} clubs`);
     
     for (const clubDoc of clubsSnap.docs) {
       const clubId = clubDoc.id;
+      console.log(`[Migration] Processing club: ${clubId}`);
       
-      // チームを取得
-      const teamsSnap = await db.collection(`clubs/${clubId}/teams`).get();
-      
-      for (const teamDoc of teamsSnap.docs) {
-        const teamId = teamDoc.id;
+      try {
+        // クラブ内の全チームを取得
+        const teamsSnap = await db.collection(`clubs/${clubId}/teams`).get();
         
-        // 選手を取得
-        const playersSnap = await db.collection(`clubs/${clubId}/teams/${teamId}/players`).get();
-        
-        for (const playerDoc of playersSnap.docs) {
-          const playerData = playerDoc.data();
-          const playerId = playerDoc.id;
+        for (const teamDoc of teamsSnap.docs) {
+          const teamId = teamDoc.id;
           
-          const updates: Record<string, any> = {};
+          // 選手を取得
+          const playersSnap = await db.collection(`clubs/${clubId}/teams/${teamId}/players`).get();
           
-          // age から dateOfBirth を計算して設定
-          if (typeof playerData?.age === "number" && !playerData?.dateOfBirth) {
-            updates.dateOfBirth = calculateDateOfBirthFromAge(playerData.age);
-            // age フィールドは削除
-            updates.age = null;
-          }
+          console.log(`[Migration] Processing ${playersSnap.docs.length} players in team ${teamId}`);
           
-          // tenureYears から joinedSeason を計算して設定
-          if (typeof playerData?.tenureYears === "number" && !playerData?.joinedSeason) {
-            updates.joinedSeason = calculateJoinedSeasonFromTenureYears(playerData.tenureYears);
-            // tenureYears フィールドは削除
-            updates.tenureYears = null;
-          }
-          
-          // seasonData 内の age と tenureYears も移行
-          if (playerData?.seasonData && typeof playerData.seasonData === "object") {
-            const seasonData = playerData.seasonData as Record<string, any>;
-            for (const seasonKey in seasonData) {
-              const seasonEntry = seasonData[seasonKey];
-              if (seasonEntry) {
-                const seasonUpdates: Record<string, any> = {};
-                
-                if (typeof seasonEntry?.age === "number" && !seasonEntry?.dateOfBirth) {
-                  seasonUpdates.dateOfBirth = calculateDateOfBirthFromAge(seasonEntry.age);
-                  seasonUpdates.age = null;
-                }
-                
-                if (typeof seasonEntry?.tenureYears === "number" && !seasonEntry?.joinedSeason) {
-                  seasonUpdates.joinedSeason = calculateJoinedSeasonFromTenureYears(seasonEntry.tenureYears);
-                  seasonUpdates.tenureYears = null;
-                }
-                
-                if (Object.keys(seasonUpdates).length > 0) {
-                  updates[`seasonData.${seasonKey}`] = seasonUpdates;
+          for (const playerDoc of playersSnap.docs) {
+            const playerData = playerDoc.data();
+            const playerId = playerDoc.id;
+            
+            console.log("[Migration] checking player", {
+              playerId,
+              hasSeasonData: !!playerData?.seasonData,
+              seasonDataKeys: playerData?.seasonData ? Object.keys(playerData.seasonData) : []
+            });
+            
+            const updates: Record<string, any> = {};
+            
+            // age から dateOfBirth を計算して設定
+            if (typeof playerData?.age === "number" && !playerData?.dateOfBirth) {
+              updates.dateOfBirth = calculateDateOfBirthFromAge(playerData.age);
+              updates.age = null;
+            }
+            
+            // tenureYears から joinedSeason を計算して設定
+            if (typeof playerData?.tenureYears === "number" && !playerData?.joinedSeason) {
+              updates.joinedSeason = calculateJoinedSeasonFromTenureYears(playerData.tenureYears);
+              updates.tenureYears = null;
+            }
+            
+            // seasonData 内の配列をオブジェクトに変換
+            if (playerData?.seasonData && typeof playerData.seasonData === "object") {
+              const seasonData = playerData.seasonData as Record<string, any>;
+              for (const seasonKey in seasonData) {
+                const seasonEntry = seasonData[seasonKey];
+                if (seasonEntry) {
+                  const seasonUpdates: Record<string, any> = {};
+                  
+                  // 配列形式の場合はオブジェクトに変換
+                  if (Array.isArray(seasonEntry)) {
+                    console.log("[Migration] converting array to object", {
+                      playerId,
+                      seasonKey,
+                      isArray: Array.isArray(seasonEntry)
+                    });
+                    seasonUpdates[`seasonData.${seasonKey}`] = convertArraySeasonDataToObject(seasonEntry);
+                    migratedCount++;
+                    continue;
+                  }
+                  
+                  // オブジェクト形式でも、weight/heightがない場合は補完
+                  if (typeof seasonEntry === 'object' && !Array.isArray(seasonEntry)) {
+                    const converted = convertArraySeasonDataToObject(seasonEntry as any);
+                    if (converted.weight && !seasonEntry.weight) {
+                      seasonUpdates.weight = converted.weight;
+                    }
+                    if (converted.height && !seasonEntry.height) {
+                      seasonUpdates.height = converted.height;
+                    }
+                    if (Object.keys(seasonUpdates).length > 0) {
+                      updates[`seasonData.${seasonKey}`] = { ...seasonEntry, ...seasonUpdates };
+                      migratedCount++;
+                    }
+                  }
+                  
+                  if (typeof seasonEntry?.age === "number" && !seasonEntry?.dateOfBirth) {
+                    seasonUpdates.dateOfBirth = calculateDateOfBirthFromAge(seasonEntry.age);
+                    seasonUpdates.age = null;
+                  }
+                  
+                  if (typeof seasonEntry?.tenureYears === "number" && !seasonEntry?.joinedSeason) {
+                    seasonUpdates.joinedSeason = calculateJoinedSeasonFromTenureYears(seasonEntry.tenureYears);
+                    seasonUpdates.tenureYears = null;
+                  }
+                  
+                  if (Object.keys(seasonUpdates).length > 0) {
+                    updates[`seasonData.${seasonKey}`] = { ...seasonEntry, ...seasonUpdates };
+                  }
                 }
               }
             }
-          }
-          
-          if (Object.keys(updates).length > 0) {
-            await playerDoc.ref.update(updates);
-            migratedCount++;
+            
+            if (Object.keys(updates).length > 0) {
+              await playerDoc.ref.update(updates);
+            }
           }
         }
+      } catch (clubError) {
+        console.error(`[Migration] Error processing club ${clubId}:`, clubError);
       }
     }
 

@@ -261,6 +261,29 @@ export function BasicInfoSection({
             )}
           />
 
+          <FormField
+            control={form.control}
+            name="preferredFoot"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>利き足</FormLabel>
+                <FormControl>
+                  <Select value={field.value || ""} onValueChange={field.onChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="right">右足</SelectItem>
+                      <SelectItem value="left">左足</SelectItem>
+                      <SelectItem value="both">両足</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           <div className="grid grid-cols-2 gap-3">
             <FormField
               control={form.control}

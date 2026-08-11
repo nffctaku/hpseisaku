@@ -147,9 +147,119 @@ function getSeasonStats(player: Player, targetSeason?: string | null) {
   return { appearances, goals, assists };
 }
 
+function getPlayerHeightWeight(player: Player, targetSeason?: string | null) {
+  const season = targetSeason ?? '';
+  if (!season) return { height: player.height, weight: player.weight };
+
+  const candidates = Array.from(new Set(
+    [season, toSlashSeason(season), toDashSeason(season)].filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+  ));
+
+  for (const key of candidates) {
+    const seasonData = player.seasonData?.[key];
+    if (seasonData && typeof seasonData === 'object') {
+      // オブジェクト形式の場合
+      if (typeof seasonData.height === 'number' && typeof seasonData.weight === 'number') {
+        return { height: seasonData.height, weight: seasonData.weight };
+      }
+      // 配列形式の場合
+      if (Array.isArray(seasonData) && seasonData.length >= 11) {
+        return { height: seasonData[9], weight: seasonData[10] };
+      }
+    }
+  }
+
+  return { height: player.height, weight: player.weight };
+}
+
 function getPlayerAge(player: Player, activeSeason: string | null): number | null {
-  if (!player.dateOfBirth || !activeSeason) return null;
-  try { return calculateAge(player.dateOfBirth, activeSeason); } catch { return null; }
+  if (!activeSeason) return null;
+  
+  // シーズンデータから年齢を取得
+  const candidates = Array.from(new Set(
+    [activeSeason, toSlashSeason(activeSeason), toDashSeason(activeSeason)].filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+  ));
+
+  for (const key of candidates) {
+    const seasonData = player.seasonData?.[key];
+    if (seasonData && typeof seasonData === 'object') {
+      // オブジェクト形式の場合
+      if (seasonData.dateOfBirth) {
+        try { return calculateAge(seasonData.dateOfBirth, activeSeason); } catch { return null; }
+      }
+      // 配列形式の場合
+      if (Array.isArray(seasonData) && seasonData.length >= 7) {
+        try { return calculateAge(seasonData[6], activeSeason); } catch { return null; }
+      }
+    }
+  }
+  
+  // フォールバック：playerレベルのdateOfBirth
+  if (player.dateOfBirth) {
+    try { return calculateAge(player.dateOfBirth, activeSeason); } catch { return null; }
+  }
+  
+  return null;
+}
+
+function getPlayerNationality(player: Player, activeSeason: string | null): string | null {
+  if (!activeSeason) return player.nationality || null;
+  
+  const candidates = Array.from(new Set(
+    [activeSeason, toSlashSeason(activeSeason), toDashSeason(activeSeason)].filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+  ));
+
+  for (const key of candidates) {
+    const seasonData = player.seasonData?.[key];
+    if (seasonData && typeof seasonData === 'object') {
+      // オブジェクト形式の場合
+      if (seasonData.nationality) return seasonData.nationality;
+      // 配列形式の場合
+      if (Array.isArray(seasonData) && seasonData.length >= 6) return seasonData[5];
+    }
+  }
+  
+  return player.nationality || null;
+}
+
+function getPlayerPreferredFoot(player: Player, activeSeason: string | null): string | null {
+  if (!activeSeason) return player.preferredFoot || player.foot || null;
+  
+  const candidates = Array.from(new Set(
+    [activeSeason, toSlashSeason(activeSeason), toDashSeason(activeSeason)].filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+  ));
+
+  for (const key of candidates) {
+    const seasonData = player.seasonData?.[key];
+    if (seasonData && typeof seasonData === 'object') {
+      // オブジェクト形式の場合
+      if (seasonData.preferredFoot) return seasonData.preferredFoot;
+      // 配列形式の場合
+      if (Array.isArray(seasonData) && seasonData.length >= 13) return seasonData[12];
+    }
+  }
+  
+  return player.preferredFoot || player.foot || null;
+}
+
+function getPlayerProfile(player: Player, activeSeason: string | null): string | null {
+  if (!activeSeason) return player.profile || null;
+  
+  const candidates = Array.from(new Set(
+    [activeSeason, toSlashSeason(activeSeason), toDashSeason(activeSeason)].filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+  ));
+
+  for (const key of candidates) {
+    const seasonData = player.seasonData?.[key];
+    if (seasonData && typeof seasonData === 'object') {
+      // オブジェクト形式の場合
+      if (seasonData.profile && seasonData.profile !== '') return seasonData.profile;
+      // 配列形式の場合
+      if (Array.isArray(seasonData) && seasonData.length >= 12) return seasonData[11];
+    }
+  }
+  
+  return player.profile || null;
 }
 
 
@@ -391,8 +501,12 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
     useEffect(() => { setTab('basic'); }, [player.id]);
 
     const stats = getSeasonStats(player, activeSeason);
+    const { height, weight } = getPlayerHeightWeight(player, activeSeason);
     const age = getPlayerAge(player, activeSeason);
-    const profile = [age !== null ? `${age}歳` : null, player.nationality].filter(Boolean).join(' · ') || '年齢・国籍情報なし';
+    const nationality = getPlayerNationality(player, activeSeason);
+    const preferredFoot = getPlayerPreferredFoot(player, activeSeason);
+    const profileText = getPlayerProfile(player, activeSeason);
+    const profile = [age !== null ? `${age}歳` : null, nationality].filter(Boolean).join(' · ') || '年齢・国籍情報なし';
     const seasonCards = getPlayerSeasonCards(player, allSeasons);
     const [expandedSeasons, setExpandedSeasons] = useState<Set<string>>(new Set());
 
@@ -414,12 +528,12 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
 
     const close = () => setSelectedPlayer(null);
 
-    const footText = player.preferredFoot
-      ? { left: '左足', right: '右足', both: '両足' }[player.preferredFoot]
+    const footText: string = preferredFoot && preferredFoot in { left: true, right: true, both: true }
+      ? { left: '左足', right: '右足', both: '両足' }[preferredFoot]!
       : (player.foot || '未設定');
     const basicItems: { label: string; value: string }[] = [
-      { label: '身長', value: player.height ? `${player.height}cm` : '未設定' },
-      { label: '体重', value: player.weight ? `${player.weight}kg` : '未設定' },
+      { label: '身長', value: height ? `${height}cm` : '未設定' },
+      { label: '体重', value: weight ? `${weight}kg` : '未設定' },
       { label: '利き足', value: footText },
     ];
     if (player.subName) basicItems.push({ label: 'サブネーム', value: player.subName });
@@ -525,10 +639,9 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                   </div>
                 ))}
 
-                {player.profile ? (
-                  <div className="mt-4 rounded-xl border border-white/[0.05] bg-white/[0.03] p-3">
-                    <div className="text-[10px] text-[#9CA3AF] mb-1">プロフィール</div>
-                    <p className="text-sm text-[#f0f4ff] leading-relaxed whitespace-pre-wrap">{player.profile}</p>
+                {profileText ? (
+                  <div className="flex items-start gap-3">
+                    <p className="text-sm text-[#f0f4ff] leading-relaxed whitespace-pre-wrap">{profileText}</p>
                   </div>
                 ) : null}
 
@@ -608,7 +721,8 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                         <polygon
                           points={player.params!.items.map((item, i) => {
                             const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
-                            const r = 80 * (item.value / 99);
+                            const value = typeof item.value === 'number' && Number.isFinite(item.value) ? item.value : 0;
+                            const r = 80 * (value / 99);
                             const x = 100 + r * Math.cos(angle);
                             const y = 100 + r * Math.sin(angle);
                             return `${x},${y}`;
@@ -620,7 +734,8 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                         {/* Data points */}
                         {player.params!.items.map((item, i) => {
                           const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
-                          const r = 80 * (item.value / 99);
+                          const value = typeof item.value === 'number' && Number.isFinite(item.value) ? item.value : 0;
+                          const r = 80 * (value / 99);
                           const x = 100 + r * Math.cos(angle);
                           const y = 100 + r * Math.sin(angle);
                           return (

@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
-import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc, getDocs, writeBatch } from "firebase/firestore";
+import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc, getDocs, getDoc, writeBatch } from "firebase/firestore";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -444,7 +444,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       toast.error("ポジションが不正です（GK/DF/MF/FW から選択してください）。");
       return;
     }
-    const valuesNormalized = { ...(values as any), position: normalizedPosition } as PlayerFormValues;
+    const valuesNormalized = { 
+      ...(values as any), 
+      position: normalizedPosition,
+      weight: typeof (values as any)?.weight === 'number' ? (values as any).weight : (typeof (values as any)?.weight === 'string' ? parseFloat((values as any).weight) : undefined),
+      height: typeof (values as any)?.height === 'number' ? (values as any).height : (typeof (values as any)?.height === 'string' ? parseFloat((values as any).height) : undefined),
+    } as PlayerFormValues;
 
     try {
       await setDoc(
@@ -502,11 +507,11 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
       const paramsNormalized = valuesNormalized.params
         ? {
-            overall: valuesNormalized.params.overall,
+            overall: typeof valuesNormalized.params.overall === 'number' ? valuesNormalized.params.overall : (typeof valuesNormalized.params.overall === 'string' ? parseFloat(valuesNormalized.params.overall) : undefined),
             items: Array.isArray(valuesNormalized.params.items)
               ? valuesNormalized.params.items.map((i: any) => ({
                   label: typeof i?.label === "string" ? i.label : "",
-                  value: typeof i?.value === "number" ? i.value : undefined,
+                  value: typeof i?.value === "number" ? i.value : (typeof i?.value === "string" ? parseFloat(i.value) : undefined),
                 }))
               : [],
           }
@@ -557,7 +562,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         joinedSeason,
         tenureYears,
         height: valuesNormalized.height,
-        weight: (values as any).weight,
+        weight: valuesNormalized.weight,
         profile: (values as any).profile,
         preferredFoot: (values as any).preferredFoot,
         annualSalary: (values as any).annualSalary,
@@ -572,6 +577,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       };
 
       const seasonPayloadClean = (stripUndefinedDeep(seasonPayload) || {}) as any;
+      console.log("[PlayerManagement] seasonPayloadClean weight", { 
+        weight: seasonPayloadClean.weight,
+        height: seasonPayloadClean.height,
+        selectedSeason,
+        selectedSeasonDash
+      });
 
       let savedPlayerId: string | null = null;
 
@@ -579,6 +590,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const currentSeasons = Array.isArray((editingPlayer as any)?.seasons) ? (((editingPlayer as any).seasons as string[]) || []) : [];
         const nextSeasons = currentSeasons.includes(selectedSeason) ? currentSeasons : [...currentSeasons, selectedSeason];
         const playerDocRef = doc(playersColRef, editingPlayer.id);
+        
         const updatePayload = stripUndefinedDeep({
           name: valuesNormalized.name,
           subName: (values as any).subName,
@@ -597,16 +609,47 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         console.log("[PlayerManagement] write players", {
           path: `clubs/${clubUid}/teams/${teamId}/players/${editingPlayer.id}`,
           photoUrl: values.photoUrl,
+          seasonPayloadClean,
+          selectedSeasonDash,
+          updatePayloadSeasonData: updatePayload[`seasonData.${selectedSeasonDash}`]
         });
         await updateDoc(playerDocRef, (updatePayload || {}) as any);
         savedPlayerId = editingPlayer.id;
 
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster`, editingPlayer.id);
+        
+        // 既存のロスターデータが配列の場合、削除してから更新
+        const rosterDocSnap = await getDoc(rosterDocRef);
+        const rosterUpdate: any = {};
+        if (rosterDocSnap.exists()) {
+          const rosterData = rosterDocSnap.data();
+          const existingRosterSeasonData = rosterData?.seasonData;
+          console.log("[PlayerManagement] existing roster seasonData", {
+            hasSeasonData: !!existingRosterSeasonData,
+            seasonDataKeys: existingRosterSeasonData ? Object.keys(existingRosterSeasonData) : []
+          });
+          if (existingRosterSeasonData && typeof existingRosterSeasonData === 'object') {
+            Object.keys(existingRosterSeasonData).forEach(key => {
+              const value = existingRosterSeasonData[key];
+              console.log("[PlayerManagement] checking roster season key", {
+                key,
+                isArray: Array.isArray(value),
+                isTargetSeason: key === selectedSeasonDash
+              });
+              if (Array.isArray(value)) {
+                // 配列の場合は削除
+                rosterUpdate[`seasonData.${key}`] = null;
+              }
+            });
+          }
+        }
+        
         const rosterPayload = stripUndefinedDeep({
           name: valuesNormalized.name,
           subName: (values as any).subName,
           teamId,
           seasons: nextSeasons,
+          ...rosterUpdate,
           seasonData: {
             [selectedSeasonDash]: seasonPayloadClean,
           },
@@ -621,6 +664,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         console.log("[PlayerManagement] write roster", {
           path: `clubs/${clubUid}/seasons/${selectedSeason}/roster/${editingPlayer.id}`,
           photoUrl: values.photoUrl,
+          rosterPayload,
+          rosterUpdate
         });
         await setDoc(
           rosterDocRef,

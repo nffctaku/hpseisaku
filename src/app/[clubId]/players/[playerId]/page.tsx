@@ -217,7 +217,31 @@ function getSeasonDataEntry(seasonData: any, seasonId: string): any {
   if (!seasonData || typeof seasonData !== "object" || !seasonId) return undefined;
   const slash = toSlashSeason(seasonId);
   const dash = toDashSeason(seasonId);
-  return seasonData?.[seasonId] ?? seasonData?.[slash] ?? seasonData?.[dash] ?? undefined;
+  const value = seasonData?.[seasonId] ?? seasonData?.[slash] ?? seasonData?.[dash] ?? undefined;
+  
+  // 配列形式の場合はオブジェクトに変換（後方互換性）
+  if (Array.isArray(value)) {
+    // 配列のインデックスをフィールド名にマッピング
+    // 既存の配列形式のデータ構造に基づいて変換
+    const arrayValue = value as any[];
+    return {
+      number: arrayValue[0],
+      subName: arrayValue[1],
+      position: arrayValue[2],
+      mainPosition: arrayValue[3],
+      subPositions: arrayValue[4],
+      nationality: arrayValue[5],
+      dateOfBirth: arrayValue[6],
+      joinedSeason: arrayValue[7],
+      tenureYears: arrayValue[8],
+      height: arrayValue[9],
+      weight: arrayValue[10],
+      profile: arrayValue[11],
+      preferredFoot: arrayValue[12],
+    };
+  }
+  
+  return value;
 }
 
 function scorePlayerDocForPublic(data: any): number {
@@ -1374,6 +1398,16 @@ export default async function PlayerPage({
   const contractSeasonData = latestSeasonKeyForContract ? getSeasonDataEntry(seasonData as any, latestSeasonKeyForContract) : undefined;
   const profileSeasonData = latestSeasonKeyForProfile ? getSeasonDataEntry(seasonData as any, latestSeasonKeyForProfile) : undefined;
   const weightSeasonData = latestSeasonKeyForWeight ? getSeasonDataEntry(seasonData as any, latestSeasonKeyForWeight) : undefined;
+  
+  console.log("[PlayerPage] weight debug", {
+    latestSeasonKeyForWeight,
+    weightSeasonData,
+    weightFromSeason: weightSeasonData?.weight,
+    weightFromPlayer: (player as any)?.weight,
+    seasonDataKeys: Object.keys(seasonData || {}),
+    targetSeason
+  });
+
   const preferredFootSeasonData =
     latestSeasonKeyForPreferredFoot ? getSeasonDataEntry(seasonData as any, latestSeasonKeyForPreferredFoot) : undefined;
 

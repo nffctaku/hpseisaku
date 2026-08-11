@@ -8,6 +8,26 @@ import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 import { lightenColor } from "@/lib/utils";
 
+// 配列形式のシーズンデータをオブジェクト形式に変換する関数
+function convertArraySeasonDataToObject(arrayData: any[]): Record<string, any> {
+  if (!Array.isArray(arrayData)) return arrayData;
+  return {
+    number: arrayData[0],
+    subName: arrayData[1],
+    position: arrayData[2],
+    mainPosition: arrayData[3],
+    subPositions: arrayData[4],
+    nationality: arrayData[5],
+    dateOfBirth: arrayData[6],
+    joinedSeason: arrayData[7],
+    tenureYears: arrayData[8],
+    height: arrayData[9],
+    weight: arrayData[10],
+    profile: arrayData[11],
+    preferredFoot: arrayData[12],
+  };
+}
+
 export const revalidate = 60;
 export const dynamic = "force-dynamic";
 
@@ -254,11 +274,55 @@ async function getPlayersData(
       const teamStaffRef = teamDoc.ref.collection("staff");
       const teamStaffSnap = await teamStaffRef.get();
 
-      const players = teamPlayersSnap.docs.map((pDoc) => ({
-        id: pDoc.id,
-        __teamId: teamDoc.id,
-        ...(pDoc.data() as any),
-      })) as Player[];
+      const players = teamPlayersSnap.docs.map((pDoc) => {
+        const data = pDoc.data() as any;
+        
+        // シーズンデータが配列の場合、ここでオブジェクトに変換
+        if (data?.seasonData && typeof data.seasonData === 'object') {
+          Object.keys(data.seasonData).forEach(key => {
+            const value = data.seasonData[key];
+            // 配列形式の場合は変換
+            if (Array.isArray(value)) {
+              console.log("[PlayersPage] converting array to object", {
+                playerId: pDoc.id,
+                seasonKey: key,
+                isArray: Array.isArray(value)
+              });
+              data.seasonData[key] = convertArraySeasonDataToObject(value);
+            }
+            // 数値キーを持つオブジェクト（配列がシリアライズされたもの）の場合も変換
+            else if (typeof value === 'object' && value !== null) {
+              const keys = Object.keys(value);
+              const hasNumericKeys = keys.every(k => !isNaN(parseInt(k)));
+              if (hasNumericKeys && keys.length >= 10) {
+                console.log("[PlayersPage] converting numeric-key object to object", {
+                  playerId: pDoc.id,
+                  seasonKey: key,
+                  keys: keys.slice(0, 5)
+                });
+                const arrayValue = Object.values(value);
+                data.seasonData[key] = convertArraySeasonDataToObject(arrayValue);
+              }
+            }
+          });
+        }
+        
+        console.log("[PlayersPage] player data from Firestore", {
+          playerId: pDoc.id,
+          teamId: teamDoc.id,
+          hasSeasonData: !!data?.seasonData,
+          seasonDataKeys: data?.seasonData ? Object.keys(data.seasonData) : [],
+          seasonDataSample: data?.seasonData ? Object.entries(data.seasonData).slice(0, 1).reduce((acc, [k, v]) => ({ ...acc, [k]: typeof v === 'object' ? Object.keys(v) : typeof v }), {}) : {},
+          hasParams: !!data?.params,
+          photoUrl: data?.photoUrl,
+          name: data?.name
+        });
+        return {
+          id: pDoc.id,
+          __teamId: teamDoc.id,
+          ...data,
+        };
+      }) as Player[];
 
       const staff = teamStaffSnap.docs.map((sDoc) => ({
         id: sDoc.id,
