@@ -85,6 +85,20 @@ export default function LandingPage() {
 
               <div className="divide-y divide-slate-800/90 border-y border-slate-800/90">
                 <article className="grid gap-3 py-4 sm:grid-cols-[120px_1fr] sm:gap-7 sm:py-8">
+                  <time className="font-mono text-xs text-emerald-300/55 sm:text-sm">2026.08.12</time>
+                  <div>
+                    <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black bg-emerald-500/15 text-emerald-300 sm:px-3 sm:py-1 sm:text-xs">
+                      大型アップデート
+                    </span>
+                    <h3 className="mt-2 text-sm font-black leading-snug tracking-[-0.03em] text-white sm:mt-3 sm:text-lg sm:text-xl">
+                      FootChron アップデートのお知らせ
+                    </h3>
+                    <p className="mt-2 text-xs font-medium leading-6 text-slate-400 sm:mt-3 sm:text-sm sm:leading-7 sm:text-base">
+                      パフォーマンス改善と不具合修正を中心にアップデートを行いました。分析ダッシュボードの動作速度改善、リーグ表での順位履歴表示不具合修正、選手詳細ページのパラメーターグラフ改善、総合値推移グラフの見やすさ向上、試合スタッツのゴール・アシスト表示改善など。
+                    </p>
+                  </div>
+                </article>
+                <article className="grid gap-3 py-4 sm:grid-cols-[120px_1fr] sm:gap-7 sm:py-8">
                   <time className="font-mono text-xs text-sky-300/55 sm:text-sm">2026.08.03</time>
                   <div>
                     <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black bg-blue-500/15 text-blue-300 sm:px-3 sm:py-1 sm:text-xs">
@@ -144,7 +158,7 @@ export default function LandingPage() {
                     </h2>
                   </div>
 
-                  <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     {[
                             {
                               number: '01',
