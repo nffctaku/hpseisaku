@@ -203,6 +203,19 @@ export async function GET(request: Request) {
               ? !seasonsArr.includes(prevSeason)
               : false;
 
+        const mergedPlayerData = { ...p, ...playerDoc, seasonData: (p as any)?.seasonData || playerDoc?.seasonData };
+        const currentStats = await getPlayerStats(ownerUid, p.id, mergedPlayerData, seasonId).catch(() => ({
+          appearances: 0,
+          minutes: 0,
+          goals: 0,
+          assists: 0,
+          yellowCards: 0,
+          redCards: 0,
+          ratingSum: 0,
+          ratingCount: 0,
+        }));
+        const avgRating = currentStats.ratingCount > 0 ? Math.round((currentStats.ratingSum / currentStats.ratingCount) * 100) / 100 : null;
+
         const merged = {
           id: p.id,
           name: safeString(sd?.name) || safeString((p as any)?.name) || safeString(playerDoc?.name),
@@ -217,6 +230,7 @@ export async function GET(request: Request) {
                 ? (playerDoc.subPositions as any[]).filter((x) => typeof x === "string").slice(0, 3)
                 : [],
           nationality: safeString(sd?.nationality) || safeString((p as any)?.nationality) || safeString(playerDoc?.nationality),
+          dateOfBirth: safeString(sd?.dateOfBirth) || safeString((p as any)?.dateOfBirth) || safeString(playerDoc?.dateOfBirth),
           age: toFiniteNumber(sd?.age) ?? toFiniteNumber((p as any)?.age) ?? toFiniteNumber(playerDoc?.age),
           height: toFiniteNumber(sd?.height) ?? toFiniteNumber((p as any)?.height) ?? toFiniteNumber(playerDoc?.height),
           weight: toFiniteNumber(sd?.weight) ?? toFiniteNumber((p as any)?.weight) ?? toFiniteNumber(playerDoc?.weight),
@@ -253,6 +267,12 @@ export async function GET(request: Request) {
             playerDoc?.comment
           ),
           params: normalizeParams(sd?.params) || normalizeParams((p as any)?.params) || normalizeParams(playerDoc?.params),
+          seasonStats: {
+            appearances: currentStats.appearances,
+            goals: currentStats.goals,
+            assists: currentStats.assists,
+            avgRating,
+          },
           tenureYears,
           isNew,
           lastSeasonSummary,

@@ -14,6 +14,7 @@ import { BookletGlobalStyles } from "./components/BookletGlobalStyles";
 import { BookletPlayerCard } from "./components/BookletPlayerCard";
 import { BookletToolbar } from "./components/BookletToolbar";
 import { ProPlanNotice } from "./components/ProPlanNotice";
+import { IndividualPlayerBooklet } from "./components/IndividualPlayerBooklet";
 import { collection, getDocs } from "firebase/firestore";
 import { toSlashSeason } from "@/lib/season";
 import { PrintPageLayout, type TransferRow as A3TransferRow } from "./a3/print/components/PrintPageLayout";
@@ -47,6 +48,7 @@ export default function TeamBookletPage() {
   const [a3UpgradeMessage, setA3UpgradeMessage] = useState<string | null>(null);
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
   const [showParameterGraph, setShowParameterGraph] = useState(true);
+  const [bookletMode, setBookletMode] = useState<"team" | "individual">("team");
   const [positionColors, setPositionColors] = useState<PositionColors>({
     GK: "bg-rose-300",
     DF: "bg-blue-300",
@@ -553,12 +555,14 @@ export default function TeamBookletPage() {
             }
             setA3UpgradeMessage(null);
             setPaper("a3_landscape");
+            setBookletMode("team");
             setIsEditMode(false);
             setA3IsEditMode(false);
             return;
           }
           setA3UpgradeMessage(null);
           setPaper("a4");
+          setBookletMode("team");
           setA3IsEditMode(false);
         }}
         a3IsEditMode={a3IsEditMode}
@@ -583,6 +587,28 @@ export default function TeamBookletPage() {
       ) : null}
 
       {!isPro ? <ProPlanNotice /> : null}
+
+      {format === "a4" ? (
+        <div className="no-print mb-4 flex flex-wrap gap-2 rounded-lg border bg-white p-2">
+          <button
+            type="button"
+            onClick={() => setBookletMode("team")}
+            className={`rounded-md px-4 py-2 text-sm font-semibold ${bookletMode === "team" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+          >
+            チーム名鑑
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsEditMode(false);
+              setBookletMode("individual");
+            }}
+            className={`rounded-md px-4 py-2 text-sm font-semibold ${bookletMode === "individual" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+          >
+            個人名鑑
+          </button>
+        </div>
+      ) : null}
 
       {isPro && season && format === "a3" && !a3IsEditMode ? (
         <div className="no-print mb-4 rounded-md border bg-white p-3 text-sm text-gray-900">
@@ -647,7 +673,7 @@ export default function TeamBookletPage() {
         </div>
       ) : null}
 
-      {format === "a4" && isEditMode && (
+      {format === "a4" && bookletMode === "team" && isEditMode && (
         <>
           {/* ポジション色選択 */}
           {/* 選手選択 */}
@@ -683,13 +709,17 @@ export default function TeamBookletPage() {
       ) : null}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {!loading && !error && data && data.players.length > 0 && format === "a4" && players.length === 0 ? (
+      {!loading && !error && data && data.players.length > 0 && format === "a4" && bookletMode === "team" && players.length === 0 ? (
         <div className="no-print text-sm text-muted-foreground">
           表示する選手が選択されていません。「選手を選択」から15名選択してください。
         </div>
       ) : null}
 
-      {data && format === "a4" && (
+      {data && format === "a4" && bookletMode === "individual" ? (
+        <IndividualPlayerBooklet players={data.players} season={season} />
+      ) : null}
+
+      {data && format === "a4" && bookletMode === "team" && (
         <div className="mx-auto">
           <div className="print-page">
             <div

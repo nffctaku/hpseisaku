@@ -6,6 +6,7 @@ export type BookletPlayer = {
   mainPosition?: string;
   subPositions?: string[];
   nationality?: string;
+  dateOfBirth?: string;
   age?: number | null;
   height?: number | null;
   weight?: number | null;
@@ -18,6 +19,12 @@ export type BookletPlayer = {
   profile?: string;
   photoUrl?: string;
   params?: { overall: number; items: Array<{ label: string; value: number }> } | null;
+  seasonStats?: {
+    appearances: number;
+    goals: number;
+    assists: number;
+    avgRating: number | null;
+  };
   isNew?: boolean;
 };
 
