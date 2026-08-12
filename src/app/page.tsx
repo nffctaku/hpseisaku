@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useState } from "react";
 
 export default function LandingPage() {
+  const [openFeatureImage, setOpenFeatureImage] = useState<string | null>(null);
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <main className="flex-grow">
@@ -148,41 +151,31 @@ export default function LandingPage() {
                               label: '公式サイト作成',
                               title: 'クラブ専用サイトを\n即時公開',
                               body: 'コーディング不要。チーム情報を入力するだけで、プロ品質のクラブ公式サイトが完成。',
+                              image: '/サイト機能紹介.png',
                               icon: 'M4 5h16v14H4z M8 9h4v6H8z M14 9h3 M14 13h3',
                             },
                             {
                               number: '02',
-                              label: 'スタッフ管理',
-                              title: '試合・シーズン単位の\n選手スタッフ管理',
+                              label: 'スカッドページ',
+                              title: '試合・シーズン単位の\nスカッドを管理',
                               body: '得点・アシスト・出場時間を記録。シーズンをまたいだ個人成長が一覧で確認できます。',
+                              image: '/スカッドページ.png',
                               icon: 'M6 20V10 M12 20V4 M18 20v-8',
                             },
                             {
                               number: '03',
-                              label: '順位表・試合結果',
-                              title: '順位表も試合結果も\n自動で整理',
-                              body: '入力したスコアから順位表を更新。節ごとの試合カードもクラブページに反映されます。',
-                              icon: 'M4 13a8 8 0 1 0 8-8v8z M12 5a8 8 0 0 1 8 8h-8z',
-                            },
-                            {
-                              number: '04',
                               label: 'チーム分析',
                               title: 'シーズン比較・対戦相手別\n戦績をグラフ化',
                               body: '勝敗・得失点の推移、対戦相手ごとの傾向が自動でグラフになります。',
+                              image: '/ChatGPT Image 2026年8月12日 13_58_50.png',
                               icon: 'M4 19h16 M7 15l3-3 3 2 4-6 M7 9h.01 M13 9h.01 M19 9h.01',
                             },
                             {
-                              number: '05',
-                              label: 'チーム広報',
-                              title: 'ニュースも動画も、\nまとめて発信',
-                              body: '記事の作成から外部リンク・動画の埋め込みまで。チームの最新情報を、公式サイトのように発信できます。',
-                              icon: 'M21 11.5a8.5 8.5 0 0 1-9.8 8.4L5 21l1.7-4.6A8.5 8.5 0 1 1 21 11.5z',
-                            },
-                            {
-                              number: '06',
+                              number: '04',
                               label: '選手名鑑',
                               title: '選手名鑑を、\nワンクリックで自動生成',
                               body: 'プロフィール・スタッフ・写真を自動でまとめ、本格的な名鑑に。入力の手間なく、印刷してすぐ配布できます。',
+                              image: '/選手名鑑.png',
                               icon: 'M7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M3 21a4 4 0 0 1 8 0 M17 11a3 3 0 1 0 0-6 M14 21a4 4 0 0 1 7 0',
                             },
                           ].map((feature) => (
@@ -197,6 +190,28 @@ export default function LandingPage() {
                           <p className="text-xs font-black tracking-wide text-emerald-700">{feature.label}</p>
                           <h3 className="mt-2 whitespace-pre-line text-xl font-black leading-snug tracking-[-0.03em] text-slate-950">{feature.title}</h3>
                           <p className="mt-4 text-sm font-medium leading-7 text-slate-600">{feature.body}</p>
+                          {'image' in feature ? (
+                            <div className="mt-5">
+                              <button
+                                type="button"
+                                onClick={() => setOpenFeatureImage(openFeatureImage === feature.number ? null : feature.number)}
+                                className="inline-flex items-center justify-center rounded-lg bg-slate-950 px-4 py-2 text-xs font-black text-white transition-colors hover:bg-slate-800"
+                              >
+                                画面イメージを見る
+                              </button>
+                              {openFeatureImage === feature.number ? (
+                                <div className="mt-4 overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-lg">
+                                  <Image
+                                    src={feature.image}
+                                    alt={feature.label}
+                                    width={1200}
+                                    height={800}
+                                    className="h-auto w-full object-contain"
+                                  />
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       </article>
                     ))}

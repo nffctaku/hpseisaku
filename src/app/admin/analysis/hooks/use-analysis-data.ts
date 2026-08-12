@@ -63,15 +63,28 @@ export function useAnalysisData() {
     
     const fetchAllPlayers = async () => {
       try {
-        const playersSnap = await getDocs(collection(db, 'clubs', firestoreClubDocId, 'players'));
-        const players = playersSnap.docs.map(doc => {
+        const playersSnap = await getDocs(collection(db, 'clubs', firestoreClubDocId, 'teams', mainTeamId, 'players'));
+        let players = playersSnap.docs.map(doc => {
           const data = doc.data();
           return {
             playerId: doc.id,
             playerName: data.name || data.displayName || 'Unknown',
-            position: data.position || undefined,
+            position: data.position || data.mainPosition || undefined,
           };
         });
+
+        if (players.length === 0) {
+          const legacyPlayersSnap = await getDocs(collection(db, 'clubs', firestoreClubDocId, 'players'));
+          players = legacyPlayersSnap.docs.map(doc => {
+            const data = doc.data();
+            return {
+              playerId: doc.id,
+              playerName: data.name || data.displayName || 'Unknown',
+              position: data.position || data.mainPosition || undefined,
+            };
+          });
+        }
+
         setAllPlayers(players);
       } catch (err) {
         console.error('Error fetching players:', err);
@@ -586,6 +599,17 @@ export function useAnalysisData() {
     return Object.values(stats);
   }, [filteredMatches, mainTeamId]);
 
+  const playerNameMap = useMemo(() => {
+    const map = new Map<string, { playerName: string; position?: string }>();
+    allPlayers.forEach((player) => {
+      map.set(player.playerId, {
+        playerName: player.playerName,
+        position: player.position,
+      });
+    });
+    return map;
+  }, [allPlayers]);
+
   const topGoalscorers = useMemo(() => {
     const goals: { [key: string]: PlayerStats } = {};
 
@@ -596,13 +620,17 @@ export function useAnalysisData() {
 
       if (sourcePlayerStats && Array.isArray(sourcePlayerStats)) {
         sourcePlayerStats.forEach((player: any) => {
+          const currentPlayer = playerNameMap.get(player.playerId);
           if (!goals[player.playerId]) {
             goals[player.playerId] = {
               playerId: player.playerId,
-              playerName: player.playerName || 'Unknown',
+              playerName: currentPlayer?.playerName || player.playerName || 'Unknown',
+              position: currentPlayer?.position || player.position || undefined,
               goals: 0,
               assists: 0,
               matches: 0,
+              starts: 0,
+              substitutions: 0,
             };
           }
           goals[player.playerId].goals += player.goals || 0;
@@ -615,7 +643,7 @@ export function useAnalysisData() {
     return Object.values(goals)
       .sort((a, b) => b.goals - a.goals)
       .slice(0, 10);
-  }, [filteredMatches]);
+  }, [filteredMatches, playerNameMap]);
 
   const topAssists = useMemo(() => {
     const assists: { [key: string]: PlayerStats } = {};
@@ -627,13 +655,17 @@ export function useAnalysisData() {
 
       if (sourcePlayerStats && Array.isArray(sourcePlayerStats)) {
         sourcePlayerStats.forEach((player: any) => {
+          const currentPlayer = playerNameMap.get(player.playerId);
           if (!assists[player.playerId]) {
             assists[player.playerId] = {
               playerId: player.playerId,
-              playerName: player.playerName || 'Unknown',
+              playerName: currentPlayer?.playerName || player.playerName || 'Unknown',
+              position: currentPlayer?.position || player.position || undefined,
               goals: 0,
               assists: 0,
               matches: 0,
+              starts: 0,
+              substitutions: 0,
             };
           }
           assists[player.playerId].goals += player.goals || 0;
@@ -646,7 +678,7 @@ export function useAnalysisData() {
     return Object.values(assists)
       .sort((a, b) => b.assists - a.assists)
       .slice(0, 10);
-  }, [filteredMatches]);
+  }, [filteredMatches, playerNameMap]);
 
   const playerStatsList = useMemo(() => {
     const stats: { [key: string]: PlayerStats } = {};
@@ -673,11 +705,12 @@ export function useAnalysisData() {
 
       if (sourcePlayerStats && Array.isArray(sourcePlayerStats)) {
         sourcePlayerStats.forEach((player: any) => {
+          const currentPlayer = playerNameMap.get(player.playerId);
           if (!stats[player.playerId]) {
             stats[player.playerId] = {
               playerId: player.playerId,
-              playerName: player.playerName || 'Unknown',
-              position: player.position || undefined,
+              playerName: currentPlayer?.playerName || player.playerName || 'Unknown',
+              position: currentPlayer?.position || player.position || undefined,
               goals: 0,
               assists: 0,
               matches: 0,
@@ -710,7 +743,7 @@ export function useAnalysisData() {
     });
 
     return Object.values(stats).sort((a, b) => b.matches - a.matches);
-  }, [filteredMatches, allPlayers]);
+  }, [filteredMatches, allPlayers, playerNameMap]);
 
   return {
     matches,
