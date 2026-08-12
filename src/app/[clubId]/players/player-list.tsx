@@ -556,7 +556,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
 
     return (
       <div
-        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/88 backdrop-blur-[14px] p-0 sm:p-4 pb-16"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 backdrop-blur-[14px] p-0 sm:p-4"
         onClick={close}
         role="dialog"
         aria-modal="true"
@@ -916,8 +916,8 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                               </div>
                               <div className="flex items-baseline gap-2 text-xs font-black">
                                 <span><span style={{ color: mainAccent }}>{minutesDisplay}</span><span className="ml-0.5 text-white/35">{minutesLabel}</span></span>
-                                <span><span className="text-white/35">{r.goals ?? 0}</span><span className="ml-0.5" style={{ color: mainAccent }}>G</span></span>
-                                <span><span className="text-white/35">{r.assists ?? 0}</span><span className="ml-0.5" style={{ color: mainAccent }}>A</span></span>
+                                <span><span style={{ color: (r.goals ?? 0) >= 1 ? mainAccent : 'rgba(255,255,255,0.35)' }}>{r.goals ?? 0}</span><span className="ml-0.5 text-white/35">G</span></span>
+                                <span><span style={{ color: (r.assists ?? 0) >= 1 ? mainAccent : 'rgba(255,255,255,0.35)' }}>{r.assists ?? 0}</span><span className="ml-0.5 text-white/35">A</span></span>
                               </div>
                             </div>
                           </div>
