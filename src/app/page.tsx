@@ -206,7 +206,7 @@ export default function LandingPage() {
                                     alt={feature.label}
                                     width={1200}
                                     height={800}
-                                    className="h-[260px] w-full object-cover object-top sm:h-[320px]"
+                                    className="h-auto w-full object-contain"
                                   />
                                 </div>
                               ) : null}
