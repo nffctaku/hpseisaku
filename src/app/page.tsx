@@ -200,13 +200,13 @@ export default function LandingPage() {
                                 画面イメージを見る
                               </button>
                               {openFeatureImage === feature.number ? (
-                                <div className="mt-4 overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-lg">
+                                <div className="-mx-4 mt-4 overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-lg sm:-mx-5">
                                   <Image
                                     src={feature.image}
                                     alt={feature.label}
                                     width={1200}
                                     height={800}
-                                    className="h-auto w-full object-contain"
+                                    className="h-[260px] w-full object-cover object-top sm:h-[320px]"
                                   />
                                 </div>
                               ) : null}
