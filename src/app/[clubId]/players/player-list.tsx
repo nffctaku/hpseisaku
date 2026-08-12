@@ -680,14 +680,14 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                       <div className="text-2xl font-black italic leading-none" style={{ color: mainAccent }}>{player.params.overall ?? '-'}</div>
                     </div>
                     <div className="flex justify-center py-2">
-                      <svg viewBox="0 0 200 200" width="180" height="180" className="mx-auto">
+                      <svg viewBox="0 0 240 240" width="180" height="180" className="mx-auto">
                         {/* Background hexagon grid */}
                         {[0.2, 0.4, 0.6, 0.8, 1.0].map((scale) => {
                           const points = player.params!.items.map((item, i) => {
                             const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
                             const r = 80 * scale;
-                            const x = 100 + r * Math.cos(angle);
-                            const y = 100 + r * Math.sin(angle);
+                            const x = 120 + r * Math.cos(angle);
+                            const y = 120 + r * Math.sin(angle);
                             return `${x},${y}`;
                           }).join(' ');
                           return (
@@ -703,13 +703,13 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                         {/* Axis lines */}
                         {player.params!.items.map((item, i) => {
                           const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
-                          const x = 100 + 80 * Math.cos(angle);
-                          const y = 100 + 80 * Math.sin(angle);
+                          const x = 120 + 80 * Math.cos(angle);
+                          const y = 120 + 80 * Math.sin(angle);
                           return (
                             <line
                               key={i}
-                              x1={100}
-                              y1={100}
+                              x1={120}
+                              y1={120}
                               x2={x}
                               y2={y}
                               stroke="rgba(255,255,255,0.1)"
@@ -723,8 +723,8 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                             const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
                             const value = typeof item.value === 'number' && Number.isFinite(item.value) ? item.value : 0;
                             const r = 80 * (value / 99);
-                            const x = 100 + r * Math.cos(angle);
-                            const y = 100 + r * Math.sin(angle);
+                            const x = 120 + r * Math.cos(angle);
+                            const y = 120 + r * Math.sin(angle);
                             return `${x},${y}`;
                           }).join(' ')}
                           fill={`${mainAccent}33`}
@@ -736,8 +736,8 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                           const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
                           const value = typeof item.value === 'number' && Number.isFinite(item.value) ? item.value : 0;
                           const r = 80 * (value / 99);
-                          const x = 100 + r * Math.cos(angle);
-                          const y = 100 + r * Math.sin(angle);
+                          const x = 120 + r * Math.cos(angle);
+                          const y = 120 + r * Math.sin(angle);
                           return (
                             <circle
                               key={i}
@@ -754,21 +754,35 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                         {player.params!.items.map((item, i) => {
                           const angle = (Math.PI * 2 * i) / 6 - Math.PI / 2;
                           const r = 95;
-                          const x = 100 + r * Math.cos(angle);
-                          const y = 100 + r * Math.sin(angle);
+                          const x = 120 + r * Math.cos(angle);
+                          const y = 120 + r * Math.sin(angle);
+                          const label = item.name || item.label || item.key || `項目${i + 1}`;
+                          const value = typeof item.value === 'number' && Number.isFinite(item.value) ? Math.round(item.value) : '-';
                           return (
-                            <text
-                              key={i}
-                              x={x}
-                              y={y}
-                              textAnchor="middle"
-                              dominantBaseline="middle"
-                              fontSize="10"
-                              fill="rgba(255,255,255,0.9)"
-                              fontWeight="600"
-                            >
-                              {item.name}
-                            </text>
+                            <g key={i}>
+                              <text
+                                x={x}
+                                y={y}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fontSize="11"
+                                fill="#FFFFFF"
+                                fontWeight="600"
+                              >
+                                {label.slice(0, 8)}
+                              </text>
+                              <text
+                                x={x}
+                                y={y + 12}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fontSize="10"
+                                fill="rgba(255,255,255,0.7)"
+                                fontWeight="700"
+                              >
+                                {value}
+                              </text>
+                            </g>
                           );
                         })}
                       </svg>
@@ -798,7 +812,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                         {[0, 25, 50, 75, 100].map((val) => (
                           <line
                             key={val}
-                            x1={40}
+                            x1={20}
                             y1={10 + (90 - val)}
                             x2={290}
                             y2={10 + (90 - val)}
@@ -806,39 +820,30 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                             strokeWidth="1"
                           />
                         ))}
-                        {/* Y-axis labels */}
-                        {[0, 25, 50, 75, 100].map((val) => (
-                          <text
-                            key={val}
-                            x={35}
-                            y={14 + (90 - val)}
-                            textAnchor="end"
-                            fontSize="8"
-                            fill="rgba(255,255,255,0.5)"
-                          >
-                            {val}
-                          </text>
-                        ))}
                         {/* Data points */}
                         {overallTrend.map((d, i) => {
-                          const x = 40 + (250 * i) / Math.max(overallTrend.length - 1, 1);
+                          const x = 20 + (270 * i) / Math.max(overallTrend.length - 1, 1);
                           const y = 10 + (90 - d.overall);
+                          const isLightColor = mainAccent === '#FFFFFF' || mainAccent === '#ffffff' || mainAccent.toLowerCase().includes('white');
+                          const textColor = isLightColor ? '#000000' : '#FFFFFF';
                           return (
                             <g key={i}>
                               <circle
                                 cx={x}
                                 cy={y}
-                                r="4"
+                                r="12"
                                 fill={mainAccent}
                                 stroke="white"
-                                strokeWidth="1"
+                                strokeWidth="2"
                               />
                               <text
                                 x={x}
-                                y={y + 12}
+                                y={y}
                                 textAnchor="middle"
-                                fontSize="7"
-                                fill="rgba(255,255,255,0.7)"
+                                dominantBaseline="middle"
+                                fontSize="10"
+                                fontWeight="700"
+                                fill={textColor}
                               >
                                 {d.overall}
                               </text>
@@ -847,7 +852,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                         })}
                         {/* X-axis labels */}
                         {overallTrend.map((d, i) => {
-                          const x = 40 + (250 * i) / Math.max(overallTrend.length - 1, 1);
+                          const x = 20 + (270 * i) / Math.max(overallTrend.length - 1, 1);
                           return (
                             <text
                               key={i}

@@ -1366,8 +1366,15 @@ export default async function PlayerPage({
       : [];
   const filledItems = Array.from({ length: 6 }, (_, i) => {
     const item = paramItems?.[i] as any;
+    const label = typeof item?.label === "string"
+      ? item.label
+      : typeof item?.name === "string"
+        ? item.name
+        : typeof item?.key === "string"
+          ? item.key
+          : "";
     return {
-      label: typeof item?.label === "string" ? item.label.slice(0, 8) : "",
+      label: label.slice(0, 8),
       value: toFiniteNumber(item?.value) != null ? clamp99(toFiniteNumber(item?.value)) : 0,
     };
   });
@@ -1640,12 +1647,11 @@ className="object-cover object-[50%_45%] scale-75"
                   </div>
                 )}
 
-                {showParamsOnPublic ? (
-                  <div className="mt-8">
+                <div className="mt-8">
                     <h2 className="text-xl font-bold mb-4">パラメーター</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border p-4 items-start">
                       <div className="flex flex-col items-center gap-4">
-                        <PublicPlayerHexChart labels={paramLabels} values={paramValues} overall={overall} />
+                        <PublicPlayerHexChart labels={paramLabels} values={paramValues} overall={overall} className="mx-auto block h-auto w-full max-w-[320px] sm:max-w-[400px]" />
                       </div>
                       <div className="flex flex-col items-center gap-4">
                         <div className="w-full max-w-[520px]">
@@ -1655,7 +1661,6 @@ className="object-cover object-[50%_45%] scale-75"
                     </div>
                     {!hasParams && <p className="mt-3 text-xs text-muted-foreground">パラメーター未登録</p>}
                   </div>
-                ) : null}
 
                 <Suspense fallback={<div className="mt-8 text-sm text-muted-foreground">スタッツ集計中...</div>}>
                   <PlayerStatsSection 

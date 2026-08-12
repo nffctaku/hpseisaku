@@ -10,17 +10,19 @@ export function PublicPlayerHexChart({
   values,
   overall,
   theme,
+  className,
 }: {
   labels: string[];
   values: number[];
   overall: number;
   theme?: "light" | "dark";
+  className?: string;
 }) {
   const isDark = theme === "dark";
   const size = 120;
-  const pad = 36;
+  const pad = 60;
   const c = size / 2;
-  const r = 45;
+  const r = 40;
   const max = 99;
   const angles = Array.from({ length: 6 }, (_, i) => -Math.PI / 2 + (i * (Math.PI * 2)) / 6);
 
@@ -59,7 +61,7 @@ export function PublicPlayerHexChart({
   });
 
   return (
-    <svg width="100%" viewBox={`${-pad} ${-pad} ${size + pad * 2} ${size + pad * 2}`} className="mx-auto block max-w-[180px] h-auto">
+    <svg width="100%" viewBox={`${-pad} ${-pad} ${size + pad * 2} ${size + pad * 2}`} className={className || "mx-auto block max-w-[180px] h-auto"}>
       <polygon points={outerPoints} fill="none" stroke={outerStroke} strokeWidth="2" />
       {[0.2, 0.4, 0.6, 0.8].map((k) => (
         <polygon
@@ -93,7 +95,7 @@ export function PublicPlayerHexChart({
           y={p.y}
           textAnchor={p.anchor}
           dominantBaseline="middle"
-          fontSize="11"
+          fontSize="12"
           fontWeight={600}
           fill={labelFill}
         >
