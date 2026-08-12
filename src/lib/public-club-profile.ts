@@ -46,6 +46,25 @@ export async function resolvePublicClubProfile(clubId: string): Promise<Resolved
     const ownerUid = (profileData?.ownerUid as string) || snap.id;
     if (!ownerUid) return null;
 
+    // メインチームデータを取得してチーム名とロゴを最新に
+    const mainTeamId = profileData?.mainTeamId;
+    let resolvedProfileData = { ...profileData };
+    if (mainTeamId) {
+      try {
+        const mainTeamSnap = await db.collection(`clubs/${ownerUid}/teams`).doc(mainTeamId).get();
+        if (mainTeamSnap.exists) {
+          const mainTeamData = mainTeamSnap.data();
+          resolvedProfileData = {
+            ...resolvedProfileData,
+            clubName: mainTeamData?.name || profileData.clubName,
+            logoUrl: mainTeamData?.logoUrl || profileData.logoUrl,
+          };
+        }
+      } catch {
+        // チームデータ取得失敗時は元のデータを使用
+      }
+    }
+
     const s = (profileData?.displaySettings || {}) as any;
     const displaySettings: PublicDisplaySettings = {
       menuShowNews: s.menuShowNews !== false,
@@ -63,7 +82,7 @@ export async function resolvePublicClubProfile(clubId: string): Promise<Resolved
       ownerUid,
       clubId: id,
       profileDocId: snap.id,
-      profileData,
+      profileData: resolvedProfileData,
       displaySettings,
     };
   } catch {
