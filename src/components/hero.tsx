@@ -10,7 +10,7 @@ function toCloudinaryPadded16x9(url: string, width: number) {
   if (!url.includes('/image/upload/')) return url;
   return url.replace(
     '/image/upload/',
-    `/image/upload/c_fill,ar_16:9,w_${width},f_auto,q_90/`
+    `/image/upload/c_limit,w_${width},f_auto,q_90/`
   );
 }
 
@@ -92,14 +92,24 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
     <div className="relative w-full aspect-[9/11] sm:aspect-[16/7] overflow-hidden rounded-2xl">
       {/* 背景画像 */}
       {currentArticle.imageUrl ? (
-        <Image
-          src={toCloudinaryPadded16x9(currentArticle.imageUrl, 1600)}
-          alt={currentArticle.title}
-          fill
-          sizes="100vw"
-          className="object-cover"
-          priority
-        />
+        <>
+          <Image
+            src={toCloudinaryPadded16x9(currentArticle.imageUrl, 1200)}
+            alt=""
+            fill
+            sizes="100vw"
+            className="scale-110 object-cover blur-xl opacity-55"
+            priority
+          />
+          <Image
+            src={toCloudinaryPadded16x9(currentArticle.imageUrl, 1600)}
+            alt={currentArticle.title}
+            fill
+            sizes="100vw"
+            className="object-contain object-center"
+            priority
+          />
+        </>
       ) : (
         <div className="w-full h-full bg-gray-700" />
       )}
