@@ -6,7 +6,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useClub } from "@/contexts/ClubContext";
 import { db } from "@/lib/firebase";
 import { SystemAnnouncement } from "@/components/system-announcement";
-import { Input } from "@/components/ui/input";
 import {
   ArrowLeftRight,
   BookOpen,
@@ -209,7 +208,6 @@ export default function AdminHomePage() {
       { href: bookletHref, label: "選手名鑑", icon: BookOpen },
       { href: "/admin/analysis", label: "分析管理", icon: LineChart },
       { href: transfersHref, label: "移籍管理", icon: ArrowLeftRight },
-      { href: "/updates", label: "アップデート情報", icon: History },
     ],
     account: [
       { href: "/admin/plan", label: "プラン", icon: CreditCard },
@@ -252,91 +250,232 @@ export default function AdminHomePage() {
     }
   };
 
+  const categoryColors = {
+    frequent: '#60a5fa',
+    content: '#a78bfa',
+    analysis: '#1fd760',
+    account: '#f59e0b',
+  };
+
+  const sectionLabels = {
+    frequent: 'はじめに',
+    content: 'コンテンツ',
+    analysis: '記録・分析',
+    account: 'アカウント',
+  };
+
   return (
-    <div className="w-full mx-auto py-4 sm:py-6 px-4 md:px-0 min-h-screen">
-      <SystemAnnouncement />
-      
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="text-sm text-gray-400">こんにちは</p>
-          <p className="text-lg font-semibold text-white">{clubInfo?.clubName || "チーム"}さん</p>
+    <div className="w-full mx-auto max-w-5xl px-0 py-0">
+      {/* PC Layout */}
+      <div className="hidden sm:block">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-1">
+          <div>
+            <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.38)' }}>
+              こんにちは
+            </p>
+            <p
+              className="text-[28px] font-black italic leading-none"
+              style={{ color: '#f0f4ff', fontFamily: 'var(--font-barlow-condensed)' }}
+            >
+              {clubInfo?.clubName || "チーム"}さん
+            </p>
+          </div>
+          {clubId && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ backgroundColor: 'rgba(31,215,96,0.09)', border: '1px solid rgba(31,215,96,0.25)' }}>
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#1fd760' }} />
+              <span className="text-[12px] font-bold" style={{ color: '#1fd760' }}>
+                公開中
+              </span>
+            </div>
+          )}
         </div>
-        <div className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-medium">
-          公開中
+
+        {/* HP Buttons */}
+        {clubId && (
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <a
+              href={`/${clubId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 rounded-xl px-0 py-3 text-[14px] font-bold transition-colors"
+              style={{ backgroundColor: '#1fd760', color: '#080c14' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#17c054'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1fd760'}
+            >
+              <Eye className="h-4 w-4" />
+              HPを見る
+            </a>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center justify-center gap-2 rounded-xl px-0 py-3 text-[14px] font-bold transition-all"
+                  style={{ backgroundColor: '#111d2e', border: '1px solid rgba(255,255,255,0.1)', color: '#c8d4e8' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1a2540';
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#111d2e';
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                  }}
+                >
+                  <Share2 className="h-4 w-4" />
+                  HPをシェア
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-48"
+                style={{ backgroundColor: '#111d2e', border: '1px solid rgba(255,255,255,0.1)' }}
+              >
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    handleShareHpOnX();
+                  }}
+                  className="text-[14px] cursor-pointer hover:bg-white/5"
+                >
+                  <div className="flex items-center gap-2" style={{ color: '#c8d4e8' }}>
+                    <FaXTwitter className="h-4 w-4" />
+                    <span className="text-sm">Xでシェア</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={async (e) => {
+                    e.preventDefault();
+                    await handleShareHp();
+                  }}
+                  className="text-[14px] cursor-pointer hover:bg-white/5"
+                >
+                  <div className="flex items-center gap-2" style={{ color: '#c8d4e8' }}>
+                    <Copy className="h-4 w-4" />
+                    <span className="text-sm">URLをコピー</span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+
+        {/* Sections */}
+        <div className="space-y-4">
+          {Object.entries(navItemsBySection).map(([key, items]) => {
+            const categoryKey = key as keyof typeof categoryColors;
+            const color = categoryColors[categoryKey];
+            const label = sectionLabels[categoryKey];
+            return <Section key={key} title={label} items={items} color={color} />;
+          })}
         </div>
       </div>
 
-      {/* Action Buttons */}
-      {clubId && (
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <a
-            href={`/${clubId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            <Eye className="h-4 w-4" />
-            HPを見る
-          </a>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-4 py-3 text-sm font-semibold text-gray-900 border border-gray-200 hover:bg-gray-50"
-              >
-                <Share2 className="h-4 w-4" />
-                HPをシェア
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-48 bg-white text-gray-900 border border-gray-200 shadow-lg"
+      {/* Mobile Layout */}
+      <div className="sm:hidden max-w-lg mx-auto">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-1">
+          <div>
+            <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.38)' }}>
+              こんにちは
+            </p>
+            <p
+              className="text-[28px] font-black italic leading-none"
+              style={{ color: '#f0f4ff', fontFamily: 'var(--font-barlow-condensed)' }}
             >
-              <DropdownMenuItem
-                onSelect={(e) => {
-                  e.preventDefault();
-                  handleShareHpOnX();
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <FaXTwitter className="h-4 w-4" />
-                  <span className="text-sm">Xでシェア</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={async (e) => {
-                  e.preventDefault();
-                  await handleShareHp();
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <Copy className="h-4 w-4" />
-                  <span className="text-sm">URLをコピー</span>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              {clubInfo?.clubName || "チーム"}さん
+            </p>
+          </div>
+          {clubId && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ backgroundColor: 'rgba(31,215,96,0.09)', border: '1px solid rgba(31,215,96,0.25)' }}>
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#1fd760' }} />
+              <span className="text-[12px] font-bold" style={{ color: '#1fd760' }}>
+                公開中
+              </span>
+            </div>
+          )}
         </div>
-      )}
 
-      {/* Sections */}
-      <div className="space-y-8">
-        {/* はじめに */}
-        <Section title="はじめに" items={navItemsBySection.frequent} />
-        
-        {/* コンテンツ */}
-        <Section title="コンテンツ" items={navItemsBySection.content} />
-        
-        {/* 記録・分析 */}
-        <Section title="記録・分析" items={navItemsBySection.analysis} />
-        
-        {/* アカウント */}
-        <Section title="アカウント" items={navItemsBySection.account} />
+        {/* HP Buttons */}
+        {clubId && (
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <a
+              href={`/${clubId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 rounded-xl px-0 py-3 text-[14px] font-bold transition-colors"
+              style={{ backgroundColor: '#1fd760', color: '#080c14' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#17c054'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1fd760'}
+            >
+              <Eye className="h-4 w-4" />
+              HPを見る
+            </a>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center justify-center gap-2 rounded-xl px-0 py-3 text-[14px] font-bold transition-all"
+                  style={{ backgroundColor: '#111d2e', border: '1px solid rgba(255,255,255,0.1)', color: '#c8d4e8' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1a2540';
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#111d2e';
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                  }}
+                >
+                  <Share2 className="h-4 w-4" />
+                  HPをシェア
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-48"
+                style={{ backgroundColor: '#111d2e', border: '1px solid rgba(255,255,255,0.1)' }}
+              >
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    handleShareHpOnX();
+                  }}
+                  className="text-[14px] cursor-pointer hover:bg-white/5"
+                >
+                  <div className="flex items-center gap-2" style={{ color: '#c8d4e8' }}>
+                    <FaXTwitter className="h-4 w-4" />
+                    <span className="text-sm">Xでシェア</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={async (e) => {
+                    e.preventDefault();
+                    await handleShareHp();
+                  }}
+                  className="text-[14px] cursor-pointer hover:bg-white/5"
+                >
+                  <div className="flex items-center gap-2" style={{ color: '#c8d4e8' }}>
+                    <Copy className="h-4 w-4" />
+                    <span className="text-sm">URLをコピー</span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+
+        {/* Sections */}
+        <div className="space-y-4">
+          {Object.entries(navItemsBySection).map(([key, items]) => {
+            const categoryKey = key as keyof typeof categoryColors;
+            const color = categoryColors[categoryKey];
+            const label = sectionLabels[categoryKey];
+            return <Section key={key} title={label} items={items} color={color} />;
+          })}
+        </div>
       </div>
 
       {shouldShowAdminHomeAd ? (
-        <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-3">
+        <div className="mt-8 rounded-xl border p-3" style={{ borderColor: 'rgba(255,255,255,0.07)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
           <ins
             className="adsbygoogle"
             style={{ display: "block" }}
@@ -347,37 +486,70 @@ export default function AdminHomePage() {
           />
         </div>
       ) : null}
+
+      {/* Footer */}
+      <div className="mt-8 pt-4 pb-8 text-center border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
+          FootChron 管理画面
+        </p>
+      </div>
     </div>
   );
 }
 
-function Section({ title, items }: { title: string; items: Array<{ href: string; label: string; icon: any; disabled?: boolean; badge?: { text: string; color: string }; external?: boolean }> }) {
+function Section({ title, items, color }: { title: string; items: Array<{ href: string; label: string; icon: any; disabled?: boolean; badge?: { text: string; color: string }; external?: boolean }>; color: string }) {
   if (items.length === 0) return null;
 
   return (
     <div>
-      <h3 className="text-sm text-gray-400 mb-3">{title}</h3>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-3 h-px" style={{ backgroundColor: color }} />
+        <h3 className="text-[11px] font-black tracking-[0.12em] uppercase leading-none" style={{ color, fontFamily: 'var(--font-barlow-condensed)' }}>
+          {title}
+        </h3>
+        <div className="flex-1 h-px" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }} />
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {items.map((item) => {
           const Icon = item.icon;
           const content = (
             <div className="relative">
               {item.badge && (
-                <div className={`absolute -top-1 -right-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                  item.badge.color === 'orange' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
-                }`}>
+                <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: 'rgba(245,158,11,0.13)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.27)' }}>
                   {item.badge.text}
                 </div>
               )}
               <div
-                className={`bg-white rounded-xl p-4 flex flex-col items-center justify-center gap-2 ${
+                className={`flex flex-col items-center justify-center gap-3 p-5 rounded-2xl transition-all ${
                   item.disabled
                     ? "opacity-50 cursor-not-allowed"
-                    : "hover:shadow-md transition-shadow cursor-pointer"
+                    : "cursor-pointer hover:-translate-y-0.5"
                 }`}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: '1px solid transparent',
+                }}
+                onMouseEnter={(e) => {
+                  if (!item.disabled) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.035)';
+                    e.currentTarget.style.borderColor = `${color}35`;
+                    e.currentTarget.style.boxShadow = 'none';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!item.disabled) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.borderColor = 'transparent';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }
+                }}
               >
-                <Icon className="h-6 w-6 text-gray-700" />
-                <span className="text-sm font-medium text-gray-900 text-center">{item.label}</span>
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'transparent', border: `1px solid ${color}22` }}>
+                  <Icon className="h-5 w-5" style={{ color, strokeWidth: '1.8' }} />
+                </div>
+                <span className="text-[14px] font-semibold text-center leading-tight" style={{ color: '#c8d4e8' }}>
+                  {item.label}
+                </span>
               </div>
             </div>
           );

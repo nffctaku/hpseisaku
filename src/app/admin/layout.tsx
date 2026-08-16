@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, ReactNode } from 'react';
+import { Barlow_Condensed } from 'next/font/google';
 import { Sidebar } from '@/components/sidebar';
 import { Header } from '@/components/header';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +15,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { useRouter, usePathname } from 'next/navigation';
+
+const barlowCondensed = Barlow_Condensed({
+  subsets: ['latin'],
+  weight: ['900'],
+  style: ['italic', 'normal'],
+  variable: '--font-barlow-condensed',
+});
 
 function AdminLayoutContent({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
