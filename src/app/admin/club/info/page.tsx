@@ -260,7 +260,7 @@ export default function ClubInfoPage() {
     };
 
     fetchTeams();
-  }, [user, selectedTeamId]);
+  }, [user]);
 
   const handleUpdate = async () => {
     if (!user || !auth.currentUser) {
