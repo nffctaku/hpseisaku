@@ -264,9 +264,9 @@ function RecentMatchesStrip({
   };
 
   const outcomeClass = (o: 'win' | 'loss' | 'draw') => {
-    if (o === 'win') return 'bg-emerald-950/70 text-emerald-300 ring-1 ring-emerald-500/35';
-    if (o === 'loss') return 'bg-red-950/70 text-red-300 ring-1 ring-red-500/35';
-    return 'bg-slate-800 text-slate-300 ring-1 ring-white/10';
+    if (o === 'win') return 'bg-emerald-500 text-white ring-1 ring-emerald-200/70 shadow-[0_0_18px_rgba(16,185,129,0.28)]';
+    if (o === 'loss') return 'bg-rose-500 text-white ring-1 ring-rose-200/70 shadow-[0_0_18px_rgba(244,63,94,0.28)]';
+    return 'bg-slate-500 text-white ring-1 ring-slate-200/60 shadow-[0_0_18px_rgba(148,163,184,0.18)]';
   };
 
   return (

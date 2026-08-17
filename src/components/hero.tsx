@@ -106,7 +106,7 @@ export function Hero({ news, maxSlides, isLoading }: HeroProps) {
             alt={currentArticle.title}
             fill
             sizes="100vw"
-            className="object-contain object-center"
+            className="scale-[1.9] object-contain object-center sm:scale-100"
             priority
           />
         </>
