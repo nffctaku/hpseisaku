@@ -371,12 +371,16 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
             customStatHeaders: data.customStatHeaders || [],
             playerStats: data.playerStats || [],
             events: data.events || [],
+            homeFormation: data.homeFormation || match.homeFormation || '4-3-3',
+            awayFormation: data.awayFormation || match.awayFormation || '4-3-3',
           });
         } else {
           methods.reset({
             customStatHeaders: [],
             playerStats: [],
             events: [],
+            homeFormation: match.homeFormation || '4-3-3',
+            awayFormation: match.awayFormation || '4-3-3',
           });
         }
       } catch (error) {
@@ -405,6 +409,8 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       customStatHeaders: current.customStatHeaders || [],
       playerStats: nextPlayerStats,
       events: current.events || [],
+      homeFormation: current.homeFormation || match.homeFormation || '4-3-3',
+      awayFormation: current.awayFormation || match.awayFormation || '4-3-3',
     };
 
     methods.reset(nextValues);
@@ -704,6 +710,17 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     await saveSquadData(data, { showToast: true });
   };
 
+  const saveFormationChange = async () => {
+    const current = methods.getValues();
+    const res = await saveSquadData(current, { showToast: false });
+    if (!res.ok) {
+      setTimeout(async () => {
+        const latest = methods.getValues();
+        await saveSquadData(latest, { showToast: false });
+      }, 600);
+    }
+  };
+
   useEffect(() => {
     if (loading) return;
     if (!autosaveReadyRef.current) return;
@@ -816,9 +833,8 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                     isHomeTeam={true}
                     onFormationChange={async (formation) => {
                       methods.setValue('homeFormation', formation, { shouldDirty: true });
-                      setTimeout(async () => {
-                        const current = methods.getValues();
-                        await saveSquadData(current, { showToast: false });
+                      setTimeout(() => {
+                        void saveFormationChange();
                       }, 100);
                     }}
                   />
@@ -847,9 +863,8 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                     isHomeTeam={false}
                     onFormationChange={async (formation) => {
                       methods.setValue('awayFormation', formation, { shouldDirty: true });
-                      setTimeout(async () => {
-                        const current = methods.getValues();
-                        await saveSquadData(current, { showToast: false });
+                      setTimeout(() => {
+                        void saveFormationChange();
                       }, 100);
                     }}
                   />

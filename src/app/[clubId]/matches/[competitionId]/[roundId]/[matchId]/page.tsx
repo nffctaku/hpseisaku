@@ -486,9 +486,12 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const awayPitchSlots = getFormationSlots(awayFormation);
 
   // Render pitch for a team
-  const renderPitch = (starters: any[], pitchSlots: any[]) => {
+  const renderPitch = (starters: any[], pitchSlots: any[], formation: string) => {
     return (
       <div className="relative mx-auto aspect-[7/10] w-full overflow-hidden bg-[#0f1722] sm:aspect-[5/6] sm:max-w-[520px] rounded-lg">
+        <div className="absolute right-3 top-3 z-20 rounded-full border border-slate-600 bg-slate-950/70 px-2 py-1 text-[10px] font-black tracking-wide text-white shadow-sm">
+          {formation}
+        </div>
         <div className="absolute inset-x-[6%] inset-y-[4%] border-2 border-slate-400/14" />
         <div className="absolute inset-x-[28%] top-[4%] h-[13%] border-x-2 border-b-2 border-slate-400/14" />
         <div className="absolute inset-x-[38%] top-[4%] h-[6%] border-x-2 border-b-2 border-slate-400/14" />
@@ -600,6 +603,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
     const rating = Number(ps.rating) || 0;
     const goals = Number(ps.goals) || 0;
     const assists = Number(ps.assists) || 0;
+    const yellowCards = Number(ps.yellowCards) || 0;
     const hasRating = rating > 0;
     const hasMinutes = minutes > 0;
     const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
@@ -620,10 +624,15 @@ export default async function MatchDetailPage({ params }: PageProps) {
 
     return (
       <div className="rounded-md border border-slate-700 bg-transparent px-3 py-2 text-sm flex items-center gap-3">
-        <Avatar className="size-9">
-          {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={playerName} />}
-          <AvatarFallback className="text-[11px] font-semibold">{playerName.slice(0, 1)}</AvatarFallback>
-        </Avatar>
+        <div className="relative shrink-0">
+          <Avatar className="size-9">
+            {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={playerName} />}
+            <AvatarFallback className="text-[11px] font-semibold">{playerName.slice(0, 1)}</AvatarFallback>
+          </Avatar>
+          {yellowCards > 0 && (
+            <span className="absolute -right-1 -top-1 h-4 w-2.5 rounded-[2px] bg-yellow-400 shadow-sm" />
+          )}
+        </div>
         <div className="flex-1 min-w-0">
           <div className="font-semibold truncate">{playerName}</div>
           <div className="text-[11px] text-muted-foreground truncate">
@@ -632,7 +641,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           </div>
         </div>
         {pillText && (
-          <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+          <span className="shrink-0 inline-flex h-[18px] items-center rounded-full bg-slate-700/80 px-2 py-0 text-[10px] font-bold leading-none text-white tabular-nums">
             {pillText}
           </span>
         )}
@@ -646,13 +655,20 @@ export default async function MatchDetailPage({ params }: PageProps) {
             )}
             {assists > 0 && (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
-                <span className="text-[12px] leading-none">👟</span>
+                <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full bg-sky-500 text-white">
+                  <svg viewBox="0 0 8 8" className="h-4 w-4 shrink-0 -rotate-45 fill-none stroke-current" aria-hidden="true">
+                    <g transform="translate(0.2 -0.55)">
+                      <path d="M1.2 5.1c1.5.1 2.7-.4 3.6-1.7l1 1 1.1.4c.4.1.7.5.7.9H1.7c-.3 0-.5-.2-.5-.5v-.1Z" strokeWidth="0.65" strokeLinejoin="round" />
+                      <path d="M3.9 4.3 4.6 5M4.8 3.5l.7.7" strokeWidth="0.5" strokeLinecap="round" />
+                    </g>
+                  </svg>
+                </span>
                 <span>{assists}</span>
               </span>
             )}
             {hasMinutes && (
-              <span className="inline-flex h-7 min-w-8 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums">
-                {minutes}
+              <span className="inline-flex h-[18px] min-w-7 items-center justify-center rounded-full bg-slate-700/80 px-2 text-[10px] font-bold leading-none text-white tabular-nums">
+                {minutes}'
               </span>
             )}
           </span>
@@ -813,7 +829,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           </div>
 
           {/* Scorers row */}
-          <div className="mx-auto mt-4 grid max-w-sm grid-cols-2 gap-4 text-[11px] font-bold leading-relaxed text-white md:text-xs">
+          <div className="mx-auto mt-4 grid w-[320px] max-w-full grid-cols-2 gap-6 text-[11px] font-bold leading-relaxed text-white md:w-[420px] md:text-xs">
             <div className="space-y-0.5 text-right">
               {homeGoals.map((g) => {
                 const ev: any = g;
@@ -850,14 +866,14 @@ export default async function MatchDetailPage({ params }: PageProps) {
           defaultValue={hasLineups || (!hasTeamStats && !hasEvents) ? "lineups" : hasTeamStats ? "stats" : "events"}
           className="w-full"
         >
-          <TabsList className="mx-auto mb-6 grid w-[640px] max-w-full grid-cols-3 border-b border-slate-800 bg-transparent p-0">
-            <TabsTrigger value="lineups" className="rounded-none border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
+          <TabsList className="mx-auto mb-6 grid w-[640px] max-w-full grid-cols-3 rounded-none border-0 border-b border-slate-800 bg-transparent p-0">
+            <TabsTrigger value="lineups" className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:border-b-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
               LINEUPS
             </TabsTrigger>
-            <TabsTrigger value="stats" disabled={!hasTeamStats} className="rounded-none border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
+            <TabsTrigger value="stats" disabled={!hasTeamStats} className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:border-b-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
               STATS
             </TabsTrigger>
-            <TabsTrigger value="events" disabled={!hasEvents} className="rounded-none border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
+            <TabsTrigger value="events" disabled={!hasEvents} className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:border-b-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
               EVENTS
             </TabsTrigger>
           </TabsList>
@@ -868,16 +884,20 @@ export default async function MatchDetailPage({ params }: PageProps) {
               <section className="rounded-lg border border-slate-800 bg-[#0b111d] p-4 md:p-6">
                 <div className="md:hidden">
                   <Tabs defaultValue="home" className="w-full">
-                    <TabsList className="grid grid-cols-2 w-80 max-w-full mx-auto mb-4">
-                      <TabsTrigger value="home">{match.homeTeamName}</TabsTrigger>
-                      <TabsTrigger value="away">{match.awayTeamName}</TabsTrigger>
+                    <TabsList className="mx-auto mb-4 grid h-10 w-80 max-w-full grid-cols-2 rounded-full border border-slate-700 bg-slate-900/80 p-1">
+                      <TabsTrigger value="home" className="rounded-full text-xs font-bold text-slate-300 data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-none">
+                        {match.homeTeamName}
+                      </TabsTrigger>
+                      <TabsTrigger value="away" className="rounded-full text-xs font-bold text-slate-300 data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-none">
+                        {match.awayTeamName}
+                      </TabsTrigger>
                     </TabsList>
                     <TabsContent value="home" className="mt-0">
                       <div className="space-y-4">
                         <h3 className="text-center text-sm font-semibold text-muted-foreground">
-                          {match.homeTeamName} Starting Lineup ({homeFormation})
+                          {match.homeTeamName} Starting Lineup
                         </h3>
-                        {renderPitch(homeStarters, homePitchSlots)}
+                        {renderPitch(homeStarters, homePitchSlots, homeFormation)}
                         <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                         <div className="space-y-2">
                           {homeSubsSorted.map((ps: any, idx: number) => {
@@ -893,9 +913,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     <TabsContent value="away" className="mt-0">
                       <div className="space-y-4">
                         <h3 className="text-center text-sm font-semibold text-muted-foreground">
-                          {match.awayTeamName} Starting Lineup ({awayFormation})
+                          {match.awayTeamName} Starting Lineup
                         </h3>
-                        {renderPitch(awayStarters, awayPitchSlots)}
+                        {renderPitch(awayStarters, awayPitchSlots, awayFormation)}
                         <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                         <div className="space-y-2">
                           {awaySubsSorted.map((ps: any, idx: number) => {
@@ -913,9 +933,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 <div className="hidden md:grid md:grid-cols-2 gap-6 text-sm">
                   <div className="space-y-4">
                     <h3 className="text-center text-sm font-semibold text-muted-foreground">
-                      {match.homeTeamName} Starting Lineup ({homeFormation})
+                      {match.homeTeamName} Starting Lineup
                     </h3>
-                    {renderPitch(homeStarters, homePitchSlots)}
+                    {renderPitch(homeStarters, homePitchSlots, homeFormation)}
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                     <div className="space-y-2">
                       {homeSubsSorted.map((ps: any, idx: number) => {
@@ -929,9 +949,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
                   </div>
                   <div className="space-y-4">
                     <h3 className="text-center text-sm font-semibold text-muted-foreground">
-                      {match.awayTeamName} Starting Lineup ({awayFormation})
+                      {match.awayTeamName} Starting Lineup
                     </h3>
-                    {renderPitch(awayStarters, awayPitchSlots)}
+                    {renderPitch(awayStarters, awayPitchSlots, awayFormation)}
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                     <div className="space-y-2">
                       {awaySubsSorted.map((ps: any, idx: number) => {
@@ -993,7 +1013,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           {/* EVENTS */}
           <TabsContent value="events" className="mt-4">
             {hasEvents ? (
-              <section className="rounded-lg border border-slate-800 bg-[#0b111d] p-4 md:p-6">
+              <section className="p-4 md:p-6">
                 <h2 className="text-lg font-semibold mb-4 text-center">試合イベント</h2>
                 {(() => {
                   const sorted = events
@@ -1064,7 +1084,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                   }
 
                   return (
-                    <div className="space-y-2 text-xs md:text-sm rounded-md border border-border/60 bg-background/40 px-2 py-2">
+                    <div className="space-y-2 text-xs md:text-sm px-2 py-2">
                       {rows.map((row, index) => {
                         if (row.kind === "ht" || row.kind === "ft") {
                           const label = `${row.kind.toUpperCase()} ${row.homeScore}-${row.awayScore}`;
@@ -1094,29 +1114,28 @@ export default async function MatchDetailPage({ params }: PageProps) {
                         const inName = inPlayerId ? playerNameMap.get(inPlayerId) : undefined;
 
                         let label = "";
+                        let detailLabel = "";
                         let goalScoreLabel: string | null = null;
                         if (ev.type === "goal") {
                           const isPk = assistId === 'pk' || assist === 'PK';
-                          if (isPk) {
-                            label = nameLabel ? `${nameLabel} ゴール(PK)` : 'ゴール(PK)';
-                          } else {
-                            label = nameLabel || "ゴール";
-                            if (assist) label += `（A: ${assist}` + ")";
-                          }
+                          label = nameLabel || "";
+                          if (isPk) detailLabel = "PK";
+                          if (!isPk && assist) detailLabel = `A: ${assist}`;
                           goalScoreLabel = `${homeScore}-${awayScore}`;
                         } else if (ev.type === "og") {
                           label = nameLabel || "OG";
                           goalScoreLabel = `${homeScore}-${awayScore}`;
                         } else if (ev.type === "yellow") {
-                          label = nameLabel || "カード";
+                          label = nameLabel || "";
                         } else if (ev.type === "red") {
-                          label = nameLabel || "カード";
+                          label = nameLabel || "";
                         } else if (ev.type === "sub_in" || ev.type === "sub_out") {
-                          label = nameLabel || "交代";
+                          label = nameLabel || "";
                         } else if (ev.type === "card") {
-                          label = nameLabel || "カード";
+                          label = nameLabel || "";
                         } else if (ev.type === "substitution") {
-                          label = `${outName ?? "OUT"} → ${inName ?? "IN"}`;
+                          label = outName ?? "OUT";
+                          detailLabel = inName ?? "IN";
                         } else if (ev.type === "note") {
                           label = (ev as any).text || "メモ";
                         }
@@ -1125,41 +1144,41 @@ export default async function MatchDetailPage({ params }: PageProps) {
                           label = `${label} (${goalScoreLabel})`;
                         }
 
+                        const eventContent = (
+                          <div className="flex items-start gap-1 min-w-0 max-w-full">
+                            <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
+                            <span className="min-w-0">
+                              <span className="block whitespace-nowrap">{label}</span>
+                              {detailLabel && <span className="block whitespace-nowrap text-[10px] text-white/70">{detailLabel}</span>}
+                            </span>
+                          </div>
+                        );
+
                         return (
                           <div
                             key={ev.id ?? index}
-                            className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 px-2 py-1"
+                            className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-2 py-1"
                           >
-                            <div className="flex justify-start pr-2 min-w-0">
+                            <div className="flex justify-end pr-2 min-w-0">
                               {isHome && label && (
-                                <div className="flex items-center gap-2 min-w-0 max-w-full">
-                                  <div className="min-w-0">
-                                    <div className="flex items-start justify-start gap-1 text-[11px] font-medium text-emerald-500 whitespace-nowrap">
-                                      <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
-                                      <span className="whitespace-nowrap">{label}</span>
-                                    </div>
-                                  </div>
+                                <div className="text-right text-[11px] font-medium text-emerald-500">
+                                  {eventContent}
                                 </div>
                               )}
                             </div>
 
-                            <div className="flex justify-end pl-2 min-w-0">
-                              {!isHome && label && (
-                                <div className="flex items-center gap-2 min-w-0 max-w-full">
-                                  <div className="min-w-0">
-                                    <div className="flex items-start justify-end gap-1 text-[11px] font-medium text-sky-500 whitespace-nowrap">
-                                      <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
-                                      <span className="whitespace-nowrap">{label}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="justify-self-end">
+                            <div className="justify-self-center">
                               <span className="inline-flex h-7 min-w-10 items-center justify-center rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground shadow-sm tabular-nums shrink-0">
                                 {formatMinute(ev.minute)}'
                               </span>
+                            </div>
+
+                            <div className="flex justify-start pl-2 min-w-0">
+                              {!isHome && label && (
+                                <div className="text-left text-[11px] font-medium text-sky-500">
+                                  {eventContent}
+                                </div>
+                              )}
                             </div>
                           </div>
                         );

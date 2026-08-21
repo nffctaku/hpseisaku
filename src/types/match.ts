@@ -90,6 +90,8 @@ export interface MatchDetails {
   playerStats?: PlayerStats[];
   homeSquad?: { starters: string[]; substitutes: string[] };
   awaySquad?: { starters: string[]; substitutes: string[] };
+  homeFormation?: string;
+  awayFormation?: string;
   events?: MatchEvent[];
   matchDuration?: number; // 試合時間（分）。デフォルト90、延長戦の場合120など
 }

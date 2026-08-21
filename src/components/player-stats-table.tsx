@@ -153,7 +153,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
   }, [currentFormation]);
 
   useEffect(() => {
-    // Also update from localStorage for backward compatibility
+    if (currentFormation) return;
     try {
       const savedFormation = localStorage.getItem(formationStorageKey);
       if (savedFormation && FORMATION_OPTIONS.includes(savedFormation) && savedFormation !== selectedFormation) {
@@ -162,17 +162,17 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     } catch {
       // ignore storage errors
     }
-  }, [formationStorageKey]);
+  }, [currentFormation, formationStorageKey]);
 
   const handleFormationChange = (formation: string) => {
     setSelectedFormation(formation);
     try {
       localStorage.setItem(formationStorageKey, formation);
-      if (onFormationChange) {
-        onFormationChange(formation);
-      }
     } catch {
       // ignore storage errors
+    }
+    if (onFormationChange) {
+      onFormationChange(formation);
     }
   };
 
