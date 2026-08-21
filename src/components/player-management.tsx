@@ -615,6 +615,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         });
         await updateDoc(playerDocRef, (updatePayload || {}) as any);
         savedPlayerId = editingPlayer.id;
+        
+        // 公開ページのキャッシュをクリア
+        await invalidatePlayerStatsCache(editingPlayer.id);
 
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster`, editingPlayer.id);
         
