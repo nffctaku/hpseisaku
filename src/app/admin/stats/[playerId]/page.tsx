@@ -218,7 +218,7 @@ export default function PlayerStatsPage() {
                         <TableHead>対戦相手</TableHead>
                         <TableHead>結果</TableHead>
                         <TableHead>ポジション</TableHead>
-                        <TableHead className="text-center">⚽</TableHead>
+                        <TableHead className="text-center"><span className="rounded-full bg-amber-500 p-0.5">⚽</span></TableHead>
                         <TableHead className="text-center">🅰️</TableHead>
                         <TableHead className="text-center">🟨</TableHead>
                         <TableHead className="text-center">🟥</TableHead>

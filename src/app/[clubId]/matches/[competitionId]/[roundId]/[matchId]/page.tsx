@@ -543,7 +543,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     </div>
                   )}
                   {goalsValue > 0 ? (
-                    <span className="absolute -left-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-emerald-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
+                    <span className="absolute -left-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-amber-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
                       <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
                         <circle cx="4" cy="4" r="2.85" strokeWidth="0.65" />
                         <path d="M4 2.1 5.25 3 4.8 4.55H3.2L2.75 3 4 2.1Z" strokeWidth="0.45" strokeLinejoin="round" />
@@ -575,12 +575,12 @@ export default async function MatchDetailPage({ params }: PageProps) {
                   <div className="inline-flex h-[11px] items-center gap-0.5 text-[7px] font-bold leading-none text-white sm:text-[8px]">
                     {wasSubstituted && <span className="text-red-400 text-[8px]">⇔</span>}
                     <span className="inline-flex h-[11px] items-center rounded-full bg-slate-700/80 px-1 py-0 leading-[11px]">{minutesValue}'</span>
+                    {hasRating && (
+                      <span className={`inline-flex h-[11px] items-center rounded-full px-1 text-[7px] font-bold leading-[11px] text-white sm:text-[8px] ${ratingClassName}`}>
+                        ★{ratingValue}
+                      </span>
+                    )}
                   </div>
-                  {hasRating && (
-                    <span className={`inline-flex h-[11px] items-center rounded-full px-1 text-[7px] font-bold leading-[11px] text-white sm:text-[8px] ${ratingClassName}`}>
-                      ★{ratingValue}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
@@ -640,7 +640,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           <span className="shrink-0 inline-flex items-center gap-2">
             {goals > 0 && (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground tabular-nums">
-                <span className="text-[12px] leading-none">⚽</span>
+                <span className="text-[12px] leading-none rounded-full bg-amber-500 p-0.5">⚽</span>
                 <span>{goals}</span>
               </span>
             )}

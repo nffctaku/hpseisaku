@@ -625,7 +625,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                     </div>
                   ) : null}
                   {goalsValue > 0 ? (
-                    <span className="absolute -left-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-emerald-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
+                    <span className="absolute -left-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-amber-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
                       <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
                         <circle cx="4" cy="4" r="2.85" strokeWidth="0.65" />
                         <path d="M4 2.1 5.25 3 4.8 4.55H3.2L2.75 3 4 2.1Z" strokeWidth="0.45" strokeLinejoin="round" />
@@ -670,22 +670,22 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
               <div className="inline-flex h-[11px] items-center gap-0.5 text-[7px] font-bold leading-none text-white sm:text-[8px]">
                 {wasSubstituted && <span className="text-red-400 text-[8px]">⇔</span>}
                 <span className="inline-flex h-[11px] items-center rounded-full bg-slate-700/80 px-1 py-0 leading-[11px]">{minutesValue}'</span>
+                <Select value={hasRating ? ratingValue : ''} onValueChange={(val) => statIndex >= 0 && setValue(`playerStats.${statIndex}.rating` as any, parseFloat(val), { shouldDirty: true })}>
+                  <div className="relative inline-flex h-[11px] items-center">
+                    <span className={`inline-flex h-[11px] items-center rounded-full px-1 text-[7px] font-bold leading-[11px] text-white sm:text-[8px] ${ratingClassName}`}>★{ratingValue}</span>
+                    <SelectTrigger className="absolute inset-0 !h-[11px] !min-h-0 !w-full border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
+                      <SelectValue placeholder="" />
+                    </SelectTrigger>
+                  </div>
+                  <SelectContent>
+                    {[...ratingOptions].reverse().map((rating) => (
+                      <SelectItem key={rating} value={rating}>
+                        ★{rating}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Select value={hasRating ? ratingValue : ''} onValueChange={(val) => statIndex >= 0 && setValue(`playerStats.${statIndex}.rating` as any, parseFloat(val), { shouldDirty: true })}>
-                <div className="relative inline-flex h-[11px] items-center">
-                  <span className={`inline-flex h-[11px] items-center rounded-full px-1 text-[7px] font-bold leading-[11px] text-white sm:text-[8px] ${ratingClassName}`}>★{ratingValue}</span>
-                  <SelectTrigger className="absolute inset-0 !h-[11px] !min-h-0 !w-full border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
-                    <SelectValue placeholder="" />
-                  </SelectTrigger>
-                </div>
-                <SelectContent>
-                  {[...ratingOptions].reverse().map((rating) => (
-                    <SelectItem key={rating} value={rating}>
-                      ★{rating}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           ) : null}
         </div>
