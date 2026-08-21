@@ -60,6 +60,13 @@ export async function POST(request: Request) {
     }
 
     await db.doc(`clubs/${ownerUid}/public_player_stats_cache/${playerId}`).delete();
+    
+    // public_stats_index キャッシュも削除
+    const statsIndexRef = db.collection(`clubs/${ownerUid}/public_stats_index`);
+    const snapshot = await statsIndexRef.get();
+    for (const doc of snapshot.docs) {
+      await doc.ref.delete();
+    }
 
     return new NextResponse(JSON.stringify({ message: "ok" }), { status: 200 });
   } catch (error) {

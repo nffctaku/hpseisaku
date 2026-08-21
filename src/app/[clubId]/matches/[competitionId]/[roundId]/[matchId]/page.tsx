@@ -75,7 +75,7 @@ async function getMatchDetail(
       ]);
 
       const fetchTeamPlayers = async (teamId: string | undefined) => {
-        if (!teamId) return [] as { id: string; number: number; position?: string; photoUrl?: string }[];
+        if (!teamId) return [] as { id: string; number: number; position?: string; photoUrl?: string; name?: string }[];
         const snap = await db.collection(`clubs/${ownerUid}/teams/${teamId}/players`).get();
         return snap.docs.map((d) => {
           const pd = d.data() as any;
@@ -84,6 +84,7 @@ async function getMatchDetail(
             number: Number(pd.number) || 0,
             position: pd.position,
             photoUrl: pd.photoUrl || pd.photoURL,
+            name: pd.name,
           };
         });
       };
@@ -93,9 +94,9 @@ async function getMatchDetail(
         fetchTeamPlayers(data.awayTeam),
       ]);
 
-      const playerMetaMap: Record<string, { number: number; position?: string; photoUrl?: string }> = {};
+      const playerMetaMap: Record<string, { number: number; position?: string; photoUrl?: string; name?: string }> = {};
       [...homePlayersMeta, ...awayPlayersMeta].forEach((p) => {
-        playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl };
+        playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl, name: p.name };
       });
 
       const playerTeamMap: Record<string, string> = {};
@@ -157,7 +158,7 @@ async function getMatchDetail(
     ]);
 
     const fetchTeamPlayers = async (teamId: string | undefined) => {
-      if (!teamId) return [] as { id: string; number: number; position?: string; photoUrl?: string }[];
+      if (!teamId) return [] as { id: string; number: number; position?: string; photoUrl?: string; name?: string }[];
       const snap = await db.collection(`clubs/${ownerUid}/teams/${teamId}/players`).get();
       return snap.docs.map((d) => {
         const pd = d.data() as any;
@@ -166,6 +167,7 @@ async function getMatchDetail(
           number: Number(pd.number) || 0,
           position: pd.position,
           photoUrl: pd.photoUrl || pd.photoURL,
+          name: pd.name,
         };
       });
     };
@@ -175,9 +177,9 @@ async function getMatchDetail(
       fetchTeamPlayers(data.awayTeam),
     ]);
 
-    const playerMetaMap: Record<string, { number: number; position?: string; photoUrl?: string }> = {};
+    const playerMetaMap: Record<string, { number: number; position?: string; photoUrl?: string; name?: string }> = {};
     [...homePlayersMeta, ...awayPlayersMeta].forEach((p) => {
-      playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl };
+      playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl, name: p.name };
     });
 
     const playerTeamMap: Record<string, string> = {};
@@ -259,7 +261,7 @@ async function getMatchDetail(
   ]);
 
   const fetchTeamPlayers = async (teamId: string | undefined) => {
-    if (!teamId) return [] as { id: string; number: number; position?: string; photoUrl?: string }[];
+    if (!teamId) return [] as { id: string; number: number; position?: string; photoUrl?: string; name?: string }[];
     const snap = await db.collection(`clubs/${ownerUid}/teams/${teamId}/players`).get();
     return snap.docs.map((d) => {
       const pd = d.data() as any;
@@ -268,6 +270,7 @@ async function getMatchDetail(
         number: Number(pd.number) || 0,
         position: pd.position,
         photoUrl: pd.photoUrl || pd.photoURL,
+        name: pd.name,
       };
     });
   };
@@ -277,9 +280,9 @@ async function getMatchDetail(
     fetchTeamPlayers(data.awayTeam),
   ]);
 
-  const playerMetaMap: Record<string, { number: number; position?: string; photoUrl?: string }> = {};
+  const playerMetaMap: Record<string, { number: number; position?: string; photoUrl?: string; name?: string }> = {};
   [...homePlayersMeta, ...awayPlayersMeta].forEach((p) => {
-    playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl };
+    playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl, name: p.name };
   });
 
   const playerTeamMap: Record<string, string> = {};
@@ -352,7 +355,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const events: MatchEvent[] = ((match as any).events || []) as MatchEvent[];
   const playerMetaMap = ((match as any).playerMetaMap || {}) as Record<
     string,
-    { number: number; position?: string; photoUrl?: string }
+    { number: number; position?: string; photoUrl?: string; name?: string }
   >;
   const playerTeamMap = ((match as any).playerTeamMap || {}) as Record<string, string>;
 
@@ -447,6 +450,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
     const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
     const numberLabel = meta?.number ? `${meta.number}` : "";
     const positionLabel = meta?.position || ps.position || "";
+    const playerName = meta?.name || ps.playerName || "";
 
     const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
     const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
@@ -462,11 +466,11 @@ export default async function MatchDetailPage({ params }: PageProps) {
     return (
       <div className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3">
         <Avatar className="size-9">
-          {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={ps.playerName} />}
-          <AvatarFallback className="text-[11px] font-semibold">{(ps.playerName || "").slice(0, 1)}</AvatarFallback>
+          {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={playerName} />}
+          <AvatarFallback className="text-[11px] font-semibold">{playerName.slice(0, 1)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold truncate">{ps.playerName}</div>
+          <div className="font-semibold truncate">{playerName}</div>
           <div className="text-[11px] text-muted-foreground truncate">
             {numberLabel && `${numberLabel} `}
             {positionLabel}
@@ -655,8 +659,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
               {homeGoals.map((g) => {
                 const ev: any = g;
                 const nameFromEvent = ev.playerName as string | undefined;
+                const nameFromMeta = g.playerId ? playerMetaMap[g.playerId]?.name : undefined;
                 const nameFromStats = g.playerId ? playerNameMap.get(g.playerId) : undefined;
-                const label = nameFromEvent || nameFromStats || "G";
+                const label = nameFromMeta || nameFromEvent || nameFromStats || "G";
                 return (
                   <div key={g.id} className="text-muted-foreground">
                     {`${label} (${formatMinute(g.minute)}')`}
@@ -668,8 +673,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
               {awayGoals.map((g) => {
                 const ev: any = g;
                 const nameFromEvent = ev.playerName as string | undefined;
+                const nameFromMeta = g.playerId ? playerMetaMap[g.playerId]?.name : undefined;
                 const nameFromStats = g.playerId ? playerNameMap.get(g.playerId) : undefined;
-                const label = nameFromEvent || nameFromStats || "G";
+                const label = nameFromMeta || nameFromEvent || nameFromStats || "G";
                 return (
                   <div key={g.id} className="text-muted-foreground">
                     {`${label} (${formatMinute(g.minute)}')`}
