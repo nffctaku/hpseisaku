@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useFormContext, useFieldArray, useWatch } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,6 +22,76 @@ const ratingOptions = (() => {
   return [...below, '7.0', ...above];
 })();
 const NONE_SELECT_VALUE = "__none__";
+const FORMATION_OPTIONS = [
+  '4-3-3',
+  '4-4-2',
+  '4-2-3-1',
+  '4-1-4-1',
+  '4-3-2-1',
+  '4-1-2-1-2',
+  '3-4-3',
+  '3-5-2',
+  '3-2-4-1',
+  '5-3-2',
+  '5-4-1',
+  '4-5-1',
+  '4-4-1-1',
+  '4-2-2-2',
+  '4-2-4',
+  '3-4-2-1',
+  '3-4-1-2',
+  '4-3-1-2',
+  '5-2-3',
+  '5-2-2-1',
+  '4-2-1-3',
+  '4-1-2-3',
+  '3-1-4-2',
+  '4-1-3-2',
+  '4-1-2-2-1',
+  '3-3-4',
+  '3-3-3-1',
+  '5-3-1-1',
+  '3-3-2-2',
+  '3-5-1-1',
+  '2-3-2-3',
+];
+
+const getFormationSlots = (formation: string) => {
+  const lines = formation
+    .split('-')
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v) && v > 0);
+  const outfieldTotal = lines.reduce((sum, count) => sum + count, 0);
+  const normalizedLines = outfieldTotal === 10 && lines.length > 0 ? lines : [4, 3, 3];
+  const yByLineCount: Record<number, number[]> = {
+    3: [68, 45, 20],
+    4: [70, 53, 35, 17],
+    5: [72, 58, 44, 30, 16],
+  };
+  const yList = yByLineCount[normalizedLines.length] || Array.from(
+    { length: normalizedLines.length },
+    (_, index) => 70 - index * (55 / Math.max(normalizedLines.length - 1, 1))
+  );
+  const slots = [{ label: 'GK', x: 50, y: 88 }];
+
+  normalizedLines.forEach((count, lineIndex) => {
+    const y = yList[lineIndex] ?? 50;
+    const label = lineIndex === 0 ? 'DF' : lineIndex === normalizedLines.length - 1 ? 'FW' : 'MF';
+    const xMinByCount: Record<number, number> = { 2: 34, 3: 24, 4: 15, 5: 10 };
+    const xMaxByCount: Record<number, number> = { 2: 66, 3: 76, 4: 85, 5: 90 };
+    const xMin = xMinByCount[count] ?? 12;
+    const xMax = xMaxByCount[count] ?? 88;
+    const xs = count === 1
+      ? [50]
+      : Array.from({ length: count }, (_, index) => xMin + index * ((xMax - xMin) / (count - 1)));
+
+    xs.forEach((x) => {
+      slots.push({ label, x, y });
+    });
+  });
+
+  return slots.slice(0, 11);
+};
 
 const positionOrder = (position: any) => {
   const value = String(position || '').toUpperCase();
@@ -51,6 +121,31 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
 
   const watchedPlayerStats = useWatch({ control, name: 'playerStats' });
   const watchedEvents = useWatch({ control, name: 'events' });
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const formationStorageKey = `match_lineup_formation_${teamId}`;
+  const [selectedFormation, setSelectedFormation] = useState('4-3-3');
+
+  useEffect(() => {
+    try {
+      const savedFormation = localStorage.getItem(formationStorageKey);
+      if (savedFormation && FORMATION_OPTIONS.includes(savedFormation)) {
+        setSelectedFormation(savedFormation);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [formationStorageKey]);
+
+  const handleFormationChange = (formation: string) => {
+    setSelectedFormation(formation);
+    try {
+      localStorage.setItem(formationStorageKey, formation);
+    } catch {
+      // ignore storage errors
+    }
+  };
 
   const derivedCounts = useMemo(() => {
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
@@ -243,6 +338,15 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
   const starters = teamPlayerFields.filter(f => ((f as any).role ?? 'starter') === 'starter');
   const bench = teamPlayerFields.filter(f => (f as any).role === 'sub');
 
+  const highestStarterRating = useMemo(() => {
+    const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
+    const ratings = stats
+      .filter((row) => row && row.teamId === teamId && (row.role ?? 'starter') === 'starter')
+      .map((row) => Number(row.rating))
+      .filter((rating) => Number.isFinite(rating));
+    return ratings.length > 0 ? Math.max(...ratings) : null;
+  }, [teamId, watchedPlayerStats]);
+
   const sortedBench = useMemo(() => {
     return [...bench].sort((a, b) => {
       const orderA = positionOrder((a as any).position);
@@ -257,44 +361,17 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
     });
   }, [bench, allPlayers]);
 
-  // スタメンをポジション順（GK→DF→MF→FW）に自動ソートして slot を振り直す
   useEffect(() => {
     const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
-    const teamStarters = stats.filter((ps) => {
-      if (!ps) return false;
-      if (ps.teamId !== teamId) return false;
-      return (ps.role ?? 'starter') === 'starter';
+    stats.forEach((ps, index) => {
+      if (!ps) return;
+      if (ps.teamId !== teamId) return;
+      if ((ps.role ?? 'starter') !== 'starter') return;
+      const slot = Number(ps.starterSlot);
+      if (Number.isInteger(slot) && slot >= 0 && slot <= 10) return;
+      setValue(`playerStats.${index}.starterSlot` as any, index, { shouldDirty: false });
     });
-
-    const getPlayerNumber = (pid: string) => {
-      const p = allPlayers.find((ap) => ap.id === pid);
-      const n = (p as any)?.number;
-      return typeof n === 'number' && Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
-    };
-
-    const sorted = [...teamStarters].sort((a, b) => {
-      const orderA = positionOrder(a?.position);
-      const orderB = positionOrder(b?.position);
-      if (orderA !== orderB) return orderA - orderB;
-      const numA = getPlayerNumber(a?.playerId);
-      const numB = getPlayerNumber(b?.playerId);
-      if (numA !== numB) return numA - numB;
-      return String(a?.playerName || '').localeCompare(String(b?.playerName || ''), 'ja');
-    });
-
-    let changed = false;
-    sorted.forEach((ps, index) => {
-      const playerId = ps?.playerId;
-      if (!playerId) return;
-      const desiredSlot = index;
-      const currentSlot = ps?.starterSlot;
-      if (currentSlot === desiredSlot) return;
-      const globalIndex = stats.findIndex((row) => row?.playerId === playerId && row?.teamId === teamId);
-      if (globalIndex === -1) return;
-      changed = true;
-      setValue(`playerStats.${globalIndex}.starterSlot` as any, desiredSlot, { shouldDirty: false });
-    });
-  }, [teamId, watchedPlayerStats, setValue, allPlayers]);
+  }, [teamId, watchedPlayerStats, setValue]);
 
   const handleAddPlayer = (playerId: string, role: 'starter' | 'sub') => {
     const player = allPlayers.find(p => p.id === playerId);
@@ -461,6 +538,132 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
     append(base as any);
   };
 
+  const pitchSlots = useMemo(() => getFormationSlots(selectedFormation), [selectedFormation]);
+
+  const renderPitchSlot = (slot: number) => {
+    const slotField = starters.find((f) => (f as any).starterSlot === slot);
+    const currentPlayerId = (slotField as any)?.playerId || '';
+    const options = sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
+    const player = currentPlayerId ? allPlayers.find((p) => p.id === currentPlayerId) : null;
+    const photoUrl = player
+      ? (player as any).photoURL || (player as any).photoUrl || (player as any).imageUrl || (player as any).profileImageUrl || (player as any).avatarUrl || ''
+      : '';
+    const statIndex = currentPlayerId ? getWatchedIndexByPlayerId(currentPlayerId) : -1;
+    const statRow = statIndex >= 0 ? (watch(`playerStats.${statIndex}` as any) as any) : null;
+    const goalsValue = currentPlayerId ? (derivedCounts.goals.get(currentPlayerId) ?? Number(statRow?.goals || 0)) : 0;
+    const assistsValue = currentPlayerId ? (derivedCounts.assists.get(currentPlayerId) ?? Number(statRow?.assists || 0)) : 0;
+    const yellowValue = currentPlayerId ? (derivedCounts.yellow.get(currentPlayerId) ?? Number(statRow?.yellowCards || 0)) : 0;
+    const redValue = currentPlayerId ? (derivedCounts.red.get(currentPlayerId) ?? Number(statRow?.redCards || 0)) : 0;
+    const showRedCard = redValue > 0 || yellowValue >= 2;
+    const wasSubstituted = currentPlayerId && watchedEvents.some(
+      (e: any) => e?.type === 'substitution' && (e?.outPlayerId === currentPlayerId || e?.inPlayerId === currentPlayerId) && e?.teamId === teamId
+    );
+    const minutesValue = currentPlayerId
+      ? Number.isFinite(Number(statRow?.minutesPlayed))
+        ? Number(statRow?.minutesPlayed)
+        : matchDuration
+      : 0;
+    const ratingNumber = Number(statRow?.rating);
+    const hasRating = Number.isFinite(ratingNumber);
+    const ratingValue = hasRating ? ratingNumber.toFixed(1) : '-';
+    const ratingClassName = !hasRating
+      ? 'bg-slate-700/80'
+      : highestStarterRating !== null && ratingNumber === highestStarterRating
+        ? 'bg-violet-500/85'
+        : ratingNumber >= 7
+          ? 'bg-emerald-500/90'
+          : 'bg-orange-500/90';
+    const pos = pitchSlots[slot];
+
+    return (
+      <div
+        key={`pitch-slot-${slot}`}
+        className="absolute -translate-x-1/2 -translate-y-1/2"
+        style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+      >
+        <div className="flex w-[62px] flex-col items-center gap-0.5 overflow-visible sm:w-[82px]">
+          <Select value={currentPlayerId} onValueChange={(val) => setStarterSlotPlayer(slot, val)}>
+            <SelectTrigger className="h-auto w-full overflow-visible border-0 bg-transparent p-0 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
+              <div className="flex w-full flex-col items-center gap-0.5 overflow-visible">
+                <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-300/45 bg-slate-500/30 shadow-[0_0_0_3px_rgba(255,255,255,0.06)] sm:h-11 sm:w-11">
+                  <div
+                    className="h-full w-full rounded-full bg-slate-600/70 bg-cover bg-center"
+                    style={photoUrl ? { backgroundImage: `url(${photoUrl})` } : undefined}
+                  />
+                  {!player ? (
+                    <div className="absolute inset-0 flex items-center justify-center text-slate-200/90">
+                      <div className="relative h-4 w-4 rounded-full border border-current before:absolute before:left-1/2 before:top-[62%] before:h-2 before:w-4 before:-translate-x-1/2 before:rounded-t-full before:border before:border-b-0 before:border-current sm:h-5 sm:w-5 sm:before:h-2.5 sm:before:w-4" />
+                    </div>
+                  ) : null}
+                  {goalsValue > 0 ? (
+                    <span className="absolute -left-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-emerald-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
+                      <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
+                        <circle cx="4" cy="4" r="2.85" strokeWidth="0.65" />
+                        <path d="M4 2.1 5.25 3 4.8 4.55H3.2L2.75 3 4 2.1Z" strokeWidth="0.45" strokeLinejoin="round" />
+                        <path d="M2.75 3 1.75 2.7M5.25 3l1-.3M3.2 4.55l-.7 1M4.8 4.55l.7 1" strokeWidth="0.4" strokeLinecap="round" />
+                      </svg>
+                      {goalsValue}
+                    </span>
+                  ) : null}
+                  {assistsValue > 0 ? (
+                    <span className="absolute -right-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-sky-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
+                      <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
+                        <path d="M1.2 5.1c1.5.1 2.7-.4 3.6-1.7l1 1 1.1.4c.4.1.7.5.7.9H1.7c-.3 0-.5-.2-.5-.5v-.1Z" strokeWidth="0.65" strokeLinejoin="round" />
+                        <path d="M3.9 4.3 4.6 5M4.8 3.5l.7.7" strokeWidth="0.5" strokeLinecap="round" />
+                      </svg>
+                      {assistsValue}
+                    </span>
+                  ) : null}
+                  {showRedCard ? (
+                    <span className="absolute -left-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-red-500 shadow-sm" />
+                  ) : null}
+                  {yellowValue > 0 ? (
+                    <span className="absolute -right-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-yellow-400 shadow-sm" />
+                  ) : null}
+                  <span className="absolute -right-1 -bottom-1 flex h-4 w-4 items-center justify-center rounded-full border border-slate-700 bg-slate-200 text-xs font-light leading-none text-slate-600">+</span>
+                </div>
+                <div className="w-[62px] truncate text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-slate-300 sm:w-[82px] sm:text-[9px]">
+                  {player ? player.name : pos.label}
+                </div>
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              {currentPlayerId ? <SelectItem value={NONE_SELECT_VALUE}>未選択</SelectItem> : null}
+              {options.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {`#${p.number} ${p.name}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {player ? (
+            <div className="mt-2 flex w-[62px] flex-col items-center justify-center gap-0.5 text-[7px] font-bold leading-none text-white sm:w-[70px] sm:text-[8px]">
+              <div className="inline-flex h-[11px] items-center gap-0.5 text-[7px] font-bold leading-none text-white sm:text-[8px]">
+                {wasSubstituted && <span className="text-red-400 text-[8px]">⇔</span>}
+                <span className="inline-flex h-[11px] items-center rounded-full bg-slate-700/80 px-1 py-0 leading-[11px]">{minutesValue}'</span>
+              </div>
+              <Select value={hasRating ? ratingValue : ''} onValueChange={(val) => statIndex >= 0 && setValue(`playerStats.${statIndex}.rating` as any, parseFloat(val), { shouldDirty: true })}>
+                <div className="relative inline-flex h-[11px] items-center">
+                  <span className={`inline-flex h-[11px] items-center rounded-full px-1 text-[7px] font-bold leading-[11px] text-white sm:text-[8px] ${ratingClassName}`}>★{ratingValue}</span>
+                  <SelectTrigger className="absolute inset-0 !h-[11px] !min-h-0 !w-full border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
+                    <SelectValue placeholder="" />
+                  </SelectTrigger>
+                </div>
+                <SelectContent>
+                  {[...ratingOptions].reverse().map((rating) => (
+                    <SelectItem key={rating} value={rating}>
+                      ★{rating}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
   const renderPlayerRow = (
     field: any,
     opts?: {
@@ -471,7 +674,6 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
     const globalIndex = fields.findIndex(f => f.id === field.id);
     if (globalIndex === -1) return null;
 
-    const role = (field as any).role ?? 'starter';
     const customStatPath = `playerStats.${globalIndex}.customStats`;
     const ratingFieldName = `playerStats.${globalIndex}.rating`;
     const minutesFieldName = `playerStats.${globalIndex}.minutesPlayed`;
@@ -543,9 +745,10 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
 
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[10px] text-gray-500">出場分</span>
-                <span className="inline-flex items-center justify-center h-8 w-20 px-2 text-center text-sm bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
-                  {watch(minutesFieldName)?.toString() ?? ""}
-                </span>
+                <div className="inline-flex items-center gap-1 h-8 px-2 text-sm text-gray-700 cursor-default shrink-0 pointer-events-none">
+                  <span>{watch(minutesFieldName)?.toString() ?? ""}</span>
+                  <span className="text-gray-400">⇔</span>
+                </div>
               </div>
 
               <div className="flex flex-col items-center gap-1">
@@ -610,68 +813,41 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
   };
 
   return (
-    <div className="mt-8 space-y-4">
+    <div className="mt-8 -mx-4 space-y-4 sm:mx-0">
       {/* Starters */}
-      <div className="space-y-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h4 className="text-sm font-semibold text-gray-300">スタメン（最大11人）</h4>
+      <div className="overflow-hidden rounded-[20px] border border-slate-700/80 bg-[#111827] shadow-[0_18px_50px_rgba(0,0,0,0.28)] sm:rounded-[24px]">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-700/80 px-4 py-5 text-white sm:px-5">
+          <div className="w-36">
+            <Select value={selectedFormation} onValueChange={handleFormationChange}>
+              <SelectTrigger className="h-11 rounded-full border border-slate-500/50 bg-slate-700/50 px-5 text-sm font-semibold text-white shadow-none focus:ring-0 focus:ring-offset-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FORMATION_OPTIONS.map((formation) => (
+                  <SelectItem key={formation} value={formation}>
+                    {formation}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="shrink-0 rounded-full border border-slate-500/50 bg-slate-700/50 px-4 py-2 text-sm font-semibold text-slate-100">
+            {starters.length} / 11
+          </div>
         </div>
-        <div className="grid grid-cols-1 gap-3">
-          {Array.from({ length: 11 }).map((_, slot) => {
-            const slotField = starters.find((f) => (f as any).starterSlot === slot);
-            const currentPlayerId = (slotField as any)?.playerId || '';
-            const options = sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
-
-            if (!slotField) {
-              return (
-                <div key={`starter-slot-${slot}`} className="space-y-1">
-                  <div className="rounded-md border bg-white px-3 py-3 text-gray-900">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 w-10 text-center">
-                        -
-                      </span>
-                      <Select value={""} onValueChange={(val) => setStarterSlotPlayer(slot, val)}>
-                        <SelectTrigger className="h-8 flex-1 text-xs bg-white text-gray-900">
-                          <SelectValue placeholder={`スタメン ${slot + 1} を選択...`} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {options.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {`#${p.number} ${p.name}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-
-            return renderPlayerRow(slotField as any, {
-              showTrash: false,
-              header: (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full w-10 text-center ${getPositionPillClassName((slotField as any).position)}`}>
-                    {(slotField as any).position}
-                  </span>
-                  <Select value={currentPlayerId} onValueChange={(val) => setStarterSlotPlayer(slot, val)}>
-                    <SelectTrigger className="h-8 w-44 text-xs bg-white text-gray-900">
-                      <SelectValue placeholder="選手を選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE_SELECT_VALUE}>未選択</SelectItem>
-                      {options.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {`#${p.number} ${p.name}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ),
-            });
-          })}
+        <div className="relative mx-auto aspect-[7/10] w-full overflow-hidden bg-[#0f1722] sm:aspect-[5/6] sm:max-w-[520px]">
+          <div className="absolute inset-x-[6%] inset-y-[4%] border-2 border-slate-400/14" />
+          <div className="absolute inset-x-[28%] top-[4%] h-[13%] border-x-2 border-b-2 border-slate-400/14" />
+          <div className="absolute inset-x-[38%] top-[4%] h-[6%] border-x-2 border-b-2 border-slate-400/14" />
+          <div className="absolute inset-x-[28%] bottom-[4%] h-[13%] border-x-2 border-t-2 border-slate-400/14" />
+          <div className="absolute inset-x-[38%] bottom-[4%] h-[6%] border-x-2 border-t-2 border-slate-400/14" />
+          <div className="absolute inset-x-[6%] top-1/2 h-px bg-slate-400/14" />
+          <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-400/14" />
+          <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(255,255,255,0.025)_0px,rgba(255,255,255,0.025)_52px,transparent_52px,transparent_104px)]" />
+          {pitchSlots.map((_, slot) => renderPitchSlot(slot))}
+        </div>
+        <div className="border-t border-slate-700/80 bg-[#142033] px-4 py-4 sm:px-5">
+          <p className="hidden text-center text-sm font-semibold text-slate-500 sm:block">タップで選手を追加 / 削除</p>
         </div>
       </div>
 

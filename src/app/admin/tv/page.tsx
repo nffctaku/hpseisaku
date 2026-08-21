@@ -20,12 +20,13 @@ const videoSchema = z.object({
   title: z.string().min(1, 'タイトルは必須です。'),
   youtubeVideoId: z.string().length(11, 'YouTube動画IDは11文字です。'),
   description: z.string().optional(),
+  publishedAt: z.string().optional(),
 });
 
-interface Video extends z.infer<typeof videoSchema> {
+type Video = Omit<z.infer<typeof videoSchema>, 'publishedAt'> & {
   id: string;
   publishedAt: Date;
-}
+};
 
 const extractYouTubeId = (url: string) => {
   try {
@@ -59,7 +60,7 @@ export default function TvAdminPage() {
 
   const form = useForm<z.infer<typeof videoSchema>>({
     resolver: zodResolver(videoSchema),
-    defaultValues: { title: '', youtubeVideoId: '', description: '' },
+    defaultValues: { title: '', youtubeVideoId: '', description: '', publishedAt: new Date().toISOString().split('T')[0] },
   });
 
   useEffect(() => {
@@ -118,13 +119,16 @@ export default function TvAdminPage() {
       return;
     }
     setEditingVideo(null);
-    form.reset({ title: '', youtubeVideoId: '', description: '' });
+    form.reset({ title: '', youtubeVideoId: '', description: '', publishedAt: new Date().toISOString().split('T')[0] });
     setIsDialogOpen(true);
   };
 
   const handleEdit = (video: Video) => {
     setEditingVideo(video);
-    form.reset(video);
+    form.reset({
+      ...video,
+      publishedAt: video.publishedAt.toISOString().split('T')[0],
+    });
     setIsDialogOpen(true);
   };
 
@@ -133,9 +137,15 @@ export default function TvAdminPage() {
     setLoading(true);
 
     try {
+      const publishedAtDate = values.publishedAt ? new Date(values.publishedAt) : new Date();
+      const publishedAtTimestamp = Timestamp.fromDate(publishedAtDate);
+
       if (editingVideo) {
         const videoDocRef = doc(db, `clubs/${clubUid}/videos`, editingVideo.id);
-        await updateDoc(videoDocRef, values);
+        await updateDoc(videoDocRef, {
+          ...values,
+          publishedAt: publishedAtTimestamp,
+        });
         toast.success('動画を更新しました。');
       } else {
         if (!isPro && videos.length >= maxVideos) {
@@ -144,7 +154,7 @@ export default function TvAdminPage() {
         }
         await addDoc(collection(db, `clubs/${clubUid}/videos`), {
           ...values,
-          publishedAt: serverTimestamp(),
+          publishedAt: publishedAtTimestamp,
         });
         toast.success('動画を追加しました。');
       }
@@ -221,6 +231,15 @@ export default function TvAdminPage() {
                 <FormItem>
                   <FormLabel>概要</FormLabel>
                   <FormControl><Textarea placeholder="動画の概要" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="publishedAt" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>投稿日付</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
