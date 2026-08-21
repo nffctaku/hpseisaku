@@ -619,7 +619,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
     const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
 
     return (
-      <div className="rounded-md border border-border/60 bg-background shadow-sm px-3 py-2 text-sm flex items-center gap-3">
+      <div className="rounded-md border border-slate-700 bg-transparent px-3 py-2 text-sm flex items-center gap-3">
         <Avatar className="size-9">
           {meta?.photoUrl && <AvatarImage src={meta.photoUrl} alt={playerName} />}
           <AvatarFallback className="text-[11px] font-semibold">{playerName.slice(0, 1)}</AvatarFallback>
@@ -739,78 +739,82 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const gameTeamUsage = Boolean((data as any).gameTeamUsage);
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-[#070c14] text-slate-100">
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} headerBackgroundColor={homeBgColor} snsLinks={snsLinks} />
       <div className="container mx-auto px-4 py-8 max-w-5xl space-y-8">
         {/* Header with league, date, venue, emblems & score */}
-        <div className="space-y-6">
+        <div className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-[#070c14] px-4 py-8 shadow-2xl shadow-black/30 md:px-10 md:py-10">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-red-500/80" />
           {/* Top info: league, round, date, venue */}
           <div className="text-center space-y-1">
-            <p className="text-xs font-medium">
+            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-white">
               {match.competitionName}
-              {match.roundId !== 'single' && match.roundName && ` ${match.roundName}`}
+              {match.roundId !== 'single' && match.roundName && ` ・ ${match.roundName}`}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs font-semibold text-white">
               {matchDate.toLocaleDateString("ja-JP", {
                 year: "numeric",
                 month: "numeric",
                 day: "numeric",
+                weekday: "short",
               })}
-              {match.matchTime && ` ${match.matchTime}`}
-              {venue && ` / ${venue}`}
+              {match.matchTime && ` ・ ${match.matchTime}`}
+              {(typeof match.scoreHome === "number" || typeof match.scoreAway === "number") && " ・ 試合終了"}
+              {venue && ` ・ ${venue}`}
             </p>
           </div>
 
           {/* Teams row: name + emblem + score */}
-          <div className="flex items-center justify-between gap-8">
+          <div className="relative mt-10 flex min-h-[116px] items-center justify-between gap-3 md:min-h-[140px]">
             {/* Home side */}
-            <div className="flex-1 flex flex-col items-center gap-2">
-              <div className="text-sm md:text-base font-medium">{match.homeTeamName}</div>
-              {match.homeTeamLogo ? (
-                <Image
-                  src={match.homeTeamLogo}
-                  alt={match.homeTeamName}
-                  width={60}
-                  height={60}
-                  className="object-contain"
-                />
-              ) : (
-                <div className="w-14 h-14 rounded-full bg-muted" />
-              )}
+            <div className="flex w-[34%] flex-col items-center gap-3">
+              <div className="flex h-16 w-16 items-center justify-center md:h-20 md:w-20">
+                {match.homeTeamLogo ? (
+                  <Image
+                    src={match.homeTeamLogo}
+                    alt={match.homeTeamName}
+                    width={52}
+                    height={52}
+                    className="object-contain md:h-16 md:w-16"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-slate-700" />
+                )}
+              </div>
+              <div className="max-w-[110px] truncate text-center text-sm font-black text-slate-100 md:max-w-[180px] md:text-base">{match.homeTeamName}</div>
             </div>
 
             {/* Score & status */}
-            <div className="flex flex-col items-center justify-center gap-1">
-              <div className="flex items-center gap-6 text-4xl md:text-6xl font-bold tracking-tight">
+            <div className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-4">
+              <div className="flex items-center justify-center gap-2 text-6xl font-black leading-none tracking-tight text-slate-100 md:text-7xl">
                 <span>{typeof match.scoreHome === "number" ? match.scoreHome : "-"}</span>
-                <span className="text-base md:text-lg font-normal">-</span>
-                <span>{typeof match.scoreAway === "number" ? match.scoreAway : "-"}</span>
+                <span className="text-4xl font-black text-white md:text-5xl">-</span>
+                <span className="text-white">{typeof match.scoreAway === "number" ? match.scoreAway : "-"}</span>
               </div>
-              {(typeof match.scoreHome === "number" || typeof match.scoreAway === "number") && (
-                <span className="text-[11px] text-muted-foreground">試合終了</span>
-              )}
             </div>
 
             {/* Away side */}
-            <div className="flex-1 flex flex-col items-center gap-2">
-              <div className="text-sm md:text-base font-medium">{match.awayTeamName}</div>
-              {match.awayTeamLogo ? (
-                <Image
-                  src={match.awayTeamLogo}
-                  alt={match.awayTeamName}
-                  width={60}
-                  height={60}
-                  className="object-contain"
-                />
-              ) : (
-                <div className="w-14 h-14 rounded-full bg-muted" />
-              )}
+            <div className="flex w-[34%] flex-col items-center gap-3">
+              <div className="flex h-16 w-16 items-center justify-center md:h-20 md:w-20">
+                {match.awayTeamLogo ? (
+                  <Image
+                    src={match.awayTeamLogo}
+                    alt={match.awayTeamName}
+                    width={52}
+                    height={52}
+                    className="object-contain md:h-16 md:w-16"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-slate-700" />
+                )}
+              </div>
+              <div className="max-w-[110px] truncate text-center text-sm font-black text-white md:max-w-[180px] md:text-base">{match.awayTeamName}</div>
             </div>
           </div>
 
           {/* Scorers row */}
-          <div className="grid grid-cols-2 gap-6 text-xs md:text-sm max-w-md mx-auto">
-            <div className="text-left space-y-1">
+          <div className="mx-auto mt-4 grid max-w-sm grid-cols-2 gap-4 text-[11px] font-bold leading-relaxed text-white md:text-xs">
+            <div className="space-y-0.5 text-right">
               {homeGoals.map((g) => {
                 const ev: any = g;
                 const nameFromEvent = ev.playerName as string | undefined;
@@ -818,13 +822,13 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 const nameFromStats = g.playerId ? playerNameMap.get(g.playerId) : undefined;
                 const label = nameFromMeta || nameFromEvent || nameFromStats || "G";
                 return (
-                  <div key={g.id} className="text-muted-foreground">
-                    {`${label} (${formatMinute(g.minute)}')`}
+                  <div key={g.id}>
+                    {`${label} ${formatMinute(g.minute)}'`}
                   </div>
                 );
               })}
             </div>
-            <div className="text-right space-y-1">
+            <div className="space-y-0.5 text-left">
               {awayGoals.map((g) => {
                 const ev: any = g;
                 const nameFromEvent = ev.playerName as string | undefined;
@@ -832,8 +836,8 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 const nameFromStats = g.playerId ? playerNameMap.get(g.playerId) : undefined;
                 const label = nameFromMeta || nameFromEvent || nameFromStats || "G";
                 return (
-                  <div key={g.id} className="text-muted-foreground">
-                    {`${label} (${formatMinute(g.minute)}')`}
+                  <div key={g.id}>
+                    {`${formatMinute(g.minute)}' ${label}`}
                   </div>
                 );
               })}
@@ -846,14 +850,14 @@ export default async function MatchDetailPage({ params }: PageProps) {
           defaultValue={hasLineups || (!hasTeamStats && !hasEvents) ? "lineups" : hasTeamStats ? "stats" : "events"}
           className="w-full"
         >
-          <TabsList className="grid grid-cols-3 w-[420px] max-w-full mx-auto mb-4">
-            <TabsTrigger value="lineups">
+          <TabsList className="mx-auto mb-6 grid w-[640px] max-w-full grid-cols-3 border-b border-slate-800 bg-transparent p-0">
+            <TabsTrigger value="lineups" className="rounded-none border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
               LINEUPS
             </TabsTrigger>
-            <TabsTrigger value="stats" disabled={!hasTeamStats}>
+            <TabsTrigger value="stats" disabled={!hasTeamStats} className="rounded-none border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
               STATS
             </TabsTrigger>
-            <TabsTrigger value="events" disabled={!hasEvents}>
+            <TabsTrigger value="events" disabled={!hasEvents} className="rounded-none border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
               EVENTS
             </TabsTrigger>
           </TabsList>
@@ -861,7 +865,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           {/* LINEUPS */}
           <TabsContent value="lineups" className="mt-4">
             {hasLineups ? (
-              <section className="bg-card rounded-lg p-4 md:p-6">
+              <section className="rounded-lg border border-slate-800 bg-[#0b111d] p-4 md:p-6">
                 <div className="md:hidden">
                   <Tabs defaultValue="home" className="w-full">
                     <TabsList className="grid grid-cols-2 w-80 max-w-full mx-auto mb-4">
@@ -942,7 +946,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 </div>
               </section>
             ) : (
-              <div className="bg-card rounded-lg p-6 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border border-slate-800 bg-[#0b111d] p-6 text-center text-sm text-white">
                 メンバー情報が登録されていません。
               </div>
             )}
@@ -951,9 +955,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
           {/* STATS */}
           <TabsContent value="stats" className="mt-4">
             {hasTeamStats ? (
-              <section className="bg-card rounded-lg p-4 md:p-6">
+              <section className="p-4 md:p-6">
                 <h2 className="text-lg font-semibold mb-4 text-center">チームスタッツ</h2>
-                <div className="rounded-md border border-border/60 bg-background shadow-sm overflow-hidden">
+                <div className="overflow-hidden">
                   {teamStats.map((stat) => {
                     const homeVal = Number(stat.homeValue) || 0;
                     const awayVal = Number(stat.awayValue) || 0;
@@ -980,7 +984,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 </div>
               </section>
             ) : (
-              <div className="bg-card rounded-lg p-6 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border border-slate-800 bg-[#0b111d] p-6 text-center text-sm text-white">
                 チームスタッツが登録されていません。
               </div>
             )}
@@ -989,7 +993,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           {/* EVENTS */}
           <TabsContent value="events" className="mt-4">
             {hasEvents ? (
-              <section className="bg-card rounded-lg p-4 md:p-6">
+              <section className="rounded-lg border border-slate-800 bg-[#0b111d] p-4 md:p-6">
                 <h2 className="text-lg font-semibold mb-4 text-center">試合イベント</h2>
                 {(() => {
                   const sorted = events
@@ -1165,7 +1169,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 })()}
               </section>
             ) : (
-              <div className="bg-card rounded-lg p-6 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border border-slate-800 bg-[#0b111d] p-6 text-center text-sm text-white">
                 試合イベントが登録されていません。
               </div>
             )}
