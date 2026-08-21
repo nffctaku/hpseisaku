@@ -165,6 +165,8 @@ async function getMatchDetail(
         playerStats: (data.playerStats || []) as PlayerStats[],
         homeSquad: data.homeSquad,
         awaySquad: data.awaySquad,
+        homeFormation: data.homeFormation,
+        awayFormation: data.awayFormation,
         ...(data.events ? { events: data.events } : {}),
       } as any;
 
@@ -264,6 +266,8 @@ async function getMatchDetail(
       playerStats: (data.playerStats || []) as PlayerStats[],
       homeSquad: data.homeSquad,
       awaySquad: data.awaySquad,
+      homeFormation: data.homeFormation,
+      awayFormation: data.awayFormation,
       // 追加でそのまま渡したいフィールド（events, venue など）は any 経由で扱う
       // 型定義には入っていなくても JSX 側では (match as any).events などで読める
       ...(data.events ? { events: data.events } : {}),
@@ -367,6 +371,8 @@ async function getMatchDetail(
     playerStats: (data.playerStats || []) as PlayerStats[],
     homeSquad: data.homeSquad,
     awaySquad: data.awaySquad,
+    homeFormation: data.homeFormation,
+    awayFormation: data.awayFormation,
     ...(data.events ? { events: data.events } : {}),
     ...(data.venue ? { venue: data.venue } : {}),
     ...(data.stadium ? { stadium: data.stadium } : {}),
@@ -377,6 +383,8 @@ async function getMatchDetail(
 
   return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, match };
 }
+
+export const dynamic = 'force-dynamic';
 
 export default async function MatchDetailPage({ params }: PageProps) {
   const { clubId, competitionId, roundId, matchId } = await params;
@@ -472,7 +480,6 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const awayStartersSorted = sortLineup(awayStarters);
   const awaySubsSorted = sortLineup(awaySubs);
 
-  // Get formation from match data or default to 4-3-3 (same as admin screen)
   const homeFormation = (match as any).homeFormation || '4-3-3';
   const awayFormation = (match as any).awayFormation || '4-3-3';
   const homePitchSlots = getFormationSlots(homeFormation);
@@ -560,7 +567,6 @@ export default async function MatchDetailPage({ params }: PageProps) {
                   {yellowValue > 0 ? (
                     <span className="absolute -right-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-yellow-400 shadow-sm" />
                   ) : null}
-                  <span className="absolute -right-1 -bottom-1 flex h-4 w-4 items-center justify-center rounded-full border border-slate-700 bg-slate-200 text-xs font-light leading-none text-slate-600">+</span>
                 </div>
                 <div className="w-[62px] truncate text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-slate-300 sm:w-[82px] sm:text-[9px]">
                   {playerName}
