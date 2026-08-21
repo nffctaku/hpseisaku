@@ -9,6 +9,43 @@ import { ClubFooter } from "@/components/club-footer";
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import { formatMinute } from "@/lib/formatMinute";
 
+const getFormationSlots = (formation: string) => {
+  const lines = formation
+    .split('-')
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v) && v > 0);
+  const outfieldTotal = lines.reduce((sum, count) => sum + count, 0);
+  const normalizedLines = outfieldTotal === 10 && lines.length > 0 ? lines : [4, 3, 3];
+  const yByLineCount: Record<number, number[]> = {
+    3: [68, 45, 20],
+    4: [70, 53, 35, 17],
+    5: [72, 58, 44, 30, 16],
+  };
+  const yList = yByLineCount[normalizedLines.length] || Array.from(
+    { length: normalizedLines.length },
+    (_, index) => 70 - index * (55 / Math.max(normalizedLines.length - 1, 1))
+  );
+  const slots = [{ label: 'GK', x: 50, y: 88 }];
+
+  normalizedLines.forEach((count, lineIndex) => {
+    const y = yList[lineIndex] ?? 50;
+    const label = lineIndex === 0 ? 'DF' : lineIndex === normalizedLines.length - 1 ? 'FW' : 'MF';
+    const xMinByCount: Record<number, number> = { 2: 34, 3: 24, 4: 15, 5: 10 };
+    const xMaxByCount: Record<number, number> = { 2: 66, 3: 76, 4: 85, 5: 90 };
+    const xMin = xMinByCount[count] ?? 12;
+    const xMax = xMaxByCount[count] ?? 88;
+    const xs = count === 1
+      ? [50]
+      : Array.from({ length: count }, (_, index) => xMin + index * ((xMax - xMin) / (count - 1)));
+
+    xs.forEach((x) => {
+      slots.push({ label, x, y });
+    });
+  });
+
+  return slots.slice(0, 11);
+};
+
 interface PageProps {
   params: Promise<{ clubId: string; competitionId: string; roundId: string; matchId: string }>;
 }
@@ -435,6 +472,118 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const awayStartersSorted = sortLineup(awayStarters);
   const awaySubsSorted = sortLineup(awaySubs);
 
+  // Get formation from match data or default to 4-3-3 (same as admin screen)
+  const homeFormation = (match as any).homeFormation || '4-3-3';
+  const awayFormation = (match as any).awayFormation || '4-3-3';
+  const homePitchSlots = getFormationSlots(homeFormation);
+  const awayPitchSlots = getFormationSlots(awayFormation);
+
+  // Render pitch for a team
+  const renderPitch = (starters: any[], pitchSlots: any[]) => {
+    return (
+      <div className="relative mx-auto aspect-[7/10] w-full overflow-hidden bg-[#0f1722] sm:aspect-[5/6] sm:max-w-[520px] rounded-lg">
+        <div className="absolute inset-x-[6%] inset-y-[4%] border-2 border-slate-400/14" />
+        <div className="absolute inset-x-[28%] top-[4%] h-[13%] border-x-2 border-b-2 border-slate-400/14" />
+        <div className="absolute inset-x-[38%] top-[4%] h-[6%] border-x-2 border-b-2 border-slate-400/14" />
+        <div className="absolute inset-x-[28%] bottom-[4%] h-[13%] border-x-2 border-t-2 border-slate-400/14" />
+        <div className="absolute inset-x-[38%] bottom-[4%] h-[6%] border-x-2 border-t-2 border-slate-400/14" />
+        <div className="absolute inset-x-[6%] top-1/2 h-px bg-slate-400/14" />
+        <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-400/14" />
+        <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(255,255,255,0.025)_0px,rgba(255,255,255,0.025)_52px,transparent_52px,transparent_104px)]" />
+        {pitchSlots.map((_, slot) => {
+          const player = starters.find((p) => Number(p?.starterSlot) === slot);
+          if (!player) return null;
+          
+          const meta = player?.playerId ? playerMetaMap[player.playerId] : undefined;
+          const photoUrl = meta?.photoUrl || '';
+          const playerName = meta?.name || player?.playerName || '';
+          
+          const goalsValue = Number(player?.goals) || 0;
+          const assistsValue = Number(player?.assists) || 0;
+          const yellowValue = Number(player?.yellowCards) || 0;
+          const redValue = Number(player?.redCards) || 0;
+          const showRedCard = redValue > 0 || yellowValue >= 2;
+          const wasSubstituted = player?.playerId && events.some(
+            (e: any) => e?.type === 'substitution' && (e?.outPlayerId === player?.playerId || e?.inPlayerId === player?.playerId)
+          );
+          const minutesValue = Number(player?.minutesPlayed) || 0;
+          const ratingNumber = Number(player?.rating) || 0;
+          const hasRating = Number.isFinite(ratingNumber) && ratingNumber > 0;
+          const ratingValue = hasRating ? ratingNumber.toFixed(1) : '-';
+          const ratingClassName = !hasRating
+            ? 'bg-slate-700/80'
+            : ratingNumber >= 7
+              ? 'bg-emerald-500/90'
+              : 'bg-orange-500/90';
+          const pos = pitchSlots[slot];
+
+          return (
+            <div
+              key={`pitch-slot-${slot}`}
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+            >
+              <div className="flex w-[62px] flex-col items-center gap-0.5 overflow-visible sm:w-[82px]">
+                <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-300/45 bg-slate-500/30 shadow-[0_0_0_3px_rgba(255,255,255,0.06)] sm:h-11 sm:w-11">
+                  {photoUrl ? (
+                    <div
+                      className="h-full w-full rounded-full bg-slate-600/70 bg-cover bg-center"
+                      style={{ backgroundImage: `url(${photoUrl})` }}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-slate-200/90">
+                      <div className="relative h-4 w-4 rounded-full border border-current before:absolute before:left-1/2 before:top-[62%] before:h-2 before:w-4 before:-translate-x-1/2 before:rounded-t-full before:border before:border-b-0 before:border-current sm:h-5 sm:w-5 sm:before:h-2.5 sm:before:w-4" />
+                    </div>
+                  )}
+                  {goalsValue > 0 ? (
+                    <span className="absolute -left-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-emerald-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
+                      <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
+                        <circle cx="4" cy="4" r="2.85" strokeWidth="0.65" />
+                        <path d="M4 2.1 5.25 3 4.8 4.55H3.2L2.75 3 4 2.1Z" strokeWidth="0.45" strokeLinejoin="round" />
+                        <path d="M2.75 3 1.75 2.7M5.25 3l1-.3M3.2 4.55l-.7 1M4.8 4.55l.7 1" strokeWidth="0.4" strokeLinecap="round" />
+                      </svg>
+                      {goalsValue}
+                    </span>
+                  ) : null}
+                  {assistsValue > 0 ? (
+                    <span className="absolute -right-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-sky-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
+                      <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
+                        <path d="M1.2 5.1c1.5.1 2.7-.4 3.6-1.7l1 1 1.1.4c.4.1.7.5.7.9H1.7c-.3 0-.5-.2-.5-.5v-.1Z" strokeWidth="0.65" strokeLinejoin="round" />
+                        <path d="M3.9 4.3 4.6 5M4.8 3.5l.7.7" strokeWidth="0.5" strokeLinecap="round" />
+                      </svg>
+                      {assistsValue}
+                    </span>
+                  ) : null}
+                  {showRedCard ? (
+                    <span className="absolute -left-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-red-500 shadow-sm" />
+                  ) : null}
+                  {yellowValue > 0 ? (
+                    <span className="absolute -right-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-yellow-400 shadow-sm" />
+                  ) : null}
+                  <span className="absolute -right-1 -bottom-1 flex h-4 w-4 items-center justify-center rounded-full border border-slate-700 bg-slate-200 text-xs font-light leading-none text-slate-600">+</span>
+                </div>
+                <div className="w-[62px] truncate text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-slate-300 sm:w-[82px] sm:text-[9px]">
+                  {playerName}
+                </div>
+                <div className="mt-0.5 flex w-[62px] flex-col items-center justify-center gap-0.5 text-[7px] font-bold leading-none text-white sm:w-[82px] sm:text-[8px]">
+                  <div className="inline-flex h-[11px] items-center gap-0.5 text-[7px] font-bold leading-none text-white sm:text-[8px]">
+                    {wasSubstituted && <span className="text-red-400 text-[8px]">⇔</span>}
+                    <span className="inline-flex h-[11px] items-center rounded-full bg-slate-700/80 px-1 py-0 leading-[11px]">{minutesValue}'</span>
+                  </div>
+                  {hasRating && (
+                    <span className={`inline-flex h-[11px] items-center rounded-full px-1 text-[7px] font-bold leading-[11px] text-white sm:text-[8px] ${ratingClassName}`}>
+                      ★{ratingValue}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const hasLineups =
     homeStarters.length > 0 || homeSubs.length > 0 || awayStarters.length > 0 || awaySubs.length > 0;
   const hasTeamStats = teamStats.length > 0;
@@ -714,16 +863,76 @@ export default async function MatchDetailPage({ params }: PageProps) {
                       <TabsTrigger value="away">{match.awayTeamName}</TabsTrigger>
                     </TabsList>
                     <TabsContent value="home" className="mt-0">
-                      {HomeLineups}
+                      <div className="space-y-4">
+                        <h3 className="text-center text-sm font-semibold text-muted-foreground">
+                          {match.homeTeamName} Starting Lineup ({homeFormation})
+                        </h3>
+                        {renderPitch(homeStarters, homePitchSlots)}
+                        <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
+                        <div className="space-y-2">
+                          {homeSubsSorted.map((ps: any, idx: number) => {
+                            return (
+                              <div key={idx}>
+                                <LineupPlayerCard ps={ps} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </TabsContent>
                     <TabsContent value="away" className="mt-0">
-                      {AwayLineups}
+                      <div className="space-y-4">
+                        <h3 className="text-center text-sm font-semibold text-muted-foreground">
+                          {match.awayTeamName} Starting Lineup ({awayFormation})
+                        </h3>
+                        {renderPitch(awayStarters, awayPitchSlots)}
+                        <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
+                        <div className="space-y-2">
+                          {awaySubsSorted.map((ps: any, idx: number) => {
+                            return (
+                              <div key={idx}>
+                                <LineupPlayerCard ps={ps} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </TabsContent>
                   </Tabs>
                 </div>
                 <div className="hidden md:grid md:grid-cols-2 gap-6 text-sm">
-                  {HomeLineups}
-                  {AwayLineups}
+                  <div className="space-y-4">
+                    <h3 className="text-center text-sm font-semibold text-muted-foreground">
+                      {match.homeTeamName} Starting Lineup ({homeFormation})
+                    </h3>
+                    {renderPitch(homeStarters, homePitchSlots)}
+                    <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
+                    <div className="space-y-2">
+                      {homeSubsSorted.map((ps: any, idx: number) => {
+                        return (
+                          <div key={idx}>
+                            <LineupPlayerCard ps={ps} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="text-center text-sm font-semibold text-muted-foreground">
+                      {match.awayTeamName} Starting Lineup ({awayFormation})
+                    </h3>
+                    {renderPitch(awayStarters, awayPitchSlots)}
+                    <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
+                    <div className="space-y-2">
+                      {awaySubsSorted.map((ps: any, idx: number) => {
+                        return (
+                          <div key={idx}>
+                            <LineupPlayerCard ps={ps} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </section>
             ) : (

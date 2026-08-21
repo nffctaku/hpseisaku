@@ -111,7 +111,7 @@ const getPositionPillClassName = (position: any) => {
   return 'bg-gray-100 text-gray-700';
 };
 
-export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { teamId: string, allPlayers: Player[], matchDuration?: number }) {
+export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFormationChange, isHomeTeam }: { teamId: string, allPlayers: Player[], matchDuration?: number, onFormationChange?: (formation: string) => void, isHomeTeam?: boolean }) {
   console.log(`PlayerStatsTable v3 (${teamId}): Received allPlayers`, allPlayers);
   const { control, watch, setValue } = useFormContext();
   const { fields, append, prepend, remove, update } = useFieldArray({
@@ -121,16 +121,42 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
 
   const watchedPlayerStats = useWatch({ control, name: 'playerStats' });
   const watchedEvents = useWatch({ control, name: 'events' });
+  const watchedHomeFormation = useWatch({ control, name: 'homeFormation' });
+  const watchedAwayFormation = useWatch({ control, name: 'awayFormation' });
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const formationStorageKey = `match_lineup_formation_${teamId}`;
-  const [selectedFormation, setSelectedFormation] = useState('4-3-3');
-
-  useEffect(() => {
+  
+  // Use isHomeTeam prop to determine which formation field to use
+  const currentFormation = isHomeTeam !== undefined ? (isHomeTeam ? watchedHomeFormation : watchedAwayFormation) : watchedHomeFormation;
+  
+  const [selectedFormation, setSelectedFormation] = useState(() => {
+    // Try to get from form first, then fallback to localStorage
+    if (currentFormation) return currentFormation;
     try {
       const savedFormation = localStorage.getItem(formationStorageKey);
       if (savedFormation && FORMATION_OPTIONS.includes(savedFormation)) {
+        return savedFormation;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return '4-3-3';
+  });
+
+  useEffect(() => {
+    // Update selected formation when form value changes
+    if (currentFormation && currentFormation !== selectedFormation) {
+      setSelectedFormation(currentFormation);
+    }
+  }, [currentFormation]);
+
+  useEffect(() => {
+    // Also update from localStorage for backward compatibility
+    try {
+      const savedFormation = localStorage.getItem(formationStorageKey);
+      if (savedFormation && FORMATION_OPTIONS.includes(savedFormation) && savedFormation !== selectedFormation) {
         setSelectedFormation(savedFormation);
       }
     } catch {
@@ -142,6 +168,9 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90 }: { t
     setSelectedFormation(formation);
     try {
       localStorage.setItem(formationStorageKey, formation);
+      if (onFormationChange) {
+        onFormationChange(formation);
+      }
     } catch {
       // ignore storage errors
     }

@@ -19,6 +19,8 @@ import type { SubmitHandler } from 'react-hook-form';
 
 const formSchema = z.object({
   customStatHeaders: z.array(z.object({ id: z.string(), name: z.string().min(1, '必須') })).max(15, '最大15項目です。'),
+  homeFormation: z.string().optional(),
+  awayFormation: z.string().optional(),
   playerStats: z.array(
     z.object({
       playerId: z.string(),
@@ -278,6 +280,8 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       customStatHeaders: [],
       playerStats: [],
       events: [],
+      homeFormation: '4-3-3',
+      awayFormation: '4-3-3',
     },
   });
 
@@ -537,6 +541,8 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         customStatHeaders: data.customStatHeaders,
         playerStats: normalizedPlayerStats,
         events: sanitizedEvents,
+        homeFormation: data.homeFormation,
+        awayFormation: data.awayFormation,
       });
 
       // Check if any event exceeds 90 minutes and automatically set matchDuration to 120
@@ -803,7 +809,19 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                       登録済みのラインナップを反映する
                     </Button>
                   </div>
-                  <PlayerStatsTable teamId={match.homeTeam} allPlayers={homePlayers} matchDuration={match.matchDuration} />
+                  <PlayerStatsTable 
+                    teamId={match.homeTeam} 
+                    allPlayers={homePlayers} 
+                    matchDuration={match.matchDuration}
+                    isHomeTeam={true}
+                    onFormationChange={async (formation) => {
+                      methods.setValue('homeFormation', formation, { shouldDirty: true });
+                      setTimeout(async () => {
+                        const current = methods.getValues();
+                        await saveSquadData(current, { showToast: false });
+                      }, 100);
+                    }}
+                  />
                 </TabsContent>
                 <TabsContent value="away">
                   {awayPlayers.length === 0 && homePlayers.length > 0 && (
@@ -822,7 +840,19 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                       登録済みのラインナップを反映する
                     </Button>
                   </div>
-                  <PlayerStatsTable teamId={match.awayTeam} allPlayers={awayPlayers} matchDuration={match.matchDuration} />
+                  <PlayerStatsTable 
+                    teamId={match.awayTeam} 
+                    allPlayers={awayPlayers} 
+                    matchDuration={match.matchDuration}
+                    isHomeTeam={false}
+                    onFormationChange={async (formation) => {
+                      methods.setValue('awayFormation', formation, { shouldDirty: true });
+                      setTimeout(async () => {
+                        const current = methods.getValues();
+                        await saveSquadData(current, { showToast: false });
+                      }, 100);
+                    }}
+                  />
                 </TabsContent>
               </Tabs>
             ) : null}
