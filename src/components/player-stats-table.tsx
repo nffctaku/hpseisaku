@@ -367,10 +367,10 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
   const starters = teamPlayerFields.filter(f => ((f as any).role ?? 'starter') === 'starter');
   const bench = teamPlayerFields.filter(f => (f as any).role === 'sub');
 
-  const highestStarterRating = useMemo(() => {
+  const highestRating = useMemo(() => {
     const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
     const ratings = stats
-      .filter((row) => row && row.teamId === teamId && (row.role ?? 'starter') === 'starter')
+      .filter((row) => row && row.teamId === teamId)
       .map((row) => Number(row.rating))
       .filter((rating) => Number.isFinite(rating));
     return ratings.length > 0 ? Math.max(...ratings) : null;
@@ -597,7 +597,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     const ratingValue = hasRating ? ratingNumber.toFixed(1) : '-';
     const ratingClassName = !hasRating
       ? 'bg-slate-700/80'
-      : highestStarterRating !== null && ratingNumber === highestStarterRating
+      : highestRating !== null && ratingNumber === highestRating
         ? 'bg-violet-500/85'
         : ratingNumber >= 7
           ? 'bg-emerald-500/90'
@@ -763,7 +763,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[10px] text-gray-500">評価</span>
-                <Select value={ratingValue} onValueChange={(val) => setValue(ratingFieldName, parseFloat(val))}>
+                <Select value={ratingValue} onValueChange={(val) => setValue(ratingFieldName, parseFloat(val), { shouldDirty: true })}>
                   <SelectTrigger size="sm" className="w-20 bg-white text-gray-900 shadow-none focus-visible:ring-0">
                     <SelectValue placeholder="-" />
                   </SelectTrigger>

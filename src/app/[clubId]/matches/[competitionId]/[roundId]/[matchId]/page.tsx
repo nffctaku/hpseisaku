@@ -485,8 +485,21 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const homePitchSlots = getFormationSlots(homeFormation);
   const awayPitchSlots = getFormationSlots(awayFormation);
 
+  // Calculate highest rating across all players (starters + subs) for both teams
+  const homeHighestRating = (() => {
+    const allPlayers = [...homeStarters, ...homeSubs];
+    const ratings = allPlayers.map((p) => Number(p?.rating)).filter((r) => Number.isFinite(r) && r > 0);
+    return ratings.length > 0 ? Math.max(...ratings) : null;
+  })();
+
+  const awayHighestRating = (() => {
+    const allPlayers = [...awayStarters, ...awaySubs];
+    const ratings = allPlayers.map((p) => Number(p?.rating)).filter((r) => Number.isFinite(r) && r > 0);
+    return ratings.length > 0 ? Math.max(...ratings) : null;
+  })();
+
   // Render pitch for a team
-  const renderPitch = (starters: any[], pitchSlots: any[], formation: string) => {
+  const renderPitch = (starters: any[], pitchSlots: any[], formation: string, highestRating: number | null) => {
     return (
       <div className="relative mx-auto aspect-[7/10] w-full overflow-hidden bg-[#0f1722] sm:aspect-[5/6] sm:max-w-[520px] rounded-lg">
         <div className="absolute right-3 top-3 z-20 rounded-full border border-slate-600 bg-slate-950/70 px-2 py-1 text-[10px] font-black tracking-wide text-white shadow-sm">
@@ -522,9 +535,11 @@ export default async function MatchDetailPage({ params }: PageProps) {
           const ratingValue = hasRating ? ratingNumber.toFixed(1) : '-';
           const ratingClassName = !hasRating
             ? 'bg-slate-700/80'
-            : ratingNumber >= 7
-              ? 'bg-emerald-500/90'
-              : 'bg-orange-500/90';
+            : highestRating !== null && ratingNumber === highestRating
+              ? 'bg-violet-500/85'
+              : ratingNumber >= 7
+                ? 'bg-emerald-500/90'
+                : 'bg-orange-500/90';
           const pos = pitchSlots[slot];
 
           return (
@@ -603,7 +618,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const hasTeamStats = teamStats.length > 0;
   const hasEvents = Array.isArray(events) && events.length > 0;
 
-  const LineupPlayerCard = ({ ps }: { ps: any }) => {
+  const LineupPlayerCard = ({ ps, highestRating }: { ps: any; highestRating: number | null }) => {
     const minutes = Number(ps.minutesPlayed) || 0;
     const rating = Number(ps.rating) || 0;
     const goals = Number(ps.goals) || 0;
@@ -626,6 +641,14 @@ export default async function MatchDetailPage({ params }: PageProps) {
           : "";
 
     const ratingColor = rating >= 7.0 ? "text-emerald-500" : "text-orange-500";
+
+    const ratingClassName = !hasRating
+      ? 'bg-slate-700/80'
+      : highestRating !== null && rating === highestRating
+        ? 'bg-violet-500/85'
+        : rating >= 7.0
+          ? 'bg-emerald-500/90'
+          : 'bg-orange-500/90';
 
     return (
       <div className="rounded-md border border-slate-700 bg-transparent px-3 py-2 text-sm flex items-center gap-3">
@@ -678,7 +701,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
             )}
           </span>
         )}
-        {hasRating && <span className={`text-xs font-semibold ${ratingColor} shrink-0`}>{rating.toFixed(1)}</span>}
+        {hasRating && <span className={`inline-flex h-[11px] items-center rounded-full px-1 text-[7px] font-bold leading-[11px] text-white sm:text-[8px] ${ratingClassName}`}>★{rating.toFixed(1)}</span>}
       </div>
     );
   };
@@ -693,7 +716,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           homeStartersSorted.map((ps: any, idx: number) => {
             return (
               <div key={idx}>
-                <LineupPlayerCard ps={ps} />
+                <LineupPlayerCard ps={ps} highestRating={homeHighestRating} />
               </div>
             );
           })
@@ -707,7 +730,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           homeSubsSorted.map((ps: any, idx: number) => {
             return (
               <div key={idx}>
-                <LineupPlayerCard ps={ps} />
+                <LineupPlayerCard ps={ps} highestRating={homeHighestRating} />
               </div>
             );
           })
@@ -728,7 +751,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           awayStartersSorted.map((ps: any, idx: number) => {
             return (
               <div key={idx}>
-                <LineupPlayerCard ps={ps} />
+                <LineupPlayerCard ps={ps} highestRating={awayHighestRating} />
               </div>
             );
           })
@@ -742,7 +765,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           awaySubsSorted.map((ps: any, idx: number) => {
             return (
               <div key={idx}>
-                <LineupPlayerCard ps={ps} />
+                <LineupPlayerCard ps={ps} highestRating={awayHighestRating} />
               </div>
             );
           })
@@ -902,13 +925,13 @@ export default async function MatchDetailPage({ params }: PageProps) {
                         <h3 className="text-center text-sm font-semibold text-muted-foreground">
                           {match.homeTeamName} Starting Lineup
                         </h3>
-                        {renderPitch(homeStarters, homePitchSlots, homeFormation)}
+                        {renderPitch(homeStarters, homePitchSlots, homeFormation, homeHighestRating)}
                         <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                         <div className="space-y-2">
                           {homeSubsSorted.map((ps: any, idx: number) => {
                             return (
                               <div key={idx}>
-                                <LineupPlayerCard ps={ps} />
+                                <LineupPlayerCard ps={ps} highestRating={homeHighestRating} />
                               </div>
                             );
                           })}
@@ -920,13 +943,13 @@ export default async function MatchDetailPage({ params }: PageProps) {
                         <h3 className="text-center text-sm font-semibold text-muted-foreground">
                           {match.awayTeamName} Starting Lineup
                         </h3>
-                        {renderPitch(awayStarters, awayPitchSlots, awayFormation)}
+                        {renderPitch(awayStarters, awayPitchSlots, awayFormation, awayHighestRating)}
                         <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                         <div className="space-y-2">
                           {awaySubsSorted.map((ps: any, idx: number) => {
                             return (
                               <div key={idx}>
-                                <LineupPlayerCard ps={ps} />
+                                <LineupPlayerCard ps={ps} highestRating={awayHighestRating} />
                               </div>
                             );
                           })}
@@ -940,13 +963,13 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     <h3 className="text-center text-sm font-semibold text-muted-foreground">
                       {match.homeTeamName} Starting Lineup
                     </h3>
-                    {renderPitch(homeStarters, homePitchSlots, homeFormation)}
+                    {renderPitch(homeStarters, homePitchSlots, homeFormation, homeHighestRating)}
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                     <div className="space-y-2">
                       {homeSubsSorted.map((ps: any, idx: number) => {
                         return (
                           <div key={idx}>
-                            <LineupPlayerCard ps={ps} />
+                            <LineupPlayerCard ps={ps} highestRating={homeHighestRating} />
                           </div>
                         );
                       })}
@@ -956,13 +979,13 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     <h3 className="text-center text-sm font-semibold text-muted-foreground">
                       {match.awayTeamName} Starting Lineup
                     </h3>
-                    {renderPitch(awayStarters, awayPitchSlots, awayFormation)}
+                    {renderPitch(awayStarters, awayPitchSlots, awayFormation, awayHighestRating)}
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                     <div className="space-y-2">
                       {awaySubsSorted.map((ps: any, idx: number) => {
                         return (
                           <div key={idx}>
-                            <LineupPlayerCard ps={ps} />
+                            <LineupPlayerCard ps={ps} highestRating={awayHighestRating} />
                           </div>
                         );
                       })}
