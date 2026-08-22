@@ -98,13 +98,13 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
         <div className="absolute inset-0 opacity-25" style={{ background: `radial-gradient(circle at 18% 0%, ${accentColor} 0%, transparent 34%), linear-gradient(180deg, ${accentColor} 0%, #05080f 35%, #05080f 100%)` }} />
         <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.35) 1px, transparent 1px)', backgroundSize: '96px 96px' }} />
         {stadiumPhotoUrl && stadiumPhotoUrl.length > 0 ? (
-          <div className="pointer-events-none absolute right-0 top-24 hidden h-[360px] w-[54vw] overflow-hidden opacity-30 mix-blend-screen lg:block">
+          <div className="pointer-events-none absolute right-0 top-28 h-[240px] w-[92vw] overflow-hidden opacity-20 mix-blend-screen lg:top-24 lg:h-[360px] lg:w-[54vw] lg:opacity-30">
             <Image
               src={stadiumPhotoUrl}
               alt={stadiumName || 'Stadium'}
               fill
-              className="object-cover [mask-image:linear-gradient(90deg,transparent,black_28%,black_78%,transparent)]"
-              sizes="54vw"
+              className="object-cover [mask-image:linear-gradient(90deg,transparent_0%,black_40%,black_70%,transparent_100%)] lg:[mask-image:linear-gradient(90deg,transparent,black_28%,black_78%,transparent)]"
+              sizes="(max-width: 1024px) 92vw, 54vw"
             />
           </div>
         ) : null}
