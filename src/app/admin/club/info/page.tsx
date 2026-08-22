@@ -79,6 +79,11 @@ export default function ClubInfoPage() {
   const handleTeamSelect = (teamId: string) => {
     setSelectedTeamId(teamId);
     setUserSelectedTeamId(teamId);
+    const selectedTeam = teams.find(t => t.id === teamId);
+    if (selectedTeam) {
+      setClubName(selectedTeam.name || '');
+      setLogoUrl(selectedTeam.logoUrl || '');
+    }
   };
 
   const syncClubProfileFromTeam = async (team: TeamOption, teamId: string) => {
