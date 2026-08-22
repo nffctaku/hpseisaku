@@ -61,6 +61,7 @@ export default function ClubInfoPage() {
   const [stadiumName, setStadiumName] = useState<string>('');
   const [stadiumCapacity, setStadiumCapacity] = useState<string>('');
   const [stadiumPhotoUrl, setStadiumPhotoUrl] = useState<string>('');
+  const [clubDescription, setClubDescription] = useState<string>('');
   const [clubTitles, setClubTitles] = useState<ClubTitleItem[]>([]);
   const seasonOptions = useMemo(() => generateSeasonOptions(), []);
   const [loading, setLoading] = useState(false);
@@ -202,6 +203,10 @@ export default function ClubInfoPage() {
             setStadiumPhotoUrl(data.stadiumPhotoUrl);
           }
 
+          if (typeof data.clubDescription === 'string') {
+            setClubDescription(data.clubDescription);
+          }
+
           if (Array.isArray(data.clubTitles)) {
             setClubTitles(
               data.clubTitles.map((t: any) => ({
@@ -302,6 +307,7 @@ export default function ClubInfoPage() {
           stadiumName,
           stadiumCapacity,
           stadiumPhotoUrl,
+          clubDescription,
           clubTitles: clubTitles.map((t) => ({
             competitionName: t.competitionName,
             seasons: Array.isArray(t.seasons)
@@ -382,6 +388,8 @@ export default function ClubInfoPage() {
                 setStadiumCapacity={setStadiumCapacity}
                 stadiumPhotoUrl={stadiumPhotoUrl}
                 setStadiumPhotoUrl={setStadiumPhotoUrl}
+                clubDescription={clubDescription}
+                setClubDescription={setClubDescription}
                 clubTitles={clubTitles}
                 setClubTitles={setClubTitles}
                 seasonOptions={seasonOptions}

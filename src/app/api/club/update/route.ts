@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       stadiumName,
       stadiumCapacity,
       stadiumPhotoUrl,
+      clubDescription,
       clubTitles,
     } = body as any;
 
@@ -281,6 +282,10 @@ export async function POST(request: Request) {
 
     if (typeof stadiumPhotoUrl === 'string') {
       updateData.stadiumPhotoUrl = stadiumPhotoUrl;
+    }
+
+    if (typeof clubDescription === 'string') {
+      updateData.clubDescription = clubDescription;
     }
 
     if (Array.isArray(clubTitles)) {

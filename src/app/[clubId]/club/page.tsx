@@ -40,38 +40,33 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
     notFound();
   }
 
-  const titles = (Array.isArray((clubInfo as any).clubTitles) ? ((clubInfo as any).clubTitles as ClubTitleItem[]) : [])
-    .map((t) => ({
-      competitionName: typeof t?.competitionName === 'string' ? t.competitionName : '',
-      seasons: Array.isArray((t as any)?.seasons)
+  const parseSeasonStart = (season: string) => {
+    const match = String(season).match(/^(\d{4})/);
+    return match ? Number(match[1]) : 9999;
+  };
+
+  const titleRows = (Array.isArray((clubInfo as any).clubTitles) ? ((clubInfo as any).clubTitles as ClubTitleItem[]) : [])
+    .flatMap((t) => {
+      const competitionName = typeof t?.competitionName === 'string' ? t.competitionName : '';
+      const seasons = Array.isArray((t as any)?.seasons)
         ? ((t as any).seasons as any[]).map((s) => (typeof s === 'string' ? s : '')).filter((s) => s.length > 0)
         : typeof t?.season === 'string'
           ? [t.season]
-          : [],
-    }))
-    .filter((t) => t.competitionName.length > 0 || (Array.isArray(t.seasons) && t.seasons.length > 0));
-
-  const groupedTitles = Array.from(
-    titles.reduce((acc, t) => {
-      const key = t.competitionName || '-';
-      const next = acc.get(key) || { competitionName: key, seasons: [] as string[] };
-      for (const s of (t.seasons || [])) {
-        if (s && s.length > 0 && !next.seasons.includes(s)) next.seasons.push(s);
-      }
-      acc.set(key, next);
-      return acc;
-    }, new Map<string, { competitionName: string; seasons: string[] }>())
-      .values()
-  ).map((g) => ({
-    ...g,
-    seasons: g.seasons.sort((a, b) => String(b).localeCompare(String(a))),
-  }));
+          : [];
+      return seasons.length > 0
+        ? seasons.map((season) => ({ competitionName, season }))
+        : competitionName.length > 0
+          ? [{ competitionName, season: '' }]
+          : [];
+    })
+    .sort((a, b) => parseSeasonStart(a.season) - parseSeasonStart(b.season) || String(a.season).localeCompare(String(b.season)));
 
   const foundedYear = (clubInfo as any).foundedYear as string | undefined;
   const hometown = (clubInfo as any).hometown as string | undefined;
   const stadiumName = (clubInfo as any).stadiumName as string | undefined;
   const stadiumCapacity = (clubInfo as any).stadiumCapacity as string | undefined;
   const stadiumPhotoUrl = (clubInfo as any).stadiumPhotoUrl as string | undefined;
+  const clubDescription = (clubInfo as any).clubDescription as string | undefined;
 
   const clubName = (clubInfo as any).clubName as string | undefined;
   const logoUrl = ((clubInfo as any).logoUrl as string | null | undefined) ?? null;
@@ -79,123 +74,113 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
   const sponsors = (Array.isArray((clubInfo as any).sponsors) ? ((clubInfo as any).sponsors as any[]) : []) as any;
   const legalPages = (Array.isArray((clubInfo as any).legalPages) ? ((clubInfo as any).legalPages as any[]) : []) as any;
   const homeBgColor = (clubInfo as any).homeBgColor as string | undefined;
+  const accentColor = homeBgColor || '#dc143c';
   const gameTeamUsage = Boolean((clubInfo as any).gameTeamUsage);
+  const statCards = [
+    { label: '創立', value: foundedYear && foundedYear.length > 0 ? foundedYear : '-' },
+    { label: 'ホームタウン', value: hometown && hometown.length > 0 ? hometown : '-' },
+    { label: 'スタジアム', value: stadiumName && stadiumName.length > 0 ? stadiumName : '-' },
+    { label: '収容人数', value: stadiumCapacity && stadiumCapacity.length > 0 ? `${stadiumCapacity}人` : '-' },
+  ];
 
   return (
-    <main className="min-h-screen flex flex-col" style={homeBgColor ? { backgroundColor: homeBgColor } : undefined}>
-      <ClubHeader clubId={clubId} clubName={clubName || ''} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
+    <main className="min-h-screen flex flex-col bg-[#05080f] text-white">
+      <ClubHeader clubId={clubId} clubName={clubName || ''} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={accentColor} />
 
-      <div className="flex-1 w-full">
-        <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <h1 className="text-3xl font-bold text-white">{clubName}</h1>
-
-        <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div>
-            {stadiumPhotoUrl && stadiumPhotoUrl.length > 0 ? (
-              <div className="overflow-hidden rounded-lg border bg-white">
-                <div className="relative w-full h-[220px] sm:h-[280px] md:h-[320px] lg:h-[360px]">
-                  <Image
-                    src={stadiumPhotoUrl}
-                    alt={stadiumName || "Stadium"}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 90vw, 1024px"
-                  />
-                </div>
-              </div>
-            ) : null}
+      <div className="relative flex-1 overflow-hidden">
+        <div className="absolute inset-0 opacity-25" style={{ background: `radial-gradient(circle at 18% 0%, ${accentColor} 0%, transparent 34%), linear-gradient(180deg, ${accentColor} 0%, #05080f 35%, #05080f 100%)` }} />
+        <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.35) 1px, transparent 1px)', backgroundSize: '96px 96px' }} />
+        {stadiumPhotoUrl && stadiumPhotoUrl.length > 0 ? (
+          <div className="pointer-events-none absolute right-0 top-24 hidden h-[360px] w-[54vw] overflow-hidden opacity-30 mix-blend-screen lg:block">
+            <Image
+              src={stadiumPhotoUrl}
+              alt={stadiumName || 'Stadium'}
+              fill
+              className="object-cover [mask-image:linear-gradient(90deg,transparent,black_28%,black_78%,transparent)]"
+              sizes="54vw"
+            />
           </div>
+        ) : null}
 
-          <div className="space-y-4">
+        <div className="relative mx-auto w-full max-w-5xl px-5 py-14 sm:px-8 sm:py-20">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="mb-4 text-[10px] font-black uppercase tracking-[0.35em]" style={{ color: accentColor }}>Club・Profile</div>
+              <div className="flex items-center gap-4">
+                {logoUrl ? (
+                  <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-white p-2 shadow-lg shadow-black/30">
+                    <Image src={logoUrl} alt={clubName || 'Club logo'} width={56} height={56} className="object-contain" />
+                  </div>
+                ) : null}
+                <h1 className="max-w-[720px] text-5xl font-black leading-[0.95] tracking-[-0.06em] sm:text-7xl">{clubName}</h1>
+              </div>
+            </div>
+
             {snsLinks && (snsLinks.x || snsLinks.youtube || snsLinks.tiktok || snsLinks.instagram) && (
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3 lg:pb-3">
                 {snsLinks.youtube && (
-                  <Link
-                    href={snsLinks.youtube}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 rounded-full bg-white border flex items-center justify-center hover:bg-white/90 transition-colors"
-                    aria-label="YouTube"
-                  >
-                    <FaYoutube className="w-5 h-5" />
+                  <Link href={snsLinks.youtube} target="_blank" rel="noopener noreferrer" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/80 transition hover:bg-white/20" aria-label="YouTube">
+                    <FaYoutube className="h-4 w-4" />
                   </Link>
                 )}
                 {snsLinks.x && (
-                  <Link
-                    href={snsLinks.x}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 rounded-full bg-white border flex items-center justify-center hover:bg-white/90 transition-colors"
-                    aria-label="X"
-                  >
-                    <FaXTwitter className="w-4 h-4" />
+                  <Link href={snsLinks.x} target="_blank" rel="noopener noreferrer" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/80 transition hover:bg-white/20" aria-label="X">
+                    <FaXTwitter className="h-4 w-4" />
                   </Link>
                 )}
                 {snsLinks.tiktok && (
-                  <Link
-                    href={snsLinks.tiktok}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 rounded-full bg-white border flex items-center justify-center hover:bg-white/90 transition-colors"
-                    aria-label="TikTok"
-                  >
-                    <FaTiktok className="w-4 h-4" />
+                  <Link href={snsLinks.tiktok} target="_blank" rel="noopener noreferrer" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/80 transition hover:bg-white/20" aria-label="TikTok">
+                    <FaTiktok className="h-4 w-4" />
                   </Link>
                 )}
                 {snsLinks.instagram && (
-                  <Link
-                    href={snsLinks.instagram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 rounded-full bg-white border flex items-center justify-center hover:bg-white/90 transition-colors"
-                    aria-label="Instagram"
-                  >
-                    <FaInstagram className="w-4 h-4" />
+                  <Link href={snsLinks.instagram} target="_blank" rel="noopener noreferrer" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/80 transition hover:bg-white/20" aria-label="Instagram">
+                    <FaInstagram className="h-4 w-4" />
                   </Link>
                 )}
               </div>
             )}
-
-            <div className="space-y-3">
-              <div className="rounded-lg border bg-white p-4">
-                <div className="text-xs text-muted-foreground">創立</div>
-                <div className="mt-1 text-base font-medium">{foundedYear && foundedYear.length > 0 ? foundedYear : '-'}</div>
-              </div>
-              <div className="rounded-lg border bg-white p-4">
-                <div className="text-xs text-muted-foreground">ホームタウン</div>
-                <div className="mt-1 text-base font-medium">{hometown && hometown.length > 0 ? hometown : '-'}</div>
-              </div>
-              <div className="rounded-lg border bg-white p-4">
-                <div className="text-xs text-muted-foreground">スタジアム名</div>
-                <div className="mt-1 text-base font-medium">{stadiumName && stadiumName.length > 0 ? stadiumName : '-'}</div>
-              </div>
-              <div className="rounded-lg border bg-white p-4">
-                <div className="text-xs text-muted-foreground">収容人数</div>
-                <div className="mt-1 text-base font-medium">{stadiumCapacity && stadiumCapacity.length > 0 ? stadiumCapacity : '-'}</div>
-              </div>
-            </div>
           </div>
-        </div>
 
-        {groupedTitles.length > 0 && (
-          <div className="mt-8">
-            <h2 className="text-xl font-semibold text-white">獲得タイトル</h2>
-            <div className="mt-3 overflow-hidden rounded-lg border bg-white">
-              <div className="grid grid-cols-[1fr,7rem] gap-2 border-b px-4 py-2 text-xs text-muted-foreground">
-                <div>大会名</div>
-                <div>シーズン</div>
+          <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {statCards.map((item) => (
+              <div key={item.label} className="rounded-xl border border-white/10 bg-slate-900/75 p-4 shadow-xl shadow-black/10 backdrop-blur">
+                <div className="text-[11px] font-bold text-slate-400">{item.label}</div>
+                <div className="mt-2 text-lg font-black tracking-[-0.04em] text-white">{item.value}</div>
               </div>
-              <div className="divide-y">
-                {groupedTitles.map((t) => (
-                  <div key={t.competitionName} className="grid grid-cols-[1fr,7rem] gap-2 px-4 py-3 text-sm">
-                    <div className="font-medium">{t.competitionName || '-'}</div>
-                    <div>{t.seasons.length > 0 ? t.seasons.join(',') : '-'}</div>
+            ))}
+          </div>
+
+          {clubDescription && clubDescription.trim().length > 0 ? (
+            <section className="mt-9 rounded-xl border border-white/10 bg-slate-900/75 p-5 shadow-xl shadow-black/10 backdrop-blur" style={{ borderLeftColor: accentColor, borderLeftWidth: 4 }}>
+              <div className="mb-3 text-[10px] font-black uppercase tracking-[0.28em]" style={{ color: accentColor }}>About</div>
+              <p className="whitespace-pre-wrap text-sm leading-7 text-slate-300">{clubDescription}</p>
+            </section>
+          ) : null}
+
+          {titleRows.length > 0 && (
+            <section className="mt-12">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="h-px w-8" style={{ backgroundColor: accentColor }} />
+                <h2 className="text-xs font-black uppercase tracking-[0.28em]" style={{ color: accentColor }}>Honours</h2>
+                <div className="font-mono text-2xl font-black text-white/15">{titleRows.length}</div>
+              </div>
+
+              <div className="space-y-3">
+                {titleRows.map((title, index) => (
+                  <div key={`${title.competitionName}-${title.season}-${index}`} className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-slate-900/75 px-4 py-4 shadow-xl shadow-black/10 backdrop-blur">
+                    <div>
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: accentColor }}>Title</div>
+                      <div className="text-sm font-black text-white sm:text-base">{title.competitionName || '-'}</div>
+                    </div>
+                    <div className="shrink-0 rounded-full border border-white/10 bg-white/10 px-3 py-1 font-mono text-[11px] font-black" style={{ color: accentColor }}>
+                      {title.season || '-'}
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        )}
+            </section>
+          )}
         </div>
       </div>
 

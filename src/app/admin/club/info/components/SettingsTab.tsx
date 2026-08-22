@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { ClubEmblemUploader } from '@/components/club-emblem-uploader';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -44,6 +45,8 @@ export function SettingsTab(props: {
   setStadiumCapacity: (v: string) => void;
   stadiumPhotoUrl: string;
   setStadiumPhotoUrl: (v: string) => void;
+  clubDescription: string;
+  setClubDescription: (v: string) => void;
 
   clubTitles: ClubTitleItem[];
   setClubTitles: (v: ClubTitleItem[]) => void;
@@ -70,6 +73,8 @@ export function SettingsTab(props: {
     setStadiumCapacity,
     stadiumPhotoUrl,
     setStadiumPhotoUrl,
+    clubDescription,
+    setClubDescription,
     clubTitles,
     setClubTitles,
     seasonOptions,
@@ -258,6 +263,16 @@ export function SettingsTab(props: {
               <div className="rounded-lg border border-dashed border-[#E2E4EA] bg-white p-4 transition hover:border-[#3355FF] hover:bg-[#3355FF14]">
                 <ClubEmblemUploader value={stadiumPhotoUrl} onChange={(url) => setStadiumPhotoUrl(url || '')} />
               </div>
+            </div>
+
+            <div className="mt-5 space-y-2">
+              <Label className={labelClass}>クラブ説明</Label>
+              <Textarea
+                placeholder="例: クラブの歴史、特徴、地域との関わりなどを入力"
+                className="min-h-[120px] rounded-lg border-[#E2E4EA] bg-white text-[#1B1F27] focus-visible:ring-[#3355FF33] focus-visible:ring-offset-0"
+                value={clubDescription}
+                onChange={(e) => setClubDescription(e.target.value)}
+              />
             </div>
           </div>
 
