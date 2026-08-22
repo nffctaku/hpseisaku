@@ -511,33 +511,32 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
 
         const base: any = { id, minute, teamId, type };
         
-        // Always preserve custom player names if they exist
+        const resolveEventPlayerName = (id: string | undefined, fallbackName: string | undefined) => {
+          if (!id) return undefined;
+          if (id.startsWith('custom_')) return fallbackName;
+          return playerNameMap.get(id) || fallbackName;
+        };
+
         if (playerId) {
           base.playerId = playerId;
-          if (playerName) {
-            base.playerName = playerName;
-          } else {
-            const name = playerNameMap.get(playerId);
-            if (name) base.playerName = name;
-          }
+          const name = resolveEventPlayerName(playerId, playerName);
+          if (name) base.playerName = name;
         }
         if (assistPlayerId) {
           base.assistPlayerId = assistPlayerId;
-          if (assistPlayerName) {
-            base.assistPlayerName = assistPlayerName;
-          } else {
-            const aName = playerNameMap.get(assistPlayerId);
-            if (aName) base.assistPlayerName = aName;
-          }
+          const assistName = resolveEventPlayerName(assistPlayerId, assistPlayerName);
+          if (assistName) base.assistPlayerName = assistName;
         }
         if (cardColor) base.cardColor = cardColor;
         if (inPlayerId) {
           base.inPlayerId = inPlayerId;
-          if (inPlayerName) base.inPlayerName = inPlayerName;
+          const inName = resolveEventPlayerName(inPlayerId, inPlayerName);
+          if (inName) base.inPlayerName = inName;
         }
         if (outPlayerId) {
           base.outPlayerId = outPlayerId;
-          if (outPlayerName) base.outPlayerName = outPlayerName;
+          const outName = resolveEventPlayerName(outPlayerId, outPlayerName);
+          if (outName) base.outPlayerName = outName;
         }
         if (text) base.text = text;
         return base;
@@ -638,7 +637,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           if (ev.outPlayerId) {
             const outDocId = `sub-${ev.id}-out`;
             desiredSubDocIds.add(outDocId);
-            const outPlayerName = ev.outPlayerName || playerNameMap.get(ev.outPlayerId) || '';
+            const outPlayerName = ev.outPlayerId.startsWith('custom_') ? (ev.outPlayerName || '') : (playerNameMap.get(ev.outPlayerId) || ev.outPlayerName || '');
             batch.set(
               doc(eventsColRef, outDocId),
               {
@@ -654,7 +653,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           if (ev.inPlayerId) {
             const inDocId = `sub-${ev.id}-in`;
             desiredSubDocIds.add(inDocId);
-            const inPlayerName = ev.inPlayerName || playerNameMap.get(ev.inPlayerId) || '';
+            const inPlayerName = ev.inPlayerId.startsWith('custom_') ? (ev.inPlayerName || '') : (playerNameMap.get(ev.inPlayerId) || ev.inPlayerName || '');
             batch.set(
               doc(eventsColRef, inDocId),
               {
@@ -788,7 +787,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
 
   return (
     <FormProvider {...methods}>
-      <Card className={view === 'events' ? "border-0 shadow-none" : ""}>
+      <Card className={view === 'events' ? "border-0 bg-transparent text-slate-100 shadow-none" : ""}>
         {view === 'events' ? null : (
           <CardHeader>
             <CardTitle>

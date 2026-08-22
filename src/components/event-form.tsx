@@ -63,9 +63,27 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
   });
 
   const selectedTeamId = form.watch('teamId');
-  const teamPlayers = selectedTeamId === match?.homeTeam ? homePlayers : awayPlayers;
   const eventType = form.watch('type');
   const selectedPlayerId = form.watch('playerId');
+
+  // OGの場合はOGを献上した側（オウンゴールをしたチーム）の選手を表示
+  // ホームチームを選択+OG → アウェイチームの選手を表示（アウェイがOGを献上した場合）
+  // アウェイチームを選択+OG → ホームチームの選手を表示（ホームがOGを献上した場合）
+  const teamPlayers = eventType === 'og' 
+    ? (selectedTeamId === match?.homeTeam ? awayPlayers : homePlayers)
+    : (selectedTeamId === match?.homeTeam ? homePlayers : awayPlayers);
+
+  console.log('[EventForm] Debug:', {
+    selectedTeamId,
+    eventType,
+    homeTeam: match?.homeTeam,
+    awayTeam: match?.awayTeam,
+    homePlayersCount: homePlayers.length,
+    awayPlayersCount: awayPlayers.length,
+    teamPlayersCount: teamPlayers.length,
+    isOG: eventType === 'og',
+    willShowAway: selectedTeamId === match?.homeTeam && eventType === 'og',
+  });
 
   useEffect(() => {
     form.reset({
@@ -74,7 +92,7 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
       manualPlayerName: '',
       assistPlayerId: '',
     });
-  }, [selectedTeamId, form]);
+  }, [selectedTeamId, eventType, form]);
 
   const onSubmit = async (values: EventFormValues) => {
     if (!user || !ownerUid || !match) return;

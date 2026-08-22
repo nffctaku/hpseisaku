@@ -182,8 +182,13 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
     setNewEventInPlayerName("");
   };
 
-  const getTeamPlayers = (teamId: string) => {
-    const rawTeamPlayers = teamId === match.homeTeam ? homePlayers : awayPlayers;
+  const getTeamPlayers = (teamId: string, eventType: string = "goal") => {
+    // OGの場合はOGを献上した側（オウンゴールをしたチーム）の選手を表示
+    // ホームチームを選択+OG → アウェイチームの選手を表示（アウェイがOGを献上した場合）
+    // アウェイチームを選択+OG → ホームチームの選手を表示（ホームがOGを献上した場合）
+    const rawTeamPlayers = eventType === 'og' 
+      ? (teamId === match.homeTeam ? awayPlayers : homePlayers)
+      : (teamId === match.homeTeam ? homePlayers : awayPlayers);
     const teamPlayerIdSet = new Set(rawTeamPlayers.map((p) => p.id));
 
     const active = (playerStats as any[])
@@ -205,7 +210,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
     return { teamPlayers, starterPlayers, subPlayers };
   };
 
-  const { teamPlayers, starterPlayers, subPlayers } = getTeamPlayers(newEventTeam);
+  const { teamPlayers, starterPlayers, subPlayers } = getTeamPlayers(newEventTeam, newEventType);
 
   const eventTypeLabels = {
     goal: "ゴール",
@@ -249,9 +254,24 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
 
     const getPlayerName = (playerId: string | undefined, playerName?: string) => {
       if (!playerId) return "";
-      if (playerName) return playerName;
+      if (playerId.startsWith("custom_")) return playerName || "";
       const player = [...homePlayers, ...awayPlayers].find(p => p.id === playerId);
-      return player?.name || "";
+      return player?.name || playerName || "";
+    };
+
+    const resolveEventName = (id: string | undefined, savedName: string | undefined) => {
+      if (!id) return savedName || "";
+      if (id.startsWith("custom_")) return savedName || "";
+      const player = [...homePlayers, ...awayPlayers].find(p => p.id === id);
+      const masterName = player?.name;
+      console.log('[MatchEventsTable] resolveEventName:', {
+        id,
+        savedName,
+        masterName,
+        found: !!player,
+        willReturn: masterName || savedName || ""
+      });
+      return masterName || savedName || "";
     };
 
     const getEventIcon = () => {
@@ -268,25 +288,25 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
 
     const getEventDescription = () => {
       if (currentType === "goal") {
-        const scorer = getPlayerName(field.playerId, field.playerName);
-        const assist = field.assistPlayerId === "pk" ? "PK" : getPlayerName(field.assistPlayerId, field.assistPlayerName);
+        const scorer = resolveEventName(field.playerId, field.playerName);
+        const assist = field.assistPlayerId === "pk" ? "PK" : resolveEventName(field.assistPlayerId, field.assistPlayerName);
         let text = scorer || "";
         if (assist) text += ` (${assist})`;
         return text;
       } else if (currentType === "og") {
-        const scorer = getPlayerName(field.playerId, field.playerName);
+        const scorer = resolveEventName(field.playerId, field.playerName);
         let text = scorer || "";
         text += " (OG)";
         return text;
       } else if (currentType === "card") {
-        const player = getPlayerName(field.playerId, field.playerName);
+        const player = resolveEventName(field.playerId, field.playerName);
         const cardColor = field.cardColor === "yellow" ? "イエロー" : "レッド";
         let text = player || "";
         text += ` (${cardColor})`;
         return text;
       } else if (currentType === "substitution") {
-        const outPlayer = getPlayerName(field.outPlayerId, field.outPlayerName);
-        const inPlayer = getPlayerName(field.inPlayerId, field.inPlayerName);
+        const outPlayer = resolveEventName(field.outPlayerId, field.outPlayerName);
+        const inPlayer = resolveEventName(field.inPlayerId, field.inPlayerName);
         let text = outPlayer || "";
         text += " → ";
         text += inPlayer || "";
@@ -300,7 +320,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
     return (
       <div
         key={field.id}
-        className="flex items-center rounded-md border bg-white px-4 py-3 text-gray-900"
+        className="flex items-center rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100"
       >
         {/* イベントアイコン */}
         <div className="flex-shrink-0 mr-1">
@@ -309,13 +329,13 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
 
         {/* 時間とイベント内容 */}
         <div className="flex items-center flex-1 min-w-0 overflow-hidden text-left">
-          <span className="text-sm font-medium text-gray-900 w-12 text-left mr-0">{formatMinute(minute)}</span>
-          <span className="text-sm text-gray-900">{getEventDescription()}</span>
+          <span className="mr-0 w-12 text-left text-sm font-medium text-slate-100">{formatMinute(minute)}</span>
+          <span className="text-sm text-slate-200">{getEventDescription()}</span>
         </div>
 
         {/* チーム表示 */}
         <div className="flex-shrink-0 text-left ml-1">
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-slate-500">
             {teamId === match.homeTeam ? "(H)" : "(A)"}
           </span>
         </div>
@@ -323,7 +343,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
         {/* 削除ボタン */}
         <div className="flex-shrink-0 ml-1">
           <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
-            <Trash2 className="h-4 w-4 text-destructive" />
+            <Trash2 className="h-4 w-4 text-red-300" />
           </Button>
         </div>
       </div>
@@ -332,19 +352,19 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
 
   return (
     <div className="w-full space-y-3">
-      <div className="bg-white rounded-lg p-4 w-full">
+      <div className="w-full rounded-2xl border border-slate-700/70 bg-slate-950 p-4 text-slate-100">
         <div className="flex flex-col gap-3 mb-4">
-          <h3 className="text-base font-bold text-gray-900">
+          <h3 className="text-base font-bold text-white">
             新しいイベントを追加
           </h3>
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <div className="flex items-center gap-1 rounded-xl bg-slate-900 p-1">
             <button
               type="button"
               onClick={() => setNewEventTeam(match.homeTeam)}
               className={`flex-1 px-3 py-1 text-xs rounded-md transition-colors ${
                 newEventTeam === match.homeTeam
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "bg-emerald-500 text-white"
+                  : "text-slate-400 hover:text-white"
               }`}
             >
               {match.homeTeamName}(H)
@@ -354,8 +374,8 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
               onClick={() => setNewEventTeam(match.awayTeam)}
               className={`flex-1 px-3 py-1 text-xs rounded-md transition-colors ${
                 newEventTeam === match.awayTeam
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 hover:text-gray-900"
+                  ? "bg-emerald-500 text-white"
+                  : "text-slate-400 hover:text-white"
               }`}
             >
               {match.awayTeamName}(A)
@@ -370,8 +390,8 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
             onClick={() => setNewEventType("goal")}
             className={`flex-1 flex items-center justify-center h-8 rounded-lg border transition-colors ${
               newEventType === "goal"
-                ? "bg-blue-600 border-blue-600 text-white"
-                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                ? "border-emerald-500 bg-emerald-500 text-white"
+                : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
             <FaFutbol className="h-4 w-4" />
@@ -381,8 +401,8 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
             onClick={() => setNewEventType("og")}
             className={`flex-1 flex items-center justify-center h-8 rounded-lg border transition-colors ${
               newEventType === "og"
-                ? "bg-blue-600 border-blue-600 text-white"
-                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                ? "border-emerald-500 bg-emerald-500 text-white"
+                : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
             <FaFutbol className="h-4 w-4 text-red-500" />
@@ -392,8 +412,8 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
             onClick={() => setNewEventType("substitution")}
             className={`flex-1 flex items-center justify-center h-8 rounded-lg border transition-colors ${
               newEventType === "substitution"
-                ? "bg-blue-600 border-blue-600 text-white"
-                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                ? "border-emerald-500 bg-emerald-500 text-white"
+                : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
             <ArrowLeftRight className="h-4 w-4" />
@@ -406,8 +426,8 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
             }}
             className={`flex-1 flex items-center justify-center h-8 rounded-lg border transition-colors ${
               newEventType === "card" && newEventCardColor === "yellow"
-                ? "bg-blue-600 border-blue-600 text-white"
-                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                ? "border-emerald-500 bg-emerald-500 text-white"
+                : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
             <AlertCircle className="h-4 w-4 text-yellow-500" />
@@ -420,8 +440,8 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
             }}
             className={`flex-1 flex items-center justify-center h-8 rounded-lg border transition-colors ${
               newEventType === "card" && newEventCardColor === "red"
-                ? "bg-blue-600 border-blue-600 text-white"
-                : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                ? "border-emerald-500 bg-emerald-500 text-white"
+                : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
             <AlertCircle className="h-4 w-4 text-red-500" />
@@ -430,12 +450,12 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
 
         {/* 分選択 */}
         <div className="mb-4">
-          <div className="text-xs text-gray-500 mb-1">分</div>
+          <div className="mb-1 text-xs text-slate-400">分</div>
           <Select
             value={newEventMinute.toString()}
             onValueChange={(val) => setNewEventMinute(parseFloat(val))}
           >
-            <SelectTrigger className="h-10 w-full bg-white text-gray-900">
+            <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -452,11 +472,11 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
         {(newEventType === "goal" || newEventType === "og") && (
           <div className="space-y-3 mb-4">
             <div>
-              <div className="text-xs text-gray-500 mb-1">
+              <div className="mb-1 text-xs text-slate-400">
                 {newEventType === "og" ? "OG選手" : "得点者"}
               </div>
               <Select value={newEventPlayerId} onValueChange={(val) => { setNewEventPlayerId(val); if (val !== "custom") setNewEventPlayerName(""); }}>
-                <SelectTrigger className="h-10 w-full bg-white text-gray-900">
+                <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
                   <SelectValue placeholder="選手を選択" />
                 </SelectTrigger>
                 <SelectContent>
@@ -474,15 +494,15 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   value={newEventPlayerName}
                   onChange={(e) => setNewEventPlayerName(e.target.value)}
                   placeholder="選手名を入力"
-                  className="mt-2 h-10 w-full bg-white text-gray-900"
+                  className="mt-2 h-10 w-full border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
                 />
               )}
             </div>
             {newEventType === "goal" && (
               <div>
-                <div className="text-xs text-gray-500 mb-1">アシスト(任意)</div>
+                <div className="mb-1 text-xs text-slate-400">アシスト(任意)</div>
                 <Select value={newEventAssistPlayerId} onValueChange={(val) => { setNewEventAssistPlayerId(val); if (val !== "custom") setNewEventAssistPlayerName(""); }}>
-                  <SelectTrigger className="h-10 w-full bg-white text-gray-900">
+                  <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
                     <SelectValue placeholder="選手を選択" />
                   </SelectTrigger>
                   <SelectContent>
@@ -501,7 +521,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                     value={newEventAssistPlayerName}
                     onChange={(e) => setNewEventAssistPlayerName(e.target.value)}
                     placeholder="選手名を入力"
-                    className="mt-2 h-10 w-full bg-white text-gray-900"
+                    className="mt-2 h-10 w-full border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
                   />
                 )}
               </div>
@@ -512,9 +532,9 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
         {newEventType === "card" && (
           <div className="space-y-3 mb-4">
             <div>
-              <div className="text-xs text-gray-500 mb-1">選手</div>
+              <div className="mb-1 text-xs text-slate-400">選手</div>
               <Select value={newEventPlayerId} onValueChange={(val) => { setNewEventPlayerId(val); if (val !== "custom") setNewEventPlayerName(""); }}>
-                <SelectTrigger className="h-10 w-full bg-white text-gray-900">
+                <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
                   <SelectValue placeholder="選手を選択" />
                 </SelectTrigger>
                 <SelectContent>
@@ -532,7 +552,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   value={newEventPlayerName}
                   onChange={(e) => setNewEventPlayerName(e.target.value)}
                   placeholder="選手名を入力"
-                  className="mt-2 h-10 w-full bg-white text-gray-900"
+                  className="mt-2 h-10 w-full border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
                 />
               )}
             </div>
@@ -542,9 +562,9 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
         {newEventType === "substitution" && (
           <div className="space-y-3 mb-4">
             <div>
-              <div className="text-xs text-gray-500 mb-1">OUT選手を選択</div>
+              <div className="mb-1 text-xs text-slate-400">OUT選手を選択</div>
               <Select value={newEventOutPlayerId} onValueChange={(val) => { setNewEventOutPlayerId(val); if (val !== "custom") setNewEventOutPlayerName(""); }}>
-                <SelectTrigger className="h-10 w-full bg-white text-gray-900">
+                <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
                   <SelectValue placeholder="選手を選択" />
                 </SelectTrigger>
                 <SelectContent>
@@ -562,14 +582,14 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   value={newEventOutPlayerName}
                   onChange={(e) => setNewEventOutPlayerName(e.target.value)}
                   placeholder="選手名を入力"
-                  className="mt-2 h-10 w-full bg-white text-gray-900"
+                  className="mt-2 h-10 w-full border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
                 />
               )}
             </div>
             <div>
-              <div className="text-xs text-gray-500 mb-1">IN選手を選択</div>
+              <div className="mb-1 text-xs text-slate-400">IN選手を選択</div>
               <Select value={newEventInPlayerId} onValueChange={(val) => { setNewEventInPlayerId(val); if (val !== "custom") setNewEventInPlayerName(""); }}>
-                <SelectTrigger className="h-10 w-full bg-white text-gray-900">
+                <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
                   <SelectValue placeholder="選手を選択" />
                 </SelectTrigger>
                 <SelectContent>
@@ -587,7 +607,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   value={newEventInPlayerName}
                   onChange={(e) => setNewEventInPlayerName(e.target.value)}
                   placeholder="選手名を入力"
-                  className="mt-2 h-10 w-full bg-white text-gray-900"
+                  className="mt-2 h-10 w-full border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
                 />
               )}
             </div>
@@ -598,7 +618,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
         <Button
           type="button"
           onClick={handleAddNewEvent}
-          className="w-full bg-blue-600 text-white hover:bg-blue-700 h-10"
+          className="h-10 w-full bg-emerald-500 font-bold text-white hover:bg-emerald-600"
         >
           追加
         </Button>
@@ -607,7 +627,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
       {/* 既存のイベントリスト */}
       <div className="space-y-3">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold text-gray-900">登録済みイベント</h3>
+          <h3 className="text-sm font-semibold text-white">登録済みイベント</h3>
         </div>
 
         <div className="space-y-2">
@@ -622,7 +642,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
             })
             .map(({ field, index }) => renderEventRow(field, index))}
           {fields.length === 0 && (
-            <p className="text-xs text-gray-400">まだイベントは登録されていません。</p>
+            <p className="text-xs text-slate-500">まだイベントは登録されていません。</p>
           )}
         </div>
       </div>

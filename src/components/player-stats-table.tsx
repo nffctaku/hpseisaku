@@ -104,11 +104,11 @@ const positionOrder = (position: any) => {
 
 const getPositionPillClassName = (position: any) => {
   const value = String(position || '').toUpperCase();
-  if (value.includes('GK')) return 'bg-yellow-100 text-yellow-800';
-  if (value.includes('DF') || value.includes('CB') || value.includes('SB') || value.includes('RB') || value.includes('LB')) return 'bg-blue-100 text-blue-800';
-  if (value.includes('MF') || value.includes('DM') || value.includes('CM') || value.includes('AM') || value.includes('WB') || value.includes('SH')) return 'bg-green-100 text-green-800';
-  if (value.includes('FW') || value.includes('ST') || value.includes('CF') || value.includes('WG')) return 'bg-red-100 text-red-800';
-  return 'bg-gray-100 text-gray-700';
+  if (value.includes('GK')) return 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30';
+  if (value.includes('DF') || value.includes('CB') || value.includes('SB') || value.includes('RB') || value.includes('LB')) return 'bg-blue-500/20 text-blue-300 border border-blue-500/30';
+  if (value.includes('MF') || value.includes('DM') || value.includes('CM') || value.includes('AM') || value.includes('WB') || value.includes('SH')) return 'bg-green-500/20 text-green-300 border border-green-500/30';
+  if (value.includes('FW') || value.includes('ST') || value.includes('CF') || value.includes('WG')) return 'bg-red-500/20 text-red-300 border border-red-500/30';
+  return 'bg-slate-600/20 text-slate-300 border border-slate-500/30';
 };
 
 export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFormationChange, isHomeTeam }: { teamId: string, allPlayers: Player[], matchDuration?: number, onFormationChange?: (formation: string) => void, isHomeTeam?: boolean }) {
@@ -185,6 +185,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
     events.forEach((ev: any) => {
       const type = typeof ev?.type === 'string' ? ev.type : '';
+      // OGは選手の得点としてカウントしない
       if (type === 'goal') {
         if (ev.playerId) goals.set(ev.playerId, (goals.get(ev.playerId) || 0) + 1);
         if (ev.assistPlayerId) assists.set(ev.assistPlayerId, (assists.get(ev.assistPlayerId) || 0) + 1);
@@ -572,7 +573,13 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
   const renderPitchSlot = (slot: number) => {
     const slotField = starters.find((f) => (f as any).starterSlot === slot);
     const currentPlayerId = (slotField as any)?.playerId || '';
-    const options = sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
+    const hasEvents = Array.isArray(watchedEvents) && watchedEvents.length > 0;
+    const options = sortedAllPlayers.filter((p) => {
+      const isCurrentPlayer = p.id === currentPlayerId;
+      const isBench = bench.some(b => (b as any).playerId === p.id || b.id === p.id);
+      return !teamPlayerIdsInStats.includes(p.id) || isCurrentPlayer || isBench;
+    });
+    
     const player = currentPlayerId ? allPlayers.find((p) => p.id === currentPlayerId) : null;
     const photoUrl = player
       ? (player as any).photoURL || (player as any).photoUrl || (player as any).imageUrl || (player as any).profileImageUrl || (player as any).avatarUrl || ''
@@ -611,7 +618,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
         style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
       >
         <div className="flex w-[62px] flex-col items-center gap-0.5 overflow-visible sm:w-[82px]">
-          <Select value={currentPlayerId} onValueChange={(val) => setStarterSlotPlayer(slot, val)}>
+          <Select value={currentPlayerId} onValueChange={(val) => setStarterSlotPlayer(slot, val)} disabled={hasEvents}>
             <SelectTrigger className="h-auto w-full overflow-visible border-0 bg-transparent p-0 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
               <div className="flex w-full flex-col items-center gap-0.5 overflow-visible">
                 <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-300/45 bg-slate-500/30 shadow-[0_0_0_3px_rgba(255,255,255,0.06)] sm:h-11 sm:w-11">
@@ -663,7 +670,16 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
             </SelectTrigger>
             <SelectContent>
               {currentPlayerId ? <SelectItem value={NONE_SELECT_VALUE}>未選択</SelectItem> : null}
-              {options.map((p) => (
+              {bench.length > 0 && options.filter(p => bench.some(b => (b as any).playerId === p.id || b.id === p.id)).length > 0 && (
+                <>
+                  {options.filter(p => bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {`[ベンチ] #${p.number} ${p.name}`}
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+              {options.filter(p => !bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {`#${p.number} ${p.name}`}
                 </SelectItem>
@@ -742,7 +758,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
     return (
       <div key={field.id} className="space-y-1">
-        <div className="rounded-md border bg-white px-3 py-3 text-gray-900">
+        <div className="rounded-md border border-slate-700 bg-slate-900 px-3 py-3 text-slate-100">
           <div className="overflow-x-auto md:overflow-visible">
             <div className="grid min-w-max grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto_auto_auto] items-end gap-2 text-xs">
               <div className="min-w-0 self-end">
@@ -762,9 +778,9 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
               </div>
 
               <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-gray-500">評価</span>
+                <span className="text-[10px] text-slate-400">評価</span>
                 <Select value={ratingValue} onValueChange={(val) => setValue(ratingFieldName, parseFloat(val), { shouldDirty: true })}>
-                  <SelectTrigger size="sm" className="w-20 bg-white text-gray-900 shadow-none focus-visible:ring-0">
+                  <SelectTrigger size="sm" className="w-20 bg-slate-800 text-slate-100 border-slate-700 shadow-none focus-visible:ring-0">
                     <SelectValue placeholder="-" />
                   </SelectTrigger>
                   <SelectContent>
@@ -778,37 +794,37 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
               </div>
 
               <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-gray-500">出場分</span>
-                <div className="inline-flex items-center gap-1 h-8 px-2 text-sm text-gray-700 cursor-default shrink-0 pointer-events-none">
+                <span className="text-[10px] text-slate-400">出場分</span>
+                <div className="inline-flex items-center gap-1 h-8 px-2 text-sm text-slate-200 cursor-default shrink-0 pointer-events-none">
                   <span>{watch(minutesFieldName)?.toString() ?? ""}</span>
-                  <span className="text-gray-400">⇔</span>
+                  <span className="text-slate-500">⇔</span>
                 </div>
               </div>
 
               <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-gray-500">G</span>
-                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
+                <span className="text-[10px] text-slate-400">G</span>
+                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-slate-700 text-slate-200 rounded-full cursor-default shrink-0 pointer-events-none">
                   {goalsValue}
                 </span>
               </div>
 
               <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-gray-500">👟</span>
-                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
+                <span className="text-[10px] text-slate-400">👟</span>
+                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-slate-700 text-slate-200 rounded-full cursor-default shrink-0 pointer-events-none">
                   {assistsValue}
                 </span>
               </div>
 
               <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-gray-500">Y</span>
-                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
+                <span className="text-[10px] text-slate-400">Y</span>
+                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-slate-700 text-slate-200 rounded-full cursor-default shrink-0 pointer-events-none">
                   {yellowValue}
                 </span>
               </div>
 
               <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-gray-500">R</span>
-                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-gray-200 text-gray-700 rounded-full cursor-default shrink-0 pointer-events-none">
+                <span className="text-[10px] text-slate-400">R</span>
+                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-slate-700 text-slate-200 rounded-full cursor-default shrink-0 pointer-events-none">
                   {redValue}
                 </span>
               </div>
@@ -881,7 +897,11 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
           {pitchSlots.map((_, slot) => renderPitchSlot(slot))}
         </div>
         <div className="border-t border-slate-700/80 bg-[#142033] px-4 py-4 sm:px-5">
-          <p className="hidden text-center text-sm font-semibold text-slate-500 sm:block">タップで選手を追加 / 削除</p>
+          {Array.isArray(watchedEvents) && watchedEvents.length > 0 ? (
+            <p className="text-center text-xs font-semibold text-amber-400">⚠️ 試合イベントの記録後は入れ替え不可</p>
+          ) : (
+            <p className="hidden text-center text-sm font-semibold text-slate-500 sm:block">タップで選手を追加 / 削除</p>
+          )}
         </div>
       </div>
 
@@ -916,7 +936,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                     {(field as any).position}
                   </span>
                   <Select value={currentPlayerId} onValueChange={(val) => setBenchPlayer((field as any).id, val)}>
-                    <SelectTrigger className="h-8 w-44 text-xs bg-white text-gray-900">
+                    <SelectTrigger className="h-8 w-44 text-xs bg-slate-800 text-slate-100 border-slate-700">
                       <SelectValue placeholder="選手を選択" />
                     </SelectTrigger>
                     <SelectContent>

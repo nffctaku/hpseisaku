@@ -136,6 +136,12 @@ async function getMatchDetail(
         playerMetaMap[p.id] = { number: p.number, position: p.position, photoUrl: p.photoUrl, name: p.name };
       });
 
+      console.log('[PublicMatchPage] playerMetaMap sample:', {
+        homeCount: homePlayersMeta.length,
+        awayCount: awayPlayersMeta.length,
+        sample: Object.entries(playerMetaMap).slice(0, 3).map(([id, data]) => ({ id, name: data.name })),
+      });
+
       const playerTeamMap: Record<string, string> = {};
       homePlayersMeta.forEach((p) => {
         if (p?.id && data.homeTeam) playerTeamMap[p.id] = data.homeTeam;
@@ -434,11 +440,23 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const playerStats = (match.playerStats || []) as any[];
 
   // playerId -> playerName map for displaying scorers
+  // Prioritize current master player names over saved names
   const playerNameMap = new Map<string, string>();
   playerStats.forEach((ps) => {
-    if (ps.playerId && ps.playerName) {
-      playerNameMap.set(ps.playerId as string, ps.playerName as string);
+    if (ps.playerId) {
+      // Use current master name if available, otherwise use saved name
+      const masterName = playerMetaMap[ps.playerId as string]?.name;
+      if (masterName) {
+        playerNameMap.set(ps.playerId as string, masterName);
+      } else if (ps.playerName) {
+        playerNameMap.set(ps.playerId as string, ps.playerName as string);
+      }
     }
+  });
+
+  console.log('[PublicMatchPage] playerNameMap sample:', {
+    size: playerNameMap.size,
+    sample: Array.from(playerNameMap.entries()).slice(0, 3),
   });
 
   const resolveTeamId = (ps: any): string | null => {
@@ -1130,16 +1148,21 @@ export default async function MatchDetailPage({ params }: PageProps) {
 
                         const { ev, homeScore, awayScore } = row;
                         const isHome = ev.teamId === match.homeTeam;
-                        const nameFromEvent = (ev as any).playerName as string | undefined;
-                        const nameFromStats = ev.playerId ? playerNameMap.get(ev.playerId) : undefined;
-                        const nameLabel = nameFromEvent || nameFromStats || "";
-                        const assist = (ev as any).assistPlayerName as string | undefined;
+
+                        const resolveEventPlayerName = (id: string | undefined, savedName: string | undefined) => {
+                          if (!id) return undefined;
+                          if (id.startsWith('custom_')) return savedName;
+                          return playerNameMap.get(id) || savedName;
+                        };
+
+                        const nameLabel = resolveEventPlayerName(ev.playerId, (ev as any).playerName) || "";
+                        const assist = resolveEventPlayerName((ev as any).assistPlayerId, (ev as any).assistPlayerName);
                         const assistId = (ev as any).assistPlayerId as string | undefined;
 
                         const outPlayerId = (ev as any).outPlayerId as string | undefined;
                         const inPlayerId = (ev as any).inPlayerId as string | undefined;
-                        const outName = outPlayerId ? playerNameMap.get(outPlayerId) : undefined;
-                        const inName = inPlayerId ? playerNameMap.get(inPlayerId) : undefined;
+                        const outName = resolveEventPlayerName(outPlayerId, (ev as any).outPlayerName);
+                        const inName = resolveEventPlayerName(inPlayerId, (ev as any).inPlayerName);
 
                         let label = "";
                         let detailLabel = "";

@@ -64,9 +64,8 @@ export default function RootLayout({
         <link rel="preload" href="/top-hero-mobile.jpg" as="image" media="(max-width: 640px)" />
         <link rel="preload" href="/PCトップ画像.png" as="image" media="(min-width: 641px)" />
         {shouldLoadAdsense ? (
-          <Script
+          <script
             async
-            strategy="afterInteractive"
             src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(adsenseClient)}`}
             crossOrigin="anonymous"
           />
