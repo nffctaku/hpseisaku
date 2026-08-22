@@ -135,7 +135,8 @@ export default function ClubInfoPage() {
         const snap = await getDocs(qProfiles);
         if (!snap.empty) {
           const data = snap.docs[0].data() as any;
-          if (data.mainTeamId) {
+          // 初期ロード時のみ、FirestoreからmainTeamIdを設定
+          if (data.mainTeamId && !initialLoadDone) {
             setSelectedTeamId(data.mainTeamId as string);
           }
           if (typeof data.mainTeamLocked === 'boolean') {
