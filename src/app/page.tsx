@@ -378,6 +378,12 @@ export default function LandingPage() {
                         </svg>
                         <span className="text-sm text-slate-300">選手名鑑生成 A4ver</span>
                       </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-slate-300">スタッツ自動読み取り 月5枚まで</span>
+                      </li>
                     </ul>
 
                     <Link
@@ -438,6 +444,12 @@ export default function LandingPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                         <span className="text-sm text-slate-300">選手名鑑生成 フル機能</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-sm text-slate-300">スタッツ自動読み取り 月150枚まで</span>
                       </li>
                     </ul>
 

@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import { UploadCloud, X, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { STATS_IMAGE_ANALYSIS_PROMPT, StatsImageAnalysisResult } from '@/lib/stats-image-parser';
+import { useAuth } from '@/contexts/AuthContext';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface StatsImageUploaderProps {
   onAnalysisComplete: (result: StatsImageAnalysisResult) => void;
@@ -14,11 +17,51 @@ interface StatsImageUploaderProps {
 }
 
 export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], embedded = false }: StatsImageUploaderProps) {
+  const { user } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [remainingCount, setRemainingCount] = useState<number>(5);
+  const [isLimitReached, setIsLimitReached] = useState(false);
+  const [isProPlan, setIsProPlan] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ユーザーのプランと月のOCR使用回数を取得
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user) return;
+
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1; // 1-12
+      const monthKey = `${year}-${month.toString().padStart(2, '0')}`;
+
+      // AuthContextからプランを確認
+      const plan = user?.plan || 'free';
+      console.log('[StatsImageUploader] User plan from auth:', plan);
+      const isPro = plan === 'pro';
+      setIsProPlan(isPro);
+      console.log('[StatsImageUploader] isProPlan set to:', isPro);
+
+      // 使用回数をチェック
+      const usageDocRef = doc(db, 'club_profiles', user.uid, 'ocr_usage', monthKey);
+      const usageDoc = await getDoc(usageDocRef);
+
+      if (usageDoc.exists()) {
+        const count = usageDoc.data()?.count || 0;
+        const limit = plan === 'pro' ? 150 : 5;
+        setRemainingCount(Math.max(0, limit - count));
+        setIsLimitReached(count >= limit);
+      } else {
+        const limit = plan === 'pro' ? 150 : 5;
+        setRemainingCount(limit);
+        setIsLimitReached(false);
+      }
+    };
+
+    fetchUserData();
+  }, [user]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -75,6 +118,11 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
       return;
     }
 
+    if (isLimitReached) {
+      toast.error('今月の無料枠（5枚）を使い切りました。来月までお待ちいただくか、有料プランでご利用ください');
+      return;
+    }
+
     setIsAnalyzing(true);
     setError(null);
     console.log('[StatsImageUploader] Starting image analysis for file:', selectedFile.name);
@@ -82,6 +130,28 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
     try {
       const result = await analyzeImage(selectedFile, registeredTeams);
       console.log('[StatsImageUploader] Analysis successful:', result);
+      
+      // 使用回数をインクリメント
+      if (user) {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1; // 1-12
+        const monthKey = `${year}-${month.toString().padStart(2, '0')}`;
+
+        const usageDocRef = doc(db, 'club_profiles', user.uid, 'ocr_usage', monthKey);
+        const usageDoc = await getDoc(usageDocRef);
+        const currentCount = usageDoc.exists() ? (usageDoc.data()?.count || 0) : 0;
+        const limit = isProPlan ? 150 : 5;
+        
+        await setDoc(usageDocRef, {
+          count: currentCount + 1,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        setRemainingCount(Math.max(0, limit - (currentCount + 1)));
+        setIsLimitReached(currentCount + 1 >= limit);
+      }
+      
       onAnalysisComplete(result);
       toast.success('画像解析が完了しました');
       handleRemoveFile();
@@ -150,12 +220,23 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
         <CardTitle className="flex items-center text-lg font-bold leading-tight tracking-tight sm:text-xl">
           <span className="break-keep">試合スクショから自動入力</span>
         </CardTitle>
-        <span className="rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300">
-          AI
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300">
+            AI
+          </span>
+          <span className="text-[10px] font-semibold text-slate-300">
+            残り{remainingCount}枚
+          </span>
+        </div>
       </div>
       <div className="px-0 pb-0">
         <div className="space-y-4">
+          {isLimitReached && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>{isProPlan ? '今月の使用枠（150枚）を使い切りました。来月までお待ちください。' : '今月の無料枠（5枚）を使い切りました。来月までお待ちいただくか、有料プランでご利用ください'}</span>
+            </div>
+          )}
           {!selectedFile ? (
             <div
               role="button"
@@ -164,23 +245,29 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click();
               }}
-              className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-600/80 bg-slate-800/30 px-4 py-5 text-center transition hover:border-emerald-400/70 hover:bg-slate-800/60 sm:min-h-52 sm:rounded-3xl sm:px-6 sm:py-10"
+              className={`flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-5 text-center transition sm:min-h-52 sm:rounded-3xl sm:px-6 sm:py-10 ${
+                isLimitReached
+                  ? 'border-slate-700/50 bg-slate-800/20 opacity-50'
+                  : 'border-slate-600/80 bg-slate-800/30 hover:border-emerald-400/70 hover:bg-slate-800/60'
+              }`}
             >
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 onChange={handleFileSelect}
+                disabled={isLimitReached}
                 className="hidden"
               />
-              <UploadCloud className="mb-2 h-8 w-8 text-slate-500 sm:mb-4 sm:h-10 sm:w-10" />
-              <p className="mb-3 max-w-full text-sm font-bold leading-snug text-slate-400 sm:mb-4 sm:text-base">
+              <UploadCloud className={`mb-2 h-8 w-8 ${isLimitReached ? 'text-slate-600' : 'text-slate-500'} sm:mb-4 sm:h-10 sm:w-10`} />
+              <p className={`mb-3 max-w-full text-sm font-bold leading-snug ${isLimitReached ? 'text-slate-600' : 'text-slate-400'} sm:mb-4 sm:text-base`}>
                 試合のスタッツを画像から読み取る
               </p>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
+                disabled={isLimitReached}
                 onClick={(e) => {
                   e.stopPropagation();
                   fileInputRef.current?.click();
@@ -217,7 +304,7 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
                 <Button
                   type="button"
                   onClick={handleAnalyze}
-                  disabled={isAnalyzing}
+                  disabled={isAnalyzing || isLimitReached}
                   className="flex-1 rounded-xl bg-emerald-500 font-bold text-white hover:bg-emerald-600"
                 >
                   {isAnalyzing ? (

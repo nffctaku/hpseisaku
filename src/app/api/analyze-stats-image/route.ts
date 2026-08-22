@@ -244,10 +244,13 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('Image analysis error:', error);
+    console.error('Error details:', JSON.stringify(error, null, 2));
     
     // エラーメッセージの生成
     let errorMessage = '画像解析に失敗しました';
     if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
       if (error.message.includes('API key')) {
         errorMessage = 'APIキーが無効です';
       } else if (error.message.includes('rate limit')) {
@@ -256,6 +259,8 @@ export async function POST(req: NextRequest) {
         errorMessage = '画像解析がタイムアウトしました';
       } else if (error.message.includes('JSON')) {
         errorMessage = '画像解析結果の解析に失敗しました';
+      } else {
+        errorMessage = `画像解析に失敗しました: ${error.message}`;
       }
     }
 
