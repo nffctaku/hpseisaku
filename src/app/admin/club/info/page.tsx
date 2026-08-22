@@ -74,11 +74,11 @@ export default function ClubInfoPage() {
   const [gameTeamUsage, setGameTeamUsage] = useState<boolean>(false);
   const [transfersPublic, setTransfersPublic] = useState<boolean>(true);
   const [autoSynced, setAutoSynced] = useState(false);
-  const [userSelectedTeamId, setUserSelectedTeamId] = useState<string | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const handleTeamSelect = (teamId: string) => {
     setSelectedTeamId(teamId);
-    setUserSelectedTeamId(teamId);
+    setIsInitialLoad(false);
     const selectedTeam = teams.find(t => t.id === teamId);
     if (selectedTeam) {
       setClubName(selectedTeam.name || '');
@@ -145,9 +145,10 @@ export default function ClubInfoPage() {
         const snap = await getDocs(qProfiles);
         if (!snap.empty) {
           const data = snap.docs[0].data() as any;
-          // ユーザーが選択していない場合のみ、FirestoreからmainTeamIdを設定
-          if (data.mainTeamId && !userSelectedTeamId) {
+          // 初期ロード時のみ、FirestoreからmainTeamIdを設定
+          if (data.mainTeamId && isInitialLoad) {
             setSelectedTeamId(data.mainTeamId as string);
+            setIsInitialLoad(false);
           }
           if (typeof data.mainTeamLocked === 'boolean') {
             setMainTeamLocked(Boolean(data.mainTeamLocked));
@@ -240,38 +241,7 @@ export default function ClubInfoPage() {
         teamsData.sort((a, b) => a.name.localeCompare(b.name));
         setTeams(teamsData);
 
-        // ユーザーが選択していない場合のみ、初期チームを設定
-        if (!userSelectedTeamId) {
-          const candidateTeamId = teamsData[0]?.id || '';
-          setSelectedTeamId(candidateTeamId);
-
-          const candidateTeam = candidateTeamId ? teamsData.find((t) => t.id === candidateTeamId) : undefined;
-
-          // 画面表示の初期値（クラブ設定未更新でも、チーム登録情報を自動反映）
-          if (candidateTeam) {
-            if (!clubName || clubName.trim().length === 0) {
-              setClubName(candidateTeam.name || '');
-            }
-            if (!logoUrl || logoUrl.trim().length === 0) {
-              setLogoUrl(candidateTeam.logoUrl || '');
-            }
-          }
-
-          // club_profiles が未設定のときは、初回だけ自動で同期する（更新ボタン不要）
-          if (candidateTeam && user && (!user.clubName || !user.logoUrl) && !autoSynced) {
-            await syncClubProfileFromTeam(candidateTeam, candidateTeamId);
-            setAutoSynced(true);
-          }
-        }
-
-        // メインチームが決まっている場合は、そのチームの名前とロゴをクラブ表示用にも反映する
-        if (selectedTeamId) {
-          const mainTeam = teamsData.find(t => t.id === selectedTeamId);
-          if (mainTeam) {
-            setClubName(mainTeam.name || '');
-            setLogoUrl(mainTeam.logoUrl || '');
-          }
-        }
+        // 自動チーム選択を削除 - ユーザーが明示的に選択する
       } catch (error) {
         console.error('Error fetching teams for club info:', error);
         toast.error('チーム一覧の取得に失敗しました。');
