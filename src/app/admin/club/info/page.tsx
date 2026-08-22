@@ -74,6 +74,7 @@ export default function ClubInfoPage() {
   const [gameTeamUsage, setGameTeamUsage] = useState<boolean>(false);
   const [transfersPublic, setTransfersPublic] = useState<boolean>(true);
   const [autoSynced, setAutoSynced] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const syncClubProfileFromTeam = async (team: TeamOption, teamId: string) => {
     if (!user) return;
@@ -228,16 +229,28 @@ export default function ClubInfoPage() {
         teamsData.sort((a, b) => a.name.localeCompare(b.name));
         setTeams(teamsData);
 
-        const candidateTeamId = selectedTeamId || teamsData[0]?.id || '';
-        const candidateTeam = candidateTeamId ? teamsData.find((t) => t.id === candidateTeamId) : undefined;
+        // 初期ロード時のみ、selectedTeamIdを設定
+        if (!initialLoadDone) {
+          const candidateTeamId = teamsData[0]?.id || '';
+          setSelectedTeamId(candidateTeamId);
+          setInitialLoadDone(true);
 
-        // 画面表示の初期値（クラブ設定未更新でも、チーム登録情報を自動反映）
-        if (candidateTeam) {
-          if (!clubName || clubName.trim().length === 0) {
-            setClubName(candidateTeam.name || '');
+          const candidateTeam = candidateTeamId ? teamsData.find((t) => t.id === candidateTeamId) : undefined;
+
+          // 画面表示の初期値（クラブ設定未更新でも、チーム登録情報を自動反映）
+          if (candidateTeam) {
+            if (!clubName || clubName.trim().length === 0) {
+              setClubName(candidateTeam.name || '');
+            }
+            if (!logoUrl || logoUrl.trim().length === 0) {
+              setLogoUrl(candidateTeam.logoUrl || '');
+            }
           }
-          if (!logoUrl || logoUrl.trim().length === 0) {
-            setLogoUrl(candidateTeam.logoUrl || '');
+
+          // club_profiles が未設定のときは、初回だけ自動で同期する（更新ボタン不要）
+          if (candidateTeam && user && (!user.clubName || !user.logoUrl) && !autoSynced) {
+            await syncClubProfileFromTeam(candidateTeam, candidateTeamId);
+            setAutoSynced(true);
           }
         }
 
@@ -248,12 +261,6 @@ export default function ClubInfoPage() {
             setClubName(mainTeam.name || '');
             setLogoUrl(mainTeam.logoUrl || '');
           }
-        }
-
-        // club_profiles が未設定のときは、初回だけ自動で同期する（更新ボタン不要）
-        if (candidateTeam && user && (!user.clubName || !user.logoUrl) && !autoSynced) {
-          await syncClubProfileFromTeam(candidateTeam, candidateTeamId);
-          setAutoSynced(true);
         }
       } catch (error) {
         console.error('Error fetching teams for club info:', error);
