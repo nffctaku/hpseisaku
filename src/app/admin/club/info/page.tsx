@@ -73,6 +73,7 @@ export default function ClubInfoPage() {
   const [realTeamUsage, setRealTeamUsage] = useState<boolean>(false);
   const [gameTeamUsage, setGameTeamUsage] = useState<boolean>(false);
   const [transfersPublic, setTransfersPublic] = useState<boolean>(true);
+  const [autoSynced, setAutoSynced] = useState(false);
 
   const syncClubProfileFromTeam = async (team: TeamOption, teamId: string) => {
     if (!user) return;
@@ -250,8 +251,9 @@ export default function ClubInfoPage() {
         }
 
         // club_profiles が未設定のときは、初回だけ自動で同期する（更新ボタン不要）
-        if (candidateTeam && user && (!user.clubName || !user.logoUrl)) {
+        if (candidateTeam && user && (!user.clubName || !user.logoUrl) && !autoSynced) {
           await syncClubProfileFromTeam(candidateTeam, candidateTeamId);
+          setAutoSynced(true);
         }
       } catch (error) {
         console.error('Error fetching teams for club info:', error);
