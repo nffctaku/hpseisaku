@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
 import { auth, db } from '@/lib/firebase';
@@ -75,9 +75,11 @@ export default function ClubInfoPage() {
   const [transfersPublic, setTransfersPublic] = useState<boolean>(true);
   const [autoSynced, setAutoSynced] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const userHasSelectedTeam = useRef(false);
 
   const handleTeamSelect = (teamId: string) => {
     setSelectedTeamId(teamId);
+    userHasSelectedTeam.current = true;
     setIsInitialLoad(false);
     const selectedTeam = teams.find(t => t.id === teamId);
     if (selectedTeam) {
@@ -145,10 +147,9 @@ export default function ClubInfoPage() {
         const snap = await getDocs(qProfiles);
         if (!snap.empty) {
           const data = snap.docs[0].data() as any;
-          // 初期ロード時のみ、FirestoreからmainTeamIdを設定
-          if (data.mainTeamId && isInitialLoad) {
+          // ユーザーが選択していない場合のみ、FirestoreからmainTeamIdを設定
+          if (data.mainTeamId && !userHasSelectedTeam.current) {
             setSelectedTeamId(data.mainTeamId as string);
-            setIsInitialLoad(false);
           }
           if (typeof data.mainTeamLocked === 'boolean') {
             setMainTeamLocked(Boolean(data.mainTeamLocked));
@@ -257,6 +258,11 @@ export default function ClubInfoPage() {
       return;
     }
 
+    if (!selectedTeamId) {
+      toast.error('チームを選択してください。');
+      return;
+    }
+
     if (!realTeamUsage && !gameTeamUsage) {
       toast.error('利用形態を選択してください。');
       return;
@@ -265,6 +271,11 @@ export default function ClubInfoPage() {
     setLoading(true);
     try {
       const mainTeam = teams.find((t) => t.id === selectedTeamId);
+      if (!mainTeam) {
+        toast.error('選択されたチームが見つかりません。');
+        setLoading(false);
+        return;
+      }
       // 画面で設定したクラブロゴを最優先し、それが空の場合のみメインチームのロゴを使う
       const effectiveLogoUrl = (logoUrl && logoUrl.length > 0) ? logoUrl : (mainTeam?.logoUrl || '');
       const effectiveClubName = clubName && clubName.length > 0 ? clubName : (mainTeam?.name || '');
