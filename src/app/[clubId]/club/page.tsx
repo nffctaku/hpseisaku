@@ -45,21 +45,28 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
     return match ? Number(match[1]) : 9999;
   };
 
-  const titleRows = (Array.isArray((clubInfo as any).clubTitles) ? ((clubInfo as any).clubTitles as ClubTitleItem[]) : [])
-    .flatMap((t) => {
-      const competitionName = typeof t?.competitionName === 'string' ? t.competitionName : '';
-      const seasons = Array.isArray((t as any)?.seasons)
-        ? ((t as any).seasons as any[]).map((s) => (typeof s === 'string' ? s : '')).filter((s) => s.length > 0)
-        : typeof t?.season === 'string'
-          ? [t.season]
-          : [];
-      return seasons.length > 0
-        ? seasons.map((season) => ({ competitionName, season }))
-        : competitionName.length > 0
-          ? [{ competitionName, season: '' }]
-          : [];
-    })
-    .sort((a, b) => parseSeasonStart(a.season) - parseSeasonStart(b.season) || String(a.season).localeCompare(String(b.season)));
+  const groupedTitles = Array.from(
+    (Array.isArray((clubInfo as any).clubTitles) ? ((clubInfo as any).clubTitles as ClubTitleItem[]) : [])
+      .reduce((acc, t) => {
+        const competitionName = typeof t?.competitionName === 'string' ? t.competitionName : '';
+        const seasons = Array.isArray((t as any)?.seasons)
+          ? ((t as any).seasons as any[]).map((s) => (typeof s === 'string' ? s : '')).filter((s) => s.length > 0)
+          : typeof t?.season === 'string'
+            ? [t.season]
+            : [];
+        if (competitionName.length === 0 && seasons.length === 0) return acc;
+        const current = acc.get(competitionName) || { competitionName, seasons: [] as string[] };
+        for (const season of seasons) {
+          if (!current.seasons.includes(season)) current.seasons.push(season);
+        }
+        acc.set(competitionName, current);
+        return acc;
+      }, new Map<string, { competitionName: string; seasons: string[] }>())
+      .values()
+  ).map((g) => ({
+    ...g,
+    seasons: g.seasons.sort((a, b) => parseSeasonStart(a) - parseSeasonStart(b) || String(a).localeCompare(String(b))),
+  }));
 
   const foundedYear = (clubInfo as any).foundedYear as string | undefined;
   const hometown = (clubInfo as any).hometown as string | undefined;
@@ -158,23 +165,33 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
             </section>
           ) : null}
 
-          {titleRows.length > 0 && (
+          {groupedTitles.length > 0 && (
             <section className="mt-12">
               <div className="mb-6 flex items-center gap-3">
                 <div className="h-px w-8" style={{ backgroundColor: accentColor }} />
                 <h2 className="text-xs font-black uppercase tracking-[0.28em]" style={{ color: accentColor }}>Honours</h2>
-                <div className="font-mono text-2xl font-black text-white/15">{titleRows.length}</div>
+                <div className="font-mono text-2xl font-black text-white/15">{groupedTitles.length}</div>
               </div>
 
               <div className="space-y-3">
-                {titleRows.map((title, index) => (
-                  <div key={`${title.competitionName}-${title.season}-${index}`} className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-slate-900/75 px-4 py-4 shadow-xl shadow-black/10 backdrop-blur">
+                {groupedTitles.map((title) => (
+                  <div key={title.competitionName} className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-slate-900/75 px-4 py-4 shadow-xl shadow-black/10 backdrop-blur">
                     <div>
                       <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: accentColor }}>Title</div>
                       <div className="text-sm font-black text-white sm:text-base">{title.competitionName || '-'}</div>
                     </div>
-                    <div className="shrink-0 rounded-full border border-white/10 bg-white/10 px-3 py-1 font-mono text-[11px] font-black" style={{ color: accentColor }}>
-                      {title.season || '-'}
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                      {title.seasons.length > 0 ? (
+                        title.seasons.map((season) => (
+                          <div key={season} className="rounded-full border border-white/10 bg-white/10 px-3 py-1 font-mono text-[11px] font-black" style={{ color: accentColor }}>
+                            {season}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-full border border-white/10 bg-white/10 px-3 py-1 font-mono text-[11px] font-black" style={{ color: accentColor }}>
+                          -
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
