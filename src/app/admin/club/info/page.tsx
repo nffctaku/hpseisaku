@@ -74,7 +74,12 @@ export default function ClubInfoPage() {
   const [gameTeamUsage, setGameTeamUsage] = useState<boolean>(false);
   const [transfersPublic, setTransfersPublic] = useState<boolean>(true);
   const [autoSynced, setAutoSynced] = useState(false);
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const [userSelectedTeamId, setUserSelectedTeamId] = useState<string | null>(null);
+
+  const handleTeamSelect = (teamId: string) => {
+    setSelectedTeamId(teamId);
+    setUserSelectedTeamId(teamId);
+  };
 
   const syncClubProfileFromTeam = async (team: TeamOption, teamId: string) => {
     if (!user) return;
@@ -135,8 +140,8 @@ export default function ClubInfoPage() {
         const snap = await getDocs(qProfiles);
         if (!snap.empty) {
           const data = snap.docs[0].data() as any;
-          // 初期ロード時のみ、FirestoreからmainTeamIdを設定
-          if (data.mainTeamId && !initialLoadDone) {
+          // ユーザーが選択していない場合のみ、FirestoreからmainTeamIdを設定
+          if (data.mainTeamId && !userSelectedTeamId) {
             setSelectedTeamId(data.mainTeamId as string);
           }
           if (typeof data.mainTeamLocked === 'boolean') {
@@ -230,11 +235,10 @@ export default function ClubInfoPage() {
         teamsData.sort((a, b) => a.name.localeCompare(b.name));
         setTeams(teamsData);
 
-        // 初期ロード時のみ、selectedTeamIdを設定
-        if (!initialLoadDone) {
+        // ユーザーが選択していない場合のみ、初期チームを設定
+        if (!userSelectedTeamId) {
           const candidateTeamId = teamsData[0]?.id || '';
           setSelectedTeamId(candidateTeamId);
-          setInitialLoadDone(true);
 
           const candidateTeam = candidateTeamId ? teamsData.find((t) => t.id === candidateTeamId) : undefined;
 
@@ -375,7 +379,7 @@ export default function ClubInfoPage() {
               <SettingsTab
                 teams={teams}
                 selectedTeamId={selectedTeamId}
-                setSelectedTeamId={setSelectedTeamId}
+                setSelectedTeamId={handleTeamSelect}
                 mainTeamLocked={mainTeamLocked}
                 realTeamUsage={realTeamUsage}
                 setRealTeamUsage={setRealTeamUsage}
