@@ -636,7 +636,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                   ) : null}
                   {assistsValue > 0 ? (
                     <span className="absolute -right-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-sky-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
-                      <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
+                      <svg viewBox="0 0 8 8" className="shrink-0 -translate-x-[2px] -rotate-45 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
                         <path d="M1.2 5.1c1.5.1 2.7-.4 3.6-1.7l1 1 1.1.4c.4.1.7.5.7.9H1.7c-.3 0-.5-.2-.5-.5v-.1Z" strokeWidth="0.65" strokeLinejoin="round" />
                         <path d="M3.9 4.3 4.6 5M4.8 3.5l.7.7" strokeWidth="0.5" strokeLinecap="round" />
                       </svg>
@@ -648,6 +648,11 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                   ) : null}
                   {yellowValue > 0 ? (
                     <span className="absolute -right-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-yellow-400 shadow-sm" />
+                  ) : null}
+                  {player?.number ? (
+                    <span className="absolute -left-1 -bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-slate-900/80 px-1 text-[9px] font-bold leading-none text-white shadow-sm">
+                      {player.number}
+                    </span>
                   ) : null}
                   <span className="absolute -right-1 -bottom-1 flex h-4 w-4 items-center justify-center rounded-full border border-slate-700 bg-slate-200 text-xs font-light leading-none text-slate-600">+</span>
                 </div>

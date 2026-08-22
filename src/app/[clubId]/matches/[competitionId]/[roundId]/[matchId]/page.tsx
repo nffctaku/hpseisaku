@@ -557,7 +557,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                   ) : null}
                   {assistsValue > 0 ? (
                     <span className="absolute -right-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-sky-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
-                      <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
+                      <svg viewBox="0 0 8 8" className="shrink-0 -translate-x-[2px] -rotate-45 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
                         <path d="M1.2 5.1c1.5.1 2.7-.4 3.6-1.7l1 1 1.1.4c.4.1.7.5.7.9H1.7c-.3 0-.5-.2-.5-.5v-.1Z" strokeWidth="0.65" strokeLinejoin="round" />
                         <path d="M3.9 4.3 4.6 5M4.8 3.5l.7.7" strokeWidth="0.5" strokeLinecap="round" />
                       </svg>
@@ -569,6 +569,11 @@ export default async function MatchDetailPage({ params }: PageProps) {
                   ) : null}
                   {yellowValue > 0 ? (
                     <span className="absolute -right-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-yellow-400 shadow-sm" />
+                  ) : null}
+                  {meta?.number ? (
+                    <span className="absolute -left-1 -bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-slate-900/80 px-1 text-[9px] font-bold leading-none text-white shadow-sm">
+                      {meta.number}
+                    </span>
                   ) : null}
                 </div>
                 <div className="w-[62px] truncate text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-slate-300 sm:w-[82px] sm:text-[9px]">
@@ -760,7 +765,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
       <div className="container mx-auto px-4 py-8 max-w-5xl space-y-8">
         {/* Header with league, date, venue, emblems & score */}
         <div className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-[#070c14] px-4 py-8 shadow-2xl shadow-black/30 md:px-10 md:py-10">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-red-500/80" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ backgroundColor: homeBgColor ? `${homeBgColor}CC` : 'rgb(239 68 68 0.8)' }} />
           {/* Top info: league, round, date, venue */}
           <div className="text-center space-y-1">
             <p className="text-[11px] font-black uppercase tracking-[0.28em] text-white">
@@ -866,14 +871,14 @@ export default async function MatchDetailPage({ params }: PageProps) {
           defaultValue={hasLineups || (!hasTeamStats && !hasEvents) ? "lineups" : hasTeamStats ? "stats" : "events"}
           className="w-full"
         >
-          <TabsList className="mx-auto mb-6 grid w-[640px] max-w-full grid-cols-3 rounded-none border-0 border-b border-slate-800 bg-transparent p-0">
-            <TabsTrigger value="lineups" className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:border-b-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
+          <TabsList className="mx-auto mb-6 grid w-[640px] max-w-full grid-cols-3 rounded-none border-0 border-b border-slate-800 bg-transparent p-0" style={{ '--active-border-color': homeBgColor || 'rgb(239 68 68)' } as React.CSSProperties}>
+            <TabsTrigger value="lineups" className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none [&[data-state=active]]:border-b-[var(--active-border-color)]">
               LINEUPS
             </TabsTrigger>
-            <TabsTrigger value="stats" disabled={!hasTeamStats} className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:border-b-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
+            <TabsTrigger value="stats" disabled={!hasTeamStats} className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none [&[data-state=active]]:border-b-[var(--active-border-color)]">
               STATS
             </TabsTrigger>
-            <TabsTrigger value="events" disabled={!hasEvents} className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:border-b-red-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none">
+            <TabsTrigger value="events" disabled={!hasEvents} className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none [&[data-state=active]]:border-b-[var(--active-border-color)]">
               EVENTS
             </TabsTrigger>
           </TabsList>
@@ -975,7 +980,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           {/* STATS */}
           <TabsContent value="stats" className="mt-4">
             {hasTeamStats ? (
-              <section className="p-4 md:p-6">
+              <section className="mx-auto max-w-2xl p-4 md:p-6">
                 <h2 className="text-lg font-semibold mb-4 text-center">チームスタッツ</h2>
                 <div className="overflow-hidden">
                   {teamStats.map((stat) => {
@@ -988,11 +993,11 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     return (
                       <div key={stat.id} className="px-3 py-2 space-y-2 text-xs md:text-sm">
                         <div className="grid grid-cols-3 items-baseline">
-                          <div className="text-left font-semibold">{homeVal}</div>
+                          <div className="text-left font-semibold pl-2">{homeVal}</div>
                           <div className="text-center text-muted-foreground text-[11px] md:text-xs">
                             {stat.name}
                           </div>
-                          <div className="text-right font-semibold">{awayVal}</div>
+                          <div className="text-right font-semibold pl-2">{awayVal}</div>
                         </div>
                         <div className="h-2 rounded-full bg-muted overflow-hidden flex">
                           <div className="h-full bg-primary" style={{ width: `${homePct}%` }} />
