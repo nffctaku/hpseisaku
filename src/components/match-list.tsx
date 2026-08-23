@@ -199,7 +199,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                 className={`flex-1 text-xs font-black transition-colors ${!showAll ? 'text-white' : 'text-gray-500 hover:bg-white/60'}`}
                 style={!showAll ? { backgroundColor: themeColor } : undefined}
               >
-                自チームのみ
+                マイチーム
               </button>
               <button
                 onClick={() => setShowAll(true)}
@@ -359,22 +359,22 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                                           <span className="truncate">{match.competitionName}</span>
                                           {match.roundId !== 'single' && match.roundName ? <span className="shrink-0">{match.roundName}</span> : null}
                                         </div>
-                                        <div className="grid grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] items-center gap-2">
-                                          <div className="flex min-w-0 items-center justify-end gap-1.5">
-                                            <span className="truncate text-right text-[11px] font-black text-gray-900">{match.homeTeamName}</span>
-                                            {match.homeTeamLogo ? <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={28} height={28} className="h-7 w-7 shrink-0 rounded-full object-contain" /> : <div className="h-7 w-7 shrink-0 rounded-full bg-muted" />}
+                                        <div className="grid grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] items-center gap-2">
+                                          <div className="flex min-w-0 items-center justify-end gap-1">
+                                            <span className="text-right text-[11px] font-black text-gray-900 leading-tight line-clamp-2">{match.homeTeamName}</span>
+                                            {match.homeTeamLogo ? <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={24} height={24} className="h-6 w-6 shrink-0 rounded-full object-contain" /> : <div className="h-6 w-6 shrink-0 rounded-full bg-muted" />}
                                           </div>
                                           <div className="text-center">
                                             {isFinished ? (
                                               <>
-                                                <div className="text-xl font-black leading-none tracking-tight text-gray-950">{match.scoreHome} - {match.scoreAway}</div>
-                                                <div className={`mx-auto mt-1 w-fit rounded-full px-2 py-0.5 text-[8px] font-black ${scoreBgClass || 'bg-gray-500 text-white'}`}>{scoreBgClass.includes('emerald') ? 'WIN' : scoreBgClass.includes('red') ? 'LOSS' : 'DRAW'}</div>
+                                                <div className="text-lg font-black leading-none tracking-tight text-gray-950">{match.scoreHome} - {match.scoreAway}</div>
+                                                <div className={`mx-auto mt-0.5 w-fit rounded-full px-1.5 py-0.5 text-[7px] font-black ${scoreBgClass || 'bg-gray-500 text-white'}`}>{scoreBgClass.includes('emerald') ? 'WIN' : scoreBgClass.includes('red') ? 'LOSS' : 'DRAW'}</div>
                                               </>
-                                            ) : <div className="text-xs font-bold text-gray-500">{match.matchTime || 'VS'}</div>}
+                                            ) : <div className="text-[10px] font-bold text-gray-500">{match.matchTime || 'VS'}</div>}
                                           </div>
-                                          <div className="flex min-w-0 items-center gap-1.5">
-                                            {match.awayTeamLogo ? <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={28} height={28} className="h-7 w-7 shrink-0 rounded-full object-contain" /> : <div className="h-7 w-7 shrink-0 rounded-full bg-muted" />}
-                                            <span className="truncate text-[11px] font-black text-gray-900">{match.awayTeamName}</span>
+                                          <div className="flex min-w-0 items-center gap-1">
+                                            {match.awayTeamLogo ? <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={24} height={24} className="h-6 w-6 shrink-0 rounded-full object-contain" /> : <div className="h-6 w-6 shrink-0 rounded-full bg-muted" />}
+                                            <span className="text-[11px] font-black text-gray-900 leading-tight line-clamp-2">{match.awayTeamName}</span>
                                           </div>
                                         </div>
                                       </div>

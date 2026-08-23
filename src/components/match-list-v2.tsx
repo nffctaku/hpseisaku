@@ -173,7 +173,7 @@ export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSel
                     : 'bg-white text-gray-600 hover:bg-gray-50'
                 }`}
               >
-                自チームのみ
+                マイチーム
               </button>
               <button
                 onClick={() => setShowAll(true)}
