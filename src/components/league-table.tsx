@@ -43,6 +43,7 @@ interface Standing {
   goalsAgainst: number;
   goalDifference: number;
   points: number;
+  recentForm?: ('W' | 'D' | 'L')[];
 }
 
 interface LeagueTableProps {
@@ -51,6 +52,8 @@ interface LeagueTableProps {
   variant?: 'home' | 'table';
   minCardOnMobile?: boolean;
   colorTheme?: 'dark' | 'light';
+  themeColor?: string;
+  currentClubName?: string;
 }
 
 function isLeagueRoundName(name: unknown): boolean {
@@ -60,11 +63,10 @@ function isLeagueRoundName(name: unknown): boolean {
   return /^第\s*\d+\s*節$/.test(s);
 }
 
-export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnMobile = false, colorTheme = 'dark' }: LeagueTableProps) {
+export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnMobile = false, colorTheme = 'dark', themeColor = '#8A1E24', currentClubName }: LeagueTableProps) {
   const isDark = colorTheme === 'dark';
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCompetition, setSelectedCompetition] = useState<{ name: string; logoUrl?: string } | null>(null);
   const [rankLabels, setRankLabels] = useState<RankLabelRule[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -78,7 +80,6 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
       throw new Error(text || `Public standings API failed (${res.status})`);
     }
     const json = (await res.json()) as any;
-    if (json?.selectedCompetition) setSelectedCompetition(json.selectedCompetition);
     if (Array.isArray(json?.rankLabels)) setRankLabels(json.rankLabels);
     if (typeof json?.errorMessage === "string" && json.errorMessage) {
       setErrorMessage(String(json.errorMessage));
@@ -151,12 +152,6 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
 
         setRankLabels(fetchedRankLabels);
 
-        // Save selected competition info (name/logo) for display
-        setSelectedCompetition({
-          name: (competitionData && (competitionData as any).name) || selectedComp.name,
-          logoUrl: competitionData ? (competitionData as any).logoUrl : undefined,
-        });
-
         if (!competitionData || !Array.isArray((competitionData as any).teams) || (competitionData as any).teams.length === 0) {
           setStandings([]);
           setErrorMessage("大会に参加チームが設定されていません");
@@ -165,6 +160,58 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
 
         // Prefer manually saved standings if present
         if (!standingsSnap.empty) {
+          const teamMatchesMap = new Map<string, { teamId: string; result: 'W' | 'D' | 'L'; date: any }[]>();
+          for (const teamId of competitionData.teams) {
+            teamMatchesMap.set(teamId, []);
+          }
+
+          const roundsSnap = await getDocs(collection(competitionDocRef, 'rounds'));
+          const format = (competitionData as any)?.format;
+          const roundDocs =
+            format === 'league_cup'
+              ? roundsSnap.docs.filter((d) => isLeagueRoundName((d.data() as any)?.name))
+              : roundsSnap.docs;
+
+          const matchesByRound = await Promise.all(
+            roundDocs.map(async (roundDoc) => {
+              const matchesSnap = await getDocs(collection(roundDoc.ref, 'matches'));
+              return matchesSnap.docs.map((matchDoc) => matchDoc.data() as any);
+            })
+          );
+
+          const allMatches = matchesByRound.flat();
+          allMatches.sort((a, b) => {
+            const dateA = a.matchDate ? new Date(a.matchDate).getTime() : 0;
+            const dateB = b.matchDate ? new Date(b.matchDate).getTime() : 0;
+            if (dateA === 0 && dateB === 0) return 0;
+            if (dateA === 0) return 1;
+            if (dateB === 0) return -1;
+            return dateA - dateB;
+          });
+
+          for (const match of allMatches) {
+            if (match.scoreHome == null || match.scoreAway == null || match.scoreHome === '' || match.scoreAway === '') {
+              continue;
+            }
+
+            const homeTeamId = match.homeTeam;
+            const awayTeamId = match.awayTeam;
+            const homeScore = Number(match.scoreHome);
+            const awayScore = Number(match.scoreAway);
+
+            const homeMatches = teamMatchesMap.get(homeTeamId) || [];
+            const homeResult = homeScore > awayScore ? 'W' : homeScore < awayScore ? 'L' : 'D';
+            homeMatches.push({ teamId: homeTeamId, result: homeResult, date: match.matchDate });
+            if (homeMatches.length > 5) homeMatches.shift();
+            teamMatchesMap.set(homeTeamId, homeMatches);
+
+            const awayMatches = teamMatchesMap.get(awayTeamId) || [];
+            const awayResult = awayScore > homeScore ? 'W' : awayScore < homeScore ? 'L' : 'D';
+            awayMatches.push({ teamId: awayTeamId, result: awayResult, date: match.matchDate });
+            if (awayMatches.length > 5) awayMatches.shift();
+            teamMatchesMap.set(awayTeamId, awayMatches);
+          }
+
           const fetchedStandings = standingsSnap.docs
             .map((d) => {
               const data = d.data() as any;
@@ -177,6 +224,8 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
               const points = typeof data.points === 'number' ? data.points : (wins * 3 + draws);
               const goalDifference =
                 typeof data.goalDifference === 'number' ? data.goalDifference : (goalsFor - goalsAgainst);
+              const matches = teamMatchesMap.get(d.id) || [];
+              const recentForm = matches.map(m => m.result) as ('W' | 'D' | 'L')[];
 
               return {
                 id: d.id,
@@ -191,6 +240,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
                 goalsAgainst,
                 goalDifference,
                 points,
+                recentForm,
               } as Standing;
             })
             .sort((a, b) => a.rank - b.rank);
@@ -202,6 +252,8 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
 
         // 3. Initialize standings for all participating teams
         const standingsMap = new Map<string, Standing>();
+        const teamMatchesMap = new Map<string, { teamId: string; result: 'W' | 'D' | 'L'; date: any }[]>();
+        
         for (const teamId of competitionData.teams) {
             const teamInfo = teamsMap.get(teamId);
             standingsMap.set(teamId, {
@@ -211,6 +263,7 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
                 rank: 0, played: 0, wins: 0, draws: 0, losses: 0,
                 goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 0,
             });
+            teamMatchesMap.set(teamId, []);
         }
 
         // 4. Fetch all matches and calculate results (rounds->matches in parallel)
@@ -224,11 +277,22 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
         const matchesByRound = await Promise.all(
           roundDocs.map(async (roundDoc) => {
             const matchesSnap = await getDocs(collection(roundDoc.ref, 'matches'));
-            return matchesSnap.docs.map((matchDoc) => matchDoc.data() as any);
+            return matchesSnap.docs.map(matchDoc => matchDoc.data() as any);
           })
         );
 
-        for (const match of matchesByRound.flat()) {
+        const allMatches = matchesByRound.flat();
+        // Sort matches by date if available, otherwise preserve order
+        allMatches.sort((a, b) => {
+          const dateA = a.matchDate ? new Date(a.matchDate).getTime() : 0;
+          const dateB = b.matchDate ? new Date(b.matchDate).getTime() : 0;
+          if (dateA === 0 && dateB === 0) return 0;
+          if (dateA === 0) return 1;
+          if (dateB === 0) return -1;
+          return dateA - dateB;
+        });
+
+        for (const match of allMatches) {
           if (match.scoreHome == null || match.scoreAway == null || match.scoreHome === '' || match.scoreAway === '') {
             continue;
           }
@@ -248,6 +312,13 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
             if (homeScore > awayScore) homeStanding.wins += 1;
             else if (homeScore < awayScore) homeStanding.losses += 1;
             else homeStanding.draws += 1;
+            
+            // Track recent form for home team
+            const homeMatches = teamMatchesMap.get(homeTeamId) || [];
+            const homeResult = homeScore > awayScore ? 'W' : homeScore < awayScore ? 'L' : 'D';
+            homeMatches.push({ teamId: homeTeamId, result: homeResult, date: match.matchDate });
+            if (homeMatches.length > 5) homeMatches.shift();
+            teamMatchesMap.set(homeTeamId, homeMatches);
           }
 
           if (awayStanding) {
@@ -257,6 +328,13 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
             if (awayScore > homeScore) awayStanding.wins += 1;
             else if (awayScore < homeScore) awayStanding.losses += 1;
             else awayStanding.draws += 1;
+            
+            // Track recent form for away team
+            const awayMatches = teamMatchesMap.get(awayTeamId) || [];
+            const awayResult = awayScore > homeScore ? 'W' : awayScore < homeScore ? 'L' : 'D';
+            awayMatches.push({ teamId: awayTeamId, result: awayResult, date: match.matchDate });
+            if (awayMatches.length > 5) awayMatches.shift();
+            teamMatchesMap.set(awayTeamId, awayMatches);
           }
         }
 
@@ -264,6 +342,8 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
         const finalStandings = Array.from(standingsMap.values()).map(s => {
             s.points = (s.wins * 3) + s.draws;
             s.goalDifference = s.goalsFor - s.goalsAgainst;
+            const matches = teamMatchesMap.get(s.id) || [];
+            s.recentForm = matches.map(m => m.result) as ('W' | 'D' | 'L')[];
             return s;
         });
 
@@ -315,58 +395,24 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
           <p className={isDark ? 'text-slate-400' : 'text-muted-foreground'}>{errorMessage}</p>
         </div>
       ) : standings.length > 0 ? (
-        <div className={variant === 'table' ? 'overflow-x-auto' : 'overflow-hidden'}>
-          <div className={
-            variant === 'table'
-              ? 'border-0 [&>*]:border-0'
-              : `${isDark ? 'bg-[#101116] text-slate-100 border-white/10' : 'bg-white text-gray-900 border-black/10'} p-2 rounded-xl shadow-none border sm:p-3 sm:rounded-2xl sm:shadow-sm`
-          } style={variant === 'table' ? { border: 'none' } : undefined}>
-            <Table
-              className={
-                variant === 'table'
-                  ? 'w-full min-w-[500px] table-auto text-xs border-0 [&_th]:border-0 [&_td]:border-0 [&_tr]:border-0'
-                  : `w-full table-auto text-xs border-0 [&_th]:border-0 [&_td]:border-0 [&_tr]:border-0 ${isDark ? 'text-slate-100' : 'text-gray-900'}`
-              }
-              style={{ border: 'none' }}
-            >
-            <TableHeader className={variant === 'table' ? `[&_tr]:border-0 [&_th]:border-0 border-0 ${isDark ? 'text-slate-400' : 'text-gray-500'}` : `[&_tr]:border-0 [&_th]:border-0 border-0 ${isDark ? 'text-slate-400' : 'text-gray-500'}`} style={{ borderBottom: 'none' }}>
-              <TableRow className={variant === 'table' ? "border-0 [&_th]:border-0" : "border-0 [&_th]:border-0"} style={{ border: 'none', borderBottom: 'none' }}>
-                <TableHead className="w-[32px] text-center tabular-nums px-1 py-1 sm:px-2 sm:py-1">順</TableHead>
-                <TableHead className={variant === 'table' ? "min-w-[120px] px-2 py-1 sm:px-2 sm:py-1" : "px-2 py-1 sm:px-2 sm:py-1"}>
-                  {selectedCompetition ? (
-                    <div className="flex items-center gap-2 min-w-0">
-                      {selectedCompetition.logoUrl ? (
-                        <Image
-                          src={selectedCompetition.logoUrl}
-                          alt={selectedCompetition.name}
-                          width={28}
-                          height={28}
-                          className="flex-shrink-0 h-7 w-7 rounded-full object-contain"
-                        />
-                      ) : null}
-                      <span className={`font-semibold truncate ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{selectedCompetition.name}</span>
-                    </div>
-                  ) : (
-                    'Club'
-                  )}
-                </TableHead>
-                <TableHead className="w-[28px] text-right tabular-nums px-2 py-1 sm:w-auto sm:px-2 sm:py-1">試</TableHead>
-
-                {variant === 'table' ? (
-                  <>
-                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">勝</TableHead>
-                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">分</TableHead>
-                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">負</TableHead>
-                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">得</TableHead>
-                    <TableHead className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">失</TableHead>
-                  </>
-                ) : null}
-
-                <TableHead className="w-[32px] text-right tabular-nums px-1 py-0.5 sm:w-auto sm:px-2 sm:py-1">±</TableHead>
-                <TableHead className="w-[28px] text-right tabular-nums px-1 py-0.5 sm:w-auto sm:px-2 sm:py-1">点</TableHead>
+        <div className="overflow-x-auto rounded-xl border border-[#0B1410]/10 bg-white shadow-sm">
+          <Table className="min-w-[900px] w-full table-auto text-xs text-[#0B1410]">
+            <TableHeader>
+              <TableRow className="border-b border-[#0B1410]/10 bg-[#0B1410]/[0.025] hover:bg-[#0B1410]/[0.025]">
+                <TableHead className="w-[52px] px-2 py-3 text-center text-[10px] font-black text-[#0B1410]/55">順位</TableHead>
+                <TableHead className="min-w-[150px] px-2 py-3 text-[10px] font-black text-[#0B1410]/55">クラブ</TableHead>
+                <TableHead className="w-[50px] px-2 py-3 text-right text-[10px] font-black text-[#0B1410]/55">試</TableHead>
+                <TableHead className="w-[58px] px-2 py-3 text-right text-[10px] font-black text-[#0B1410]/55">勝</TableHead>
+                <TableHead className="w-[58px] px-2 py-3 text-right text-[10px] font-black text-[#0B1410]/55">分</TableHead>
+                <TableHead className="w-[58px] px-2 py-3 text-right text-[10px] font-black text-[#0B1410]/55">負</TableHead>
+                <TableHead className="w-[58px] px-2 py-3 text-right text-[10px] font-black text-[#0B1410]/55">得</TableHead>
+                <TableHead className="w-[58px] px-2 py-3 text-right text-[10px] font-black text-[#0B1410]/55">失</TableHead>
+                <TableHead className="w-[58px] px-2 py-3 text-right text-[10px] font-black text-[#0B1410]/55">±</TableHead>
+                <TableHead className="w-[160px] px-2 py-3 text-center text-[10px] font-black text-[#0B1410]/55">直近5試合</TableHead>
+                <TableHead className="w-[48px] px-2 py-3 text-right text-[10px] font-black text-[#0B1410]/55">点</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="[&_tr]:border-0 [&_td]:border-0" style={{ borderBottom: 'none' }}>
+            <TableBody>
               {standings.map((team) => {
                 const rankLabel = rankLabels.find(r => team.rank >= r.from && team.rank <= r.to);
                 const rankColor = rankLabel ? (
@@ -376,73 +422,83 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
                   rankLabel.color === 'blue' ? '#3b82f6' :
                   rankLabel.color === 'yellow' ? '#eab308' :
                   '#6b7280'
-                ) : null;
+                ) : 'transparent';
+                const isCurrentClub = currentClubName ? team.teamName.trim().toLowerCase() === currentClubName.trim().toLowerCase() : false;
+
                 return (
-                  <TableRow key={team.id} className="border-0" style={{ border: 'none', borderBottom: 'none' }}>
-                    <TableCell className="text-center tabular-nums px-1 py-1 sm:px-2 sm:py-1 border-0">
-                      <div 
-                        className="flex items-center justify-center gap-1"
-                        style={{ borderLeft: rankColor ? `3px solid ${rankColor}` : '3px solid transparent' }}
-                      >
-                        <span className="text-xs font-semibold">{team.rank}</span>
+                  <TableRow
+                    key={team.id}
+                    className="h-[50px] border-b border-[#0B1410]/10 transition-colors last:border-b-0 hover:bg-[#0B1410]/[0.025] sm:h-[56px]"
+                    style={isCurrentClub ? { backgroundColor: `${themeColor}14` } : undefined}
+                  >
+                    <TableCell className="px-0 py-0 text-center tabular-nums">
+                      <div className="flex h-[50px] items-center justify-center gap-2 sm:h-[56px]">
+                        <span className="h-full w-1 shrink-0" style={{ backgroundColor: isCurrentClub ? themeColor : rankColor }} />
+                        <span className="min-w-6 text-sm font-black text-[#0B1410]">{team.rank}</span>
                       </div>
                     </TableCell>
-                    <TableCell className={variant === 'table' ? "min-w-[120px] px-2 py-1 sm:px-2 sm:py-1" : "px-2 py-1 sm:px-2 sm:py-1"}>
-                      <div className="flex items-center gap-1.5">
+                    <TableCell className="min-w-0 px-2 py-2 sm:px-4">
+                      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                         {team.logoUrl ? (
                           <Image
                             src={team.logoUrl}
                             alt={team.teamName}
-                            width={18}
-                            height={18}
-                            className="rounded-full object-contain"
+                            width={30}
+                            height={30}
+                            className="h-6 w-6 shrink-0 rounded-full object-contain sm:h-8 sm:w-8"
                           />
                         ) : (
-                          <div className={`w-[18px] h-[18px] rounded-full ${isDark ? 'bg-white/10' : 'bg-muted'}`} />
+                          <div className="h-6 w-6 shrink-0 rounded-full bg-[#0B1410]/10 sm:h-8 sm:w-8" />
                         )}
-                        <span className={variant === 'table' ? "truncate max-w-[200px] sm:max-w-none text-[13px] sm:text-xs" : "truncate text-[13px] sm:text-xs"}>{team.teamName}</span>
+                        <span className={`truncate text-[13px] text-[#0B1410] sm:text-sm ${isCurrentClub ? 'font-black' : 'font-bold'}`}>{team.teamName}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums px-2 py-1 sm:px-2 sm:py-1">{team.played}</TableCell>
-                    {variant === 'table' ? (
-                      <>
-                        <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.wins}</TableCell>
-                        <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.draws}</TableCell>
-                        <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.losses}</TableCell>
-                        <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsFor}</TableCell>
-                        <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{team.goalsAgainst}</TableCell>
-                      </>
-                    ) : null}
-                    <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1">{formatGoalDifference(team.goalDifference)}</TableCell>
-                    <TableCell className="text-right tabular-nums px-1 py-0.5 sm:px-2 sm:py-1 font-bold">{team.points}</TableCell>
+                    <TableCell className="px-1 py-2 text-right text-sm font-semibold tabular-nums text-[#0B1410]/80">{team.played}</TableCell>
+                    <TableCell className="px-2 py-2 text-right text-sm font-semibold tabular-nums text-[#0B1410]/70">{team.wins}</TableCell>
+                    <TableCell className="px-2 py-2 text-right text-sm font-semibold tabular-nums text-[#0B1410]/70">{team.draws}</TableCell>
+                    <TableCell className="px-2 py-2 text-right text-sm font-semibold tabular-nums text-[#0B1410]/70">{team.losses}</TableCell>
+                    <TableCell className="px-2 py-2 text-right text-sm font-semibold tabular-nums text-[#0B1410]/70">{team.goalsFor}</TableCell>
+                    <TableCell className="px-2 py-2 text-right text-sm font-semibold tabular-nums text-[#0B1410]/70">{team.goalsAgainst}</TableCell>
+                    <TableCell className="px-2 py-2 text-right text-sm font-semibold tabular-nums text-[#0B1410]/70">{formatGoalDifference(team.goalDifference)}</TableCell>
+                    <TableCell className="px-2 py-2 text-center">
+                      {team.recentForm && team.recentForm.length > 0 ? (
+                        <div className="flex justify-center gap-1">
+                          {team.recentForm.map((result, idx) => (
+                            <span
+                              key={idx}
+                              className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black"
+                              style={{
+                                backgroundColor: result === 'W' ? '#22c55e' : result === 'D' ? '#94a3b8' : '#ef4444',
+                                color: '#fff',
+                              }}
+                            >
+                              {result}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-[#0B1410]/40">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-right text-base font-black tabular-nums" style={{ color: isCurrentClub ? themeColor : '#0B1410' }}>{team.points}</TableCell>
                   </TableRow>
                 );
               })}
             </TableBody>
           </Table>
           {rankLabels.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2 px-2">
+            <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-[#0B1410]/10 px-4 py-3">
               {rankLabels.map((label, index) => {
-                console.log('Label data:', label); // Debug log
+                const color = label.color === 'green' ? '#22c55e' : label.color === 'red' ? '#ef4444' : label.color === 'orange' ? '#f97316' : label.color === 'blue' ? '#3b82f6' : label.color === 'yellow' ? '#eab308' : '#6b7280';
                 return (
-                  <div key={index} className="flex items-center gap-1.5 text-xs">
-                    <span className={`w-3 h-3 rounded-full ${
-                      label.color === 'green' ? 'bg-green-500' :
-                      label.color === 'red' ? 'bg-red-500' :
-                      label.color === 'orange' ? 'bg-orange-500' :
-                      label.color === 'blue' ? 'bg-blue-500' :
-                      label.color === 'yellow' ? 'bg-yellow-500' :
-                      'bg-gray-500'
-                    }`} />
-                    <span className={isDark ? 'text-slate-400' : 'text-gray-900'}>
-                      {label.name || label.label || `順位 ${label.from}-${label.to}`}
-                    </span>
+                  <div key={index} className="flex items-center gap-1.5 text-[11px] font-semibold text-[#0B1410]/65">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+                    <span>{label.name || label.label || `順位 ${label.from}-${label.to}`}</span>
                   </div>
                 );
               })}
             </div>
           )}
-        </div>
         </div>
       ) : (
         <div className="text-center py-10">

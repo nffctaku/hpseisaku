@@ -26,6 +26,7 @@ type Standing = {
   goalsAgainst: number;
   goalDifference: number;
   points: number;
+  recentForm?: ('W' | 'D' | 'L')[];
 };
 
 function isLeagueRoundName(name: unknown): boolean {
@@ -139,6 +140,56 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
 
     // Prefer manually saved standings if present
     if (!standingsSnap.empty) {
+      const teamMatchesMap = new Map<string, { teamId: string; result: 'W' | 'D' | 'L'; date: any }[]>();
+      for (const teamId of competitionData.teams as string[]) {
+        teamMatchesMap.set(teamId, []);
+      }
+
+      const roundsSnap = await competitionDocRef.collection("rounds").get();
+      const format = competitionData?.format;
+      const roundDocs =
+        format === "league_cup" ? roundsSnap.docs.filter((d) => isLeagueRoundName((d.data() as any)?.name)) : roundsSnap.docs;
+
+      const matchesByRound = await Promise.all(
+        roundDocs.map(async (roundDoc) => {
+          const matchesSnap = await roundDoc.ref.collection("matches").get();
+          return matchesSnap.docs.map((matchDoc) => matchDoc.data() as any);
+        })
+      );
+
+      const allMatches = matchesByRound.flat();
+      allMatches.sort((a, b) => {
+        const dateA = a.matchDate ? new Date(a.matchDate).getTime() : 0;
+        const dateB = b.matchDate ? new Date(b.matchDate).getTime() : 0;
+        if (dateA === 0 && dateB === 0) return 0;
+        if (dateA === 0) return 1;
+        if (dateB === 0) return -1;
+        return dateA - dateB;
+      });
+
+      for (const match of allMatches) {
+        if (match.scoreHome == null || match.scoreAway == null || match.scoreHome === "" || match.scoreAway === "") {
+          continue;
+        }
+
+        const homeTeamId = match.homeTeam;
+        const awayTeamId = match.awayTeam;
+        const homeScore = Number(match.scoreHome);
+        const awayScore = Number(match.scoreAway);
+
+        const homeMatches = teamMatchesMap.get(homeTeamId) || [];
+        const homeResult = homeScore > awayScore ? 'W' : homeScore < awayScore ? 'L' : 'D';
+        homeMatches.push({ teamId: homeTeamId, result: homeResult, date: match.matchDate });
+        if (homeMatches.length > 5) homeMatches.shift();
+        teamMatchesMap.set(homeTeamId, homeMatches);
+
+        const awayMatches = teamMatchesMap.get(awayTeamId) || [];
+        const awayResult = awayScore > homeScore ? 'W' : awayScore < homeScore ? 'L' : 'D';
+        awayMatches.push({ teamId: awayTeamId, result: awayResult, date: match.matchDate });
+        if (awayMatches.length > 5) awayMatches.shift();
+        teamMatchesMap.set(awayTeamId, awayMatches);
+      }
+
       const fetchedStandings: Standing[] = standingsSnap.docs
         .map((d) => {
           const data = d.data() as any;
@@ -150,6 +201,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
 
           const points = typeof data.points === "number" ? data.points : wins * 3 + draws;
           const goalDifference = typeof data.goalDifference === "number" ? data.goalDifference : goalsFor - goalsAgainst;
+          const matches = teamMatchesMap.get(d.id) || [];
+          const recentForm = matches.map(m => m.result) as ('W' | 'D' | 'L')[];
 
           return {
             id: d.id,
@@ -164,6 +217,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
             goalsAgainst,
             goalDifference,
             points,
+            recentForm,
           } as Standing;
         })
         .sort((a, b) => a.rank - b.rank);
@@ -172,6 +226,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
     }
 
     const standingsMap = new Map<string, Standing>();
+    const teamMatchesMap = new Map<string, { teamId: string; result: 'W' | 'D' | 'L'; date: any }[]>();
+
     for (const teamId of competitionData.teams as string[]) {
       const teamInfo = teamsMap.get(teamId);
       standingsMap.set(teamId, {
@@ -188,6 +244,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
         goalDifference: 0,
         points: 0,
       });
+      teamMatchesMap.set(teamId, []);
     }
 
     const roundsSnap = await competitionDocRef.collection("rounds").get();
@@ -202,7 +259,17 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
       })
     );
 
-    for (const match of matchesByRound.flat()) {
+    const allMatches = matchesByRound.flat();
+    allMatches.sort((a, b) => {
+      const dateA = a.matchDate ? new Date(a.matchDate).getTime() : 0;
+      const dateB = b.matchDate ? new Date(b.matchDate).getTime() : 0;
+      if (dateA === 0 && dateB === 0) return 0;
+      if (dateA === 0) return 1;
+      if (dateB === 0) return -1;
+      return dateA - dateB;
+    });
+
+    for (const match of allMatches) {
       if (match.scoreHome == null || match.scoreAway == null || match.scoreHome === "" || match.scoreAway === "") {
         continue;
       }
@@ -222,6 +289,12 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
         if (homeScore > awayScore) homeStanding.wins += 1;
         else if (homeScore < awayScore) homeStanding.losses += 1;
         else homeStanding.draws += 1;
+
+        const homeMatches = teamMatchesMap.get(homeTeamId) || [];
+        const homeResult = homeScore > awayScore ? 'W' : homeScore < awayScore ? 'L' : 'D';
+        homeMatches.push({ teamId: homeTeamId, result: homeResult, date: match.matchDate });
+        if (homeMatches.length > 5) homeMatches.shift();
+        teamMatchesMap.set(homeTeamId, homeMatches);
       }
 
       if (awayStanding) {
@@ -231,12 +304,20 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
         if (awayScore > homeScore) awayStanding.wins += 1;
         else if (awayScore < homeScore) awayStanding.losses += 1;
         else awayStanding.draws += 1;
+
+        const awayMatches = teamMatchesMap.get(awayTeamId) || [];
+        const awayResult = awayScore > homeScore ? 'W' : awayScore < homeScore ? 'L' : 'D';
+        awayMatches.push({ teamId: awayTeamId, result: awayResult, date: match.matchDate });
+        if (awayMatches.length > 5) awayMatches.shift();
+        teamMatchesMap.set(awayTeamId, awayMatches);
       }
     }
 
     const finalStandings = Array.from(standingsMap.values()).map((s) => {
       s.points = s.wins * 3 + s.draws;
       s.goalDifference = s.goalsFor - s.goalsAgainst;
+      const matches = teamMatchesMap.get(s.id) || [];
+      s.recentForm = matches.map(m => m.result) as ('W' | 'D' | 'L')[];
       return s;
     });
 

@@ -1,9 +1,9 @@
 import { db } from "@/lib/firebase/admin";
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import { LeagueTable } from '@/components/league-table';
 import { ClubHeader } from '@/components/club-header';
 import { ClubFooter } from '@/components/club-footer';
-import { PartnerStripClient } from "@/components/partner-strip-client";
 import { SeasonSelect } from "./season-select";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 import { lightenColor } from "@/lib/utils";
@@ -79,37 +79,93 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
     ? requestedSeason
     : (seasons[0] || '');
 
-  const filteredCompetitions = activeSeason
+  const seasonCompetitions = activeSeason
     ? competitionsToRender.filter((c: any) => c.season === activeSeason)
     : competitionsToRender;
 
-  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
+  const requestedCompetition = typeof searchParams.competition === 'string' ? searchParams.competition : 'all';
+  const activeCompetitionId = requestedCompetition && seasonCompetitions.some((c: any) => c.id === requestedCompetition)
+    ? requestedCompetition
+    : 'all';
+  const filteredCompetitions = activeCompetitionId === 'all'
+    ? seasonCompetitions
+    : seasonCompetitions.filter((c: any) => c.id === activeCompetitionId);
+
+  const backgroundColor = homeBgColor || '#FFF5E6';
+  const themeColor = homeBgColor || '#8A1E24';
+
+  const isDarkBackground = (color: string) => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness < 128;
+  };
+
+  const textColor = isDarkBackground(backgroundColor) ? '#FFFFFF' : '#0B1410';
+  const textColorMuted = isDarkBackground(backgroundColor) ? 'rgba(255, 255, 255, 0.55)' : 'rgba(11, 20, 16, 0.55)';
+
+  const buildCompetitionHref = (competitionId: string) => {
+    const params = new URLSearchParams();
+    if (activeSeason) params.set('season', activeSeason);
+    if (competitionId !== 'all') params.set('competition', competitionId);
+    const query = params.toString();
+    return `/${clubId}/table${query ? `?${query}` : ''}`;
+  };
 
   return (
     <main className="min-h-screen" style={{
-      backgroundColor: backgroundColor,
-      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-      backgroundSize: '4px 4px'
+      backgroundColor: backgroundColor
     }}>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} headerBackgroundColor={homeBgColor} />
-      <div className="container mx-auto py-10 px-4 md:px-0">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+      <div className="mx-auto w-full max-w-[1320px] px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-3xl font-black tracking-[0.08em] sm:text-5xl" style={{ color: textColor }}>順位表</h1>
+          <p className="mt-2 text-xs font-bold tracking-[0.28em]" style={{ color: textColorMuted }}>LEAGUE TABLE</p>
+          <div className="mt-4 h-1 w-12 rounded-full" style={{ backgroundColor: themeColor }} />
+        </div>
+
+        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           {seasons.length > 0 && (
             <SeasonSelect seasons={seasons} activeSeason={activeSeason} />
+          )}
+
+          {seasonCompetitions.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto rounded-xl border border-[#0B1410]/10 bg-white/75 p-1 shadow-sm lg:min-w-[520px] lg:justify-end">
+              {seasonCompetitions.map((comp: any) => {
+                const isActive = activeCompetitionId === comp.id;
+                return (
+                  <Link
+                    key={comp.id}
+                    href={buildCompetitionHref(comp.id)}
+                    className="shrink-0 rounded-lg px-5 py-2 text-xs font-bold transition-colors"
+                    style={isActive ? { backgroundColor: themeColor, color: '#fff' } : { color: '#0B1410' }}
+                  >
+                    {comp.name}
+                  </Link>
+                );
+              })}
+              <Link
+                href={buildCompetitionHref('all')}
+                className="shrink-0 rounded-lg px-5 py-2 text-xs font-bold transition-colors"
+                style={activeCompetitionId === 'all' ? { backgroundColor: themeColor, color: '#fff' } : { color: '#0B1410' }}
+              >
+                すべての大会
+              </Link>
+            </div>
           )}
         </div>
 
         <div className="space-y-10">
           {filteredCompetitions.map((comp: any) => (
-            <div key={comp.id} className="space-y-3">
-              <div className="flex items-end justify-between gap-4">
-                <div className="font-semibold">
-                  {comp.name}
-                  {comp.season ? <span className="text-sm text-muted-foreground ml-2">({comp.season})</span> : null}
-                </div>
+            <section key={comp.id} className="space-y-3">
+              <div className="flex items-baseline gap-3">
+                <h2 className="text-xl font-black tracking-tight sm:text-2xl" style={{ color: textColor }}>{comp.name}</h2>
+                {comp.season ? <span className="text-sm font-bold" style={{ color: textColorMuted }}>({comp.season})</span> : null}
               </div>
-              <LeagueTable clubId={clubId} competitions={[comp]} variant="table" />
-            </div>
+              <LeagueTable clubId={clubId} competitions={[comp]} variant="table" colorTheme="light" themeColor={themeColor} currentClubName={clubName} />
+            </section>
           ))}
         </div>
       </div>
