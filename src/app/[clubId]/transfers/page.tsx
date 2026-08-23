@@ -6,6 +6,7 @@ import { ClubFooter } from "@/components/club-footer";
 import { SeasonDropdown } from "@/components/season-dropdown";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 import { lightenColor } from "@/lib/utils";
+import { User } from "lucide-react";
 
 import type { TransferLog } from "@/types/transfer";
 import { formatMoneyWithSymbol } from "@/lib/money";
@@ -21,20 +22,6 @@ interface TransfersPageProps {
   params: { clubId: string };
   searchParams?: { [key: string]: string | string[] | undefined };
 }
-
-const truncateText = (text: string, max: number): string => {
-  const chars = Array.from(text);
-  if (chars.length <= max) return text;
-  return `${chars.slice(0, max).join("")}…`;
-};
-
-const abbrevKind = (kind: string | undefined): string => {
-  if (kind === "レンタル") return "レ";
-  if (kind === "昇格") return "昇";
-  if (kind === "満了") return "満";
-  if (kind === "解除") return "解";
-  return "完";
-};
 
 const sumFeesByCurrency = (rows: TransferLog[]): Record<string, number> => {
   const result: Record<string, number> = {};
@@ -169,387 +156,194 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
   // Calculate donut percentages
   const totalTransferAmount = inTotal + outTotal;
   const inPercentage = totalTransferAmount > 0 ? (inTotal / totalTransferAmount) * 100 : 50;
-  const outPercentage = totalTransferAmount > 0 ? (outTotal / totalTransferAmount) * 100 : 50;
+  const themeColor = homeBgColor || "#8A1E24";
+  const outColor = "#2F7A56";
+  const pageBackgroundColor = homeBgColor ? lightenColor(homeBgColor, 88) : "#FFF5E6";
+  const balanceLabel = `${balanceTotal >= 0 ? "+" : ""}${formatCurrencyAmount(activeCurrency, balanceTotal)}`;
+  const inLabel = formatCurrencyAmount(activeCurrency, inTotal);
+  const outLabel = formatCurrencyAmount(activeCurrency, outTotal);
 
-  const TransferTable = ({ rows, directionLabel }: { rows: TransferLog[]; directionLabel: string }) => {
+  const getInitial = (name: string): string => (name.trim().charAt(0) || "?").toUpperCase();
+  const playerPlaceholder = <User className="h-6 w-6" strokeWidth={1.8} />;
+
+  const TransferSection = ({ rows, directionLabel }: { rows: TransferLog[]; directionLabel: "IN" | "OUT" }) => {
     const counterpartyHeader = directionLabel === "IN" ? "移籍元" : "移籍先";
-    const isLoss = directionLabel === "IN";
+    const sectionTitle = directionLabel === "IN" ? "加入" : "退団";
+    const accentColor = directionLabel === "IN" ? themeColor : outColor;
 
     return (
-      <div style={{
-        border: '1px solid #0B141033',
-        borderRadius: '4px',
-        overflow: 'hidden'
-      }}>
-        <div style={{
-          padding: '16px 22px',
-          borderBottom: '2px solid #0B1410',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <h2 style={{
-            fontFamily: 'Anton, sans-serif',
-            fontSize: '22px',
-            color: '#0B1410',
-            margin: 0
-          }}>
-            {directionLabel}
-          </h2>
-          <span style={{
-            fontFamily: 'JetBrains Mono, monospace',
-            fontSize: '13px',
-            color: '#0B1410b3'
-          }}>
-            {rows.length} PLAYERS
-          </span>
+      <section className="mb-10">
+        <div className="mb-3 flex items-end justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="h-7 w-1 rounded-full" style={{ backgroundColor: accentColor }} />
+            <div className="flex items-baseline gap-3">
+              <h2 className="text-2xl font-black tracking-tight text-[#0B1410]">{sectionTitle}</h2>
+              <span className="text-[11px] font-bold tracking-[0.24em] text-[#0B1410]/50">PLAYERS {directionLabel}</span>
+            </div>
+          </div>
+          <span className="text-xs font-black tracking-[0.16em]" style={{ color: accentColor }}>{rows.length} PLAYERS</span>
         </div>
-        {rows.length === 0 ? (
-          <div className="px-4 py-8 text-sm" style={{ color: '#0B1410b3' }}>データがありません。</div>
-        ) : (
-          <table style={{
-            width: '100%',
-            borderCollapse: 'collapse'
-          }}>
-              <thead>
-                <tr>
-                  <th style={{
-                    padding: '8px',
-                    textAlign: 'left',
-                    fontWeight: '500',
-                    whiteSpace: 'nowrap',
-                    background: '#FFF5E6',
-                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                    backgroundSize: '4px 4px'
-                  }}>種</th>
-                  <th style={{
-                    padding: '8px',
-                    textAlign: 'left',
-                    fontWeight: '500',
-                    whiteSpace: 'nowrap',
-                    background: '#FFF5E6',
-                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                    backgroundSize: '4px 4px'
-                  }}>選手名</th>
-                  <th className="hidden md:table-cell" style={{
-                    padding: '8px',
-                    textAlign: 'left',
-                    fontWeight: '500',
-                    background: '#FFF5E6',
-                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                    backgroundSize: '4px 4px'
-                  }}>{counterpartyHeader}</th>
-                  <th style={{
-                    padding: '8px',
-                    textAlign: 'left',
-                    fontWeight: '500',
-                    whiteSpace: 'nowrap',
-                    background: '#FFF5E6',
-                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                    backgroundSize: '4px 4px'
-                  }}>Pos</th>
-                  <th style={{
-                    padding: '8px',
-                    textAlign: 'right',
-                    fontWeight: '500',
-                    whiteSpace: 'nowrap',
-                    background: '#FFF5E6',
-                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                    backgroundSize: '4px 4px'
-                  }}>年齢</th>
-                  <th style={{
-                    padding: '8px',
-                    textAlign: 'right',
-                    fontWeight: '500',
-                    whiteSpace: 'nowrap',
-                    background: '#FFF5E6',
-                    backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                    backgroundSize: '4px 4px'
-                  }}>金額</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((t) => {
-                  const fee = (t as any).fee as number | undefined;
-                  const feeCurrency = (t as any).feeCurrency as string | undefined;
-                  const kind = (t as any).kind as string | undefined;
-                  const playerName = typeof (t as any).playerName === "string" ? (t as any).playerName : "";
-                  const counterparty = typeof (t as any).counterparty === "string" ? (t as any).counterparty : "";
 
-                  return (
-                    <tr key={t.id} style={{
-                      borderBottom: '1px solid #e5e7eb'
-                    }}>
-                      <td style={{
-                        padding: '8px',
-                        whiteSpace: 'nowrap',
-                        background: '#FFF5E6',
-                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                        backgroundSize: '4px 4px'
-                      }}>
-                        <span style={{
-                          display: 'inline-block',
-                          border: '1px solid #0B1410',
-                          borderRadius: '2px',
-                          padding: '2px 6px',
-                          fontSize: '11px',
-                          fontFamily: 'JetBrains Mono, monospace',
-                          color: '#0B1410'
-                        }}>
-                          {abbrevKind(kind)}
-                        </span>
-                      </td>
-                      <td style={{
-                        padding: '8px',
-                        whiteSpace: 'nowrap',
-                        background: '#FFF5E6',
-                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                        backgroundSize: '4px 4px'
-                      }} title={playerName || ""}>
-                        {playerName ? truncateText(playerName, 15) : "-"}
-                      </td>
-                      <td className="hidden md:table-cell" style={{
-                        padding: '8px',
-                        background: '#FFF5E6',
-                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                        backgroundSize: '4px 4px'
-                      }} title={counterparty || ""}>
-                        {counterparty ? truncateText(counterparty, 15) : "-"}
-                      </td>
-                      <td style={{
-                        padding: '8px',
-                        whiteSpace: 'nowrap',
-                        background: '#FFF5E6',
-                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                        backgroundSize: '4px 4px'
-                      }}>{t.position || "-"}</td>
-                      <td style={{
-                        padding: '8px',
-                        whiteSpace: 'nowrap',
-                        textAlign: 'right',
-                        background: '#FFF5E6',
-                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                        backgroundSize: '4px 4px'
-                      }}>{t.age != null ? t.age : "-"}</td>
-                      <td style={{
-                        padding: '8px',
-                        whiteSpace: 'nowrap',
-                        textAlign: 'right',
-                        fontWeight: '600',
-                        background: '#FFF5E6',
-                        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-                        backgroundSize: '4px 4px',
-                        color: isLoss ? '#B85450' : '#2F7A56'
-                      }}>
+        {rows.length === 0 ? (
+          <div className="rounded-md border border-[#0B1410]/10 bg-white px-5 py-10 text-sm text-[#0B1410]/60">データがありません。</div>
+        ) : (
+          <>
+            <div className="hidden overflow-hidden rounded-md border border-[#0B1410]/10 bg-white md:block">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr style={{ backgroundColor: accentColor }} className="text-white">
+                    <th className="px-5 py-2 text-left text-[11px] font-bold">選手</th>
+                    <th className="px-4 py-2 text-center text-[11px] font-bold">ポジション</th>
+                    <th className="px-4 py-2 text-center text-[11px] font-bold">年齢</th>
+                    <th className="px-4 py-2 text-left text-[11px] font-bold">{counterpartyHeader}</th>
+                    <th className="px-5 py-2 text-right text-[11px] font-bold">移籍金</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#0B1410]/10">
+                  {rows.map((t) => {
+                    const fee = (t as any).fee as number | undefined;
+                    const feeCurrency = (t as any).feeCurrency as string | undefined;
+                    const kind = (t as any).kind as string | undefined;
+                    const playerName = typeof (t as any).playerName === "string" ? (t as any).playerName : "";
+                    const counterparty = typeof (t as any).counterparty === "string" ? (t as any).counterparty : "";
+
+                    return (
+                      <tr key={t.id} className="h-[76px] transition-colors hover:bg-[#0B1410]/[0.025]">
+                        <td className="px-5 py-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-[#0B1410]/10 text-[#0B1410]/70">{playerPlaceholder}</div>
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-black text-[#0B1410]" title={playerName}>{playerName || "-"}</div>
+                              <div className="mt-0.5 text-[11px] text-[#0B1410]/55">{kind || "完全"}移籍</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-flex min-w-9 items-center justify-center rounded border px-2 py-1 text-[11px] font-black" style={{ borderColor: `${accentColor}66`, color: accentColor }}>{t.position || "-"}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-[#0B1410]">{t.age != null ? t.age : "-"}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0B1410]/10 text-xs font-black text-[#0B1410]">{getInitial(counterparty)}</div>
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-bold text-[#0B1410]" title={counterparty}>{counterparty || "-"}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 text-right text-lg font-black" style={{ color: accentColor }}>
+                          {fee != null ? formatCurrencyAmount(feeCurrency || activeCurrency, fee) : "-"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="space-y-3 md:hidden">
+              {rows.map((t) => {
+                const fee = (t as any).fee as number | undefined;
+                const feeCurrency = (t as any).feeCurrency as string | undefined;
+                const kind = (t as any).kind as string | undefined;
+                const playerName = typeof (t as any).playerName === "string" ? (t as any).playerName : "";
+                const counterparty = typeof (t as any).counterparty === "string" ? (t as any).counterparty : "";
+
+                return (
+                  <div key={t.id} className="rounded-md border border-[#0B1410]/10 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-[#0B1410]/10 text-[#0B1410]/70">{playerPlaceholder}</div>
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-black text-[#0B1410]">{playerName || "-"}</div>
+                          <div className="mt-1 text-xs text-[#0B1410]/55">{t.position || "-"} / {t.age != null ? `${t.age}歳` : "年齢不明"} / {kind || "完全"}</div>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right text-base font-black" style={{ color: accentColor }}>
                         {fee != null ? formatCurrencyAmount(feeCurrency || activeCurrency, fee) : "-"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-[72px_minmax(0,1fr)] gap-2 text-xs">
+                      <div className="font-bold text-[#0B1410]/45">{counterpartyHeader}</div>
+                      <div className="truncate font-bold text-[#0B1410]">{counterparty || "-"}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
-      </div>
+      </section>
     );
   };
 
-  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
-
   return (
-    <main className={inter.className} style={{
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      backgroundColor: backgroundColor,
-      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-      backgroundSize: '4px 4px'
-    }}>
+    <main className={`${inter.className} min-h-screen flex flex-col`} style={{ backgroundColor: pageBackgroundColor }}>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 
-      <div style={{
-        maxWidth: '820px',
-        margin: '0 auto',
-        padding: '48px 6vw 80px'
-      }}>
-        {/* Page Head */}
-        <div className="page-head" style={{
-          borderBottom: '2px solid #0B1410',
-          paddingBottom: '16px',
-          marginBottom: '32px',
-          display: 'flex',
-          alignItems: 'flex-end'
-        }}>
-          <h1 style={{
-            fontFamily: 'Anton, sans-serif',
-            fontWeight: 400,
-            fontSize: 'clamp(26px, 4vw, 38px)',
-            color: '#0B1410'
-          }}>
-            移籍履歴
-          </h1>
-          <p style={{
-            fontFamily: 'JetBrains Mono, monospace',
-            fontWeight: 400,
-            fontSize: '12px',
-            letterSpacing: '0.04em',
-            color: '#0B1410',
-            marginLeft: 'auto'
-          }}>
-            TRANSFER HISTORY
-          </p>
+      <div className="mx-auto w-full max-w-[1180px] px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-black tracking-[0.08em] text-[#0B1410] sm:text-5xl">移籍履歴</h1>
+          <p className="mt-2 text-xs font-bold tracking-[0.28em] text-[#0B1410]/55">TRANSFER HISTORY</p>
+          <div className="mt-4 h-1 w-12 rounded-full" style={{ backgroundColor: themeColor }} />
         </div>
 
-        {/* Season Dropdown */}
         {seasons.length > 1 && (
-          <div style={{ marginBottom: '32px' }}>
-            <label style={{
-              fontFamily: 'Oswald, sans-serif',
-              fontSize: '12px',
-              color: '#0B1410',
-              marginRight: '12px'
-            }}>
-              シーズン
-            </label>
+          <div className="mb-6 flex items-center gap-3">
+            <label className="text-xs font-bold tracking-[0.18em] text-[#0B1410]/60">シーズン</label>
             <SeasonDropdown seasons={seasons} activeSeason={activeSeason} />
           </div>
         )}
 
-        {/* Balance Card */}
-        <div className="balance-card" style={{
-          padding: '32px',
-          marginBottom: '32px',
-          borderRadius: '4px'
-        }}>
-          <div className="balance-title" style={{
-            fontFamily: 'Oswald, sans-serif',
-            fontWeight: 600,
-            fontSize: '15px',
-            color: '#0B1410',
-            marginBottom: '24px'
-          }}>
-            移籍収支（€）
-          </div>
-          <div className="donut-row" style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '32px',
-            flexWrap: 'wrap'
-          }}>
-            <div className="donut" style={{
-              position: 'relative',
-              width: '220px',
-              height: '220px',
-              borderRadius: '50%',
-              background: `conic-gradient(#B85450 0% ${inPercentage}%, #2F7A56 ${inPercentage}% 100%)`
-            }}>
-              <div className="donut-center" style={{
-                position: 'absolute',
-                inset: '34px',
-                borderRadius: '50%',
-                background: '#F4F2E8',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <span style={{
-                  fontFamily: 'Oswald, sans-serif',
-                  fontWeight: 400,
-                  fontSize: '11px',
-                  letterSpacing: '0.1em',
-                  color: '#0B1410b3',
-                  marginBottom: '4px'
-                }}>
-                  収支
-                </span>
-                <span className="val" style={{
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontWeight: 700,
-                  fontSize: '24px',
-                  color: balanceTotal >= 0 ? '#2F7A56' : '#B85450'
-                }}>
-                  {balanceTotal >= 0 ? '+' : ''}{formatCurrencyAmount(activeCurrency, balanceTotal)}
-                </span>
+        <section className="mb-10 rounded-md border border-[#0B1410]/10 bg-white p-5 shadow-sm sm:p-8">
+          <div className="grid gap-8 lg:grid-cols-[1fr_1.35fr_0.75fr] lg:items-center">
+            <div>
+              <div className="text-xs font-black tracking-[0.22em]" style={{ color: themeColor }}>{activeSeason || "TRANSFER"}</div>
+              <div className="mt-4 text-3xl font-black tracking-tight text-[#0B1410]">移籍収支</div>
+              <div className="mt-3 text-sm font-semibold text-[#0B1410]/55">対象シーズン: {activeSeason || "ALL"}</div>
+            </div>
+
+            <div className="flex flex-col items-center justify-center gap-6 sm:flex-row">
+              <div className="relative h-56 w-56 shrink-0 rounded-full" style={{ background: `conic-gradient(${themeColor} 0% ${inPercentage}%, ${outColor} ${inPercentage}% 100%)` }}>
+                <div className="absolute inset-9 flex flex-col items-center justify-center rounded-full bg-white">
+                  <span className="text-[11px] font-bold tracking-[0.18em] text-[#0B1410]/50">収支</span>
+                  <span className="mt-2 text-center text-2xl font-black tracking-tight" style={{ color: balanceTotal >= 0 ? outColor : themeColor }}>{balanceLabel}</span>
+                </div>
+              </div>
+
+              <div className="w-full max-w-[220px] space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: themeColor }} />
+                  <span className="text-xs font-black tracking-[0.18em] text-[#0B1410]/55">IN</span>
+                  <span className="ml-auto text-sm font-black" style={{ color: themeColor }}>{inLabel}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: outColor }} />
+                  <span className="text-xs font-black tracking-[0.18em] text-[#0B1410]/55">OUT</span>
+                  <span className="ml-auto text-sm font-black" style={{ color: outColor }}>{outLabel}</span>
+                </div>
               </div>
             </div>
-            <div className="legend" style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  background: '#B85450'
-                }}></div>
-                <span style={{
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontWeight: 400,
-                  fontSize: '13px',
-                  color: '#0B1410b3'
-                }}>
-                  IN
-                </span>
-                <span style={{
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontWeight: 700,
-                  fontSize: '13px',
-                  color: '#B85450',
-                  marginLeft: 'auto'
-                }}>
-                  {formatCurrencyAmount(activeCurrency, inTotal)}
-                </span>
+
+            <div className="grid grid-cols-2 gap-4 border-t border-[#0B1410]/10 pt-6 lg:grid-cols-1 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+              <div>
+                <div className="text-4xl font-black text-[#0B1410]">{inTransfers.length}</div>
+                <div className="mt-1 text-sm font-black text-[#0B1410]">加入選手</div>
+                <div className="text-[10px] font-bold tracking-[0.18em] text-[#0B1410]/45">PLAYERS IN</div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  background: '#2F7A56'
-                }}></div>
-                <span style={{
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontWeight: 400,
-                  fontSize: '13px',
-                  color: '#0B1410b3'
-                }}>
-                  OUT
-                </span>
-                <span style={{
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontWeight: 700,
-                  fontSize: '13px',
-                  color: '#2F7A56',
-                  marginLeft: 'auto'
-                }}>
-                  {formatCurrencyAmount(activeCurrency, outTotal)}
-                </span>
+              <div>
+                <div className="text-4xl font-black text-[#0B1410]">{outTransfers.length}</div>
+                <div className="mt-1 text-sm font-black text-[#0B1410]">退団選手</div>
+                <div className="text-[10px] font-bold tracking-[0.18em] text-[#0B1410]/45">PLAYERS OUT</div>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Transfer Tables */}
-        <div style={{ marginBottom: '32px' }}>
-          <TransferTable rows={inTransfers} directionLabel="IN" />
-        </div>
-        <div style={{ marginBottom: '32px' }}>
-          <TransferTable rows={outTransfers} directionLabel="OUT" />
-        </div>
+        <TransferSection rows={inTransfers} directionLabel="IN" />
+        <TransferSection rows={outTransfers} directionLabel="OUT" />
 
-        {/* Legend Note */}
-        <div className="legend-note" style={{
-          fontFamily: 'JetBrains Mono, monospace',
-          fontWeight: 400,
-          fontSize: '11px',
-          color: '#0B1410b3',
-          borderTop: '1px solid #0B141033',
-          paddingTop: '16px'
-        }}>
+        <div className="border-t border-[#0B1410]/15 pt-4 text-[11px] font-semibold text-[#0B1410]/55">
           完＝完全移籍 / レ＝レンタル移籍 / 昇＝昇格 / 解＝契約解除 / 満＝契約満了
         </div>
       </div>
