@@ -160,7 +160,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-6 md:px-0 md:py-8">
         <div className={`mb-4 ${pageForegroundClass || ''}`.trim()}>
-            <h1 className="text-2xl font-black tracking-[-0.05em] text-gray-900 sm:text-xl">
+            <h1 className="text-2xl font-black tracking-[-0.05em] sm:text-xl">
               試合結果
             </h1>
         </div>
@@ -257,7 +257,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
             <div className="space-y-5 md:hidden">
               {Object.entries(monthGroups).map(([monthLabel, matchesInMonth]) => (
                 <section key={monthLabel} className="space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-black tracking-[0.18em] text-gray-500">
+                  <div className={`flex items-center gap-2 text-xs font-black tracking-[0.18em] ${pageForegroundClass || 'text-gray-900'}`}>
                     <span className="h-5 w-1 rounded-full" style={{ backgroundColor: themeColor }} />
                     <span>{monthLabel}</span>
                   </div>
@@ -341,7 +341,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                                 }
 
                                 return (
-                                  <Link key={match.id} href={`/${clubSlug}/matches/${match.competitionId}/${match.roundId}/${match.id}`} className="block rounded-xl border border-gray-200/80 bg-white/90 shadow-sm backdrop-blur">
+                                  <Link key={match.id} href={`/${clubSlug}/matches/${match.competitionId}/${match.roundId}/${match.id}`} className="block rounded-xl border border-gray-200 bg-white shadow-sm">
                                     <div className="grid grid-cols-[48px_minmax(0,1fr)] items-stretch">
                                       <div className="flex flex-col items-center justify-center border-r border-gray-200 py-3 text-gray-900">
                                         <div className="text-xl font-black leading-none">{(() => {

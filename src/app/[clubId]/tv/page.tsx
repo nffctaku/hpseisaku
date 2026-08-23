@@ -75,13 +75,11 @@ export default async function TvPage({ params: { clubId }, searchParams }: TvPag
   const legalPages = (Array.isArray((clubInfo as any).legalPages) ? ((clubInfo as any).legalPages as any[]) : []) as any;
   const homeBgColor = (clubInfo as any).homeBgColor as string | undefined;
   const gameTeamUsage = Boolean((clubInfo as any).gameTeamUsage);
-  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
+  const backgroundColor = homeBgColor || '#FFF5E6';
 
   return (
     <main className="min-h-screen flex flex-col" style={{
-      backgroundColor: backgroundColor,
-      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-      backgroundSize: '4px 4px'
+      backgroundColor: backgroundColor
     }}>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="flex-1">
@@ -91,7 +89,7 @@ export default async function TvPage({ params: { clubId }, searchParams }: TvPag
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {videos.map(video => (
-                <div key={video.id} className="bg-white text-gray-900 rounded-lg overflow-hidden border">
+                <div key={video.id} className="bg-white text-gray-900 rounded-lg overflow-hidden border border-gray-200">
                   <div className="aspect-video">
                     <iframe
                       width="100%"
@@ -103,12 +101,12 @@ export default async function TvPage({ params: { clubId }, searchParams }: TvPag
                       allowFullScreen
                     ></iframe>
                   </div>
-                  <div className="p-4">
-                    <h2 className="text-lg font-semibold mb-2">{video.title}</h2>
-                    <p className="text-sm text-muted-foreground mb-4">
+                  <div className="p-3">
+                    <h2 className="text-sm font-semibold mb-1.5">{video.title}</h2>
+                    <p className="text-[10px] text-gray-500 mb-3">
                       公開日: {video.publishedAt.toDate().toLocaleDateString('ja-JP')}
                     </p>
-                    {video.description && <p className="text-sm">{video.description}</p>}
+                    {video.description && <p className="text-xs">{video.description}</p>}
                   </div>
                 </div>
               ))}

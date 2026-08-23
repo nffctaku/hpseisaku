@@ -26,7 +26,7 @@ const PaginationControls = ({ currentPage, totalPages, basePath }: PaginationCon
   return (
     <div className="flex justify-center items-center space-x-2">
       {currentPage > 1 && (
-        <Link href={createPageURL(currentPage - 1)} className="px-4 py-2 border rounded-md bg-white text-gray-900 hover:bg-gray-100">
+        <Link href={createPageURL(currentPage - 1)} className="px-3 py-1.5 border rounded-md bg-white text-gray-900 hover:bg-gray-100 text-sm">
           Previous
         </Link>
       )}
@@ -35,13 +35,13 @@ const PaginationControls = ({ currentPage, totalPages, basePath }: PaginationCon
         <Link
           key={number}
           href={createPageURL(number)}
-          className={`px-4 py-2 border rounded-md ${currentPage === number ? 'bg-white text-gray-900 font-semibold border-gray-900' : 'bg-white text-gray-900 hover:bg-gray-100'}`}>
+          className={`px-3 py-1.5 border rounded-md text-sm ${currentPage === number ? 'bg-white text-gray-900 font-semibold border-gray-900' : 'bg-white text-gray-900 hover:bg-gray-100'}`}>
           {number}
         </Link>
       ))}
 
       {currentPage < totalPages && (
-        <Link href={createPageURL(currentPage + 1)} className="px-4 py-2 border rounded-md bg-white text-gray-900 hover:bg-gray-100">
+        <Link href={createPageURL(currentPage + 1)} className="px-3 py-1.5 border rounded-md bg-white text-gray-900 hover:bg-gray-100 text-sm">
           Next
         </Link>
       )}

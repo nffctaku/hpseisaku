@@ -322,7 +322,7 @@ export default async function ResultsPage({
     }
 
   const { matches, clubName, ownerUid, logoUrl, mainTeamId, resolvedMainTeamId, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, latestSeason, useResultsV2 } = data as any;
-  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
+  const backgroundColor = homeBgColor || '#FFF5E6';
 
   const pageForegroundClass = (() => {
     if (homeBgColor) {
@@ -335,9 +335,7 @@ export default async function ResultsPage({
 
   return (
     <main className="min-h-screen flex flex-col" style={{
-      backgroundColor: backgroundColor,
-      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-      backgroundSize: '4px 4px'
+      backgroundColor: backgroundColor
     }}>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="flex-1">

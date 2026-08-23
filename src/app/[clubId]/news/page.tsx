@@ -64,34 +64,35 @@ function toCloudinaryPadded16x9(url: string, width: number) {
   if (!url.includes('/image/upload/')) return url;
   return url.replace(
     '/image/upload/',
-    `/image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_auto/`
+    `/image/upload/c_fill,ar_16:9,w_${width},f_auto,q_auto/`
   );
 }
 
 function NewsCard({ article, clubId }: { article: NewsArticle, clubId: string }) {
   return (
     <Link href={`/${clubId}/news/${article.id}`} className="block group">
-      <div className="bg-card text-card-foreground rounded-lg overflow-hidden shadow-md h-full flex flex-col border border-border">
+      <div className="bg-white text-gray-900 rounded-lg overflow-hidden shadow-md h-full flex flex-col border border-gray-200">
         {article.imageUrl && (
-          <div className="relative w-full aspect-video bg-muted">
+          <div className="relative w-full aspect-video bg-gray-100">
             <Image
               src={toCloudinaryPadded16x9(article.imageUrl, 1200)}
               alt={article.title}
               fill
-              className="object-contain"
+              className="object-cover"
             />
           </div>
         )}
-        <div className="p-4 flex-grow flex flex-col">
-          <div className="flex items-center text-xs text-muted-foreground mb-2">
-            {article.category && <span className="font-bold mr-2 text-primary">{article.category.toUpperCase()}</span>}
+        <div className="p-3 flex-grow flex flex-col">
+          <div className="flex items-center text-[10px] text-gray-500 mb-1.5">
+            {article.category && <span className="font-bold mr-2">{article.category.toUpperCase()}</span>}
+            {article.category && article.publishedAt && <span className="mr-2">｜</span>}
             {article.publishedAt && (
               <span>
                 {formatDistanceToNow(article.publishedAt.toDate(), { addSuffix: true, locale: ja })}
               </span>
             )}
           </div>
-          <h3 className="text-card-foreground font-bold text-lg leading-tight flex-grow group-hover:underline">
+          <h3 className="text-gray-900 font-bold text-sm leading-tight flex-grow group-hover:underline">
             {article.title}
           </h3>
         </div>
@@ -116,13 +117,11 @@ export default async function NewsPage({ params, searchParams }: NewsPageProps) 
 
   const { news, totalNews, clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage } = newsData as any;
   const totalPages = Math.ceil(totalNews / NEWS_PER_PAGE);
-  const backgroundColor = homeBgColor ? lightenColor(homeBgColor, 80) : '#FFF5E6';
+  const backgroundColor = homeBgColor || '#FFF5E6';
 
   return (
     <main className="min-h-screen flex flex-col" style={{
-      backgroundColor: backgroundColor,
-      backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-      backgroundSize: '4px 4px'
+      backgroundColor: backgroundColor
     }}>
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} snsLinks={snsLinks} headerBackgroundColor={homeBgColor} />
       <div className="flex-1">
