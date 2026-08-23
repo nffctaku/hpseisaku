@@ -5,7 +5,7 @@ import { format, isToday, isYesterday, isTomorrow, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import Image from 'next/image';
 import Link from 'next/link';
-import { MapPin } from 'lucide-react';
+import { MapPin, SlidersHorizontal } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // This interface needs to be consistent with the one in the page.tsx
@@ -36,6 +36,7 @@ interface MatchListProps {
   clubName: string;
   initialSelectedSeason?: string;
   pageForegroundClass?: string;
+  accentColor?: string;
 }
 
 const getFormattedDateGroup = (dateString: string) => {
@@ -53,11 +54,12 @@ const getSeason = (date: Date): string => {
   return month >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
 };
 
-export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelectedSeason, pageForegroundClass }: MatchListProps) {
+export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelectedSeason, pageForegroundClass, accentColor }: MatchListProps) {
   const [showAll, setShowAll] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState<string>('all');
   const [selectedSeason, setSelectedSeason] = useState<string>(initialSelectedSeason || 'all');
   const [selectedRoundIndex, setSelectedRoundIndex] = useState(0);
+  const themeColor = accentColor || '#9f1239';
 
   const seasons = [
     'all',
@@ -147,17 +149,25 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
     ? { [currentRound.id]: groupedMatches[currentRound.id] || [] }
     : { all: filteredMatches };
 
+  const monthGroups = filteredMatches.reduce((acc, match) => {
+    const d = parseISO(match.matchDate);
+    const key = Number.isNaN(d.getTime()) ? '日付未定' : format(d, 'yyyy MMMM', { locale: ja }).toUpperCase();
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(match);
+    return acc;
+  }, {} as Record<string, EnrichedMatch[]>);
+
   return (
-    <div className="container mx-auto py-8 px-4 md:px-0">
-        <div className={`text-center mb-4 ${pageForegroundClass || ''}`.trim()}>
-            <h1 className="text-lg sm:text-xl font-bold leading-tight">
-              <span className="block">試合日程・結果</span>
+    <div className="mx-auto w-full max-w-5xl px-5 py-6 md:px-0 md:py-8">
+        <div className={`mb-4 ${pageForegroundClass || ''}`.trim()}>
+            <h1 className="text-2xl font-black tracking-[-0.05em] text-gray-900 sm:text-xl">
+              試合結果
             </h1>
         </div>
-        <div className={`mb-8 flex flex-col items-center gap-4 ${pageForegroundClass || ''}`.trim()}>
-          <div className="flex w-full flex-wrap items-center justify-start gap-4">
+        <div className={`mb-5 flex flex-col items-center gap-3 ${pageForegroundClass || ''}`.trim()}>
+          <div className="flex w-full items-center justify-between gap-3">
             <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-              <SelectTrigger className="w-[180px] bg-background text-foreground border border-border shadow-sm">
+              <SelectTrigger className="h-10 w-[150px] rounded-full border-white/70 bg-white/80 text-gray-500 shadow-sm backdrop-blur md:w-[180px]">
                 <SelectValue placeholder="シーズンを選択" />
               </SelectTrigger>
               <SelectContent>
@@ -169,7 +179,8 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
               </SelectContent>
             </Select>
             <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
-              <SelectTrigger className="w-[180px] bg-background text-foreground border border-border shadow-sm">
+              <SelectTrigger className="h-10 w-[170px] rounded-full border-white/70 bg-white/80 text-gray-500 shadow-sm backdrop-blur md:w-[180px]">
+                <SlidersHorizontal className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="大会を選択" />
               </SelectTrigger>
               <SelectContent>
@@ -181,31 +192,25 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
               </SelectContent>
             </Select>
           </div>
-          <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex h-10 items-stretch">
+          <div className="w-full overflow-hidden rounded-full border border-white/70 bg-white/80 shadow-sm backdrop-blur">
+            <div className="flex h-9 items-stretch">
               <button
                 onClick={() => setShowAll(false)}
-                className={`flex-1 text-sm font-bold transition-colors ${
-                  !showAll
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
+                className={`flex-1 text-xs font-black transition-colors ${!showAll ? 'text-white' : 'text-gray-500 hover:bg-white/60'}`}
+                style={!showAll ? { backgroundColor: themeColor } : undefined}
               >
                 自チームのみ
               </button>
               <button
                 onClick={() => setShowAll(true)}
-                className={`flex-1 border-l border-gray-200 text-sm font-medium transition-colors ${
-                  showAll
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
+                className={`flex-1 border-l border-gray-200 text-xs font-bold transition-colors ${showAll ? 'text-white' : 'text-gray-500 hover:bg-white/60'}`}
+                style={showAll ? { backgroundColor: themeColor } : undefined}
               >
                 すべて表示
               </button>
             </div>
           </div>
-          <div className="flex w-full items-center justify-start gap-4 text-xs text-gray-500">
+          <div className="hidden w-full items-center justify-start gap-4 text-xs text-gray-500 md:flex">
             <div className="flex items-center gap-1.5">
               <div className="h-3 w-3 rounded bg-emerald-500"></div>
               <span>勝ち</span>
@@ -246,14 +251,18 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
           </div>
         )}
 
-        {Object.keys(displayGroups).length === 0 ? (
+        {filteredMatches.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">表示する試合がありません。</div>
         ) : (
-            <div className="space-y-4">
-                {Object.entries(displayGroups).map(([groupKey, matchesInGroup]) => (
-                    <div key={groupKey} className="bg-white rounded-md border">
-                        <div className="divide-y divide-gray-100">
-                            {matchesInGroup.map((match, index) => {
+            <div className="space-y-5 md:hidden">
+              {Object.entries(monthGroups).map(([monthLabel, matchesInMonth]) => (
+                <section key={monthLabel} className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-black tracking-[0.18em] text-gray-500">
+                    <span className="h-5 w-1 rounded-full" style={{ backgroundColor: themeColor }} />
+                    <span>{monthLabel}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {matchesInMonth.map((match) => {
                                 const isFinished =
                                   typeof match.scoreHome === "number" &&
                                   typeof match.scoreAway === "number";
@@ -332,79 +341,115 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                                 }
 
                                 return (
-                                    <div key={match.id} className="text-gray-900">
-                                      {/* Mobile */}
-                                      <div className="p-2 lg:hidden">
-                                          <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-1 text-[10px] text-muted-foreground">
-                                            <span className="truncate text-left">
-                                              {(() => {
-                                                if (!match.matchDate) return '';
-                                                const d = parseISO(match.matchDate);
-                                                const dateLabel = Number.isNaN(d.getTime())
-                                                  ? match.matchDate
-                                                  : format(d, 'yyyy.M.d(EEE)', { locale: ja });
-                                                return `${dateLabel}${match.matchTime ? ` ${match.matchTime}` : ''}`;
-                                              })()}
-                                            </span>
-                                            <span className="inline-flex min-w-0 items-center justify-start gap-1 text-left">
-                                              {match.competitionLogoUrl ? (
-                                                <Image
-                                                  src={match.competitionLogoUrl}
-                                                  alt={match.competitionName}
-                                                  width={14}
-                                                  height={14}
-                                                  className="h-3.5 w-3.5 shrink-0 object-contain"
-                                                />
-                                              ) : null}
-                                              <span className="truncate">{match.competitionName}</span>
-                                              <span className="truncate">
-                                                {match.roundId === 'single' || !match.roundName ? '' : match.roundName}
-                                              </span>
-                                            </span>
-                                          </div>
-                                          <div className="grid grid-cols-12 items-center gap-1">
-                                              <div className="col-span-5 flex items-center justify-end gap-1 min-w-0">
-                                                  <span className="font-semibold text-[11px] text-right truncate">{match.homeTeamName}</span>
-                                                  {match.homeTeamLogo ? (
-                                                      <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={18} height={18} className="rounded-full object-contain" />
-                                                  ) : (
-                                                      <div className="w-[18px] h-[18px] bg-muted rounded-full" />
-                                                  )}
-                                              </div>
-
-                                              <div className="col-span-2 text-center">
-                                                  <Link
-                                                      href={`/${clubSlug}/matches/${match.competitionId}/${match.roundId}/${match.id}`}
-                                                      className="inline-block"
-                                                  >
-                                                      {isFinished ? (
-                                                          <div
-                                                            className={`inline-flex items-center justify-center whitespace-nowrap font-bold text-[11px] min-w-[44px] px-2 py-0.5 rounded-md transition-colors ${
-                                                              scoreBgClass ||
-                                                              "bg-gray-500 text-white hover:bg-primary"
-                                                            }`}
-                                                          >
-                                                              {match.scoreHome} - {match.scoreAway}
-                                                          </div>
-                                                      ) : (
-                                                          <div className="text-[11px] text-muted-foreground hover:text-primary transition-colors">
-                                                              {match.matchTime || 'VS'}
-                                                          </div>
-                                                      )}
-                                                  </Link>
-                                              </div>
-
-                                              <div className="col-span-5 flex items-center gap-1 min-w-0">
-                                                  {match.awayTeamLogo ? (
-                                                      <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={18} height={18} className="rounded-full object-contain" />
-                                                  ) : (
-                                                      <div className="w-[18px] h-[18px] bg-muted rounded-full" />
-                                                  )}
-                                                  <span className="font-semibold text-[11px] truncate">{match.awayTeamName}</span>
-                                              </div>
-                                          </div>
+                                  <Link key={match.id} href={`/${clubSlug}/matches/${match.competitionId}/${match.roundId}/${match.id}`} className="block rounded-xl border border-gray-200/80 bg-white/90 shadow-sm backdrop-blur">
+                                    <div className="grid grid-cols-[48px_minmax(0,1fr)] items-stretch">
+                                      <div className="flex flex-col items-center justify-center border-r border-gray-200 py-3 text-gray-900">
+                                        <div className="text-xl font-black leading-none">{(() => {
+                                          const d = parseISO(match.matchDate);
+                                          return Number.isNaN(d.getTime()) ? '-' : format(d, 'd', { locale: ja });
+                                        })()}</div>
+                                        <div className="mt-1 text-[9px] font-bold uppercase text-gray-500">{(() => {
+                                          const d = parseISO(match.matchDate);
+                                          return Number.isNaN(d.getTime()) ? '' : format(d, 'EEE', { locale: ja });
+                                        })()}</div>
                                       </div>
+                                      <div className="min-w-0 px-3 py-2.5">
+                                        <div className="mb-2 flex min-w-0 items-center gap-1.5 text-[9px] font-bold text-gray-500">
+                                          {match.competitionLogoUrl ? <Image src={match.competitionLogoUrl} alt={match.competitionName} width={12} height={12} className="h-3 w-3 shrink-0 object-contain" /> : null}
+                                          <span className="truncate">{match.competitionName}</span>
+                                          {match.roundId !== 'single' && match.roundName ? <span className="shrink-0">{match.roundName}</span> : null}
+                                        </div>
+                                        <div className="grid grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] items-center gap-2">
+                                          <div className="flex min-w-0 items-center justify-end gap-1.5">
+                                            <span className="truncate text-right text-[11px] font-black text-gray-900">{match.homeTeamName}</span>
+                                            {match.homeTeamLogo ? <Image src={match.homeTeamLogo} alt={match.homeTeamName} width={28} height={28} className="h-7 w-7 shrink-0 rounded-full object-contain" /> : <div className="h-7 w-7 shrink-0 rounded-full bg-muted" />}
+                                          </div>
+                                          <div className="text-center">
+                                            {isFinished ? (
+                                              <>
+                                                <div className="text-xl font-black leading-none tracking-tight text-gray-950">{match.scoreHome} - {match.scoreAway}</div>
+                                                <div className={`mx-auto mt-1 w-fit rounded-full px-2 py-0.5 text-[8px] font-black ${scoreBgClass || 'bg-gray-500 text-white'}`}>{scoreBgClass.includes('emerald') ? 'WIN' : scoreBgClass.includes('red') ? 'LOSS' : 'DRAW'}</div>
+                                              </>
+                                            ) : <div className="text-xs font-bold text-gray-500">{match.matchTime || 'VS'}</div>}
+                                          </div>
+                                          <div className="flex min-w-0 items-center gap-1.5">
+                                            {match.awayTeamLogo ? <Image src={match.awayTeamLogo} alt={match.awayTeamName} width={28} height={28} className="h-7 w-7 shrink-0 rounded-full object-contain" /> : <div className="h-7 w-7 shrink-0 rounded-full bg-muted" />}
+                                            <span className="truncate text-[11px] font-black text-gray-900">{match.awayTeamName}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+        )}
 
+        {Object.keys(displayGroups).length > 0 ? (
+            <div className="hidden space-y-4 md:block">
+                {Object.entries(displayGroups).map(([groupKey, matchesInGroup]) => (
+                    <div key={groupKey} className="bg-white rounded-md border">
+                        <div className="divide-y divide-gray-100">
+                            {matchesInGroup.map((match, index) => {
+                                const isFinished =
+                                  typeof match.scoreHome === "number" &&
+                                  typeof match.scoreAway === "number";
+
+                                const selfSide =
+                                  match.homeTeamId === clubId
+                                    ? 'HOME'
+                                    : match.awayTeamId === clubId
+                                      ? 'AWAY'
+                                      : null;
+
+                                const venue =
+                                  typeof (match as any).venue === 'string'
+                                    ? String((match as any).venue)
+                                    : typeof (match as any).stadium === 'string'
+                                      ? String((match as any).stadium)
+                                      : '';
+                                const broadcast =
+                                  typeof (match as any).broadcast === 'string'
+                                    ? String((match as any).broadcast)
+                                    : typeof (match as any).streaming === 'string'
+                                      ? String((match as any).streaming)
+                                      : '';
+
+                                let desktopScoreTextClass = "text-gray-900";
+                                if (isFinished && selfSide) {
+                                  const isHome = match.homeTeamId === clubId;
+                                  const selfScore = isHome
+                                    ? (match.scoreHome as number)
+                                    : (match.scoreAway as number);
+                                  const oppScore = isHome
+                                    ? (match.scoreAway as number)
+                                    : (match.scoreHome as number);
+
+                                  if (selfScore > oppScore) desktopScoreTextClass = "text-emerald-600";
+                                  else if (selfScore < oppScore) desktopScoreTextClass = "text-red-600";
+                                  else desktopScoreTextClass = "text-gray-500";
+                                }
+
+                                let desktopScorePillClass = "";
+                                if (!showAll && isFinished && selfSide) {
+                                  const isHome = match.homeTeamId === clubId;
+                                  const selfScore = isHome
+                                    ? (match.scoreHome as number)
+                                    : (match.scoreAway as number);
+                                  const oppScore = isHome
+                                    ? (match.scoreAway as number)
+                                    : (match.scoreHome as number);
+
+                                  if (selfScore > oppScore) desktopScorePillClass = "bg-emerald-500 text-white";
+                                  else if (selfScore < oppScore) desktopScorePillClass = "bg-red-500 text-white";
+                                  else desktopScorePillClass = "bg-gray-500 text-white";
+                                }
+
+                                return (
+                                    <div key={match.id} className="text-gray-900">
                                       {/* Desktop */}
                                       <div className="hidden lg:grid min-h-[128px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-6 items-center px-6 py-4">
                                         <div className="min-w-0">
@@ -557,7 +602,7 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                     </div>
                 ))}
             </div>
-        )}
+        ) : null}
     </div>
   );
 }

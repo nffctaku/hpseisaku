@@ -106,7 +106,7 @@ async function getMatchesForClub(clubId: string) {
       const useResultsV2 = typeof resultsPageVariant === "string" ? resultsPageVariant === "v2" : resultsPageV2;
 
       if (!ownerUid) {
-        console.error('[results:getMatchesForClub] ownerUid missing', { clubId, profileDocId: profileDoc.id });
+        console.error('[results:getMatchesForClub] ownerUid missing', { clubId });
         return null;
       }
 
@@ -349,6 +349,7 @@ export default async function ResultsPage({
             clubName={clubName}
             initialSelectedSeason={latestSeason || undefined}
             pageForegroundClass={pageForegroundClass}
+            accentColor={homeBgColor}
           />
         ) : (
           <MatchList
@@ -358,6 +359,7 @@ export default async function ResultsPage({
             clubName={clubName}
             initialSelectedSeason={latestSeason || undefined}
             pageForegroundClass={pageForegroundClass}
+            accentColor={homeBgColor}
           />
         )}
       </div>

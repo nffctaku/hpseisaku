@@ -35,6 +35,7 @@ interface MatchListV2Props {
   clubName: string;
   initialSelectedSeason?: string;
   pageForegroundClass?: string;
+  accentColor?: string;
 }
 
 const getFormattedDateGroup = (dateString: string) => {
@@ -51,11 +52,12 @@ const getSeason = (date: Date): string => {
   return month >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
 };
 
-export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSelectedSeason, pageForegroundClass }: MatchListV2Props) {
+export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSelectedSeason, pageForegroundClass, accentColor }: MatchListV2Props) {
   const [showAll, setShowAll] = useState(false);
   const [selectedCompetition, setSelectedCompetition] = useState<string>("all");
   const [selectedSeason, setSelectedSeason] = useState<string>(initialSelectedSeason || "all");
   const [selectedRoundIndex, setSelectedRoundIndex] = useState(0);
+  const themeColor = accentColor || '#9f1239';
 
   const seasons = useMemo(() => {
     const base = [
@@ -212,9 +214,10 @@ export function MatchListV2({ allMatches, clubId, clubSlug, clubName, initialSel
                   onClick={() => setSelectedCompetition(comp)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
                     selectedCompetition === comp
-                      ? "bg-gray-900 text-white border-gray-900"
+                      ? "text-white border-transparent"
                       : "bg-background text-foreground border-border hover:border-muted-foreground"
                   }`}
+                  style={selectedCompetition === comp ? { backgroundColor: themeColor } : undefined}
                 >
                   <span className="inline-flex items-center gap-1">
                     {comp !== "all" && competitionLogoByName.get(comp) ? (
