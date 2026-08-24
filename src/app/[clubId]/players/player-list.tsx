@@ -488,7 +488,6 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
         </div>
         <div className="p-2 px-3 pb-3">
           <div className="text-sm font-semibold text-white leading-tight line-clamp-2">{s.name}</div>
-          {s.position ? <div className="mt-1 text-xs text-white/55">{s.position}</div> : null}
         </div>
       </div>
     );
@@ -562,11 +561,11 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
         aria-modal="true"
       >
         <div
-          className="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl bg-[#0d1826] text-white shadow-2xl overflow-hidden flex flex-col"
-          style={{ height: 'min(640px, calc(95dvh - 64px))', border: `1px solid ${hex}22` }}
+          className="w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl bg-[#0d1826] text-white shadow-2xl overflow-hidden flex flex-col"
+          style={{ height: 'min(750px, calc(95dvh - 64px))', border: `1px solid ${hex}22` }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="relative h-[300px] flex-shrink-0 overflow-hidden" style={{ background: `linear-gradient(150deg, #080c14 0%, ${hex}1a 100%)` }}>
+          <div className="relative h-[380px] flex-shrink-0 overflow-hidden" style={{ background: `linear-gradient(150deg, #080c14 0%, ${hex}1a 100%)` }}>
             <div className="pointer-events-none absolute inset-0 opacity-40" style={{ background: 'repeating-linear-gradient(-55deg, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 2px, transparent 2px, transparent 8px)' }} />
             {player.photoUrl ? (
               <Image
@@ -575,7 +574,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                 fill
                 sizes="(max-width: 640px) 100vw, 480px"
                 className="object-cover"
-                style={{ objectPosition: 'center 15%' }}
+                style={{ objectPosition: 'center 35%' }}
               />
             ) : (
               <div className={`absolute right-2 bottom-[-12px] text-[17rem] leading-none font-black italic pointer-events-none select-none ${barlow.className}`} style={{ color: `${hex}18` }}>
@@ -905,7 +904,16 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                                 {r.result}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="truncate text-base font-black text-white">{r.opponentName}</div>
+                                <div className="flex items-center gap-2">
+                                  {r.opponentTeamLogo ? (
+                                    <img
+                                      src={r.opponentTeamLogo}
+                                      alt={r.opponentName}
+                                      className="h-5 w-5 rounded-full object-cover flex-shrink-0"
+                                    />
+                                  ) : null}
+                                  <div className="truncate text-base font-black text-white">{r.opponentName}</div>
+                                </div>
                                 <div className="mt-0.5 truncate text-[10px] font-normal tracking-tight text-white/30">{r.matchDate || '日付不明'} · {r.competitionName}{r.roundName ? ` · ${r.roundName}` : ''}</div>
                               </div>
                             </div>
@@ -1068,7 +1076,6 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
             <div className="text-[10px] uppercase tracking-[0.15em] font-black" style={{ color: mainAccent }}>SQUAD</div>
-            <h1 className={`text-4xl sm:text-5xl font-black italic text-zinc-900 ${barlow.className}`}>選手一覧</h1>
           </div>
           {allSeasons.length > 0 && (
             <select
@@ -1096,9 +1103,9 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                 onClick={() => setFilter(f)}
                 className={`px-4 py-1.5 rounded-lg text-sm font-black tracking-wide border transition-all duration-200 ${barlow.className}`}
                 style={{
-                  backgroundColor: active ? color : 'rgba(0,0,0,0.06)',
-                  color: active ? '#000' : 'rgba(0,0,0,0.70)',
-                  borderColor: active ? color : 'rgba(0,0,0,0.10)',
+                  backgroundColor: active ? color : 'rgba(255,255,255,0.08)',
+                  color: active ? '#000' : 'rgba(255,255,255,0.64)',
+                  borderColor: active ? color : 'rgba(255,255,255,0.20)',
                 }}
               >
                 {f}
@@ -1118,9 +1125,6 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
               <span className={`text-5xl sm:text-6xl font-black italic leading-none ${barlow.className}`} style={{ color: hex.startsWith('#') ? `${hex}35` : 'rgba(0,0,0,0.10)' }}>
                 {position}
               </span>
-              <div>
-                <div className="text-xs text-black/40">{positionNames[position] || 'その他'} · {list.length}名</div>
-              </div>
               <div className="flex-1 h-px" style={{ background: hex.startsWith('#') ? `linear-gradient(to right, ${hex}40, transparent)` : 'linear-gradient(to right, rgba(255,255,255,0.4), transparent)' }} />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -1134,9 +1138,6 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
         <section className="mb-12">
           <div className="flex items-center gap-4 mb-5">
             <span className={`text-5xl sm:text-6xl font-black italic leading-none ${barlow.className}`} style={{ color: 'rgba(0,0,0,0.08)' }}>STAFF</span>
-            <div>
-              <div className="text-xs text-black/40">{staff.length}名</div>
-            </div>
             <div className="flex-1 h-px bg-gradient-to-r from-black/40 to-transparent" />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">

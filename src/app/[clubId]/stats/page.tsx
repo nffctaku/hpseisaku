@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, ArrowUpDown } from "lucide-react";
@@ -452,6 +452,7 @@ export default function ClubStatsPage() {
   const [selectedSeason, setSelectedSeason] = useState<string>("");
   const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>("all");
   const [performanceSeason, setPerformanceSeason] = useState<string>("");
+  const [performanceCompetitionId, setPerformanceCompetitionId] = useState<string>("all");
 
   const seasons = useMemo(() => {
     const set = new Set<string>();
@@ -559,17 +560,15 @@ export default function ClubStatsPage() {
       statsDataAll.players,
       statsDataAll.competitions,
       performanceSeason,
-      'all'
+      performanceCompetitionId
     );
-  }, [statsDataAll, performanceSeason]);
+  }, [statsDataAll, performanceSeason, performanceCompetitionId]);
 
   return (
     <main
-      className="min-h-screen flex flex-col"
+      className="min-h-screen flex flex-col bg-[#080d13] text-white"
       style={{
-        backgroundColor: '#FFF5E6',
-        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-        backgroundSize: '4px 4px'
+        backgroundImage: 'linear-gradient(135deg, #101722 0%, #080d13 48%, #111827 100%)'
       }}
     >
       {clubId && (
@@ -581,11 +580,12 @@ export default function ClubStatsPage() {
           headerBackgroundColor={homeBgColor ?? undefined}
         />
       )}
-      <div className="container mx-auto px-4 py-8 flex-grow">
-        <h1 className={`text-2xl md:text-3xl font-bold mb-4 ${pageFg}`}>STATS</h1>
-        <p className={`text-sm mb-6 ${pageMuted}`}>
-          
-        </p>
+      <div className="mx-auto w-full max-w-[1180px] px-4 py-8 flex-grow sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <h1 className="text-3xl font-black tracking-[0.08em] text-white sm:text-4xl">スタッツ</h1>
+          <p className="mt-1 text-xs font-bold tracking-[0.28em] text-white/55">STATS</p>
+          <div className="mt-4 h-[2px] w-12 rounded-full bg-[#b84a50]" />
+        </div>
 
         {loadingOwner ? (
           <div className={`flex items-center justify-center py-10 ${pageMuted}`.trim()}>
@@ -609,6 +609,9 @@ export default function ClubStatsPage() {
             mainTeamId={mainTeamId}
             selectedSeason={performanceSeason}
             onSeasonChange={setPerformanceSeason}
+            selectedCompetitionId={performanceCompetitionId}
+            onCompetitionChange={setPerformanceCompetitionId}
+            darkMode
           />
         </>
       )}

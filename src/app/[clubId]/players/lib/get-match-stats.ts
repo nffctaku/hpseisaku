@@ -8,6 +8,8 @@ export interface MatchRecord {
   matchDate: string;
   matchTime?: string;
   opponentName: string;
+  opponentTeamId?: string;
+  opponentTeamLogo?: string;
   ha: "(H)" | "(A)" | "(-)";
   scoreHome: number | null;
   scoreAway: number | null;
@@ -44,9 +46,11 @@ export async function getMatchStatsForPlayers(
 
   const teamsSnap = await db.collection(`clubs/${ownerUid}/teams`).get();
   const teamNameMap = new Map<string, string>();
+  const teamLogoMap = new Map<string, string>();
   for (const doc of teamsSnap.docs) {
     const d = doc.data() as any;
     teamNameMap.set(doc.id, typeof d?.name === "string" ? d.name : doc.id);
+    teamLogoMap.set(doc.id, typeof d?.logoUrl === "string" ? d.logoUrl : "");
   }
 
   const compsSnap = await db.collection(`clubs/${ownerUid}/competitions`).get();
@@ -118,6 +122,16 @@ export async function getMatchStatsForPlayers(
             : isAway
             ? homeTeamName
             : "-";
+          const opponentTeamId = isHome
+            ? awayTeamId
+            : isAway
+            ? homeTeamId
+            : "";
+          const opponentTeamLogo = isHome
+            ? teamLogoMap.get(awayTeamId) || ""
+            : isAway
+            ? teamLogoMap.get(homeTeamId) || ""
+            : "";
 
           const myScore = isHome ? scoreHome : isAway ? scoreAway : scoreHome;
           const oppScore = isHome ? scoreAway : isAway ? scoreHome : scoreAway;
@@ -151,6 +165,8 @@ export async function getMatchStatsForPlayers(
             matchDate,
             matchTime,
             opponentName,
+            opponentTeamId,
+            opponentTeamLogo,
             ha,
             scoreHome,
             scoreAway,

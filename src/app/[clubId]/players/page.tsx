@@ -665,11 +665,9 @@ export default async function PlayersPage({
 
   return (
     <main
-      className="min-h-screen"
+      className="min-h-screen bg-[#080d13] text-white"
       style={{
-        backgroundColor: backgroundColor,
-        backgroundImage: 'radial-gradient(circle, #241C1512 1px, transparent 1.2px)',
-        backgroundSize: '4px 4px'
+        backgroundImage: 'linear-gradient(135deg, #101722 0%, #080d13 48%, #111827 100%)'
       }}
     >
       <ClubHeader clubId={clubId} clubName={clubName} logoUrl={logoUrl} headerBackgroundColor={homeBgColor ?? undefined} />

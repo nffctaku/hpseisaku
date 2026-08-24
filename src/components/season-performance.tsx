@@ -102,6 +102,9 @@ interface SeasonPerformanceProps {
   mainTeamId?: string | null;
   selectedSeason: string;
   onSeasonChange: (season: string) => void;
+  selectedCompetitionId?: string;
+  onCompetitionChange?: (competitionId: string) => void;
+  darkMode?: boolean;
 }
 
 interface SeasonStats {
@@ -129,6 +132,9 @@ export function SeasonPerformance({
   mainTeamId,
   selectedSeason,
   onSeasonChange,
+  selectedCompetitionId = "all",
+  onCompetitionChange,
+  darkMode = false,
 }: SeasonPerformanceProps) {
   const seasons = useMemo(() => {
     const seasonSet = new Set<string>();
@@ -145,7 +151,11 @@ export function SeasonPerformance({
 
     seasons.forEach((season) => {
       const seasonCompetitions = competitions.filter((c) => typeof c.season === "string" && seasonEquals(c.season, season));
-      const competitionIds = new Set(seasonCompetitions.map((c) => c.id));
+      let competitionIds = new Set(seasonCompetitions.map((c) => c.id));
+
+      if (selectedCompetitionId && selectedCompetitionId !== "all") {
+        competitionIds = new Set([selectedCompetitionId]);
+      }
 
       const seasonMatches = matches.filter((m) => competitionIds.has(m.competitionId));
       const teamMatches = (mainTeamId
@@ -200,14 +210,18 @@ export function SeasonPerformance({
     });
 
     return stats;
-  }, [seasons, competitions, matches, mainTeamId]);
+  }, [seasons, competitions, matches, mainTeamId, selectedCompetitionId]);
 
   const leagueStats = useMemo(() => {
     const stats: Record<string, LeagueStats> = {};
 
     seasons.forEach((season) => {
       const seasonCompetitions = competitions.filter((c) => typeof c.season === "string" && seasonEquals(c.season, season) && c.format === 'league');
-      const competitionIds = new Set(seasonCompetitions.map((c) => c.id));
+      let competitionIds = new Set(seasonCompetitions.map((c) => c.id));
+
+      if (selectedCompetitionId && selectedCompetitionId !== "all") {
+        competitionIds = new Set([selectedCompetitionId]);
+      }
 
       const seasonMatches = matches.filter((m) => competitionIds.has(m.competitionId));
       const teamMatches = (mainTeamId
@@ -247,7 +261,7 @@ export function SeasonPerformance({
     });
 
     return stats;
-  }, [seasons, competitions, matches, mainTeamId]);
+  }, [seasons, competitions, matches, mainTeamId, selectedCompetitionId]);
 
   // リーグ戦のみのホーム・アウェイ勝利数
   const leagueHomeAwayStats = useMemo(() => {
@@ -255,7 +269,11 @@ export function SeasonPerformance({
 
     seasons.forEach((season) => {
       const seasonCompetitions = competitions.filter((c) => typeof c.season === "string" && seasonEquals(c.season, season) && c.format === 'league');
-      const competitionIds = new Set(seasonCompetitions.map((c) => c.id));
+      let competitionIds = new Set(seasonCompetitions.map((c) => c.id));
+
+      if (selectedCompetitionId && selectedCompetitionId !== "all") {
+        competitionIds = new Set([selectedCompetitionId]);
+      }
 
       const seasonMatches = matches.filter((m) => competitionIds.has(m.competitionId));
       const teamMatches = (mainTeamId
@@ -286,7 +304,7 @@ export function SeasonPerformance({
     });
 
     return stats;
-  }, [seasons, competitions, matches, mainTeamId]);
+  }, [seasons, competitions, matches, mainTeamId, selectedCompetitionId]);
 
   const currentSeasonStats = seasonStats[selectedSeason] || {
     wins: 0,
@@ -313,27 +331,14 @@ export function SeasonPerformance({
   const playerGoalRanking = useMemo(() => {
     if (!players || !aggregatedStats) return [];
 
-    const ranking = players
-      .map((player) => {
-        const stats = aggregatedStats[player.id];
-        return {
-          player,
-          goals: stats?.goals || 0,
-          minutes: stats?.minutes || 0,
-          appearances: stats?.appearances || 0,
-        };
-      })
-      .filter((item) => item.goals > 0)
-      .sort((a, b) => b.goals - a.goals)
-      .slice(0, 5)
-      .map((item, index) => ({
-        ...item,
-        rank: index + 1,
-        goalsPer90: item.minutes > 0 ? (item.goals / item.minutes) * 90 : 0,
-      }));
+    const ranked = players.map((p) => {
+      const stats = aggregatedStats[p.id] || { goals: 0, minutes: 0 };
+      const goalsPer90 = stats.minutes > 0 ? (stats.goals / stats.minutes) * 90 : 0;
+      return { player: p, goals: stats.goals, goalsPer90 };
+    }).filter((item) => item.goals > 0).sort((a, b) => b.goals - a.goals).slice(0, 5);
 
-    return ranking;
-  }, [players, aggregatedStats]);
+    return ranked.map((item, index) => ({ ...item, rank: index + 1 }));
+  }, [players, aggregatedStats, selectedCompetitionId]);
 
   // 選手のアシストランキングを計算（トップ5）
   const playerAssistRanking = useMemo(() => {
@@ -359,26 +364,54 @@ export function SeasonPerformance({
       }));
 
     return ranking;
-  }, [players, aggregatedStats]);
+  }, [players, aggregatedStats, selectedCompetitionId]);
 
   const totalMatches = currentSeasonStats.wins + currentSeasonStats.draws + currentSeasonStats.losses;
   const winPercent = totalMatches > 0 ? (currentSeasonStats.wins / totalMatches) * 100 : 0;
   const drawPercent = totalMatches > 0 ? (currentSeasonStats.draws / totalMatches) * 100 : 0;
   const lossPercent = totalMatches > 0 ? (currentSeasonStats.losses / totalMatches) * 100 : 0;
 
+  const cardStyle = darkMode
+    ? {
+        backgroundColor: 'rgba(15, 23, 42, 0.78)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        borderRadius: '10px',
+        boxShadow: '0 18px 50px rgba(0, 0, 0, 0.22)',
+        color: '#f8fafc',
+        padding: '18px',
+        fontFamily: 'IBM Plex Sans JP, sans-serif',
+      }
+    : { fontFamily: 'IBM Plex Sans JP, sans-serif' };
+  const lineColor = darkMode ? 'rgba(255, 255, 255, 0.12)' : '#0B141033';
+  const strongLineColor = darkMode ? 'rgba(255, 255, 255, 0.10)' : '#0B1410';
+  const mutedText = darkMode ? 'rgba(255, 255, 255, 0.64)' : '#0B1410b3';
+  const mainText = darkMode ? '#f8fafc' : '#0B1410';
+
+  const seasonCompetitions = useMemo(() => {
+    if (!selectedSeason || selectedSeason === "all") return competitions;
+    return competitions.filter((c) => c.season && typeof c.season === "string" && seasonEquals(c.season, selectedSeason));
+  }, [competitions, selectedSeason]);
+
   return (
-    <div className="max-w-[760px] mx-auto space-y-7">
-      <div className="flex justify-between items-center">
+    <div className="mx-auto max-w-[1180px] space-y-5">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <Select value={selectedSeason} onValueChange={onSeasonChange}>
           <SelectTrigger className="w-[180px]" style={{
             fontFamily: 'JetBrains Mono, monospace',
             fontSize: '11px',
-            border: '1px solid #0B141033',
-            backgroundColor: 'transparent'
+            border: `1px solid ${lineColor}`,
+            backgroundColor: darkMode ? 'rgba(15, 23, 42, 0.88)' : 'transparent',
+            color: mainText
           }}>
             <SelectValue placeholder="シーズンを選択" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="all" style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '11px'
+            }}>
+              すべて
+            </SelectItem>
             {seasons.map((season) => (
               <SelectItem key={season} value={season} style={{
                 fontFamily: 'JetBrains Mono, monospace',
@@ -389,14 +422,41 @@ export function SeasonPerformance({
             ))}
           </SelectContent>
         </Select>
+        {onCompetitionChange && (
+          <Select value={selectedCompetitionId} onValueChange={onCompetitionChange}>
+            <SelectTrigger className="w-[180px]" style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '11px',
+              border: `1px solid ${lineColor}`,
+              backgroundColor: darkMode ? 'rgba(15, 23, 42, 0.88)' : 'transparent',
+              color: mainText
+            }}>
+              <SelectValue placeholder="大会を選択" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '11px'
+              }}>
+                すべて
+              </SelectItem>
+              {seasonCompetitions.map((comp) => (
+                <SelectItem key={comp.id} value={comp.id} style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '11px'
+                }}>
+                  {comp.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* 公式戦成績 */}
-      <div className="card" style={{
-        fontFamily: 'IBM Plex Sans JP, sans-serif'
-      }}>
+      <div className="card" style={cardStyle}>
         <div className="card-head flex justify-between items-start flex-wrap gap-2" style={{
-          borderBottom: '2px solid #0B1410',
+          borderBottom: `1px solid ${strongLineColor}`,
           paddingBottom: '8px',
           marginBottom: '8px'
         }}>
@@ -412,7 +472,7 @@ export function SeasonPerformance({
             fontFamily: 'JetBrains Mono, monospace',
             fontSize: '11px',
             letterSpacing: '0.02em',
-            color: '#0B1410b3'
+            color: mutedText
           }}>
             リーグ戦・カップ戦・リーグ&カップ戦
           </div>
@@ -424,7 +484,7 @@ export function SeasonPerformance({
         }}>
           <div className="record-cell text-center" style={{
             padding: '26px 10px 20px',
-            borderRight: '1px solid #0B141033'
+            borderRight: `1px solid ${lineColor}`
           }}>
             <div className="record-num win" style={{
               fontSize: 'clamp(32px, 7vw, 46px)',
@@ -445,7 +505,7 @@ export function SeasonPerformance({
           </div>
           <div className="record-cell text-center" style={{
             padding: '26px 10px 20px',
-            borderRight: '1px solid #0B141033'
+            borderRight: `1px solid ${lineColor}`
           }}>
             <div className="record-num draw" style={{
               fontSize: 'clamp(32px, 7vw, 46px)',
@@ -466,7 +526,7 @@ export function SeasonPerformance({
           </div>
           <div className="record-cell text-center" style={{
             padding: '26px 10px 20px',
-            borderRight: '1px solid #0B141033'
+            borderRight: `1px solid ${lineColor}`
           }}>
             <div className="record-num loss" style={{
               fontSize: 'clamp(32px, 7vw, 46px)',
@@ -491,7 +551,7 @@ export function SeasonPerformance({
             <div className="record-num" style={{
               fontSize: 'clamp(32px, 7vw, 46px)',
               fontWeight: 700,
-              color: '#0B1410',
+              color: mainText,
               marginBottom: '10px'
             }}>
               {currentSeasonStats.winRate}%
@@ -511,7 +571,7 @@ export function SeasonPerformance({
         <div className="form-bar" style={{
           height: '6px',
           borderRadius: '2px',
-          backgroundColor: '#0B141033',
+          backgroundColor: lineColor,
           display: 'flex',
           marginTop: '20px'
         }}>
@@ -537,11 +597,9 @@ export function SeasonPerformance({
       </div>
 
       {/* ホーム・アウェイ別勝利数 */}
-      <div className="card" style={{
-        fontFamily: 'IBM Plex Sans JP, sans-serif'
-      }}>
+      <div className="card" style={cardStyle}>
         <div className="card-head flex justify-between items-start flex-wrap gap-2" style={{
-          borderBottom: '2px solid #0B1410',
+          borderBottom: `1px solid ${strongLineColor}`,
           paddingBottom: '8px',
           marginBottom: '8px'
         }}>
@@ -556,7 +614,7 @@ export function SeasonPerformance({
               fontFamily: 'JetBrains Mono, monospace',
               fontSize: '11px',
               letterSpacing: '0.02em',
-              color: '#0B1410b3',
+              color: mutedText,
               marginLeft: '8px',
               fontWeight: 400
             }}>
@@ -593,7 +651,7 @@ export function SeasonPerformance({
               fontFamily: 'JetBrains Mono, monospace',
               fontSize: '10px',
               letterSpacing: '0.08em',
-              border: '1px solid #0B1410',
+              border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.28)' : '#0B1410'}`,
               borderRadius: '2px',
               padding: '3px 10px',
               display: 'inline-block'
@@ -602,7 +660,7 @@ export function SeasonPerformance({
             </div>
           </div>
           <div className="split-divider" style={{
-            backgroundColor: '#0B141033'
+            backgroundColor: lineColor
           }}></div>
           <div className="split-cell text-center" style={{
             padding: '28px 20px'
@@ -628,7 +686,7 @@ export function SeasonPerformance({
               fontFamily: 'JetBrains Mono, monospace',
               fontSize: '10px',
               letterSpacing: '0.08em',
-              border: '1px solid #0B1410',
+              border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.28)' : '#0B1410'}`,
               borderRadius: '2px',
               padding: '3px 10px',
               display: 'inline-block'
@@ -639,12 +697,11 @@ export function SeasonPerformance({
         </div>
       </div>
 
+      <div className="grid gap-5 lg:grid-cols-2">
       {/* 選手ランキングセクション */}
-      <div className="ranking-section" style={{
-        fontFamily: 'IBM Plex Sans JP, sans-serif'
-      }}>
+      <div className="ranking-section" style={cardStyle}>
         <div className="section-head flex justify-between items-start flex-wrap gap-4 mb-12" style={{
-          borderBottom: '2px solid #0B1410',
+          borderBottom: `1px solid ${strongLineColor}`,
           paddingBottom: '8px',
           marginBottom: '8px'
         }}>
@@ -662,7 +719,7 @@ export function SeasonPerformance({
             fontFamily: 'JetBrains Mono, monospace',
             fontSize: '11px',
             letterSpacing: '0.02em',
-            color: '#0B1410b3',
+            color: mutedText,
             textAlign: 'right',
             marginLeft: 'auto'
           }}>
@@ -671,7 +728,7 @@ export function SeasonPerformance({
         </div>
 
         <div className="ranking-list" style={{
-          borderTop: '1px solid #0B141033'
+          borderTop: `1px solid ${lineColor}`
         }}>
           {playerGoalRanking.map((item) => (
             <div key={item.player.id} className="rank-row" style={{
@@ -680,7 +737,7 @@ export function SeasonPerformance({
               alignItems: 'center',
               gap: '1px',
               padding: '20px 4px',
-              borderBottom: '1px solid #0B141033',
+              borderBottom: `1px solid ${lineColor}`,
               transition: 'background 0.2s',
               cursor: 'pointer'
             }}>
@@ -703,7 +760,7 @@ export function SeasonPerformance({
                   fontFamily: 'JetBrains Mono, monospace',
                   fontSize: '11px',
                   letterSpacing: '0.08em',
-                  color: '#0B1410aa'
+                  color: mutedText
                 }}>
                   {item.player.position || ''} {item.player.number ? `/ #${item.player.number}` : ''}
                 </div>
@@ -720,7 +777,7 @@ export function SeasonPerformance({
                 fontFamily: 'JetBrains Mono, monospace',
                 fontSize: '12px',
                 textAlign: 'right',
-                color: '#0B1410aa',
+                color: mutedText,
                 lineHeight: '1.4'
               }}>
                 90分あたり<br />
@@ -730,7 +787,7 @@ export function SeasonPerformance({
           ))}
           {playerGoalRanking.length === 0 && (
             <div className="text-center py-8" style={{
-              color: '#0B1410aa',
+              color: mutedText,
               fontFamily: 'IBM Plex Sans JP, sans-serif'
             }}>
               得点データがありません
@@ -740,11 +797,9 @@ export function SeasonPerformance({
       </div>
 
       {/* 選手ランキングセクション - アシスト */}
-      <div className="ranking-section" style={{
-        fontFamily: 'IBM Plex Sans JP, sans-serif'
-      }}>
+      <div className="ranking-section" style={cardStyle}>
         <div className="section-head flex justify-between items-start flex-wrap gap-4 mb-12" style={{
-          borderBottom: '2px solid #0B1410',
+          borderBottom: `1px solid ${strongLineColor}`,
           paddingBottom: '8px',
           marginBottom: '8px'
         }}>
@@ -762,7 +817,7 @@ export function SeasonPerformance({
             fontFamily: 'JetBrains Mono, monospace',
             fontSize: '11px',
             letterSpacing: '0.02em',
-            color: '#0B1410b3',
+            color: mutedText,
             textAlign: 'right',
             marginLeft: 'auto'
           }}>
@@ -771,7 +826,7 @@ export function SeasonPerformance({
         </div>
 
         <div className="ranking-list" style={{
-          borderTop: '1px solid #0B141033'
+          borderTop: `1px solid ${lineColor}`
         }}>
           {playerAssistRanking.map((item) => (
             <div key={item.player.id} className="rank-row" style={{
@@ -780,7 +835,7 @@ export function SeasonPerformance({
               alignItems: 'center',
               gap: '1px',
               padding: '20px 4px',
-              borderBottom: '1px solid #0B141033',
+              borderBottom: `1px solid ${lineColor}`,
               transition: 'background 0.2s',
               cursor: 'pointer'
             }}>
@@ -803,7 +858,7 @@ export function SeasonPerformance({
                   fontFamily: 'JetBrains Mono, monospace',
                   fontSize: '11px',
                   letterSpacing: '0.08em',
-                  color: '#0B1410aa'
+                  color: mutedText
                 }}>
                   {item.player.position || ''} {item.player.number ? `/ #${item.player.number}` : ''}
                 </div>
@@ -820,7 +875,7 @@ export function SeasonPerformance({
                 fontFamily: 'JetBrains Mono, monospace',
                 fontSize: '12px',
                 textAlign: 'right',
-                color: '#0B1410aa',
+                color: mutedText,
                 lineHeight: '1.4'
               }}>
                 90分あたり<br />
@@ -830,13 +885,14 @@ export function SeasonPerformance({
           ))}
           {playerAssistRanking.length === 0 && (
             <div className="text-center py-8" style={{
-              color: '#0B1410aa',
+              color: mutedText,
               fontFamily: 'IBM Plex Sans JP, sans-serif'
             }}>
               アシストデータがありません
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
