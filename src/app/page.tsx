@@ -41,7 +41,7 @@ export default function LandingPage() {
                 <a href="#faq" className="hover:text-white transition-colors">よくある質問</a>
               </nav>
               <div className="flex shrink-0 items-center gap-3 text-sm font-semibold sm:gap-6">
-                <Link href="/admin" className="hidden text-slate-400 hover:text-white transition-colors sm:inline">ログイン</Link>
+                <Link href="/admin" className="text-slate-400 hover:text-white transition-colors">ログイン</Link>
                 <Link href="/admin" className="rounded-md bg-emerald-400 px-4 py-2 text-xs text-[#06111f] hover:bg-emerald-300 transition-colors sm:px-5 sm:py-2.5 sm:text-sm">無料で始める</Link>
               </div>
             </header>
