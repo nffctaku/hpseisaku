@@ -15,14 +15,18 @@ export interface Team {
 
 export interface MatchEvent {
   id: string;
-  type: 'goal' | 'og' | 'card' | 'substitution' | 'note';
+  type: 'goal' | 'card' | 'substitution' | 'note';
   minute: number;
   teamId: string;
   playerId?: string;
+  playerName?: string;
   assistPlayerId?: string;
+  assistPlayerName?: string;
   cardColor?: 'yellow' | 'red';
   inPlayerId?: string;
+  inPlayerName?: string;
   outPlayerId?: string;
+  outPlayerName?: string;
   text?: string;
 }
 

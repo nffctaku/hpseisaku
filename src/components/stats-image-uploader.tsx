@@ -217,7 +217,7 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
   const content = (
     <>
       <div className="flex flex-row items-center justify-between px-0 pb-3 pt-0">
-        <CardTitle className="flex items-center text-lg font-bold leading-tight tracking-tight sm:text-xl">
+        <CardTitle className="flex items-center text-sm font-bold leading-tight tracking-tight sm:text-base">
           <span className="break-keep">試合スクショから自動入力</span>
         </CardTitle>
         <div className="flex items-center gap-2">

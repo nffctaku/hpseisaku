@@ -875,17 +875,20 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
         </div>
 
         {customStatHeaders.length > 0 && (
-          <div className="ml-2 flex flex-wrap gap-2 text-xs">
+          <div className="ml-2 flex flex-wrap gap-2 text-[7px]">
             {customStatHeaders.map((header: { id: string; name: string }, headerIndex: number) => {
               if (!customStats[headerIndex]) {
                 setValue(`${customStatPath}.${headerIndex}`, { id: header.id, name: header.name, value: '' });
               }
               return (
                 <div key={header.id} className="flex items-center gap-1">
-                  <span className="text-gray-500">{header.name}</span>
+                  <span className="text-gray-500 text-[6px]">{header.name}</span>
                   <Input
-                    {...control.register(`playerStats.${globalIndex}.customStats.${headerIndex}.value`)}
-                    className="h-6 w-14 text-center text-xs bg-white text-gray-900"
+                    {...control.register(`playerStats.${globalIndex}.customStats.${headerIndex}.value`, {
+                      valueAsNumber: true,
+                    })}
+                    type="number"
+                    className="h-5 w-12 text-center text-[5px] bg-white text-gray-900"
                   />
                 </div>
               );

@@ -95,6 +95,13 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string>('');
   const [customStatName, setCustomStatName] = useState<string>('');
+  const [mobilePicker, setMobilePicker] = useState<null | {
+    title: string;
+    value: string;
+    options: Array<{ value: string; label: string }>;
+    onSelect: (value: string) => void;
+  }>(null);
+  const [pressedPickerValue, setPressedPickerValue] = useState<string | null>(null);
 
   // Handle image analysis result
   const handleAnalysisComplete = async (result: StatsImageAnalysisResult) => {
@@ -678,22 +685,66 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                   <p className="mt-1 text-orange-700">※自由入力の項目は、上記と完全一致しない場合は自動反映されません。</p>
                 </div>
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">項目を選択</label>
-                    <Select value={selectedPreset} onValueChange={setSelectedPreset}>
-                      <SelectTrigger className="h-14 text-base border-slate-300 bg-white hover:bg-slate-50 focus:ring-2 focus:ring-emerald-500 transition-all">
-                        <SelectValue placeholder="項目を選択してください" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-80">
-                        {getAvailablePresets().map((preset) => (
-                          <SelectItem key={preset.id} value={preset.id} className="h-12 text-base py-3">
-                            {preset.name}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="custom" className="h-12 text-base py-3 font-semibold text-emerald-600">その他(自由入力)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">項目を選択</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const options = [
+                        ...getAvailablePresets().map((preset) => ({ value: preset.id, label: preset.name })),
+                        { value: 'custom', label: 'その他(自由入力)' },
+                      ];
+                      setMobilePicker({
+                        title: '項目を選択',
+                        value: selectedPreset,
+                        options,
+                        onSelect: (val) => setSelectedPreset(val),
+                      });
+                    }}
+                    className="w-full h-14 rounded-xl border border-slate-300 bg-white px-4 text-left text-base hover:bg-slate-50 focus:ring-2 focus:ring-emerald-500 transition-all"
+                  >
+                    {selectedPreset === 'custom' ? 'その他(自由入力)' : getAvailablePresets().find((p) => p.id === selectedPreset)?.name || '項目を選択してください'}
+                  </button>
+                  {mobilePicker ? (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4" onClick={() => setMobilePicker(null)}>
+                      <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#f4f4f6] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex h-12 items-center justify-between border-b border-slate-300/80 bg-white px-4">
+                          <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobilePicker(null)}>
+                            キャンセル
+                          </button>
+                          <div className="text-sm font-bold text-slate-500">{mobilePicker.title}</div>
+                          <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobilePicker(null)}>
+                            完了
+                          </button>
+                        </div>
+                        <div className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
+                          {mobilePicker.options.map((option) => {
+                            const isPressed = pressedPickerValue === option.value;
+                            const isSelected = option.value === mobilePicker.value;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onPointerDown={() => setPressedPickerValue(option.value)}
+                                onClick={() => {
+                                  setPressedPickerValue(option.value);
+                                  window.setTimeout(() => {
+                                    mobilePicker.onSelect(option.value);
+                                    setMobilePicker(null);
+                                    setPressedPickerValue(null);
+                                  }, 140);
+                                }}
+                                className={`block h-14 w-full scroll-mt-[22vh] [scroll-snap-align:center] truncate rounded-xl text-center text-[22px] font-bold leading-[56px] transition-colors ${isPressed ? 'bg-blue-500/25 text-blue-700' : isSelected ? 'bg-blue-500/10 text-blue-600' : 'text-slate-400'}`}
+                              >
+                                {option.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
                   {selectedPreset === 'custom' && (
                     <div>
                       <label className="text-sm font-medium">項目名</label>

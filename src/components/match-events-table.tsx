@@ -80,7 +80,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
   const playerStats = watch("playerStats") || [];
   const events = watch("events") || [];
 
-  const [newEventType, setNewEventType] = useState<"goal" | "og" | "card" | "substitution">("goal");
+  const [newEventType, setNewEventType] = useState<"goal" | "card" | "substitution">("goal");
   const [newEventTeam, setNewEventTeam] = useState(match.homeTeam);
   const [newEventMinute, setNewEventMinute] = useState(0);
   const [newEventPlayerId, setNewEventPlayerId] = useState<string>("");
@@ -92,6 +92,13 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
   const [newEventOutPlayerName, setNewEventOutPlayerName] = useState<string>("");
   const [newEventInPlayerId, setNewEventInPlayerId] = useState<string>("");
   const [newEventInPlayerName, setNewEventInPlayerName] = useState<string>("");
+  const [mobilePicker, setMobilePicker] = useState<null | {
+    title: string;
+    value: string;
+    options: Array<{ value: string; label: string }>;
+    onSelect: (value: string) => void;
+  }>(null);
+  const [pressedPickerValue, setPressedPickerValue] = useState<string | null>(null);
 
   const playerMap = [...homePlayers, ...awayPlayers].reduce<Record<string, Player>>(
     (acc, p) => {
@@ -125,9 +132,18 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
     };
 
     if (newEventType === "goal") {
-      if (newEventPlayerId === "custom") {
+      // PK/OG/Custom選択時は自由記述を優先
+      const shouldUseManualName = newEventPlayerId === 'pk' || newEventPlayerId === 'og' || newEventPlayerId === 'custom';
+      
+      if (shouldUseManualName) {
         newEvent.playerId = `custom_${Date.now()}`;
-        newEvent.playerName = newEventPlayerName.trim();
+        if (newEventPlayerId === 'pk') {
+          newEvent.playerName = `PK(${newEventPlayerName.trim()})`;
+        } else if (newEventPlayerId === 'og') {
+          newEvent.playerName = `OG(${newEventPlayerName.trim()})`;
+        } else {
+          newEvent.playerName = newEventPlayerName.trim();
+        }
       } else {
         newEvent.playerId = newEventPlayerId && newEventPlayerId !== "none" ? newEventPlayerId : undefined;
       }
@@ -136,13 +152,6 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
         newEvent.assistPlayerName = newEventAssistPlayerName.trim();
       } else {
         newEvent.assistPlayerId = newEventAssistPlayerId && newEventAssistPlayerId !== "none" ? newEventAssistPlayerId : undefined;
-      }
-    } else if (newEventType === "og") {
-      if (newEventPlayerId === "custom") {
-        newEvent.playerId = `custom_${Date.now()}`;
-        newEvent.playerName = newEventPlayerName.trim();
-      } else {
-        newEvent.playerId = newEventPlayerId && newEventPlayerId !== "none" ? newEventPlayerId : undefined;
       }
     } else if (newEventType === "card") {
       if (newEventPlayerId === "custom") {
@@ -183,12 +192,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
   };
 
   const getTeamPlayers = (teamId: string, eventType: string = "goal") => {
-    // OGの場合はOGを献上した側（オウンゴールをしたチーム）の選手を表示
-    // ホームチームを選択+OG → アウェイチームの選手を表示（アウェイがOGを献上した場合）
-    // アウェイチームを選択+OG → ホームチームの選手を表示（ホームがOGを献上した場合）
-    const rawTeamPlayers = eventType === 'og' 
-      ? (teamId === match.homeTeam ? awayPlayers : homePlayers)
-      : (teamId === match.homeTeam ? homePlayers : awayPlayers);
+    const rawTeamPlayers = teamId === match.homeTeam ? homePlayers : awayPlayers;
     const teamPlayerIdSet = new Set(rawTeamPlayers.map((p) => p.id));
 
     const active = (playerStats as any[])
@@ -212,9 +216,14 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
 
   const { teamPlayers, starterPlayers, subPlayers } = getTeamPlayers(newEventTeam, newEventType);
 
+  // 得点者用の選手リスト
+  const scorerTeamPlayers = newEventTeam === match.homeTeam ? homePlayers : awayPlayers;
+
+  // アシスト用の選手リスト
+  const assistTeamPlayers = newEventTeam === match.homeTeam ? homePlayers : awayPlayers;
+
   const eventTypeLabels = {
     goal: "ゴール",
-    og: "OG",
     card: "カード",
     substitution: "交代",
   };
@@ -222,7 +231,6 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
   const renderEventRow = (field: any, index: number) => {
     const currentType = (watch(`events.${index}.type`) ?? field.type) as
       | "goal"
-      | "og"
       | "card"
       | "substitution"
       | "note";
@@ -275,7 +283,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
     };
 
     const getEventIcon = () => {
-      if (currentType === "goal" || currentType === "og") {
+      if (currentType === "goal") {
         return <FaFutbol className="h-5 w-5" />;
       } else if (currentType === "card") {
         const cardColor = field.cardColor ?? "yellow";
@@ -289,14 +297,9 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
     const getEventDescription = () => {
       if (currentType === "goal") {
         const scorer = resolveEventName(field.playerId, field.playerName);
-        const assist = field.assistPlayerId === "pk" ? "PK" : resolveEventName(field.assistPlayerId, field.assistPlayerName);
+        const assist = resolveEventName(field.assistPlayerId, field.assistPlayerName);
         let text = scorer || "";
         if (assist) text += ` (${assist})`;
-        return text;
-      } else if (currentType === "og") {
-        const scorer = resolveEventName(field.playerId, field.playerName);
-        let text = scorer || "";
-        text += " (OG)";
         return text;
       } else if (currentType === "card") {
         const player = resolveEventName(field.playerId, field.playerName);
@@ -352,6 +355,45 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
 
   return (
     <div className="w-full space-y-3">
+      {mobilePicker ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4 sm:hidden" onClick={() => setMobilePicker(null)}>
+          <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#f4f4f6] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex h-12 items-center justify-between border-b border-slate-300/80 bg-white px-4">
+              <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobilePicker(null)}>
+                キャンセル
+              </button>
+              <div className="text-sm font-bold text-slate-500">{mobilePicker.title}</div>
+              <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobilePicker(null)}>
+                完了
+              </button>
+            </div>
+            <div className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
+              {mobilePicker.options.map((option) => {
+                const isPressed = pressedPickerValue === option.value;
+                const isSelected = option.value === mobilePicker.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onPointerDown={() => setPressedPickerValue(option.value)}
+                    onClick={() => {
+                      setPressedPickerValue(option.value);
+                      window.setTimeout(() => {
+                        mobilePicker.onSelect(option.value);
+                        setMobilePicker(null);
+                        setPressedPickerValue(null);
+                      }, 140);
+                    }}
+                    className={`block h-14 w-full scroll-mt-[22vh] [scroll-snap-align:center] truncate rounded-xl text-center text-[22px] font-bold leading-[56px] transition-colors ${isPressed ? 'bg-blue-500/25 text-blue-700' : isSelected ? 'bg-blue-500/10 text-blue-600' : 'text-slate-400'}`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="w-full rounded-2xl border border-slate-700/70 bg-slate-950 p-4 text-slate-100">
         <div className="flex flex-col gap-3 mb-4">
           <h3 className="text-base font-bold text-white">
@@ -398,17 +440,6 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
           </button>
           <button
             type="button"
-            onClick={() => setNewEventType("og")}
-            className={`flex-1 flex items-center justify-center h-8 rounded-lg border transition-colors ${
-              newEventType === "og"
-                ? "border-emerald-500 bg-emerald-500 text-white"
-                : "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <FaFutbol className="h-4 w-4 text-red-500" />
-          </button>
-          <button
-            type="button"
             onClick={() => setNewEventType("substitution")}
             className={`flex-1 flex items-center justify-center h-8 rounded-lg border transition-colors ${
               newEventType === "substitution"
@@ -450,46 +481,53 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
 
         {/* 分選択 */}
         <div className="mb-4">
-          <div className="mb-1 text-xs text-slate-400">分</div>
-          <Select
-            value={newEventMinute.toString()}
-            onValueChange={(val) => setNewEventMinute(parseFloat(val))}
+          <div className="mb-1 text-xs text-slate-400">選択</div>
+          <button
+            type="button"
+            onClick={() => {
+              setMobilePicker({
+                title: '分を選択',
+                value: newEventMinute.toString(),
+                options: minuteOptions.map((opt) => ({ value: opt.value.toString(), label: opt.label })),
+                onSelect: (val) => setNewEventMinute(parseFloat(val)),
+              });
+            }}
+            className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100 rounded-md px-3 py-2 text-left text-sm"
           >
-            <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {minuteOptions.map((opt, idx) => (
-                <SelectItem key={`${opt.value}-${idx}`} value={opt.value.toString()}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            {newEventMinute !== 0 ? minuteOptions.find(opt => opt.value === newEventMinute)?.label || '分を選択' : '分を選択'}
+          </button>
         </div>
 
         {/* 種別に応じた入力フィールド */}
-        {(newEventType === "goal" || newEventType === "og") && (
+        {newEventType === "goal" && (
           <div className="space-y-3 mb-4">
             <div>
-              <div className="mb-1 text-xs text-slate-400">
-                {newEventType === "og" ? "OG選手" : "得点者"}
-              </div>
-              <Select value={newEventPlayerId} onValueChange={(val) => { setNewEventPlayerId(val); if (val !== "custom") setNewEventPlayerName(""); }}>
-                <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
-                  <SelectValue placeholder="選手を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">未選択</SelectItem>
-                  {teamPlayers.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="custom">その他(自由入力)</SelectItem>
-                </SelectContent>
-              </Select>
-              {newEventPlayerId === "custom" && (
+              <div className="mb-1 text-xs text-slate-400">得点者</div>
+              <button
+                type="button"
+                onClick={() => {
+                  const options = [
+                    { value: 'pk', label: 'PK(ペナルティキック)' },
+                    { value: 'og', label: 'OG(オウンゴール)' },
+                    { value: 'none', label: '未選択' },
+                    ...scorerTeamPlayers.map((p) => ({ value: p.id, label: p.name })),
+                    { value: 'custom', label: 'その他(自由入力)' },
+                  ];
+                  setMobilePicker({
+                    title: '得点者を選択',
+                    value: newEventPlayerId,
+                    options,
+                    onSelect: (val) => {
+                      setNewEventPlayerId(val);
+                      if (val !== "custom") setNewEventPlayerName("");
+                    },
+                  });
+                }}
+                className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100 rounded-md px-3 py-2 text-left text-sm"
+              >
+                {newEventPlayerId === 'pk' ? 'PK(ペナルティキック)' : newEventPlayerId === 'og' ? 'OG(オウンゴール)' : newEventPlayerId === 'custom' ? newEventPlayerName || 'その他(自由入力)' : newEventPlayerId === 'none' || !newEventPlayerId ? '得点者を選択' : scorerTeamPlayers.find(p => p.id === newEventPlayerId)?.name || '得点者を選択'}
+              </button>
+              {newEventPlayerId === 'custom' && (
                 <Input
                   value={newEventPlayerName}
                   onChange={(e) => setNewEventPlayerName(e.target.value)}
@@ -497,35 +535,72 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                   className="mt-2 h-10 w-full border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
                 />
               )}
-            </div>
-            {newEventType === "goal" && (
-              <div>
-                <div className="mb-1 text-xs text-slate-400">アシスト(任意)</div>
-                <Select value={newEventAssistPlayerId} onValueChange={(val) => { setNewEventAssistPlayerId(val); if (val !== "custom") setNewEventAssistPlayerName(""); }}>
-                  <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
-                    <SelectValue placeholder="選手を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pk">PK</SelectItem>
-                    <SelectItem value="none">未選択</SelectItem>
-                    {teamPlayers.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="custom">その他(自由入力)</SelectItem>
-                  </SelectContent>
-                </Select>
-                {newEventAssistPlayerId === "custom" && (
+              {newEventPlayerId === 'pk' && (
+                <div className="mt-2">
+                  <div className="mb-1 text-xs text-slate-400">PK得点者</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const options = scorerTeamPlayers.map((p) => ({ value: p.id, label: p.name }));
+                      setMobilePicker({
+                        title: 'PK得点者を選択',
+                        value: '',
+                        options,
+                        onSelect: (val) => setNewEventPlayerName(scorerTeamPlayers.find(p => p.id === val)?.name || ''),
+                      });
+                    }}
+                    className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100 rounded-md px-3 py-2 text-left text-sm"
+                  >
+                    {newEventPlayerName || 'PK得点者を選択'}
+                  </button>
+                </div>
+              )}
+              {newEventPlayerId === 'og' && (
+                <div className="mt-2">
+                  <div className="mb-1 text-xs text-slate-400">OG選手</div>
                   <Input
-                    value={newEventAssistPlayerName}
-                    onChange={(e) => setNewEventAssistPlayerName(e.target.value)}
-                    placeholder="選手名を入力"
+                    value={newEventPlayerName}
+                    onChange={(e) => setNewEventPlayerName(e.target.value)}
+                    placeholder="自由入力"
                     className="mt-2 h-10 w-full border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
                   />
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
+            <div>
+              <div className="mb-1 text-xs text-slate-400">アシスト(任意)</div>
+              <button
+                type="button"
+                disabled={newEventPlayerId === 'pk' || newEventPlayerId === 'og'}
+                onClick={() => {
+                  const options = [
+                    { value: 'none', label: '未選択' },
+                    ...assistTeamPlayers.filter(p => p.id !== newEventPlayerId).map((p) => ({ value: p.id, label: p.name })),
+                    { value: 'custom', label: 'その他(自由入力)' },
+                  ];
+                  setMobilePicker({
+                    title: 'アシストを選択',
+                    value: newEventAssistPlayerId,
+                    options,
+                    onSelect: (val) => {
+                      setNewEventAssistPlayerId(val);
+                      if (val !== "custom") setNewEventAssistPlayerName("");
+                    },
+                  });
+                }}
+                className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100 rounded-md px-3 py-2 text-left text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {newEventAssistPlayerId === 'none' || !newEventAssistPlayerId ? 'アシストを選択' : newEventAssistPlayerId === 'custom' ? newEventAssistPlayerName || 'その他(自由入力)' : assistTeamPlayers.find(p => p.id === newEventAssistPlayerId)?.name || 'アシストを選択'}
+              </button>
+              {newEventAssistPlayerId === "custom" && (
+                <Input
+                  value={newEventAssistPlayerName}
+                  onChange={(e) => setNewEventAssistPlayerName(e.target.value)}
+                  placeholder="選手名を入力"
+                  className="mt-2 h-10 w-full border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-500"
+                />
+              )}
+            </div>
           </div>
         )}
 
@@ -533,20 +608,28 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
           <div className="space-y-3 mb-4">
             <div>
               <div className="mb-1 text-xs text-slate-400">選手</div>
-              <Select value={newEventPlayerId} onValueChange={(val) => { setNewEventPlayerId(val); if (val !== "custom") setNewEventPlayerName(""); }}>
-                <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
-                  <SelectValue placeholder="選手を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">未選択</SelectItem>
-                  {teamPlayers.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="custom">その他(自由入力)</SelectItem>
-                </SelectContent>
-              </Select>
+              <button
+                type="button"
+                onClick={() => {
+                  const options = [
+                    { value: 'none', label: '未選択' },
+                    ...teamPlayers.map((p) => ({ value: p.id, label: p.name })),
+                    { value: 'custom', label: 'その他(自由入力)' },
+                  ];
+                  setMobilePicker({
+                    title: '選手を選択',
+                    value: newEventPlayerId,
+                    options,
+                    onSelect: (val) => {
+                      setNewEventPlayerId(val);
+                      if (val !== "custom") setNewEventPlayerName("");
+                    },
+                  });
+                }}
+                className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100 rounded-md px-3 py-2 text-left text-sm"
+              >
+                {newEventPlayerId === 'custom' ? newEventPlayerName || 'その他(自由入力)' : newEventPlayerId === 'none' || !newEventPlayerId ? '選手を選択' : teamPlayers.find(p => p.id === newEventPlayerId)?.name || '選手を選択'}
+              </button>
               {newEventPlayerId === "custom" && (
                 <Input
                   value={newEventPlayerName}
@@ -563,20 +646,28 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
           <div className="space-y-3 mb-4">
             <div>
               <div className="mb-1 text-xs text-slate-400">OUT選手を選択</div>
-              <Select value={newEventOutPlayerId} onValueChange={(val) => { setNewEventOutPlayerId(val); if (val !== "custom") setNewEventOutPlayerName(""); }}>
-                <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
-                  <SelectValue placeholder="選手を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">未選択</SelectItem>
-                  {starterPlayers.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="custom">その他(自由入力)</SelectItem>
-                </SelectContent>
-              </Select>
+              <button
+                type="button"
+                onClick={() => {
+                  const options = [
+                    { value: 'none', label: '未選択' },
+                    ...starterPlayers.map((p) => ({ value: p.id, label: p.name })),
+                    { value: 'custom', label: 'その他(自由入力)' },
+                  ];
+                  setMobilePicker({
+                    title: 'OUT選手を選択',
+                    value: newEventOutPlayerId,
+                    options,
+                    onSelect: (val) => {
+                      setNewEventOutPlayerId(val);
+                      if (val !== "custom") setNewEventOutPlayerName("");
+                    },
+                  });
+                }}
+                className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100 rounded-md px-3 py-2 text-left text-sm"
+              >
+                {newEventOutPlayerId === 'custom' ? newEventOutPlayerName || 'その他(自由入力)' : newEventOutPlayerId === 'none' || !newEventOutPlayerId ? '選手を選択' : starterPlayers.find(p => p.id === newEventOutPlayerId)?.name || '選手を選択'}
+              </button>
               {newEventOutPlayerId === "custom" && (
                 <Input
                   value={newEventOutPlayerName}
@@ -588,20 +679,28 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
             </div>
             <div>
               <div className="mb-1 text-xs text-slate-400">IN選手を選択</div>
-              <Select value={newEventInPlayerId} onValueChange={(val) => { setNewEventInPlayerId(val); if (val !== "custom") setNewEventInPlayerName(""); }}>
-                <SelectTrigger className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100">
-                  <SelectValue placeholder="選手を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">未選択</SelectItem>
-                  {subPlayers.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="custom">その他(自由入力)</SelectItem>
-                </SelectContent>
-              </Select>
+              <button
+                type="button"
+                onClick={() => {
+                  const options = [
+                    { value: 'none', label: '未選択' },
+                    ...subPlayers.map((p) => ({ value: p.id, label: p.name })),
+                    { value: 'custom', label: 'その他(自由入力)' },
+                  ];
+                  setMobilePicker({
+                    title: 'IN選手を選択',
+                    value: newEventInPlayerId,
+                    options,
+                    onSelect: (val) => {
+                      setNewEventInPlayerId(val);
+                      if (val !== "custom") setNewEventInPlayerName("");
+                    },
+                  });
+                }}
+                className="h-10 w-full border-slate-700 bg-slate-900 text-slate-100 rounded-md px-3 py-2 text-left text-sm"
+              >
+                {newEventInPlayerId === 'custom' ? newEventInPlayerName || 'その他(自由入力)' : newEventInPlayerId === 'none' || !newEventInPlayerId ? '選手を選択' : subPlayers.find(p => p.id === newEventInPlayerId)?.name || '選手を選択'}
+              </button>
               {newEventInPlayerId === "custom" && (
                 <Input
                   value={newEventInPlayerName}
