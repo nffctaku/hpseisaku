@@ -19,6 +19,188 @@ const barlow = Barlow_Condensed({
 
 const POSITION_ORDER = ['GK', 'DF', 'MF', 'FW'] as const;
 
+function getFlagEmoji(countryName: string): string {
+  return countryName;
+}
+
+function getFlagUrl(countryName: string): string | null {
+  const countryCodes: Record<string, string> = {
+    '日本': 'jp',
+    'Japan': 'jp',
+    'JPN': 'jp',
+    '韓国': 'kr',
+    'Korea': 'kr',
+    'South Korea': 'kr',
+    'KOR': 'kr',
+    '中国': 'cn',
+    'China': 'cn',
+    'CHN': 'cn',
+    '北朝鮮': 'kp',
+    'North Korea': 'kp',
+    'PRK': 'kp',
+    'アメリカ': 'us',
+    'USA': 'us',
+    'United States': 'us',
+    'イギリス': 'gb',
+    'UK': 'gb',
+    'United Kingdom': 'gb',
+    'GBR': 'gb',
+    'England': 'gb-eng',
+    'ドイツ': 'de',
+    'Germany': 'de',
+    'GER': 'de',
+    'フランス': 'fr',
+    'France': 'fr',
+    'FRA': 'fr',
+    'イタリア': 'it',
+    'Italy': 'it',
+    'ITA': 'it',
+    'スペイン': 'es',
+    'Spain': 'es',
+    'ESP': 'es',
+    'オランダ': 'nl',
+    'Netherlands': 'nl',
+    'NED': 'nl',
+    'ベルギー': 'be',
+    'Belgium': 'be',
+    'BEL': 'be',
+    'ポルトガル': 'pt',
+    'Portugal': 'pt',
+    'POR': 'pt',
+    'ブラジル': 'br',
+    'Brazil': 'br',
+    'BRA': 'br',
+    'アルゼンチン': 'ar',
+    'Argentina': 'ar',
+    'ARG': 'ar',
+    'ウルグアイ': 'uy',
+    'Uruguay': 'uy',
+    'URU': 'uy',
+    'コロンビア': 'co',
+    'Colombia': 'co',
+    'COL': 'co',
+    'メキシコ': 'mx',
+    'Mexico': 'mx',
+    'MEX': 'mx',
+    'カナダ': 'ca',
+    'Canada': 'ca',
+    'CAN': 'ca',
+    'オーストラリア': 'au',
+    'Australia': 'au',
+    'AUS': 'au',
+    'ニュージーランド': 'nz',
+    'New Zealand': 'nz',
+    'NZL': 'nz',
+    'ナイジェリア': 'ng',
+    'Nigeria': 'ng',
+    'NGA': 'ng',
+    'ガーナ': 'gh',
+    'Ghana': 'gh',
+    'GHA': 'gh',
+    'コートジボワール': 'ci',
+    'Ivory Coast': 'ci',
+    'CIV': 'ci',
+    'セネガル': 'sn',
+    'Senegal': 'sn',
+    'SEN': 'sn',
+    'エジプト': 'eg',
+    'Egypt': 'eg',
+    'EGY': 'eg',
+    'モロッコ': 'ma',
+    'Morocco': 'ma',
+    'MAR': 'ma',
+    '南アフリカ': 'za',
+    'South Africa': 'za',
+    'RSA': 'za',
+    'サウジアラビア': 'sa',
+    'Saudi Arabia': 'sa',
+    'KSA': 'sa',
+    'アラブ首長国連邦': 'ae',
+    'UAE': 'ae',
+    'United Arab Emirates': 'ae',
+    'カタール': 'qa',
+    'Qatar': 'qa',
+    'QAT': 'qa',
+    'イラン': 'ir',
+    'Iran': 'ir',
+    'IRN': 'ir',
+    'トルコ': 'tr',
+    'Turkey': 'tr',
+    'TUR': 'tr',
+    'ロシア': 'ru',
+    'Russia': 'ru',
+    'RUS': 'ru',
+    'ウクライナ': 'ua',
+    'Ukraine': 'ua',
+    'UKR': 'ua',
+    'ポーランド': 'pl',
+    'Poland': 'pl',
+    'POL': 'pl',
+    'チェコ': 'cz',
+    'Czech Republic': 'cz',
+    'CZE': 'cz',
+    'スロバキア': 'sk',
+    'Slovakia': 'sk',
+    'SVK': 'sk',
+    'ハンガリー': 'hu',
+    'Hungary': 'hu',
+    'HUN': 'hu',
+    'ルーマニア': 'ro',
+    'Romania': 'ro',
+    'ROU': 'ro',
+    'ブルガリア': 'bg',
+    'Bulgaria': 'bg',
+    'BUL': 'bg',
+    'セルビア': 'rs',
+    'Serbia': 'rs',
+    'SRB': 'rs',
+    'クロアチア': 'hr',
+    'Croatia': 'hr',
+    'CRO': 'hr',
+    'スロベニア': 'si',
+    'Slovenia': 'si',
+    'SVN': 'si',
+    'ボスニア・ヘルツェゴビナ': 'ba',
+    'Bosnia': 'ba',
+    'BIH': 'ba',
+    '北マケドニア': 'mk',
+    'North Macedonia': 'mk',
+    'MKD': 'mk',
+    'ギリシャ': 'gr',
+    'Greece': 'gr',
+    'GRE': 'gr',
+    'スイス': 'ch',
+    'Switzerland': 'ch',
+    'SUI': 'ch',
+    'オーストリア': 'at',
+    'Austria': 'at',
+    'AUT': 'at',
+    'スウェーデン': 'se',
+    'Sweden': 'se',
+    'SWE': 'se',
+    'ノルウェー': 'no',
+    'Norway': 'no',
+    'NOR': 'no',
+    'デンマーク': 'dk',
+    'Denmark': 'dk',
+    'DEN': 'dk',
+    'フィンランド': 'fi',
+    'Finland': 'fi',
+    'FIN': 'fi',
+    'アイスランド': 'is',
+    'Iceland': 'is',
+    'ISL': 'is',
+  };
+
+  const normalized = countryName.trim();
+  const code = countryCodes[normalized];
+  if (code) {
+    return `https://flagcdn.com/w40/${code}.png`;
+  }
+
+  return null;
+}
+
 const MATCH_RESULT_COLORS: Record<string, string> = {
   W: '#22c55e',
   D: '#f59e0b',
@@ -505,7 +687,9 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
     const nationality = getPlayerNationality(player, activeSeason);
     const preferredFoot = getPlayerPreferredFoot(player, activeSeason);
     const profileText = getPlayerProfile(player, activeSeason);
-    const profile = [age !== null ? `${age}歳` : null, nationality].filter(Boolean).join(' · ') || '年齢・国籍情報なし';
+    const flagUrl = nationality ? getFlagUrl(nationality) : null;
+  const nationalityDisplay = nationality || null;
+  const profile = [age !== null ? `${age}歳` : null, nationalityDisplay].filter(Boolean).join(' · ') || '年齢・国籍情報なし';
     const seasonCards = getPlayerSeasonCards(player, allSeasons);
     const [expandedSeasons, setExpandedSeasons] = useState<Set<string>>(new Set());
 
@@ -536,7 +720,8 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
       { label: '利き足', value: footText },
     ];
     if (player.subName) basicItems.push({ label: 'サブネーム', value: player.subName });
-    if (player.dateOfBirth) basicItems.push({ label: '生年月日', value: player.dateOfBirth });
+    if (nationality) basicItems.push({ label: '国籍', value: nationality });
+    if (player.dateOfBirth) basicItems.push({ label: '生年月日', value: age !== null ? `${player.dateOfBirth} (${age}歳)` : player.dateOfBirth });
     if (typeof player.tenureYears === 'number' || Array.isArray(player.seasons)) {
       basicItems.push({ label: '在籍年数', value: typeof player.tenureYears === 'number' ? `${player.tenureYears}年目` : `${player.seasons!.length}年` });
     }
@@ -584,8 +769,13 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
             <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/75 via-black/30 to-transparent" />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/95 via-black/60 to-transparent" />
             <div className="absolute top-0 left-0 right-0 p-4 flex items-start justify-between z-10">
-              <div className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ background: `${hex}1f`, color: hex, border: `1px solid ${hex}45` }}>
-                {normalizePosition(player.position)}
+              <div className="flex flex-col items-center gap-2">
+                <div className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ background: `${hex}1f`, color: hex, border: `1px solid ${hex}45` }}>
+                  {normalizePosition(player.position)}
+                </div>
+                {flagUrl ? (
+                  <img src={flagUrl} alt={nationality} className="h-5 w-7 object-cover" />
+                ) : null}
               </div>
               <button
                 type="button"
@@ -605,7 +795,6 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
               <div className="text-2xl font-black leading-none" style={{ color: mainAccent }}>#{player.number}</div>
               <div className="text-2xl sm:text-[2.6rem] font-black leading-none text-white mt-1">{player.name}</div>
               {player.subName ? <div className="mt-0.5 text-sm font-semibold text-white/80">{player.subName}</div> : null}
-              <div className="mt-1 text-xs text-white/55">{profile}</div>
             </div>
           </div>
 
