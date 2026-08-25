@@ -911,7 +911,6 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
               </button>
             </div>
             <div className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
-              <div className="pointer-events-none absolute inset-x-5 top-1/2 z-10 h-14 -translate-y-1/2 border-y border-slate-400/70" />
               {mobilePicker.options.map((option) => {
                 const isPressed = pressedPickerValue === option.value;
                 const isSelected = option.value === mobilePicker.value;
@@ -1017,7 +1016,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
             const globalIndex = fields.findIndex((f) => f.id === (field as any).id);
             if (globalIndex === -1) return null;
             const currentPlayerId = String(watch(`playerStats.${globalIndex}.playerId`) || (field as any)?.playerId || '');
-            const options = sortedAllPlayers.filter((p) => !teamPlayerIdsInStats.includes(p.id) || p.id === currentPlayerId);
+            const options = sortedAllPlayers;
             return renderPlayerRow(field as any, {
               showTrash: true,
               header: (
