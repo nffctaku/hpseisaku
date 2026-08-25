@@ -43,12 +43,19 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
     const seasonMatch = season.match(/(\d{4})\/\d{2}/);
     if (seasonMatch) {
       const startYear = parseInt(seasonMatch[1], 10);
-      return new Date(startYear, 7, 1);
+      return new Date(startYear, 0, 1);
     }
     return new Date();
   }, [match.matchDate, season]);
 
   const [open, setOpen] = useState(false);
+  const [mobilePicker, setMobilePicker] = useState<null | {
+    title: string;
+    value: string;
+    options: Array<{ value: string; label: string }>;
+    onSelect: (value: string) => void;
+  }>(null);
+  const [pressedPickerValue, setPressedPickerValue] = useState<string | null>(null);
 
   const { user, ownerUid } = useAuth();
   const params = useParams();
@@ -125,7 +132,47 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
   }, [teams, excludedTeamIds, match.homeTeam, match.awayTeam]);
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-3 text-gray-900 shadow-sm">
+    <>
+      {mobilePicker ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4 sm:hidden" onClick={() => setMobilePicker(null)}>
+          <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#f4f4f6] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex h-12 items-center justify-between border-b border-slate-300/80 bg-white px-4">
+              <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobilePicker(null)}>
+                キャンセル
+              </button>
+              <div className="text-sm font-bold text-slate-500">{mobilePicker.title}</div>
+              <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobilePicker(null)}>
+                完了
+              </button>
+            </div>
+            <div className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
+              {mobilePicker.options.map((option) => {
+                const isPressed = pressedPickerValue === option.value;
+                const isSelected = option.value === mobilePicker.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onPointerDown={() => setPressedPickerValue(option.value)}
+                    onClick={() => {
+                      setPressedPickerValue(option.value);
+                      window.setTimeout(() => {
+                        mobilePicker.onSelect(option.value);
+                        setMobilePicker(null);
+                        setPressedPickerValue(null);
+                      }, 140);
+                    }}
+                    className={`block h-14 w-full scroll-mt-[22vh] [scroll-snap-align:center] truncate rounded-xl text-center text-[22px] font-bold leading-[56px] transition-colors ${isPressed ? 'bg-blue-500/25 text-blue-700' : isSelected ? 'bg-blue-500/10 text-blue-600' : 'text-slate-400'}`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <div className="rounded-xl border border-gray-100 bg-white p-3 text-gray-900 shadow-sm">
       <div className="mb-5 flex items-center justify-between gap-3">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
@@ -199,62 +246,57 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
 
       {/* Home Team Selector */}
       <div className="flex min-w-0 items-center justify-start">
-        <Select value={match.homeTeam} onValueChange={(value) => onUpdate(match.id, 'homeTeam', value)}>
-          <SelectTrigger className="h-9 w-full border-0 bg-transparent px-0 text-left font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0">
-            <SelectValue placeholder="ホーム">
-              {match.homeTeam && allTeamsMap.get(match.homeTeam) ? (
-                <span>{allTeamsMap.get(match.homeTeam)!.name}</span>
-              ) : "ホーム"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {homeTeamOptions.map(t => (
-              <SelectItem
-                key={t.id}
-                value={t.id}
-                className="hover:bg-muted focus:bg-muted data-[state=checked]:bg-muted"
-              >
-                <span>{t.name}</span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <button
+          type="button"
+          onClick={() => {
+            const options = homeTeamOptions.map((t) => ({ value: t.id, label: t.name }));
+            setMobilePicker({
+              title: 'ホームを選択',
+              value: match.homeTeam || '',
+              options,
+              onSelect: (val) => onUpdate(match.id, 'homeTeam', val),
+            });
+          }}
+          className="h-9 w-full border-0 bg-transparent px-0 text-left text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0"
+        >
+          {match.homeTeam && allTeamsMap.get(match.homeTeam) ? allTeamsMap.get(match.homeTeam)!.name : 'ホーム'}
+        </button>
       </div>
 
       {/* Score Inputs */}
       <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
         <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            min={0}
-            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900"
-            value={match.scoreHome ?? ''}
-            onChange={(e) => {
-              if (e.target.value === '') {
-                onUpdate(match.id, 'scoreHome', null);
-                return;
-              }
-              const n = parseInt(e.target.value, 10);
-              onUpdate(match.id, 'scoreHome', clampScore(n));
+          <button
+            type="button"
+            onClick={() => {
+              const options = Array.from({ length: 100 }, (_, i) => ({ value: i.toString(), label: i.toString() }));
+              setMobilePicker({
+                title: 'スコアを選択',
+                value: (match.scoreHome ?? '').toString(),
+                options,
+                onSelect: (val) => onUpdate(match.id, 'scoreHome', val === '' ? null : clampScore(parseInt(val, 10))),
+              });
             }}
-            placeholder="-"
-          />
+            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900"
+          >
+            {match.scoreHome ?? '-'}
+          </button>
           <span className="text-sm text-gray-400">-</span>
-          <Input
-            type="number"
-            min={0}
-            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900"
-            value={match.scoreAway ?? ''}
-            onChange={(e) => {
-              if (e.target.value === '') {
-                onUpdate(match.id, 'scoreAway', null);
-                return;
-              }
-              const n = parseInt(e.target.value, 10);
-              onUpdate(match.id, 'scoreAway', clampScore(n));
+          <button
+            type="button"
+            onClick={() => {
+              const options = Array.from({ length: 100 }, (_, i) => ({ value: i.toString(), label: i.toString() }));
+              setMobilePicker({
+                title: 'スコアを選択',
+                value: (match.scoreAway ?? '').toString(),
+                options,
+                onSelect: (val) => onUpdate(match.id, 'scoreAway', val === '' ? null : clampScore(parseInt(val, 10))),
+              });
             }}
-            placeholder="-"
-          />
+            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900"
+          >
+            {match.scoreAway ?? '-'}
+          </button>
         </div>
 
         {canInputPk && (
@@ -297,28 +339,24 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
 
       {/* Away Team Selector */}
       <div className="min-w-0">
-        <Select value={match.awayTeam} onValueChange={(value) => onUpdate(match.id, 'awayTeam', value)}>
-           <SelectTrigger className="h-9 w-full border-0 bg-transparent px-0 text-right font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0">
-            <SelectValue placeholder="アウェイ">
-              {match.awayTeam && allTeamsMap.get(match.awayTeam) ? (
-                <span>{allTeamsMap.get(match.awayTeam)!.name}</span>
-              ) : "アウェイ"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {awayTeamOptions.map(t => (
-              <SelectItem
-                key={t.id}
-                value={t.id}
-                className="hover:bg-muted focus:bg-muted data-[state=checked]:bg-muted"
-              >
-                <span>{t.name}</span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <button
+          type="button"
+          onClick={() => {
+            const options = awayTeamOptions.map((t) => ({ value: t.id, label: t.name }));
+            setMobilePicker({
+              title: 'アウェイを選択',
+              value: match.awayTeam || '',
+              options,
+              onSelect: (val) => onUpdate(match.id, 'awayTeam', val),
+            });
+          }}
+          className="h-9 w-full border-0 bg-transparent px-0 text-right text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0"
+        >
+          {match.awayTeam && allTeamsMap.get(match.awayTeam) ? allTeamsMap.get(match.awayTeam)!.name : 'アウェイ'}
+        </button>
       </div>
       </div>
     </div>
+  </>
   );
 }
