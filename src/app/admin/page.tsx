@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClub } from "@/contexts/ClubContext";
 import { db } from "@/lib/firebase";
@@ -265,30 +266,38 @@ export default function AdminHomePage() {
   };
 
   return (
-    <div className="w-full mx-auto max-w-5xl px-0 py-0">
+    <div className="relative w-full mx-auto max-w-5xl px-0 py-0">
+      <div className="fixed inset-0 -z-10">
+        <Image
+          src="/背景スタジアム１.png"
+          alt=""
+          fill
+          priority
+          className="object-cover object-center opacity-30"
+          sizes="100vw"
+        />
+        <div className="absolute inset-0 bg-[#08111f]/70" />
+      </div>
       {/* PC Layout */}
-      <div className="hidden sm:block">
+      <div className="relative z-10 hidden sm:block">
         {/* Header */}
-        <div className="flex items-start justify-between mb-1">
-          <div>
-            <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.38)' }}>
-              こんにちは
-            </p>
+        <div className="flex flex-col items-start justify-between mb-1">
+          <div className="w-full flex items-center justify-between">
             <p
               className="text-[28px] font-black italic leading-none"
               style={{ color: '#f0f4ff', fontFamily: 'var(--font-barlow-condensed)' }}
             >
-              {clubInfo?.clubName || "チーム"}さん
+              {clubInfo?.clubName || "チーム"}
             </p>
+            {clubId && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap" style={{ backgroundColor: 'rgba(31,215,96,0.09)', border: '1px solid rgba(31,215,96,0.25)' }}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#1fd760' }} />
+                <span className="text-[12px] font-bold" style={{ color: '#1fd760' }}>
+                  公開中
+                </span>
+              </div>
+            )}
           </div>
-          {clubId && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ backgroundColor: 'rgba(31,215,96,0.09)', border: '1px solid rgba(31,215,96,0.25)' }}>
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#1fd760' }} />
-              <span className="text-[12px] font-bold" style={{ color: '#1fd760' }}>
-                公開中
-              </span>
-            </div>
-          )}
         </div>
 
         {/* HP Buttons */}
@@ -371,28 +380,25 @@ export default function AdminHomePage() {
       </div>
 
       {/* Mobile Layout */}
-      <div className="sm:hidden max-w-lg mx-auto">
+      <div className="relative z-10 sm:hidden max-w-lg mx-auto">
         {/* Header */}
-        <div className="flex items-start justify-between mb-1">
-          <div>
-            <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.38)' }}>
-              こんにちは
-            </p>
+        <div className="flex flex-col items-start justify-between mb-1">
+          <div className="w-full flex items-center justify-between">
             <p
               className="text-[28px] font-black italic leading-none"
               style={{ color: '#f0f4ff', fontFamily: 'var(--font-barlow-condensed)' }}
             >
-              {clubInfo?.clubName || "チーム"}さん
+              {clubInfo?.clubName || "チーム"}
             </p>
+            {clubId && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full whitespace-nowrap" style={{ backgroundColor: 'rgba(31,215,96,0.09)', border: '1px solid rgba(31,215,96,0.25)' }}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#1fd760' }} />
+                <span className="text-[12px] font-bold" style={{ color: '#1fd760' }}>
+                  公開中
+                </span>
+              </div>
+            )}
           </div>
-          {clubId && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ backgroundColor: 'rgba(31,215,96,0.09)', border: '1px solid rgba(31,215,96,0.25)' }}>
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#1fd760' }} />
-              <span className="text-[12px] font-bold" style={{ color: '#1fd760' }}>
-                公開中
-              </span>
-            </div>
-          )}
         </div>
 
         {/* HP Buttons */}
@@ -475,7 +481,7 @@ export default function AdminHomePage() {
       </div>
 
       {shouldShowAdminHomeAd ? (
-        <div className="mt-8 rounded-xl border p-3" style={{ borderColor: 'rgba(255,255,255,0.07)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+        <div className="relative z-10 mt-8 rounded-xl border p-3" style={{ borderColor: 'rgba(255,255,255,0.07)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
           <ins
             className="adsbygoogle"
             style={{ display: "block" }}
@@ -488,7 +494,7 @@ export default function AdminHomePage() {
       ) : null}
 
       {/* Footer */}
-      <div className="mt-8 pt-4 pb-8 text-center border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+      <div className="relative z-10 mt-8 pt-4 pb-8 text-center border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
         <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
           FootChron 管理画面
         </p>

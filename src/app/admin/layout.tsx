@@ -188,7 +188,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen w-full bg-gray-900 text-white">
+    <div className="relative z-10 flex min-h-screen w-full bg-gray-900 text-white">
       <Dialog open={tosOpen} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-lg" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader>
@@ -240,16 +240,18 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
         <Sidebar />
       </div>
 
-      <div className="flex flex-col flex-1 w-full min-w-0">
-        <Header 
-          logoUrl={clubInfo.logoUrl || user?.logoUrl}
-          clubName={clubInfo.clubName || user?.clubName}
-          homePath={user ? `/admin/club/${user.uid}` : '/admin'}
-          navLinks={null} // No nav links in admin header
-          onMenuClick={toggleSidebar}
-          isMenuOpen={isSidebarOpen}
-          isAdminPage={true}
-        />
+      <div className="flex flex-col flex-1 w-full min-w-0 relative z-10">
+        <div className="relative z-20">
+          <Header
+            logoUrl={clubInfo.logoUrl || user?.logoUrl}
+            clubName={clubInfo.clubName || user?.clubName}
+            homePath={user ? `/admin/club/${user.uid}` : '/admin'}
+            navLinks={null} // No nav links in admin header
+            onMenuClick={toggleSidebar}
+            isMenuOpen={isSidebarOpen}
+            isAdminPage={true}
+          />
+        </div>
         <main
           className={`flex-1 w-full p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8 overflow-y-auto ${
             allowHorizontalScroll ? 'overflow-x-auto' : 'overflow-x-hidden'
@@ -257,7 +259,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
         >
           {children}
         </main>
-        <footer className="border-t border-gray-800 px-4 sm:px-6 md:px-8 py-4 text-xs text-gray-400">
+        <footer className="relative z-20 border-t border-gray-800 px-4 sm:px-6 md:px-8 py-4 text-xs text-gray-400">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1">
               <Link href="/terms" className="hover:text-white transition-colors whitespace-nowrap">
