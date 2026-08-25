@@ -941,13 +941,26 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
       <div className="overflow-hidden rounded-[20px] border border-slate-700/80 bg-[#111827] shadow-[0_18px_50px_rgba(0,0,0,0.28)] sm:rounded-[24px]">
         <div className="flex items-center justify-between gap-3 border-b border-slate-700/80 px-4 py-5 text-white sm:px-5">
           <div className="w-36">
+            <button
+              type="button"
+              onClick={() => setMobilePicker({
+                title: 'フォーメーションを選択',
+                value: selectedFormation,
+                options: FORMATION_OPTIONS.map((formation) => ({ value: formation, label: formation })),
+                onSelect: handleFormationChange,
+              })}
+              className="h-11 w-full rounded-full border border-slate-500/50 bg-slate-700/50 px-5 text-left text-sm font-semibold text-white shadow-none sm:hidden"
+              aria-label="フォーメーションを選択"
+            >
+              {selectedFormation}
+            </button>
             <Select value={selectedFormation} onValueChange={handleFormationChange}>
-              <SelectTrigger className="h-11 rounded-full border border-slate-500/50 bg-slate-700/50 px-5 text-sm font-semibold text-white shadow-none focus:ring-0 focus:ring-offset-0">
+              <SelectTrigger className="hidden h-11 rounded-full border border-slate-500/50 bg-slate-700/50 px-5 text-sm font-semibold text-white shadow-none focus:ring-0 focus:ring-offset-0 sm:flex">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[82vh] w-[calc(100vw-24px)] min-w-[calc(100vw-24px)] rounded-3xl border-slate-200 bg-white p-3 shadow-2xl sm:w-[420px] sm:min-w-[420px]">
                 {FORMATION_OPTIONS.map((formation) => (
-                  <SelectItem key={formation} value={formation}>
+                  <SelectItem key={formation} value={formation} className="mb-2 min-h-16 rounded-2xl px-4 py-4 text-lg font-bold text-slate-900 focus:bg-emerald-50 focus:text-emerald-700">
                     {formation}
                   </SelectItem>
                 ))}

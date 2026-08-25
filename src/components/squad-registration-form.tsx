@@ -120,14 +120,14 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   };
 
   // localStorageからデフォルトスタメン・サブ設定を読み込む
-  const loadDefaultSquad = (teamPlayers: Player[], fallbackTeamId?: string) => {
+  const loadDefaultSquad = (teamPlayers: Player[], fallbackTeamId?: string): { playerStats: FormValues['playerStats']; formation: string } => {
     try {
       const saved = localStorage.getItem(seasonStorageKey) ?? localStorage.getItem(legacyStorageKey);
       if (saved) {
         const data = JSON.parse(saved);
         // チームIDを特定（引数のfallbackTeamIdを優先。無ければ最初の選手のteamId）
         let teamId = fallbackTeamId || teamPlayers[0]?.teamId;
-        if (!teamId) return [];
+        if (!teamId) return { playerStats: [], formation: '' };
         
         const teamDefaultSquad = data[teamId] || { starters: [], subs: [] };
         
@@ -135,7 +135,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         const defaultPlayerStats: any[] = [];
         
         // スタメン
-        teamDefaultSquad.starters.forEach((playerId: string, index: number) => {
+        (teamDefaultSquad.starters || []).forEach((playerId: string, index: number) => {
           const player = teamPlayers.find(p => p.id === playerId);
           if (player) {
             defaultPlayerStats.push({
@@ -157,7 +157,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         });
         
         // サブ
-        teamDefaultSquad.subs.forEach((playerId: string) => {
+        (teamDefaultSquad.subs || []).forEach((playerId: string) => {
           const player = teamPlayers.find(p => p.id === playerId);
           if (player) {
             defaultPlayerStats.push({
@@ -177,16 +177,19 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           }
         });
         
-        return defaultPlayerStats;
+        return {
+          playerStats: defaultPlayerStats,
+          formation: typeof teamDefaultSquad.formation === 'string' ? teamDefaultSquad.formation : '',
+        };
       }
     } catch (error) {
       console.error('Error loading default squad:', error);
     }
-    return [];
+    return { playerStats: [], formation: '' };
   };
 
   // デフォルトスタメン・サブ設定を保存
-  const saveDefaultSquad = (playerStats: any[]) => {
+  const saveDefaultSquad = (playerStats: FormValues['playerStats'], formations?: Record<string, string>) => {
     try {
       const existingData = localStorage.getItem(seasonStorageKey);
       const data = existingData ? JSON.parse(existingData) : {};
@@ -219,6 +222,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         acc[teamId] = {
           starters: sortedRows.filter((ps: any) => (ps.role || 'starter') === 'starter').map((ps: any) => ps.playerId),
           subs: sortedRows.filter((ps: any) => ps.role === 'sub').map((ps: any) => ps.playerId),
+          formation: formations?.[teamId] || data[teamId]?.formation || '4-3-3',
         };
         return acc;
       }, {});
@@ -397,7 +401,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   const applyDefaultSquad = async () => {
     const homeDefault = loadDefaultSquad(homePlayers, match.homeTeam);
     const awayDefault = loadDefaultSquad(awayPlayers, match.awayTeam);
-    const nextPlayerStats = [...homeDefault, ...awayDefault];
+    const nextPlayerStats = [...homeDefault.playerStats, ...awayDefault.playerStats];
 
     if (nextPlayerStats.length === 0) {
       toast.error('登録済みのラインナップがありません。');
@@ -409,8 +413,8 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       customStatHeaders: current.customStatHeaders || [],
       playerStats: nextPlayerStats,
       events: current.events || [],
-      homeFormation: current.homeFormation || match.homeFormation || '4-3-3',
-      awayFormation: current.awayFormation || match.awayFormation || '4-3-3',
+      homeFormation: homeDefault.formation || current.homeFormation || match.homeFormation || '4-3-3',
+      awayFormation: awayDefault.formation || current.awayFormation || match.awayFormation || '4-3-3',
     };
 
     methods.reset(nextValues);
@@ -751,6 +755,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         autosaveTimerRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedEvents, watchedPlayerStats, watchedCustomStatHeaders, methods.formState.isDirty, loading]);
 
   // 現在のメンバーをデフォルトとして設定
@@ -769,16 +774,13 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     const starterCount = statsToUse.filter(ps => ps.role === 'starter').length;
     const subCount = statsToUse.filter(ps => ps.role === 'sub').length;
     
-    saveDefaultSquad(statsToUse);
+    saveDefaultSquad(statsToUse, {
+      [match.homeTeam]: methods.getValues('homeFormation') || match.homeFormation || '4-3-3',
+      [match.awayTeam]: methods.getValues('awayFormation') || match.awayFormation || '4-3-3',
+    });
     toast.success(`メンバーをデフォルトとして設定しました（スタメン: ${starterCount}名, サブ: ${subCount}名）`);
     
     setSettingDefault(false);
-  };
-
-  // デフォルトスタメン・サブ設定をリセット
-  const resetDefaultSquad = () => {
-    localStorage.removeItem(seasonStorageKey);
-    toast.success('デフォルトスタメン・サブ設定をリセットしました');
   };
 
   if (loading) {
