@@ -126,6 +126,13 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [mobilePicker, setMobilePicker] = useState<null | {
+    title: string;
+    value: string;
+    options: Array<{ value: string; label: string }>;
+    onSelect: (value: string) => void;
+  }>(null);
+  const [pressedPickerValue, setPressedPickerValue] = useState<string | null>(null);
   const formationStorageKey = `match_lineup_formation_${teamId}`;
   
   // Use isHomeTeam prop to determine which formation field to use
@@ -617,7 +624,24 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
         className="absolute -translate-x-1/2 -translate-y-1/2"
         style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
       >
-        <div className="flex w-[62px] flex-col items-center gap-0.5 overflow-visible sm:w-[82px]">
+        <div className="relative flex w-[62px] flex-col items-center gap-0.5 overflow-visible sm:w-[82px]">
+          {!hasEvents ? (
+            <button
+              type="button"
+              onClick={() => setMobilePicker({
+                title: '選手を選択',
+                value: currentPlayerId || NONE_SELECT_VALUE,
+                options: [
+                  { value: NONE_SELECT_VALUE, label: '未選択' },
+                  ...options.filter(p => bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => ({ value: p.id, label: `[ベンチ] #${p.number ?? '-'} ${p.name}` })),
+                  ...options.filter(p => !bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => ({ value: p.id, label: `#${p.number ?? '-'} ${p.name}` })),
+                ],
+                onSelect: (value) => setStarterSlotPlayer(slot, value),
+              })}
+              className="absolute inset-0 z-20 h-full w-full opacity-0 sm:hidden"
+              aria-label="選手を選択"
+            />
+          ) : null}
           <Select value={currentPlayerId} onValueChange={(val) => setStarterSlotPlayer(slot, val)} disabled={hasEvents}>
             <SelectTrigger className="h-auto w-full overflow-visible border-0 bg-transparent p-0 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
               <div className="flex w-full flex-col items-center gap-0.5 overflow-visible">
@@ -668,20 +692,30 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                 </div>
               </div>
             </SelectTrigger>
-            <SelectContent>
-              {currentPlayerId ? <SelectItem value={NONE_SELECT_VALUE}>未選択</SelectItem> : null}
+            <SelectContent className="max-h-[82vh] w-[calc(100vw-24px)] min-w-[calc(100vw-24px)] rounded-3xl border-slate-200 bg-white p-3 shadow-2xl sm:w-[420px] sm:min-w-[420px]">
+              {currentPlayerId ? (
+                <SelectItem value={NONE_SELECT_VALUE} className="mb-2 h-14 rounded-2xl px-4 text-lg font-bold text-slate-500 focus:bg-slate-100">
+                  未選択
+                </SelectItem>
+              ) : null}
               {bench.length > 0 && options.filter(p => bench.some(b => (b as any).playerId === p.id || b.id === p.id)).length > 0 && (
                 <>
                   {options.filter(p => bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {`[ベンチ] #${p.number} ${p.name}`}
+                    <SelectItem key={p.id} value={p.id} className="mb-2 min-h-16 rounded-2xl px-4 py-4 text-lg font-bold text-slate-900 focus:bg-emerald-50 focus:text-emerald-700">
+                      <span className="flex items-center gap-3">
+                        <span className="inline-flex h-11 min-w-11 items-center justify-center rounded-full bg-slate-900 px-2 text-base font-black text-white">#{p.number ?? '-'}</span>
+                        <span className="min-w-0 truncate">[ベンチ] {p.name}</span>
+                      </span>
                     </SelectItem>
                   ))}
                 </>
               )}
               {options.filter(p => !bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {`#${p.number} ${p.name}`}
+                <SelectItem key={p.id} value={p.id} className="mb-2 min-h-16 rounded-2xl px-4 py-4 text-lg font-bold text-slate-900 focus:bg-emerald-50 focus:text-emerald-700">
+                  <span className="flex items-center gap-3">
+                    <span className="inline-flex h-11 min-w-11 items-center justify-center rounded-full bg-slate-900 px-2 text-base font-black text-white">#{p.number ?? '-'}</span>
+                    <span className="min-w-0 truncate">{p.name}</span>
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -864,6 +898,46 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
   return (
     <div className="mt-8 -mx-4 space-y-4 sm:mx-0">
+      {mobilePicker ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4 sm:hidden" onClick={() => setMobilePicker(null)}>
+          <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#f4f4f6] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex h-12 items-center justify-between border-b border-slate-300/80 bg-white px-4">
+              <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobilePicker(null)}>
+                キャンセル
+              </button>
+              <div className="text-sm font-bold text-slate-500">{mobilePicker.title}</div>
+              <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobilePicker(null)}>
+                完了
+              </button>
+            </div>
+            <div className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
+              <div className="pointer-events-none absolute inset-x-5 top-1/2 z-10 h-14 -translate-y-1/2 border-y border-slate-400/70" />
+              {mobilePicker.options.map((option) => {
+                const isPressed = pressedPickerValue === option.value;
+                const isSelected = option.value === mobilePicker.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onPointerDown={() => setPressedPickerValue(option.value)}
+                    onClick={() => {
+                      setPressedPickerValue(option.value);
+                      window.setTimeout(() => {
+                        mobilePicker.onSelect(option.value);
+                        setMobilePicker(null);
+                        setPressedPickerValue(null);
+                      }, 140);
+                    }}
+                    className={`block h-14 w-full scroll-mt-[22vh] [scroll-snap-align:center] truncate rounded-xl text-center text-[22px] font-bold leading-[56px] transition-colors ${isPressed ? 'bg-blue-500/25 text-blue-700' : isSelected ? 'bg-blue-500/10 text-blue-600' : 'text-slate-400'}`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* Starters */}
       <div className="overflow-hidden rounded-[20px] border border-slate-700/80 bg-[#111827] shadow-[0_18px_50px_rgba(0,0,0,0.28)] sm:rounded-[24px]">
         <div className="flex items-center justify-between gap-3 border-b border-slate-700/80 px-4 py-5 text-white sm:px-5">
@@ -909,14 +983,30 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
       <div className="mt-6 space-y-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h4 className="text-sm font-semibold text-gray-300">ベンチ（最大12人）</h4>
+          <button
+            type="button"
+            onClick={() => setMobilePicker({
+              title: 'ベンチに選手を追加',
+              value: '',
+              options: availablePlayers.map((p) => ({ value: p.id, label: `#${p.number ?? '-'} ${p.name}` })),
+              onSelect: (value) => handleAddPlayer(value, 'sub'),
+            })}
+            className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-left text-sm font-bold text-gray-900 shadow-sm sm:hidden"
+            aria-label="ベンチに選手を追加"
+          >
+            ベンチに選手を追加...
+          </button>
           <Select onValueChange={(val) => handleAddPlayer(val, 'sub')} value="">
-            <SelectTrigger className="bg-white text-gray-900 w-full sm:w-52 h-8 text-xs">
+            <SelectTrigger className="hidden h-12 w-full rounded-2xl border-slate-300 bg-white px-4 text-sm font-bold text-gray-900 shadow-sm sm:flex sm:w-64">
               <SelectValue placeholder="ベンチに選手を追加..." />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-[82vh] w-[calc(100vw-24px)] min-w-[calc(100vw-24px)] rounded-3xl border-slate-200 bg-white p-3 shadow-2xl sm:w-[420px] sm:min-w-[420px]">
               {availablePlayers.map(p => (
-                <SelectItem key={p.id} value={p.id}>
-                  {`#${p.number} ${p.name}`}
+                <SelectItem key={p.id} value={p.id} className="mb-2 min-h-16 rounded-2xl px-4 py-4 text-lg font-bold text-slate-900 focus:bg-emerald-50 focus:text-emerald-700">
+                  <span className="flex items-center gap-3">
+                    <span className="inline-flex h-11 min-w-11 items-center justify-center rounded-full bg-slate-900 px-2 text-base font-black text-white">#{p.number ?? '-'}</span>
+                    <span className="min-w-0 truncate">{p.name}</span>
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -935,15 +1025,36 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full w-10 text-center ${getPositionPillClassName((field as any).position)}`}>
                     {(field as any).position}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setMobilePicker({
+                      title: 'ベンチ選手を選択',
+                      value: currentPlayerId || NONE_SELECT_VALUE,
+                      options: [
+                        { value: NONE_SELECT_VALUE, label: '未選択' },
+                        ...options.map((p) => ({ value: p.id, label: `#${p.number ?? '-'} ${p.name}` })),
+                      ],
+                      onSelect: (value) => setBenchPlayer((field as any).id, value),
+                    })}
+                    className="h-11 w-56 rounded-xl border border-slate-600 bg-slate-800 px-4 text-left text-sm font-bold text-slate-100 shadow-sm sm:hidden"
+                    aria-label="ベンチ選手を選択"
+                  >
+                    {options.find((p) => p.id === currentPlayerId)?.name || '選手を選択'}
+                  </button>
                   <Select value={currentPlayerId} onValueChange={(val) => setBenchPlayer((field as any).id, val)}>
-                    <SelectTrigger className="h-8 w-44 text-xs bg-slate-800 text-slate-100 border-slate-700">
+                    <SelectTrigger className="hidden h-11 w-56 rounded-xl border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100 shadow-sm sm:flex">
                       <SelectValue placeholder="選手を選択" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE_SELECT_VALUE}>未選択</SelectItem>
+                    <SelectContent className="max-h-[82vh] w-[calc(100vw-24px)] min-w-[calc(100vw-24px)] rounded-3xl border-slate-200 bg-white p-3 shadow-2xl sm:w-[420px] sm:min-w-[420px]">
+                      <SelectItem value={NONE_SELECT_VALUE} className="mb-2 h-14 rounded-2xl px-4 text-lg font-bold text-slate-500 focus:bg-slate-100">
+                        未選択
+                      </SelectItem>
                       {options.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {`#${p.number} ${p.name}`}
+                        <SelectItem key={p.id} value={p.id} className="mb-2 min-h-16 rounded-2xl px-4 py-4 text-lg font-bold text-slate-900 focus:bg-emerald-50 focus:text-emerald-700">
+                          <span className="flex items-center gap-3">
+                            <span className="inline-flex h-11 min-w-11 items-center justify-center rounded-full bg-slate-900 px-2 text-base font-black text-white">#{p.number ?? '-'}</span>
+                            <span className="min-w-0 truncate">{p.name}</span>
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>

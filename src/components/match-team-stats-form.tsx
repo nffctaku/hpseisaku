@@ -679,18 +679,18 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium">項目を選択</label>
+                    <label className="text-sm font-medium mb-2 block">項目を選択</label>
                     <Select value={selectedPreset} onValueChange={setSelectedPreset}>
-                      <SelectTrigger>
+                      <SelectTrigger className="h-14 text-base border-slate-300 bg-white hover:bg-slate-50 focus:ring-2 focus:ring-emerald-500 transition-all">
                         <SelectValue placeholder="項目を選択してください" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-80">
                         {getAvailablePresets().map((preset) => (
-                          <SelectItem key={preset.id} value={preset.id}>
+                          <SelectItem key={preset.id} value={preset.id} className="h-12 text-base py-3">
                             {preset.name}
                           </SelectItem>
                         ))}
-                        <SelectItem value="custom">その他(自由入力)</SelectItem>
+                        <SelectItem value="custom" className="h-12 text-base py-3 font-semibold text-emerald-600">その他(自由入力)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
