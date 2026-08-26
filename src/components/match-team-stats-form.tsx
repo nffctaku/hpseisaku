@@ -611,6 +611,8 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                         value={typeof field.value === 'string' ? field.value : ''}
                         onChange={(e) => field.onChange(e.target.value)}
                         type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         className={`w-16 border-slate-700 bg-slate-900 text-center text-sm font-bold text-slate-100 placeholder:text-slate-500 focus-visible:ring-emerald-400 sm:w-24 sm:text-lg ${homeVal > awayVal ? 'border-emerald-400 bg-emerald-500/90 text-white' : ''}`}
                       />
                     )}
@@ -646,6 +648,8 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                         value={typeof field.value === 'string' ? field.value : ''}
                         onChange={(e) => field.onChange(e.target.value)}
                         type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         className={`w-16 border-slate-700 bg-slate-900 text-center text-sm font-bold text-slate-100 placeholder:text-slate-500 focus-visible:ring-emerald-400 sm:w-24 sm:text-lg ${awayVal > homeVal ? 'border-emerald-400 bg-emerald-500/90 text-white' : ''}`}
                       />
                     )}
