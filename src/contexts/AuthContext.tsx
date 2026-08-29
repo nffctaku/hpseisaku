@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { User, onAuthStateChanged, setPersistence, browserLocalPersistence, getRedirectResult } from 'firebase/auth';
+import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -74,6 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [clubProfileExists, setClubProfileExists] = useState(false);
   const [ownerUid, setOwnerUid] = useState<string | undefined>(undefined);
   const lastProcessedUidRef = useRef<string | null>(null);
+  const lastUserProfileRef = useRef<UserProfile | null>(null);
   const userRef = useRef<UserProfile | null>(null);
   const loadingRef = useRef<boolean>(true);
   const clubProfileExistsRef = useRef<boolean>(false);
@@ -217,76 +218,67 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    let unsubscribe = () => {};
-    let cancelled = false;
-
-    const initAuth = async () => {
-      try {
-        await setPersistence(auth, browserLocalPersistence);
-      } catch (e) {
-        console.warn('[AuthContext] setPersistence failed', e);
-      }
-
-      try {
-        const result = await getRedirectResult(auth);
-        if (result?.user) {
-          console.log('[AuthContext] getRedirectResult user', { uid: result.user.uid });
-        } else {
-          console.log('[AuthContext] getRedirectResult empty');
+    const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      console.log('[AuthContext] onAuthStateChanged triggered', { authUser });
+      if (authUser) {
+        const isSameUid = lastProcessedUidRef.current === authUser.uid;
+        if (isSameUid) {
+          // 同じ uid の再通知： サインアウトされていたらキャッシュで復元
+          if (userRef.current === null && lastUserProfileRef.current) {
+            console.log('[AuthContext] same uid, restoring from cache', { uid: authUser.uid });
+            userRef.current = lastUserProfileRef.current;
+            setUser(lastUserProfileRef.current);
+            if (clubProfileExistsRef.current !== true) {
+              clubProfileExistsRef.current = true;
+              setClubProfileExists(true);
+            }
+            const restoredOwnerUid = lastUserProfileRef.current.ownerUid;
+            if (ownerUidRef.current !== restoredOwnerUid) {
+              ownerUidRef.current = restoredOwnerUid;
+              setOwnerUid(restoredOwnerUid);
+            }
+            if (loadingRef.current) {
+              loadingRef.current = false;
+              setLoading(false);
+            }
+          } else {
+            console.log('[AuthContext] same uid, already resolved', { uid: authUser.uid });
+          }
+          return;
         }
-      } catch (e) {
-        console.warn('[AuthContext] getRedirectResult failed', e);
-      }
-
-      if (cancelled) return;
-
-      unsubscribe = onAuthStateChanged(auth, async (authUser) => {
-        console.log('[AuthContext] onAuthStateChanged triggered', { authUser });
-        if (authUser) {
-          // 同じ uid の場合はスキップ（処理中または処理済み）
-          if (lastProcessedUidRef.current === authUser.uid) {
-            console.log('[AuthContext] same uid, skipping profile fetch', { uid: authUser.uid });
-            return;
-          }
-          lastProcessedUidRef.current = authUser.uid;
-          if (!loadingRef.current) {
-            loadingRef.current = true;
-            setLoading(true);
-          }
-          await fetchUserProfile(authUser);
-          if (loadingRef.current) {
-            loadingRef.current = false;
-            setLoading(false);
-          }
-        } else {
-          // すでに null ならスキップ
-          if (userRef.current === null) return;
-          userRef.current = null;
-          lastProcessedUidRef.current = null;
-          setUser(null);
-          if (clubProfileExistsRef.current) {
-            clubProfileExistsRef.current = false;
-            setClubProfileExists(false);
-          }
-          if (ownerUidRef.current !== undefined) {
-            ownerUidRef.current = undefined;
-            setOwnerUid(undefined);
-          }
-          if (loadingRef.current) {
-            loadingRef.current = false;
-            setLoading(false);
-          }
-          console.log('[AuthContext] no authUser, signed out');
+        lastProcessedUidRef.current = authUser.uid;
+        if (!loadingRef.current) {
+          loadingRef.current = true;
+          setLoading(true);
         }
-      });
-    };
+        await fetchUserProfile(authUser);
+        lastUserProfileRef.current = userRef.current;
+        if (loadingRef.current) {
+          loadingRef.current = false;
+          setLoading(false);
+        }
+      } else {
+        // すでに null ならスキップ
+        if (userRef.current === null) return;
+        console.log('[AuthContext] no authUser, signed out');
+        userRef.current = null;
+        setUser(null);
+        if (clubProfileExistsRef.current) {
+          clubProfileExistsRef.current = false;
+          setClubProfileExists(false);
+        }
+        if (ownerUidRef.current !== undefined) {
+          ownerUidRef.current = undefined;
+          setOwnerUid(undefined);
+        }
+        if (loadingRef.current) {
+          loadingRef.current = false;
+          setLoading(false);
+        }
+      }
+    });
 
-    void initAuth();
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   const refreshUserProfile = async () => {
