@@ -295,7 +295,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
 
   useEffect(() => {
     const events = Array.isArray(watchedEvents) ? watchedEvents : [];
-    const playerStats = Array.isArray(watchedPlayerStats) ? watchedPlayerStats : [];
+    const playerStats = (methods.getValues('playerStats') as any[]) || [];
     if (playerStats.length === 0) return;
 
     const goalCounts = new Map<string, number>();
@@ -355,7 +355,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         methods.setValue(`playerStats.${index}.redCards` as any, nextRed, { shouldDirty: false });
       }
     });
-  }, [watchedEvents, watchedPlayerStats, methods]);
+  }, [watchedEvents, methods]);
 
   useEffect(() => {
     const fetchMatchData = async () => {
