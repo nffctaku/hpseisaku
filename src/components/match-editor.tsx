@@ -257,10 +257,22 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               onSelect: (val) => onUpdate(match.id, 'homeTeam', val),
             });
           }}
-          className="h-9 w-full border-0 bg-transparent px-0 text-left text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0"
+          className="h-9 w-full border-0 bg-transparent px-0 text-left text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0 sm:hidden"
         >
           {match.homeTeam && allTeamsMap.get(match.homeTeam) ? allTeamsMap.get(match.homeTeam)!.name : 'ホーム'}
         </button>
+        <div className="hidden sm:block">
+          <Select value={match.homeTeam || ''} onValueChange={(val) => onUpdate(match.id, 'homeTeam', val)}>
+            <SelectTrigger className="h-9 w-full border-0 bg-transparent px-0 text-left text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0 [&>span]:line-clamp-1">
+              <SelectValue placeholder="ホーム" />
+            </SelectTrigger>
+            <SelectContent>
+              {homeTeamOptions.map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Score Inputs */}
@@ -277,10 +289,25 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
                 onSelect: (val) => onUpdate(match.id, 'scoreHome', val === '' ? null : clampScore(parseInt(val, 10))),
               });
             }}
-            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900"
+            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900 sm:hidden"
           >
             {match.scoreHome ?? '-'}
           </button>
+          <Input
+            type="number"
+            min={0}
+            value={(match.scoreHome ?? '').toString()}
+            onChange={(e) => {
+              if (e.target.value === '') {
+                onUpdate(match.id, 'scoreHome', null);
+                return;
+              }
+              const n = parseInt(e.target.value, 10);
+              onUpdate(match.id, 'scoreHome', clampScore(n));
+            }}
+            placeholder="-"
+            className="hidden sm:inline-block h-10 w-9 rounded-md border border-gray-200 bg-white p-0 text-center text-base font-semibold text-gray-900"
+          />
           <span className="text-sm text-gray-400">-</span>
           <button
             type="button"
@@ -293,10 +320,25 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
                 onSelect: (val) => onUpdate(match.id, 'scoreAway', val === '' ? null : clampScore(parseInt(val, 10))),
               });
             }}
-            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900"
+            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900 sm:hidden"
           >
             {match.scoreAway ?? '-'}
           </button>
+          <Input
+            type="number"
+            min={0}
+            value={(match.scoreAway ?? '').toString()}
+            onChange={(e) => {
+              if (e.target.value === '') {
+                onUpdate(match.id, 'scoreAway', null);
+                return;
+              }
+              const n = parseInt(e.target.value, 10);
+              onUpdate(match.id, 'scoreAway', clampScore(n));
+            }}
+            placeholder="-"
+            className="hidden sm:inline-block h-10 w-9 rounded-md border border-gray-200 bg-white p-0 text-center text-base font-semibold text-gray-900"
+          />
         </div>
 
         {canInputPk && (
@@ -350,10 +392,22 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               onSelect: (val) => onUpdate(match.id, 'awayTeam', val),
             });
           }}
-          className="h-9 w-full border-0 bg-transparent px-0 text-right text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0"
+          className="h-9 w-full border-0 bg-transparent px-0 text-right text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0 sm:hidden"
         >
           {match.awayTeam && allTeamsMap.get(match.awayTeam) ? allTeamsMap.get(match.awayTeam)!.name : 'アウェイ'}
         </button>
+        <div className="hidden sm:block">
+          <Select value={match.awayTeam || ''} onValueChange={(val) => onUpdate(match.id, 'awayTeam', val)}>
+            <SelectTrigger className="h-9 w-full border-0 bg-transparent px-0 text-right text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0 [&>span]:line-clamp-1">
+              <SelectValue placeholder="アウェイ" />
+            </SelectTrigger>
+            <SelectContent>
+              {awayTeamOptions.map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       </div>
     </div>
