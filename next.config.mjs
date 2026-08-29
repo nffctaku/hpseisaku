@@ -6,6 +6,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  productionBrowserSourceMaps: true,
   serverExternalPackages: ['firebase-admin'],
   images: {
     remotePatterns: [
