@@ -397,6 +397,9 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
   }, [match.id, replace]);
 
   useEffect(() => {
+    // Temporarily disabled to investigate React #185 infinite loop
+    return;
+    // eslint-disable-next-line no-unreachable
     if (!autosaveReadyRef.current) return;
 
     const currentStats = form.getValues('teamStats');
