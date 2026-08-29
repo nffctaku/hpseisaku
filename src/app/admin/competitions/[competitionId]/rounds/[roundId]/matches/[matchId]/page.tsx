@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
 import { db } from '@/lib/firebase';
@@ -23,19 +24,11 @@ export default function MatchAdminPage() {
   const ownerUid = ownerUidFromContext || user?.uid;
   const myTeamId = mainTeamId;
 
-  const [competitionId, setCompetitionId] = useState<string | undefined>(undefined);
-  const [roundId, setRoundId] = useState<string | undefined>(undefined);
-  const [matchId, setMatchId] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    const segs = window.location.pathname.split('/').filter(Boolean);
-    const compIdx = segs.indexOf('competitions');
-    const roundIdx = segs.indexOf('rounds');
-    const matchIdx = segs.indexOf('matches');
-    setCompetitionId(segs[compIdx + 1]);
-    setRoundId(segs[roundIdx + 1]);
-    setMatchId(segs[matchIdx + 1]);
-  }, []);
+  const searchParams = useSearchParams();
+  const params = useParams();
+  const competitionId = params?.competitionId as string | undefined;
+  const roundId = params?.roundId as string | undefined;
+  const matchId = params?.matchId as string | undefined;
 
   const [match, setMatch] = useState<MatchDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,7 +41,10 @@ export default function MatchAdminPage() {
   const [roundName, setRoundName] = useState<string>('');
   const [roundMatches, setRoundMatches] = useState<any[]>([]);
 
-  const debugEnabled = false;
+  const debugEnabled =
+    searchParams?.get('debug') === '1' ||
+    searchParams?.get('debug') === 'true' ||
+    searchParams?.get('debug') === 'yes';
 
   useEffect(() => {
     if (!user || !ownerUid || typeof competitionId !== 'string' || typeof roundId !== 'string') return;
@@ -488,7 +484,7 @@ export default function MatchAdminPage() {
 
               // player state will be batched at the end of the snapshot callback
 
-              if (false) {
+              if (debugEnabled) {
                 setDebugPanel({
                   ownerUid,
                   competitionId,
@@ -617,7 +613,7 @@ export default function MatchAdminPage() {
           })()}
         </div>
       </div>
-      {false && debugPanel ? (
+      {debugEnabled && debugPanel ? (
         <div className="mb-4 rounded-lg border bg-white p-3 text-xs text-gray-900">
           <div className="font-semibold">DEBUG</div>
           <pre className="mt-2 whitespace-pre-wrap break-words text-[10px] leading-snug text-gray-700">
@@ -738,19 +734,37 @@ export default function MatchAdminPage() {
           <TabsTrigger value="match-stats" className="rounded-xl border border-slate-700 bg-slate-900 px-2 py-2 text-xs text-slate-300 data-[state=active]:bg-emerald-500 data-[state=active]:text-white sm:px-3 sm:text-sm">試合スタッツ</TabsTrigger>
         </TabsList>
         <TabsContent value="match-stats">
-          <div className="rounded border bg-slate-800 p-4 text-sm text-slate-300">
-            試合スタッツ入力は一時的に無効化されています
-          </div>
+          <MatchTeamStatsForm
+            match={match}
+            userId={ownerUid as string}
+            competitionId={competitionId as string}
+            roundId={roundId as string}
+            matchDocPath={resolvedMatchDocPath ?? undefined}
+          />
         </TabsContent>
         <TabsContent value="player-stats">
-          <div className="rounded border bg-slate-800 p-4 text-sm text-slate-300">
-            ラインナップ入力は一時的に無効化されています
-          </div>
+          <SquadRegistrationForm
+            match={match}
+            homePlayers={homePlayers}
+            awayPlayers={awayPlayers}
+            roundId={roundId as string}
+            competitionId={competitionId as string}
+            matchDocPath={resolvedMatchDocPath ?? undefined}
+            seasonId={seasonId ?? undefined}
+            view="player"
+          />
         </TabsContent>
         <TabsContent value="match-events">
-          <div className="rounded border bg-slate-800 p-4 text-sm text-slate-300">
-            試合イベント入力は一時的に無効化されています
-          </div>
+          <SquadRegistrationForm
+            match={match}
+            homePlayers={homePlayers}
+            awayPlayers={awayPlayers}
+            roundId={roundId as string}
+            competitionId={competitionId as string}
+            matchDocPath={resolvedMatchDocPath ?? undefined}
+            seasonId={seasonId ?? undefined}
+            view="events"
+          />
         </TabsContent>
       </Tabs>
     </div>
