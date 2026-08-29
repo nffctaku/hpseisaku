@@ -723,37 +723,19 @@ export default function MatchAdminPage() {
           <TabsTrigger value="match-stats" className="rounded-xl border border-slate-700 bg-slate-900 px-2 py-2 text-xs text-slate-300 data-[state=active]:bg-emerald-500 data-[state=active]:text-white sm:px-3 sm:text-sm">試合スタッツ</TabsTrigger>
         </TabsList>
         <TabsContent value="match-stats">
-          <MatchTeamStatsForm 
-            match={match} 
-            userId={ownerUid as string}
-            competitionId={competitionId as string}
-            roundId={roundId as string}
-            matchDocPath={resolvedMatchDocPath ?? undefined}
-          />
+          <div className="rounded border bg-slate-800 p-4 text-sm text-slate-300">
+            試合スタッツ入力は一時的に無効化されています
+          </div>
         </TabsContent>
         <TabsContent value="player-stats">
-          <SquadRegistrationForm 
-            match={match} 
-            homePlayers={homePlayers} 
-            awayPlayers={awayPlayers} 
-            roundId={roundId as string} 
-            competitionId={competitionId as string} 
-            matchDocPath={resolvedMatchDocPath ?? undefined}
-            seasonId={seasonId ?? undefined}
-            view="player"
-          />
+          <div className="rounded border bg-slate-800 p-4 text-sm text-slate-300">
+            ラインナップ入力は一時的に無効化されています
+          </div>
         </TabsContent>
         <TabsContent value="match-events">
-          <SquadRegistrationForm 
-            match={match} 
-            homePlayers={homePlayers} 
-            awayPlayers={awayPlayers} 
-            roundId={roundId as string} 
-            competitionId={competitionId as string} 
-            matchDocPath={resolvedMatchDocPath ?? undefined}
-            seasonId={seasonId ?? undefined}
-            view="events"
-          />
+          <div className="rounded border bg-slate-800 p-4 text-sm text-slate-300">
+            試合イベント入力は一時的に無効化されています
+          </div>
         </TabsContent>
       </Tabs>
     </div>
