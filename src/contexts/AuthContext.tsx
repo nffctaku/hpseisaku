@@ -74,6 +74,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [clubProfileExists, setClubProfileExists] = useState(false);
   const [ownerUid, setOwnerUid] = useState<string | undefined>(undefined);
   const lastProcessedUidRef = useRef<string | null>(null);
+  const userRef = useRef<UserProfile | null>(null);
+  const loadingRef = useRef<boolean>(true);
+  const clubProfileExistsRef = useRef<boolean>(false);
+  const ownerUidRef = useRef<string | undefined>(undefined);
 
   const applyUserOverrides = (uid: string, profile: Partial<UserProfile>) => {
     if (uid === "m7OPZIn0vyX9yKaFWFjqoanB4Bh1") {
@@ -111,15 +115,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
       } else {
         const resolvedOwnerUid = (profileData as any)?.ownerUid || authUser.uid;
-      setUser(
-        applyUserOverrides(authUser.uid, {
-          ...authUser,
-          ...profileData,
-          ownerUid: resolvedOwnerUid,
-        }) as UserProfile
-      );
-      setClubProfileExists(true);
-      setOwnerUid(resolvedOwnerUid);
+      const userProfile = applyUserOverrides(authUser.uid, {
+        ...authUser,
+        ...profileData,
+        ownerUid: resolvedOwnerUid,
+      }) as UserProfile;
+      if (userRef.current !== userProfile) {
+        userRef.current = userProfile;
+        setUser(userProfile);
+      }
+      if (clubProfileExistsRef.current !== true) {
+        clubProfileExistsRef.current = true;
+        setClubProfileExists(true);
+      }
+      if (ownerUidRef.current !== resolvedOwnerUid) {
+        ownerUidRef.current = resolvedOwnerUid;
+        setOwnerUid(resolvedOwnerUid);
+      }
       try {
         await updateDoc(profileDocRef, { lastLoginAt: serverTimestamp() } as any);
       } catch (e) {
@@ -136,9 +148,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!querySnapshot.empty) {
       const docSnap = querySnapshot.docs[0];
       const profileData = docSnap.data();
-      setUser(applyUserOverrides(authUser.uid, { ...authUser, ...profileData }) as UserProfile);
-      setClubProfileExists(true);
-      setOwnerUid(profileData.ownerUid || docSnap.id);
+      const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData }) as UserProfile;
+      if (userRef.current !== userProfile) {
+        userRef.current = userProfile;
+        setUser(userProfile);
+      }
+      if (clubProfileExistsRef.current !== true) {
+        clubProfileExistsRef.current = true;
+        setClubProfileExists(true);
+      }
+      const nextOwnerUid = profileData.ownerUid || docSnap.id;
+      if (ownerUidRef.current !== nextOwnerUid) {
+        ownerUidRef.current = nextOwnerUid;
+        setOwnerUid(nextOwnerUid);
+      }
       try {
         await updateDoc(docSnap.ref, { lastLoginAt: serverTimestamp() } as any);
       } catch (e) {
@@ -155,9 +178,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const adminDoc = adminSnap.docs[0];
       const profileData = adminDoc.data() as any;
       const foundOwnerUid = (profileData?.ownerUid as string) || adminDoc.id;
-      setUser(applyUserOverrides(authUser.uid, { ...authUser, ...profileData, ownerUid: foundOwnerUid }) as UserProfile);
-      setClubProfileExists(true);
-      setOwnerUid(foundOwnerUid);
+      const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData, ownerUid: foundOwnerUid }) as UserProfile;
+      if (userRef.current !== userProfile) {
+        userRef.current = userProfile;
+        setUser(userProfile);
+      }
+      if (clubProfileExistsRef.current !== true) {
+        clubProfileExistsRef.current = true;
+        setClubProfileExists(true);
+      }
+      if (ownerUidRef.current !== foundOwnerUid) {
+        ownerUidRef.current = foundOwnerUid;
+        setOwnerUid(foundOwnerUid);
+      }
       try {
         await updateDoc(adminDoc.ref, { lastLoginAt: serverTimestamp() } as any);
       } catch (e) {
@@ -167,9 +200,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    setUser(applyUserOverrides(authUser.uid, authUser as UserProfile) as UserProfile);
-    setClubProfileExists(false);
-    setOwnerUid(undefined);
+    const userProfile = applyUserOverrides(authUser.uid, authUser as UserProfile) as UserProfile;
+    if (userRef.current !== userProfile) {
+      userRef.current = userProfile;
+      setUser(userProfile);
+    }
+    if (clubProfileExistsRef.current !== false) {
+      clubProfileExistsRef.current = false;
+      setClubProfileExists(false);
+    }
+    if (ownerUidRef.current !== undefined) {
+      ownerUidRef.current = undefined;
+      setOwnerUid(undefined);
+    }
     console.log('[AuthContext] no profile, using authUser only', { uid: authUser.uid });
   };
 
@@ -200,21 +243,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       unsubscribe = onAuthStateChanged(auth, async (authUser) => {
         console.log('[AuthContext] onAuthStateChanged triggered', { authUser });
         if (authUser) {
-          // 同じ uid に対して重複してプロフィール取得・setUser しないようにガード（無限ループ防止）
+          // 同じ uid の場合はスキップ（処理中または処理済み）
           if (lastProcessedUidRef.current === authUser.uid) {
             console.log('[AuthContext] same uid, skipping profile fetch', { uid: authUser.uid });
             return;
           }
           lastProcessedUidRef.current = authUser.uid;
-          setLoading(true);
+          if (!loadingRef.current) {
+            loadingRef.current = true;
+            setLoading(true);
+          }
           await fetchUserProfile(authUser);
-          setLoading(false);
+          if (loadingRef.current) {
+            loadingRef.current = false;
+            setLoading(false);
+          }
         } else {
-          if (lastProcessedUidRef.current === null) return;
+          // すでに null ならスキップ
+          if (userRef.current === null) return;
+          userRef.current = null;
           lastProcessedUidRef.current = null;
           setUser(null);
-          setClubProfileExists(false);
-          setLoading(false);
+          if (clubProfileExistsRef.current) {
+            clubProfileExistsRef.current = false;
+            setClubProfileExists(false);
+          }
+          if (ownerUidRef.current !== undefined) {
+            ownerUidRef.current = undefined;
+            setOwnerUid(undefined);
+          }
+          if (loadingRef.current) {
+            loadingRef.current = false;
+            setLoading(false);
+          }
           console.log('[AuthContext] no authUser, signed out');
         }
       });
@@ -231,9 +292,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshUserProfile = async () => {
     const currentUser = auth.currentUser;
     if (currentUser) {
-      setLoading(true);
+      if (!loadingRef.current) {
+        loadingRef.current = true;
+        setLoading(true);
+      }
       await fetchUserProfile(currentUser);
-      setLoading(false);
+      if (loadingRef.current) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
     }
   };
 
