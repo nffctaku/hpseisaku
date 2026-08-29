@@ -172,7 +172,7 @@ export default function MatchAdminPage() {
           return;
         }
 
-        setResolvedMatchDocPath(resolvedRef.path);
+        // resolvedMatchDocPath will be set in the batched onSnapshot update
 
         // To ensure team names and logos are present, fetch them if not already on the match doc
         const fetchTeamData = async (teamId: string) => {
@@ -442,7 +442,8 @@ export default function MatchAdminPage() {
               awayTeamLogo: awayTeamData?.logoUrl || matchData.awayTeamLogo,
             };
 
-            setMatch(matchData);
+            let nextHomePlayers: Player[] = [];
+            let nextAwayPlayers: Player[] = [];
 
             if (matchData.homeTeam && matchData.awayTeam) {
               const [home, away] = await Promise.all([
@@ -475,8 +476,8 @@ export default function MatchAdminPage() {
               const homeSeasonPlayers = filterTeamPlayersBySeason(home, effectiveSeasonId);
               const awaySeasonPlayers = filterTeamPlayersBySeason(away, effectiveSeasonId);
 
-              const nextHomePlayers = homeRosterPlayers.players.length > 0 ? homeRosterPlayers.players : homeSeasonPlayers;
-              const nextAwayPlayers = awayRosterPlayers.players.length > 0 ? awayRosterPlayers.players : awaySeasonPlayers;
+              nextHomePlayers = homeRosterPlayers.players.length > 0 ? homeRosterPlayers.players : homeSeasonPlayers;
+              nextAwayPlayers = awayRosterPlayers.players.length > 0 ? awayRosterPlayers.players : awaySeasonPlayers;
 
               console.log('[MatchAdminPage] Setting players:', {
                 homeCount: nextHomePlayers.length,
@@ -485,8 +486,7 @@ export default function MatchAdminPage() {
                 awaySample: nextAwayPlayers.slice(0, 3).map(p => ({ id: p.id, name: p.name })),
               });
 
-              setHomePlayers(nextHomePlayers);
-              setAwayPlayers(nextAwayPlayers);
+              // player state will be batched at the end of the snapshot callback
 
               if (false) {
                 setDebugPanel({
@@ -513,6 +513,10 @@ export default function MatchAdminPage() {
               }
             }
 
+            setResolvedMatchDocPath(resolvedRef.path);
+            setMatch(matchData);
+            setHomePlayers(nextHomePlayers);
+            setAwayPlayers(nextAwayPlayers);
             setLoading(false);
           },
           (error) => {
