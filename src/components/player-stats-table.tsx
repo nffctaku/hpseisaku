@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useFormContext, useFieldArray, useWatch } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -133,55 +133,27 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     onSelect: (value: string) => void;
   }>(null);
   const [pressedPickerValue, setPressedPickerValue] = useState<string | null>(null);
+  const [benchAddValue, setBenchAddValue] = useState('');
   const formationStorageKey = `match_lineup_formation_${teamId}`;
   
   // Use isHomeTeam prop to determine which formation field to use
   const currentFormation = isHomeTeam !== undefined ? (isHomeTeam ? watchedHomeFormation : watchedAwayFormation) : watchedHomeFormation;
   
-  const [selectedFormation, setSelectedFormation] = useState(() => {
-    // Try to get from form first, then fallback to localStorage
-    if (currentFormation) return currentFormation;
-    try {
-      const savedFormation = localStorage.getItem(formationStorageKey);
-      if (savedFormation && FORMATION_OPTIONS.includes(savedFormation)) {
-        return savedFormation;
-      }
-    } catch {
-      // ignore storage errors
-    }
-    return '4-3-3';
-  });
+  const selectedFormation = currentFormation || '4-3-3';
+  const selectedFormationRef = useRef(selectedFormation);
+  selectedFormationRef.current = selectedFormation;
+  const onFormationChangeRef = useRef(onFormationChange);
+  onFormationChangeRef.current = onFormationChange;
 
-  useEffect(() => {
-    // Update selected formation when form value changes
-    if (currentFormation && currentFormation !== selectedFormation) {
-      setSelectedFormation(currentFormation);
-    }
-  }, [currentFormation]);
-
-  useEffect(() => {
-    if (currentFormation) return;
-    try {
-      const savedFormation = localStorage.getItem(formationStorageKey);
-      if (savedFormation && FORMATION_OPTIONS.includes(savedFormation) && savedFormation !== selectedFormation) {
-        setSelectedFormation(savedFormation);
-      }
-    } catch {
-      // ignore storage errors
-    }
-  }, [currentFormation, formationStorageKey]);
-
-  const handleFormationChange = (formation: string) => {
-    setSelectedFormation(formation);
+  const handleFormationChange = useCallback((formation: string) => {
+    if (formation === selectedFormationRef.current) return;
     try {
       localStorage.setItem(formationStorageKey, formation);
     } catch {
       // ignore storage errors
     }
-    if (onFormationChange) {
-      onFormationChange(formation);
-    }
-  };
+    onFormationChangeRef.current?.(formation);
+  }, [formationStorageKey]);
 
   const derivedCounts = useMemo(() => {
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
@@ -408,7 +380,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
       if (Number.isInteger(slot) && slot >= 0 && slot <= 10) return;
       setValue(`playerStats.${index}.starterSlot` as any, index, { shouldDirty: false });
     });
-  }, [teamId, watchedPlayerStats, setValue]);
+  }, [teamId, (watchedPlayerStats || []).map((ps: any) => ps?.starterSlot).join(','), setValue]);
 
   const handleAddPlayer = (playerId: string, role: 'starter' | 'sub') => {
     const player = allPlayers.find(p => p.id === playerId);
@@ -512,6 +484,10 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     const nextPlayerId = playerId === NONE_SELECT_VALUE ? '' : playerId;
     const existingInSlot = starters.find((f) => (f as any).starterSlot === slot);
     const existingInSlotIndex = existingInSlot ? fields.findIndex((ff) => ff.id === (existingInSlot as any).id) : -1;
+
+    if (existingInSlot && (existingInSlot as any).playerId === nextPlayerId) {
+      return;
+    }
 
     if (!nextPlayerId) {
       if (existingInSlotIndex !== -1) {
@@ -638,108 +614,85 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                 ],
                 onSelect: (value) => setStarterSlotPlayer(slot, value),
               })}
-              className="absolute inset-0 z-20 h-full w-full opacity-0 sm:hidden"
+              className="absolute inset-0 z-20 h-full w-full opacity-0"
               aria-label="選手を選択"
+              disabled={hasEvents}
             />
           ) : null}
-          <Select value={currentPlayerId} onValueChange={(val) => setStarterSlotPlayer(slot, val)} disabled={hasEvents}>
-            <SelectTrigger className="h-auto w-full overflow-visible border-0 bg-transparent p-0 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
-              <div className="flex w-full flex-col items-center gap-0.5 overflow-visible">
-                <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-300/45 bg-slate-500/30 shadow-[0_0_0_3px_rgba(255,255,255,0.06)] sm:h-11 sm:w-11">
-                  <div
-                    className="h-full w-full rounded-full bg-slate-600/70 bg-cover bg-center"
-                    style={photoUrl ? { backgroundImage: `url(${photoUrl})` } : undefined}
-                  />
-                  {!player ? (
-                    <div className="absolute inset-0 flex items-center justify-center text-slate-200/90">
-                      <div className="relative h-4 w-4 rounded-full border border-current before:absolute before:left-1/2 before:top-[62%] before:h-2 before:w-4 before:-translate-x-1/2 before:rounded-t-full before:border before:border-b-0 before:border-current sm:h-5 sm:w-5 sm:before:h-2.5 sm:before:w-4" />
-                    </div>
-                  ) : null}
-                  {goalsValue > 0 ? (
-                    <span className="absolute -left-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-amber-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
-                      <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
-                        <circle cx="4" cy="4" r="2.85" strokeWidth="0.65" />
-                        <path d="M4 2.1 5.25 3 4.8 4.55H3.2L2.75 3 4 2.1Z" strokeWidth="0.45" strokeLinejoin="round" />
-                        <path d="M2.75 3 1.75 2.7M5.25 3l1-.3M3.2 4.55l-.7 1M4.8 4.55l.7 1" strokeWidth="0.4" strokeLinecap="round" />
-                      </svg>
-                      {goalsValue}
-                    </span>
-                  ) : null}
-                  {assistsValue > 0 ? (
-                    <span className="absolute -right-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-sky-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
-                      <svg viewBox="0 0 8 8" className="shrink-0 -translate-x-[2px] -rotate-45 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
-                        <path d="M1.2 5.1c1.5.1 2.7-.4 3.6-1.7l1 1 1.1.4c.4.1.7.5.7.9H1.7c-.3 0-.5-.2-.5-.5v-.1Z" strokeWidth="0.65" strokeLinejoin="round" />
-                        <path d="M3.9 4.3 4.6 5M4.8 3.5l.7.7" strokeWidth="0.5" strokeLinecap="round" />
-                      </svg>
-                      {assistsValue}
-                    </span>
-                  ) : null}
-                  {showRedCard ? (
-                    <span className="absolute -left-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-red-500 shadow-sm" />
-                  ) : null}
-                  {yellowValue > 0 ? (
-                    <span className="absolute -right-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-yellow-400 shadow-sm" />
-                  ) : null}
-                  {player?.number ? (
-                    <span className="absolute -left-1 -bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-slate-900/80 px-1 text-[9px] font-bold leading-none text-white shadow-sm">
-                      {player.number}
-                    </span>
-                  ) : null}
-                  <span className="absolute -right-1 -bottom-1 flex h-4 w-4 items-center justify-center rounded-full border border-slate-700 bg-slate-200 text-xs font-light leading-none text-slate-600">+</span>
-                </div>
-                <div className="w-[62px] truncate text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-slate-300 sm:w-[82px] sm:text-[9px]">
-                  {player ? player.name : pos.label}
-                </div>
-              </div>
-            </SelectTrigger>
-            <SelectContent className="max-h-[82vh] w-[calc(100vw-24px)] min-w-[calc(100vw-24px)] rounded-3xl border-slate-200 bg-white p-3 shadow-2xl sm:w-[420px] sm:min-w-[420px]">
-              {currentPlayerId ? (
-                <SelectItem value={NONE_SELECT_VALUE} className="mb-2 h-14 rounded-2xl px-4 text-lg font-bold text-slate-500 focus:bg-slate-100">
-                  未選択
-                </SelectItem>
-              ) : null}
-              {bench.length > 0 && options.filter(p => bench.some(b => (b as any).playerId === p.id || b.id === p.id)).length > 0 && (
-                <>
-                  {options.filter(p => bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => (
-                    <SelectItem key={p.id} value={p.id} className="mb-2 min-h-16 rounded-2xl px-4 py-4 text-lg font-bold text-slate-900 focus:bg-emerald-50 focus:text-emerald-700">
-                      <span className="flex items-center gap-3">
-                        <span className="inline-flex h-11 min-w-11 items-center justify-center rounded-full bg-slate-900 px-2 text-base font-black text-white">#{p.number ?? '-'}</span>
-                        <span className="min-w-0 truncate">[ベンチ] {p.name}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </>
-              )}
-              {options.filter(p => !bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => (
-                <SelectItem key={p.id} value={p.id} className="mb-2 min-h-16 rounded-2xl px-4 py-4 text-lg font-bold text-slate-900 focus:bg-emerald-50 focus:text-emerald-700">
-                  <span className="flex items-center gap-3">
-                    <span className="inline-flex h-11 min-w-11 items-center justify-center rounded-full bg-slate-900 px-2 text-base font-black text-white">#{p.number ?? '-'}</span>
-                    <span className="min-w-0 truncate">{p.name}</span>
+          <div className="h-auto w-full overflow-visible border-0 bg-transparent p-0 [&>svg]:hidden">
+            <div className="flex w-full flex-col items-center gap-0.5 overflow-visible">
+              <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-300/45 bg-slate-500/30 shadow-[0_0_0_3px_rgba(255,255,255,0.06)] sm:h-11 sm:w-11">
+                <div
+                  className="h-full w-full rounded-full bg-slate-600/70 bg-cover bg-center"
+                  style={photoUrl ? { backgroundImage: `url(${photoUrl})` } : undefined}
+                />
+                {!player ? (
+                  <div className="absolute inset-0 flex items-center justify-center text-slate-200/90">
+                    <div className="relative h-4 w-4 rounded-full border border-current before:absolute before:left-1/2 before:top-[62%] before:h-2 before:w-4 before:-translate-x-1/2 before:rounded-t-full before:border before:border-b-0 before:border-current sm:h-5 sm:w-5 sm:before:h-2.5 sm:before:w-4" />
+                  </div>
+                ) : null}
+                {goalsValue > 0 ? (
+                  <span className="absolute -left-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-amber-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
+                    <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
+                      <circle cx="4" cy="4" r="2.85" strokeWidth="0.65" />
+                      <path d="M4 2.1 5.25 3 4.8 4.55H3.2L2.75 3 4 2.1Z" strokeWidth="0.45" strokeLinejoin="round" />
+                      <path d="M2.75 3 1.75 2.7M5.25 3l1-.3M3.2 4.55l-.7 1M4.8 4.55l.7 1" strokeWidth="0.4" strokeLinecap="round" />
+                    </svg>
+                    {goalsValue}
                   </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                ) : null}
+                {assistsValue > 0 ? (
+                  <span className="absolute -right-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-sky-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
+                    <svg viewBox="0 0 8 8" className="shrink-0 -translate-x-[2px] -rotate-45 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
+                      <path d="M1.2 5.1c1.5.1 2.7-.4 3.6-1.7l1 1 1.1.4c.4.1.7.5.7.9H1.7c-.3 0-.5-.2-.5-.5v-.1Z" strokeWidth="0.65" strokeLinejoin="round" />
+                      <path d="M3.9 4.3 4.6 5M4.8 3.5l.7.7" strokeWidth="0.5" strokeLinecap="round" />
+                    </svg>
+                    {assistsValue}
+                  </span>
+                ) : null}
+                {showRedCard ? (
+                  <span className="absolute -left-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-red-500 shadow-sm" />
+                ) : null}
+                {yellowValue > 0 ? (
+                  <span className="absolute -right-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-yellow-400 shadow-sm" />
+                ) : null}
+                {player?.number ? (
+                  <span className="absolute -left-1 -bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-slate-900/80 px-1 text-[9px] font-bold leading-none text-white shadow-sm">
+                    {player.number}
+                  </span>
+                ) : null}
+                <span className="absolute -right-1 -bottom-1 flex h-4 w-4 items-center justify-center rounded-full border border-slate-700 bg-slate-200 text-xs font-light leading-none text-slate-600">+</span>
+              </div>
+              <div className="w-[62px] truncate text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-slate-300 sm:w-[82px] sm:text-[9px]">
+                {player ? player.name : pos.label}
+              </div>
+            </div>
+          </div>
           {player ? (
             <div className="mt-2 flex w-[62px] flex-col items-center justify-center gap-0.5 text-[7px] font-bold leading-none text-white sm:w-[70px] sm:text-[8px]">
               <div className="inline-flex h-[11px] items-center gap-0.5 text-[7px] font-bold leading-none text-white sm:text-[8px]">
                 {wasSubstituted && <span className="text-red-400 text-[8px]">⇔</span>}
                 <span className="inline-flex h-[11px] items-center rounded-full bg-slate-700/80 px-1 py-0 leading-[11px]">{minutesValue}'</span>
-                <Select value={hasRating ? ratingValue : ''} onValueChange={(val) => statIndex >= 0 && setValue(`playerStats.${statIndex}.rating` as any, parseFloat(val), { shouldDirty: true })}>
-                  <div className="relative inline-flex h-[11px] items-center">
-                    <span className={`inline-flex h-[11px] items-center rounded-full px-1 text-[7px] font-bold leading-[11px] text-white sm:text-[8px] ${ratingClassName}`}>★{ratingValue}</span>
-                    <SelectTrigger className="absolute inset-0 !h-[11px] !min-h-0 !w-full border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
-                      <SelectValue placeholder="" />
-                    </SelectTrigger>
-                  </div>
-                  <SelectContent>
+                <div className="relative inline-flex h-[11px] items-center">
+                  <span className={`inline-flex h-[11px] items-center rounded-full px-1 text-[7px] font-bold leading-[11px] text-white sm:text-[8px] ${ratingClassName}`}>★{ratingValue}</span>
+                  <select
+                    value={hasRating ? ratingValue : ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const currentValue = hasRating ? ratingValue : '';
+                      if (val === currentValue || !val || Number.isNaN(parseFloat(val))) return;
+                      if (statIndex >= 0) setValue(`playerStats.${statIndex}.rating` as any, parseFloat(val), { shouldDirty: true });
+                    }}
+                    className="absolute inset-0 !h-[11px] !min-h-0 !w-full border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0"
+                  >
+                    <option value="" />
                     {[...ratingOptions].reverse().map((rating) => (
-                      <SelectItem key={rating} value={rating}>
+                      <option key={rating} value={rating}>
                         ★{rating}
-                      </SelectItem>
+                      </option>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </select>
+                </div>
               </div>
             </div>
           ) : null}
@@ -813,18 +766,22 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
               <div className="flex flex-col items-center gap-1">
                 <span className="text-[10px] text-slate-400">評価</span>
-                <Select value={ratingValue} onValueChange={(val) => setValue(ratingFieldName, parseFloat(val), { shouldDirty: true })}>
-                  <SelectTrigger size="sm" className="w-20 bg-slate-800 text-slate-100 border-slate-700 shadow-none focus-visible:ring-0">
-                    <SelectValue placeholder="-" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ratingOptions.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {r}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select
+                  value={ratingValue}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === ratingValue || !val || Number.isNaN(parseFloat(val))) return;
+                    setValue(ratingFieldName, parseFloat(val), { shouldDirty: true });
+                  }}
+                  className="w-20 bg-slate-800 text-slate-100 border border-slate-700 rounded px-2 py-1 text-sm shadow-none focus:ring-0"
+                >
+                  <option value="">-</option>
+                  {ratingOptions.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex flex-col items-center gap-1">
@@ -957,18 +914,17 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
             >
               {selectedFormation}
             </button>
-            <Select value={selectedFormation} onValueChange={handleFormationChange}>
-              <SelectTrigger className="hidden h-11 rounded-full border border-slate-500/50 bg-slate-700/50 px-5 text-sm font-semibold text-white shadow-none focus:ring-0 focus:ring-offset-0 sm:flex">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-[82vh] w-[calc(100vw-24px)] min-w-[calc(100vw-24px)] rounded-3xl border-slate-200 bg-white p-3 shadow-2xl sm:w-[420px] sm:min-w-[420px]">
-                {FORMATION_OPTIONS.map((formation) => (
-                  <SelectItem key={formation} value={formation} className="mb-2 min-h-16 rounded-2xl px-4 py-4 text-lg font-bold text-slate-900 focus:bg-emerald-50 focus:text-emerald-700">
-                    {formation}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <select
+              value={selectedFormation}
+              onChange={(e) => handleFormationChange(e.target.value)}
+              className="hidden h-11 rounded-full border border-slate-500/50 bg-slate-700/50 px-5 text-sm font-semibold text-white shadow-none focus:ring-0 focus:ring-offset-0 sm:flex"
+            >
+              {FORMATION_OPTIONS.map((formation) => (
+                <option key={formation} value={formation} className="text-slate-900">
+                  {formation}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="shrink-0 rounded-full border border-slate-500/50 bg-slate-700/50 px-4 py-2 text-sm font-semibold text-slate-100">
             {starters.length} / 11
@@ -1011,21 +967,23 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
           >
             ベンチに選手を追加...
           </button>
-          <Select onValueChange={(val) => handleAddPlayer(val, 'sub')} value="">
-            <SelectTrigger className="hidden h-12 w-full rounded-2xl border-slate-300 bg-white px-4 text-sm font-bold text-gray-900 shadow-sm sm:flex sm:w-64">
-              <SelectValue placeholder="ベンチに選手を追加..." />
-            </SelectTrigger>
-            <SelectContent className="max-h-[82vh] w-[calc(100vw-24px)] min-w-[calc(100vw-24px)] rounded-3xl border-slate-200 bg-white p-3 shadow-2xl sm:w-[420px] sm:min-w-[420px]">
-              {availablePlayers.map(p => (
-                <SelectItem key={p.id} value={p.id} className="mb-2 min-h-16 rounded-2xl px-4 py-4 text-lg font-bold text-slate-900 focus:bg-emerald-50 focus:text-emerald-700">
-                  <span className="flex items-center gap-3">
-                    <span className="inline-flex h-11 min-w-11 items-center justify-center rounded-full bg-slate-900 px-2 text-base font-black text-white">#{p.number ?? '-'}</span>
-                    <span className="min-w-0 truncate">{p.name}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <select
+            value={benchAddValue}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (!val) return;
+              handleAddPlayer(val, 'sub');
+              setBenchAddValue('');
+            }}
+            className="hidden h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm font-bold text-gray-900 shadow-sm sm:flex sm:w-64"
+          >
+            <option value="">{availablePlayers.length > 0 ? 'ベンチに選手を追加...' : '登録できる選手がありません'}</option>
+            {availablePlayers.map(p => (
+              <option key={p.id} value={p.id}>
+                #{p.number ?? '-'} {p.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="grid grid-cols-1 gap-3">
           {sortedBench.map((field) => {
@@ -1056,24 +1014,22 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                   >
                     {options.find((p) => p.id === currentPlayerId)?.name || '選手を選択'}
                   </button>
-                  <Select value={currentPlayerId} onValueChange={(val) => setBenchPlayer((field as any).id, val)}>
-                    <SelectTrigger className="hidden h-11 w-56 rounded-xl border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100 shadow-sm sm:flex">
-                      <SelectValue placeholder="選手を選択" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[82vh] w-[calc(100vw-24px)] min-w-[calc(100vw-24px)] rounded-3xl border-slate-200 bg-white p-3 shadow-2xl sm:w-[420px] sm:min-w-[420px]">
-                      <SelectItem value={NONE_SELECT_VALUE} className="mb-2 h-14 rounded-2xl px-4 text-lg font-bold text-slate-500 focus:bg-slate-100">
-                        未選択
-                      </SelectItem>
-                      {options.map((p) => (
-                        <SelectItem key={p.id} value={p.id} className="mb-2 min-h-16 rounded-2xl px-4 py-4 text-lg font-bold text-slate-900 focus:bg-emerald-50 focus:text-emerald-700">
-                          <span className="flex items-center gap-3">
-                            <span className="inline-flex h-11 min-w-11 items-center justify-center rounded-full bg-slate-900 px-2 text-base font-black text-white">#{p.number ?? '-'}</span>
-                            <span className="min-w-0 truncate">{p.name}</span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <select
+                    value={currentPlayerId || NONE_SELECT_VALUE}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === currentPlayerId) return;
+                      setBenchPlayer((field as any).id, val);
+                    }}
+                    className="hidden h-11 w-56 rounded-xl border border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100 shadow-sm sm:flex"
+                  >
+                    <option value={NONE_SELECT_VALUE}>未選択</option>
+                    {options.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        #{p.number ?? '-'} {p.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               ),
             });

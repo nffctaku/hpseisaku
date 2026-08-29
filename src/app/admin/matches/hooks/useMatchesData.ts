@@ -335,23 +335,22 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
           return seasonOk && competitionOk && teamOk;
           });
 
-        // If index query returned any docs, never run the expensive tree fallback.
-        // Showing 0 results should be fast.
-        if (!indexIsEmpty) {
-          setMatches(filtered);
-          return;
-        }
-
-        // Fallback: only when index is truly empty.
         const treeMatches = await fetchMatchesFromTree(clubUid, competitionMeta);
         if (fetchId !== activeFetchIdRef.current) return;
         const fallbackFiltered = treeMatches.filter((m) => {
           const seasonOk = filters.season === "all" || m.competitionSeason === filters.season;
           const competitionOk = filters.competitionId === "all" || m.competitionId === filters.competitionId;
-          const teamOk = m.homeTeamId === filters.teamId || m.awayTeamId === filters.teamId;
+          const teamsUnset = !m.homeTeamId && !m.awayTeamId;
+          const teamOk = filters.teamId === "all" || m.homeTeamId === filters.teamId || m.awayTeamId === filters.teamId || teamsUnset;
           return seasonOk && competitionOk && teamOk;
         });
-        setMatches(fallbackFiltered);
+
+        const mergedMap = new Map<string, EnrichedMatch>();
+        for (const m of filtered) mergedMap.set(getMatchKey(m), m);
+        for (const m of fallbackFiltered) mergedMap.set(getMatchKey(m), m);
+        const merged = Array.from(mergedMap.values())
+          .sort((a, b) => String(a.matchDate).localeCompare(String(b.matchDate)));
+        setMatches(merged);
       } catch (e) {
         console.error("[useMatchesData] runSearch failed", e);
         toast.error("試合データの読み込みに失敗しました。");

@@ -29,7 +29,11 @@ export function MatchesList(props: { matches: EnrichedMatch[]; perspectiveTeamId
     return acc;
   }, {} as Record<string, EnrichedMatch[]>);
 
-  const groupedEntries = Object.entries(groupedMatches);
+  const groupedEntries = Object.entries(groupedMatches).sort(([, a], [, b]) => {
+    const ad = a[0]?.matchDate || '';
+    const bd = b[0]?.matchDate || '';
+    return String(ad).localeCompare(String(bd));
+  });
 
   if (groupedEntries.length === 0) {
     return <div className="text-center py-10 text-muted-foreground">表示する試合がありません。</div>;
