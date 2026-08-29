@@ -4,7 +4,6 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { User, onAuthStateChanged, setPersistence, browserLocalPersistence, getRedirectResult } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { useRouter, usePathname } from 'next/navigation';
 
 // Define a more detailed user profile type
 export interface UserProfile extends User {
@@ -74,8 +73,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [clubProfileExists, setClubProfileExists] = useState(false);
   const [ownerUid, setOwnerUid] = useState<string | undefined>(undefined);
-  const router = useRouter();
-  const pathname = usePathname();
   const lastProcessedUidRef = useRef<string | null>(null);
 
   const applyUserOverrides = (uid: string, profile: Partial<UserProfile>) => {
@@ -230,14 +227,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       unsubscribe();
     };
   }, []);
-
-  useEffect(() => {
-    if (!loading && user && !clubProfileExists && pathname !== '/admin/register-club') {
-        if(pathname.startsWith('/admin')){
-            router.push('/admin/register-club');
-        }
-    }
-  }, [user, clubProfileExists, loading, pathname, router]);
 
   const refreshUserProfile = async () => {
     const currentUser = auth.currentUser;
