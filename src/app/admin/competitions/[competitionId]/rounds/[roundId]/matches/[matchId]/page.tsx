@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
 import { db } from '@/lib/firebase';
@@ -21,7 +21,6 @@ export default function MatchAdminPage() {
   const { user, ownerUid: ownerUidFromContext } = useAuth();
   const { mainTeamId } = useClub();
   const params = useParams();
-  const searchParams = useSearchParams();
   const { competitionId, roundId, matchId } = params;
 
   const ownerUid = ownerUidFromContext || user?.uid;
@@ -38,10 +37,7 @@ export default function MatchAdminPage() {
   const [roundName, setRoundName] = useState<string>('');
   const [roundMatches, setRoundMatches] = useState<any[]>([]);
 
-  const debugEnabled =
-    searchParams?.get('debug') === '1' ||
-    searchParams?.get('debug') === 'true' ||
-    searchParams?.get('debug') === 'yes';
+  const debugEnabled = false;
 
   useEffect(() => {
     if (!user || !ownerUid || typeof competitionId !== 'string' || typeof roundId !== 'string') return;
@@ -481,7 +477,7 @@ export default function MatchAdminPage() {
               setHomePlayers(nextHomePlayers);
               setAwayPlayers(nextAwayPlayers);
 
-              if (debugEnabled) {
+              if (false) {
                 setDebugPanel({
                   ownerUid,
                   competitionId,
@@ -606,7 +602,7 @@ export default function MatchAdminPage() {
           })()}
         </div>
       </div>
-      {debugEnabled && debugPanel ? (
+      {false && debugPanel ? (
         <div className="mb-4 rounded-lg border bg-white p-3 text-xs text-gray-900">
           <div className="font-semibold">DEBUG</div>
           <pre className="mt-2 whitespace-pre-wrap break-words text-[10px] leading-snug text-gray-700">
