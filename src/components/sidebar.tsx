@@ -2,7 +2,6 @@
 
 import { type ReactElement, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
 import { cn } from '@/lib/utils';
@@ -31,7 +30,10 @@ import { db } from '@/lib/firebase';
 import { collection, doc, getDoc, getDocs, query, where, limit, setDoc } from 'firebase/firestore';
 
 export function Sidebar() {
-  const pathname = usePathname();
+  const [pathname, setPathname] = useState<string>('');
+  useEffect(() => {
+    setPathname(window.location.pathname);
+  }, []);
   const { user } = useAuth();
   const { clubInfo } = useClub();
   const clubId = clubInfo.id || user?.clubId || user?.uid || null;
