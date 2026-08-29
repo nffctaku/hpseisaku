@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
 import { db } from '@/lib/firebase';
@@ -20,11 +19,23 @@ import { formatMinute } from '@/lib/formatMinute';
 export default function MatchAdminPage() {
   const { user, ownerUid: ownerUidFromContext } = useAuth();
   const { mainTeamId } = useClub();
-  const params = useParams();
-  const { competitionId, roundId, matchId } = params;
 
   const ownerUid = ownerUidFromContext || user?.uid;
   const myTeamId = mainTeamId;
+
+  const [competitionId, setCompetitionId] = useState<string | undefined>(undefined);
+  const [roundId, setRoundId] = useState<string | undefined>(undefined);
+  const [matchId, setMatchId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const segs = window.location.pathname.split('/').filter(Boolean);
+    const compIdx = segs.indexOf('competitions');
+    const roundIdx = segs.indexOf('rounds');
+    const matchIdx = segs.indexOf('matches');
+    setCompetitionId(segs[compIdx + 1]);
+    setRoundId(segs[roundIdx + 1]);
+    setMatchId(segs[matchIdx + 1]);
+  }, []);
 
   const [match, setMatch] = useState<MatchDetails | null>(null);
   const [loading, setLoading] = useState(true);
