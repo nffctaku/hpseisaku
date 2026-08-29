@@ -86,6 +86,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
 
    const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
    const autosaveReadyRef = useRef(false);
+   const prevEventCountRef = useRef(0);
    const savingRef = useRef(false);
    const savedIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -381,6 +382,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
             homeFormation: data.homeFormation || match.homeFormation || '4-3-3',
             awayFormation: data.awayFormation || match.awayFormation || '4-3-3',
           });
+          prevEventCountRef.current = (data.events || []).length;
         } else {
           methods.reset({
             customStatHeaders: [],
@@ -389,6 +391,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
             homeFormation: match.homeFormation || '4-3-3',
             awayFormation: match.awayFormation || '4-3-3',
           });
+          prevEventCountRef.current = 0;
         }
       } catch (error) {
         console.error("Error fetching match data:", error);
@@ -730,11 +733,17 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   useEffect(() => {
     if (loading) return;
     if (!autosaveReadyRef.current) return;
-    if (!methods.formState.isDirty) return;
+    const eventCount = (watchedEvents || []).length;
+    const eventCountChanged = prevEventCountRef.current !== eventCount;
+    if (!eventCountChanged && !methods.formState.isDirty) return;
     if (savingRef.current) return;
 
     const parsed = formSchema.safeParse(methods.getValues());
-    if (!parsed.success) return;
+    if (!parsed.success) {
+      console.error('[SquadRegistrationForm] autosave validation failed:', parsed.error);
+      return;
+    }
+    prevEventCountRef.current = eventCount;
 
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);

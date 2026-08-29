@@ -375,6 +375,15 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     stats.forEach((ps, index) => {
       if (!ps) return;
       if (ps.teamId !== teamId) return;
+      if (index > 10) {
+        if ((ps.role ?? 'starter') === 'starter') {
+          setValue(`playerStats.${index}.role` as any, 'sub', { shouldDirty: false });
+        }
+        if (ps.starterSlot !== undefined) {
+          setValue(`playerStats.${index}.starterSlot` as any, undefined as any, { shouldDirty: false });
+        }
+        return;
+      }
       if ((ps.role ?? 'starter') !== 'starter') return;
       const slot = Number(ps.starterSlot);
       if (Number.isInteger(slot) && slot >= 0 && slot <= 10) return;
@@ -614,12 +623,12 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                 ],
                 onSelect: (value) => setStarterSlotPlayer(slot, value),
               })}
-              className="absolute inset-0 z-20 h-full w-full opacity-0"
+              className="absolute inset-0 z-20 h-full w-full opacity-0 sm:hidden"
               aria-label="選手を選択"
               disabled={hasEvents}
             />
           ) : null}
-          <div className="h-auto w-full overflow-visible border-0 bg-transparent p-0 [&>svg]:hidden">
+          <div className="relative h-auto w-full overflow-visible border-0 bg-transparent p-0 [&>svg]:hidden">
             <div className="flex w-full flex-col items-center gap-0.5 overflow-visible">
               <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-300/45 bg-slate-500/30 shadow-[0_0_0_3px_rgba(255,255,255,0.06)] sm:h-11 sm:w-11">
                 <div
@@ -667,6 +676,26 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                 {player ? player.name : pos.label}
               </div>
             </div>
+            {!hasEvents ? (
+              <select
+                value={currentPlayerId || NONE_SELECT_VALUE}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === currentPlayerId) return;
+                  setStarterSlotPlayer(slot, val);
+                }}
+                disabled={hasEvents}
+                className="hidden absolute inset-0 z-20 h-full w-full border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0 sm:block"
+                aria-label="選手を選択"
+              >
+                <option value={NONE_SELECT_VALUE}>未選択</option>
+                {options.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    #{p.number ?? '-'} {p.name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
           </div>
           {player ? (
             <div className="mt-2 flex w-[62px] flex-col items-center justify-center gap-0.5 text-[7px] font-bold leading-none text-white sm:w-[70px] sm:text-[8px]">
