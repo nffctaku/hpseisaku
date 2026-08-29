@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged, setPersistence, browserLocalPersistence, getRedirectResult } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -76,6 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [ownerUid, setOwnerUid] = useState<string | undefined>(undefined);
   const router = useRouter();
   const pathname = usePathname();
+  const lastProcessedUidRef = useRef<string | null>(null);
 
   const applyUserOverrides = (uid: string, profile: Partial<UserProfile>) => {
     if (uid === "m7OPZIn0vyX9yKaFWFjqoanB4Bh1") {
@@ -202,10 +203,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       unsubscribe = onAuthStateChanged(auth, async (authUser) => {
         console.log('[AuthContext] onAuthStateChanged triggered', { authUser });
         if (authUser) {
+          // 同じ uid に対して重複してプロフィール取得・setUser しないようにガード（無限ループ防止）
+          if (lastProcessedUidRef.current === authUser.uid) {
+            console.log('[AuthContext] same uid, skipping profile fetch', { uid: authUser.uid });
+            return;
+          }
+          lastProcessedUidRef.current = authUser.uid;
           setLoading(true);
           await fetchUserProfile(authUser);
           setLoading(false);
         } else {
+          if (lastProcessedUidRef.current === null) return;
+          lastProcessedUidRef.current = null;
           setUser(null);
           setClubProfileExists(false);
           setLoading(false);
