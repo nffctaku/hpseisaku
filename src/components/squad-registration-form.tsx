@@ -294,6 +294,9 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
   const watchedCustomStatHeaders = useWatch({ control: methods.control, name: 'customStatHeaders' });
 
   useEffect(() => {
+    // Temporarily disabled to investigate React #185 infinite loop
+    return;
+    // eslint-disable-next-line no-unreachable
     const events = Array.isArray(watchedEvents) ? watchedEvents : [];
     const playerStats = (methods.getValues('playerStats') as any[]) || [];
     if (playerStats.length === 0) return;
