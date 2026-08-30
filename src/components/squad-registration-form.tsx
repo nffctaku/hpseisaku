@@ -55,6 +55,7 @@ const formSchema = z.object({
         outPlayerId: z.string().optional(),
         outPlayerName: z.string().optional(),
         text: z.string().optional(),
+        originalPlayerId: z.string().optional(),
       })
     )
     .optional(),
@@ -298,7 +299,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     // Temporarily disabled to investigate React #185 infinite loop
     return;
     // eslint-disable-next-line no-unreachable
-    const events = Array.isArray(watchedEvents) ? watchedEvents : [];
+    const events: any[] = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
     const playerStats = (methods.getValues('playerStats') as any[]) || [];
     if (playerStats.length === 0) return;
 
@@ -307,7 +308,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     const yellowCounts = new Map<string, number>();
     const redCounts = new Map<string, number>();
 
-    events.forEach((ev: any) => {
+    (events || []).forEach((ev: any) => {
       const type = typeof ev?.type === 'string' ? ev.type : '';
 
       if (type === 'goal') {
@@ -448,6 +449,15 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         matchDocPath || `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`
       );
 
+      const playerNameToId = new Map<string, string>();
+      [...homePlayers, ...awayPlayers].forEach((p) => {
+        if (p?.name && p?.id) playerNameToId.set(p.name, p.id);
+      });
+      const resolveOriginalFromName = (name?: string): string | undefined => {
+        if (!name || !name.startsWith('PK(') || !name.endsWith(')')) return undefined;
+        return playerNameToId.get(name.slice(3, -1).trim());
+      };
+
       const goalCounts = new Map<string, number>();
       const assistCounts = new Map<string, number>();
       const yellowCounts = new Map<string, number>();
@@ -457,8 +467,9 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         const type = typeof ev?.type === 'string' ? ev.type : '';
 
         if (type === 'goal') {
-          if (ev.playerId) {
-            goalCounts.set(ev.playerId, (goalCounts.get(ev.playerId) || 0) + 1);
+          const scorerId = ev.originalPlayerId || resolveOriginalFromName(ev.playerName) || ev.playerId;
+          if (scorerId) {
+            goalCounts.set(scorerId, (goalCounts.get(scorerId) || 0) + 1);
           }
           if (ev.assistPlayerId) {
             assistCounts.set(ev.assistPlayerId, (assistCounts.get(ev.assistPlayerId) || 0) + 1);
@@ -517,6 +528,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           outPlayerId,
           outPlayerName,
           text,
+          originalPlayerId,
         } = ev;
 
         const base: any = { id, minute, teamId, type };
@@ -549,6 +561,8 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           if (outName) base.outPlayerName = outName;
         }
         if (text) base.text = text;
+        const resolvedOriginal = originalPlayerId || resolveOriginalFromName(playerName);
+        if (resolvedOriginal) base.originalPlayerId = resolvedOriginal;
         return base;
       });
 

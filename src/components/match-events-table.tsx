@@ -85,6 +85,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
   const [newEventMinute, setNewEventMinute] = useState(0);
   const [newEventPlayerId, setNewEventPlayerId] = useState<string>("");
   const [newEventPlayerName, setNewEventPlayerName] = useState<string>("");
+  const [newEventOriginalPlayerId, setNewEventOriginalPlayerId] = useState<string>("");
   const [newEventAssistPlayerId, setNewEventAssistPlayerId] = useState<string>("");
   const [newEventAssistPlayerName, setNewEventAssistPlayerName] = useState<string>("");
   const [newEventCardColor, setNewEventCardColor] = useState<"yellow" | "red">("yellow");
@@ -139,6 +140,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
         newEvent.playerId = `custom_${Date.now()}`;
         if (newEventPlayerId === 'pk') {
           newEvent.playerName = `PK(${newEventPlayerName.trim()})`;
+          newEvent.originalPlayerId = newEventOriginalPlayerId || undefined;
         } else if (newEventPlayerId === 'og') {
           newEvent.playerName = `OG(${newEventPlayerName.trim()})`;
         } else {
@@ -182,6 +184,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
     setNewEventMinute(0);
     setNewEventPlayerId("");
     setNewEventPlayerName("");
+    setNewEventOriginalPlayerId('');
     setNewEventAssistPlayerId("");
     setNewEventAssistPlayerName("");
     setNewEventCardColor("yellow");
@@ -540,6 +543,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                 ],
                 (val) => {
                   setNewEventPlayerId(val);
+                  if (val !== 'pk') setNewEventOriginalPlayerId('');
                   if (val !== "custom") setNewEventPlayerName("");
                 },
                 newEventPlayerId === 'pk' ? 'PK(ペナルティキック)' : newEventPlayerId === 'og' ? 'OG(オウンゴール)' : newEventPlayerId === 'custom' ? newEventPlayerName || 'その他(自由入力)' : newEventPlayerId === 'none' || !newEventPlayerId ? '得点者を選択' : scorerTeamPlayers.find(p => p.id === newEventPlayerId)?.name || '得点者を選択'
@@ -559,7 +563,11 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                     'PK得点者を選択',
                     scorerTeamPlayers.find(p => p.name === newEventPlayerName)?.id || '',
                     [{ value: '', label: 'PK得点者を選択' }, ...scorerTeamPlayers.map((p) => ({ value: p.id, label: p.name }))],
-                    (val) => setNewEventPlayerName(scorerTeamPlayers.find(p => p.id === val)?.name || ''),
+                    (val) => {
+                  const p = scorerTeamPlayers.find((pl) => pl.id === val);
+                  setNewEventPlayerName(p?.name || '');
+                  setNewEventOriginalPlayerId(val);
+                },
                     newEventPlayerName || 'PK得点者を選択'
                   )}
                 </div>
@@ -619,6 +627,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
                 ],
                 (val) => {
                   setNewEventPlayerId(val);
+                  if (val !== 'pk') setNewEventOriginalPlayerId('');
                   if (val !== "custom") setNewEventPlayerName("");
                 },
                 newEventPlayerId === 'custom' ? newEventPlayerName || 'その他(自由入力)' : newEventPlayerId === 'none' || !newEventPlayerId ? '選手を選択' : teamPlayers.find(p => p.id === newEventPlayerId)?.name || '選手を選択'

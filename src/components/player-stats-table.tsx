@@ -157,6 +157,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
   const derivedCounts = useMemo(() => {
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
+    const nameToId = new Map<string, string>((allPlayers || []).map((p) => [p.name, p.id]));
     const goals = new Map<string, number>();
     const assists = new Map<string, number>();
     const yellow = new Map<string, number>();
@@ -166,7 +167,11 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
       const type = typeof ev?.type === 'string' ? ev.type : '';
       // OGは選手の得点としてカウントしない
       if (type === 'goal') {
-        if (ev.playerId) goals.set(ev.playerId, (goals.get(ev.playerId) || 0) + 1);
+        const pkName = typeof ev.playerName === 'string' && ev.playerName.startsWith('PK(') && ev.playerName.endsWith(')')
+          ? ev.playerName.slice(3, -1).trim()
+          : undefined;
+        const scorerId = ev.originalPlayerId || (pkName && nameToId.get(pkName)) || ev.playerId;
+        if (scorerId) goals.set(scorerId, (goals.get(scorerId) || 0) + 1);
         if (ev.assistPlayerId) assists.set(ev.assistPlayerId, (assists.get(ev.assistPlayerId) || 0) + 1);
         return;
       }
@@ -180,7 +185,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     });
 
     return { goals, assists, yellow, red };
-  }, [watchedEvents]);
+  }, [watchedEvents, allPlayers]);
 
   const derivedStarterMinutes = useMemo(() => {
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
