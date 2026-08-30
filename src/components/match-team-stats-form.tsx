@@ -46,12 +46,23 @@ type TeamStatsTemplateDoc = {
 };
 
 const defaultStats: Omit<TeamStat, 'homeValue' | 'awayValue'>[] = [
+  { id: 'possession', name: 'ポゼッション' },
   { id: 'shots', name: 'シュート' },
-  { id: 'shotsOnTarget', name: '枠内シュート' },
-  { id: 'possession', name: '支配率' },
+  { id: 'expectedGoals', name: 'ゴール期待値' },
+  { id: 'shotAccuracy', name: 'シュート精度' },
+  { id: 'passes', name: 'パス' },
+  { id: 'passAccuracy', name: 'パス精度' },
+  { id: 'dribbleSuccessRate', name: 'ドリブル成功率' },
+  { id: 'tackles', name: 'タックル' },
+  { id: 'tacklesWon', name: 'タックル成功' },
+  { id: 'interceptions', name: 'インターセプト' },
+  { id: 'saves', name: 'セーブ' },
+  { id: 'fouls', name: 'ファウル' },
+  { id: 'offsides', name: 'オフサイド' },
+  { id: 'cornerKicks', name: 'コーナー' },
+  { id: 'freeKicks', name: 'フリーキック' },
   { id: 'yellowCards', name: 'イエロー' },
   { id: 'redCards', name: 'レッド' },
-  { id: 'cornerKicks', name: 'コーナーキック' },
 ];
 
 const defaultStatIds = defaultStats.map(s => s.id);
@@ -72,13 +83,9 @@ const presetStats = [
   { id: 'shotAccuracy', name: 'シュート精度' },
 ];
 
-const aiReadableStatNames = [
-  'シュート',
-  '支配率',
-  'イエロー',
-  'コーナーキック',
-  ...presetStats.map((stat) => stat.name),
-];
+const aiReadableStatNames = Array.from(
+  new Set([...defaultStats.map((stat) => stat.name), ...presetStats.map((stat) => stat.name)])
+);
 
 const presetStatIds = presetStats.map(s => s.id);
 const lockedStatIds = [...defaultStatIds, ...presetStatIds];
@@ -135,6 +142,7 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
           apiField = 'team_stats.yellow_cards';
           values = result.team_stats.yellow_cards;
           break;
+        case 'コーナー':
         case 'コーナーキック':
           apiField = 'team_stats.corners';
           values = result.team_stats.corners;
@@ -143,6 +151,7 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
           apiField = 'team_stats.passes';
           values = result.team_stats.passes;
           break;
+        case 'パス精度':
         case 'パス成功率':
           apiField = 'percentage_stats.pass_accuracy';
           values = result.percentage_stats.pass_accuracy;
@@ -182,6 +191,10 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
         case 'PK':
           apiField = 'team_stats.penalty_kicks';
           values = result.team_stats.penalty_kicks;
+          break;
+        case 'セーブ':
+          apiField = 'team_stats.saves';
+          values = result.team_stats.saves;
           break;
         case 'ドリブル成功率':
           apiField = 'percentage_stats.dribble_success_rate';
@@ -314,11 +327,16 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
     const normalizedExisting = normalizeExistingStats(existingStats);
     if (normalizedExisting.length > 0) return normalizedExisting;
 
-    if (template.length > 0) {
-      return template.map((s) => ({ id: s.id, name: s.name, homeValue: '', awayValue: '' }));
-    }
+    const base = defaultStats.map((ds) => ({ id: ds.id, name: ds.name, homeValue: '', awayValue: '' }));
+    if (template.length === 0) return base;
 
-    return defaultStats.map((ds) => ({ id: ds.id, name: ds.name, homeValue: '', awayValue: '' }));
+    const defaultIds = new Set(defaultStats.map((ds) => ds.id));
+    const defaultNames = new Set(defaultStats.map((ds) => ds.name));
+    const extras = template
+      .filter((s) => !defaultIds.has(s.id) && !defaultNames.has(s.name))
+      .map((s) => ({ id: s.id, name: s.name, homeValue: '', awayValue: '' }));
+
+    return [...base, ...extras];
   };
 
   const toNumberOrNull = (v: string): number | null => {
