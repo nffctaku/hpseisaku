@@ -274,7 +274,7 @@ export default function EditCompetitionPage() {
                             <FormLabel className="font-normal flex-1 min-w-0 cursor-pointer">
                               <div className="flex items-start gap-2 min-w-0">
                                 {team.logoUrl ? (
-                                  <Image src={team.logoUrl} alt={team.name} width={24} height={24} className="rounded-full object-contain" />
+                                  <Image src={team.logoUrl} alt={team.name} width={24} height={24} className="rounded-full object-contain" unoptimized />
                                 ) : (
                                   <div className="w-6 h-6 bg-white/10 rounded-full" />
                                 )}

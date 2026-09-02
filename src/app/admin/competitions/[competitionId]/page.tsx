@@ -739,7 +739,7 @@ export default function CompetitionDetailPage() {
           : null;
       const newMatchData = { 
         homeTeam: '', awayTeam: '', 
-        matchDate: defaultMatchDate, 
+        matchDate: defaultMatchDate ?? '', 
         competitionId, 
         scoreHome: null, scoreAway: null,
         pkScoreHome: null, pkScoreAway: null 
@@ -845,6 +845,16 @@ export default function CompetitionDetailPage() {
         </Select>
         <Button variant="ghost" size="icon" onClick={() => setCurrentRoundIndex(p => Math.min(rounds.length - 1, p + 1))} disabled={currentRoundIndex >= rounds.length - 1}>
           <ChevronRight className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleAddRound}
+          title="節を追加"
+          className="ml-2 text-gray-900"
+        >
+          <PlusCircle className="mr-2 h-4 w-4" />
+          節を追加
         </Button>
       </div>
 

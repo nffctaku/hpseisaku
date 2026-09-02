@@ -58,7 +58,7 @@ toast.error('エンブレムのアップロードに失敗しました。');
       {uploading ? (
         <Loader2 className="animate-spin" size={48} />
       ) : value ? (
-        <Image src={value} alt="Club Emblem" fill className="object-contain rounded-lg" />
+        <Image src={value} alt="Club Emblem" fill className="object-contain rounded-lg" unoptimized />
       ) : (
         <div className="text-center px-4">
           <UploadCloud className="mx-auto h-12 w-12" />
