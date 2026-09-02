@@ -3,14 +3,17 @@
 import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, doc, getDoc, getDocs, query, updateDoc, addDoc, setDoc, increment } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, updateDoc, addDoc, setDoc, increment, deleteDoc } from "firebase/firestore";
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ChevronLeft, ChevronRight, PlusCircle, AlertTriangle, Upload, Download } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Loader2, ChevronLeft, ChevronRight, PlusCircle, AlertTriangle, Upload, Download, CalendarDays, BarChart3, Lightbulb, MoreVertical, Pencil, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { toast } from "sonner";
-import { format, parse, isValid } from 'date-fns';
+import { format, parse, isValid, parseISO } from 'date-fns';
+import { ja } from 'date-fns/locale';
 import { MatchEditor } from '@/components/match-editor';
 import { Match, Team } from '@/types/match';
 import {
@@ -163,6 +166,22 @@ export default function CompetitionDetailPage() {
   const [competitionTeams, setCompetitionTeams] = useState<Team[]>([]);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [pendingDeleteMatch, setPendingDeleteMatch] = useState<Match | null>(null);
+  const [mobileScorePicker, setMobileScorePicker] = useState<{
+    matchId: string;
+    field: 'scoreHome' | 'scoreAway';
+    value: string;
+  } | null>(null);
+  const [pressedPickerValue, setPressedPickerValue] = useState<string | null>(null);
+  const [mobileTeamPicker, setMobileTeamPicker] = useState<{
+    matchId: string;
+    field: 'homeTeam' | 'awayTeam';
+    value: string;
+  } | null>(null);
+  const [mobileDatePicker, setMobileDatePicker] = useState<{
+    matchId: string;
+    value: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchAllData = async () => {
@@ -285,6 +304,27 @@ export default function CompetitionDetailPage() {
     }
     return map;
   }, [currentRound?.matches]);
+
+  const mobileMatchDateGroups = useMemo(() => {
+    const groups = new Map<string, Match[]>();
+    for (const match of currentRound?.matches ?? []) {
+      const key = typeof match.matchDate === 'string' && match.matchDate ? match.matchDate : 'no-date';
+      const list = groups.get(key) ?? [];
+      list.push(match);
+      groups.set(key, list);
+    }
+    return Array.from(groups.entries()).map(([date, matches]) => ({ date, matches }));
+  }, [currentRound?.matches]);
+
+  const formatMobileDate = (date: string) => {
+    if (date === 'no-date') return '日付未設定';
+    const parsed = parseISO(date);
+    if (!isValid(parsed)) return date;
+    return format(parsed, 'yyyy年M月d日(E)', { locale: ja });
+  };
+
+  const getTeamName = (teamId: string) => allTeams.get(teamId)?.name || '未設定';
+  const getTeamLogo = (teamId: string) => allTeams.get(teamId)?.logoUrl;
 
   const syncPublicMatchIndex = async (roundId: string, matchId: string, patch?: Partial<Match>, roundNameOverride?: string) => {
     if (!user || !clubUid) return;
@@ -726,6 +766,33 @@ export default function CompetitionDetailPage() {
     toast.success(`${newRoundName}を追加しました。`);
   };
 
+  const handleDeleteMatch = async (match: Match) => {
+    if (!user || !currentRound || !clubUid) return;
+    try {
+      await deleteDoc(doc(db, `clubs/${clubUid}/competitions/${competitionId}/rounds/${currentRound.id}/matches`, match.id));
+
+      const indexDocId = `${competitionId}__${currentRound.id}__${match.id}`;
+      try {
+        await deleteDoc(doc(db, `clubs/${clubUid}/public_match_index`, indexDocId));
+      } catch (e) {
+        console.warn('[CompetitionDetailPage] Failed to delete public_match_index (continuing):', e);
+      }
+
+      try {
+        await setDoc(doc(db, `clubs/${clubUid}`), { statsCacheVersion: increment(1) }, { merge: true });
+      } catch (e) {
+        console.warn('[CompetitionDetailPage] Failed to bump statsCacheVersion (continuing):', e);
+      }
+
+      setRounds(prev => prev.map(round => round.id === currentRound.id ? { ...round, matches: round.matches.filter(m => m.id !== match.id) } : round));
+      setPendingDeleteMatch(null);
+      toast.success('試合を削除しました。');
+    } catch (error) {
+      console.error('[CompetitionDetailPage] Error deleting match:', error);
+      toast.error('試合の削除に失敗しました。');
+    }
+  };
+
   const handleAddMatch = async () => {
     if (!currentRound || !user || !clubUid) return;
     try {
@@ -791,32 +858,39 @@ export default function CompetitionDetailPage() {
   }
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="mb-4">
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold">{competition?.name}</h1>
-          <p className="text-muted-foreground">{competition?.season}</p>
+    <div className="min-h-screen bg-[#0B1120] px-4 py-5 text-[#F3F4F6] sm:px-6 sm:py-8 lg:px-8">
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-5 sm:mb-8">
+          <h1 className="text-[28px] font-bold leading-tight tracking-tight text-[#F3F4F6] sm:text-[32px]">{competition?.name}</h1>
+          <p className="mt-1 text-base font-medium text-[#10B981] sm:mt-2 sm:text-sm sm:text-[#F3F4F6]/80">{competition?.season}</p>
         </div>
-        <div className="flex justify-between gap-2">
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Button
             type="button"
             variant="outline"
-            className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+            className="h-[66px] justify-start rounded-xl border-white/10 bg-[#1F2937]/80 px-3 py-3 text-left text-[#F3F4F6] hover:bg-[#1F2937] hover:text-[#F3F4F6] sm:h-auto sm:px-5 sm:py-4"
             onClick={handleCsvDownload}
             disabled={!competition || !clubUid}
           >
-            <Download className="mr-2 h-4 w-4" />
-            CSVダウンロード
+            <Download className="h-5 w-5 stroke-[1.5] text-[#10B981]" />
+            <span className="flex flex-col items-start">
+              <span className="text-sm font-semibold">CSVダウンロード</span>
+              <span className="text-xs font-medium text-[#F3F4F6]/70">大会データを出力</span>
+            </span>
           </Button>
           <Button
             type="button"
             variant="outline"
-            className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+            className="h-[66px] justify-start rounded-xl border-white/10 bg-[#1F2937]/80 px-3 py-3 text-left text-[#F3F4F6] hover:bg-[#1F2937] hover:text-[#F3F4F6] sm:h-auto sm:px-5 sm:py-4"
             onClick={() => fileInputRef.current?.click()}
             disabled={!competition || !clubUid}
           >
-            <Upload className="mr-2 h-4 w-4" />
-            CSVインポート
+            <Upload className="h-5 w-5 stroke-[1.5] text-[#10B981]" />
+            <span className="flex flex-col items-start">
+              <span className="text-sm font-semibold">CSVインポート</span>
+              <span className="text-xs font-medium text-[#F3F4F6]/70">データを取り込み</span>
+            </span>
           </Button>
           <input
             type="file"
@@ -826,102 +900,425 @@ export default function CompetitionDetailPage() {
             onChange={handleCsvImport}
           />
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
+
+        <p className="mt-3 text-sm text-[#F3F4F6]/80 sm:mt-5">
           大会日程をCSVファイルから登録・編集できます
         </p>
-      </div>
 
-      <div className="flex justify-between items-center bg-card p-2 rounded-lg mb-8">
-        <Button variant="ghost" size="icon" onClick={() => setCurrentRoundIndex(p => Math.max(0, p - 1))} disabled={currentRoundIndex === 0}>
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-        <Select value={currentRound?.id} onValueChange={(roundId) => setCurrentRoundIndex(rounds.findIndex(r => r.id === roundId))}>
-          <SelectTrigger className="w-[180px] font-semibold text-lg">
-            <SelectValue placeholder="節を選択" />
-          </SelectTrigger>
-          <SelectContent>
-            {rounds.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Button variant="ghost" size="icon" onClick={() => setCurrentRoundIndex(p => Math.min(rounds.length - 1, p + 1))} disabled={currentRoundIndex >= rounds.length - 1}>
-          <ChevronRight className="h-5 w-5" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleAddRound}
-          title="節を追加"
-          className="ml-2 text-gray-900"
-        >
-          <PlusCircle className="mr-2 h-4 w-4" />
-          節を追加
-        </Button>
-      </div>
-
-      {currentRound && competition ? (
-        <div className="space-y-6">
-          <div className="space-y-3">
-            {currentRound.matches.map(match => (
-              <MatchEditor
-                key={match.id}
-                match={{ ...(match as any), competitionFormat: competition.format }}
-                teams={competitionTeams}
-                allTeamsMap={allTeams}
-                excludedTeamIds={excludedTeamIdsByMatchId.get(match.id) ?? new Set()}
-                roundId={currentRound.id}
-                season={competition.season}
-                onUpdate={handleMatchUpdate}
-                onDelete={fetchAllData}
-              />
-            ))}
-          </div>
-          <Button variant="outline" className="w-full text-gray-900" onClick={handleAddMatch}><PlusCircle className="mr-2 h-4 w-4" />試合を追加</Button>
-          {canEditStandings ? (
-            <div>
-              <Link href={`/admin/competitions/${competitionId}/standings`}>
-                <Button className="w-full bg-green-600 text-white hover:bg-green-700">順位表を手動で更新・編集</Button>
-              </Link>
-              <p className="text-xs text-muted-foreground mt-2">
-                日程を登録せず、直接順位表を編集できます
-              </p>
+        <div className="mt-4 rounded-xl border border-[#334155] bg-[#111827] p-3 sm:mt-5 sm:bg-[#1F2937]/70 sm:p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#F3F4F6]">
+              <CalendarDays className="h-5 w-5 stroke-[1.5] text-[#10B981]" />
+              節の選択
             </div>
-          ) : null}
-          
-          <div className="flex justify-end mt-4">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="w-full bg-red-600 hover:bg-red-700 text-white">
-                  <AlertTriangle className="mr-2 h-4 w-4" />
-                  すべての試合スコアをリセット
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddRound}
+              title="節を追加"
+              className="h-8 rounded-lg border-white/10 bg-[#0B1120]/80 px-3 text-xs font-medium text-[#F3F4F6] hover:bg-[#111827] hover:text-[#F3F4F6]"
+            >
+              <PlusCircle className="h-5 w-5 stroke-[1.5]" />
+              節を追加
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-1 rounded-lg border border-[#334155] bg-[#0B1120] p-1.5 sm:gap-2 sm:p-2">
+            <Button variant="ghost" size="icon" className="text-[#F3F4F6] hover:bg-white/10 hover:text-[#F3F4F6]" onClick={() => setCurrentRoundIndex(p => Math.max(0, p - 1))} disabled={currentRoundIndex === 0}>
+              <ChevronLeft className="h-5 w-5 stroke-[1.5]" />
+            </Button>
+            <Select value={currentRound?.id} onValueChange={(roundId) => setCurrentRoundIndex(rounds.findIndex(r => r.id === roundId))}>
+              <SelectTrigger className="h-10 flex-1 border-white/10 bg-[#0B1120]/70 text-center text-base font-semibold text-[#F3F4F6]">
+                <SelectValue placeholder="節を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {rounds.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button variant="ghost" size="icon" className="text-[#F3F4F6] hover:bg-white/10 hover:text-[#F3F4F6]" onClick={() => setCurrentRoundIndex(p => Math.min(rounds.length - 1, p + 1))} disabled={currentRoundIndex >= rounds.length - 1}>
+              <ChevronRight className="h-5 w-5 stroke-[1.5]" />
+            </Button>
+          </div>
+        </div>
+
+        {currentRound && competition ? (
+          <div className="mt-3 space-y-3 sm:mt-4 sm:space-y-4">
+            <div className="space-y-2 md:hidden">
+              {mobileMatchDateGroups.map((group) => (
+                <div key={group.date} className="overflow-hidden rounded-lg border border-[#334155] bg-[#111827]">
+                  <div className="flex h-9 items-center gap-2 bg-[#1F2937] px-3 text-[12px] font-semibold text-[#F8FAFC]">
+                    <CalendarDays className="h-5 w-5 stroke-[1.5] text-[#F8FAFC]/90" />
+                    {formatMobileDate(group.date)}
+                  </div>
+                  <div className="divide-y divide-[#334155]/70">
+                    {group.matches.map((match) => {
+                      const homeName = getTeamName(match.homeTeam);
+                      const awayName = getTeamName(match.awayTeam);
+                      const homeLogo = getTeamLogo(match.homeTeam);
+                      const awayLogo = getTeamLogo(match.awayTeam);
+
+                      return (
+                        <div key={match.id} className="grid min-h-[60px] grid-cols-[minmax(55px,1fr)_20px_32px_6px_32px_20px_minmax(55px,1fr)_20px_16px] items-center gap-0.5 px-1 py-1.5 min-[390px]:grid-cols-[minmax(70px,1fr)_22px_36px_6px_36px_22px_minmax(70px,1fr)_24px_16px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileTeamPicker({
+                                matchId: match.id,
+                                field: 'homeTeam',
+                                value: match.homeTeam,
+                              });
+                            }}
+                            className="min-w-0 text-right text-[11px] font-semibold leading-[1.15] text-[#F8FAFC] line-clamp-2 min-[390px]:text-[12px] sm:hidden"
+                          >
+                            {homeName || 'チームを選択'}
+                          </button>
+                          <div className="min-w-0 text-right text-[11px] font-semibold leading-[1.15] text-[#F8FAFC] line-clamp-2 min-[390px]:text-[12px] hidden sm:block">{homeName}</div>
+                          <div className="flex h-[22px] w-[22px] items-center justify-center overflow-hidden rounded-full bg-[#1F2937] min-[390px]:h-6 min-[390px]:w-6">
+                            {homeLogo ? <Image src={homeLogo} alt={homeName} width={24} height={24} className="h-full w-full object-contain" unoptimized /> : null}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileScorePicker({
+                                matchId: match.id,
+                                field: 'scoreHome',
+                                value: (match.scoreHome ?? '').toString(),
+                              });
+                            }}
+                            className="h-[34px] w-[34px] rounded-md border border-[#334155] bg-[#0B1120] px-0 !text-center text-[16px] font-bold leading-[34px] text-[#F8FAFC] outline-none focus:border-[#60A5FA] min-[390px]:h-9 min-[390px]:w-9 min-[390px]:text-[17px] min-[390px]:leading-9 sm:hidden"
+                          >
+                            {match.scoreHome ?? '-'}
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            value={match.scoreHome ?? ''}
+                            onChange={(e) => handleMatchUpdate(match.id, 'scoreHome', e.target.value === '' ? null : Number(e.target.value))}
+                            style={{ textAlign: 'center' }}
+                            className="h-[34px] w-[34px] appearance-none rounded-md border border-[#334155] bg-[#0B1120] px-0 !text-center text-[16px] font-bold leading-[34px] text-[#F8FAFC] outline-none focus:border-[#60A5FA] min-[390px]:h-9 min-[390px]:w-9 min-[390px]:text-[17px] min-[390px]:leading-9 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none hidden sm:inline-block"
+                            aria-label={`${homeName}のスコア`}
+                          />
+                          <div className="text-center text-xs font-medium text-[#94A3B8]">-</div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileScorePicker({
+                                matchId: match.id,
+                                field: 'scoreAway',
+                                value: (match.scoreAway ?? '').toString(),
+                              });
+                            }}
+                            className="h-[34px] w-[34px] rounded-md border border-[#334155] bg-[#0B1120] px-0 !text-center text-[16px] font-bold leading-[34px] text-[#F8FAFC] outline-none focus:border-[#60A5FA] min-[390px]:h-9 min-[390px]:w-9 min-[390px]:text-[17px] min-[390px]:leading-9 sm:hidden"
+                          >
+                            {match.scoreAway ?? '-'}
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            value={match.scoreAway ?? ''}
+                            onChange={(e) => handleMatchUpdate(match.id, 'scoreAway', e.target.value === '' ? null : Number(e.target.value))}
+                            style={{ textAlign: 'center' }}
+                            className="h-[34px] w-[34px] appearance-none rounded-md border border-[#334155] bg-[#0B1120] px-0 !text-center text-[16px] font-bold leading-[34px] text-[#F8FAFC] outline-none focus:border-[#60A5FA] min-[390px]:h-9 min-[390px]:w-9 min-[390px]:text-[17px] min-[390px]:leading-9 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none hidden sm:inline-block"
+                            aria-label={`${awayName}のスコア`}
+                          />
+                          <div className="flex h-[22px] w-[22px] items-center justify-center overflow-hidden rounded-full bg-[#1F2937] min-[390px]:h-6 min-[390px]:w-6">
+                            {awayLogo ? <Image src={awayLogo} alt={awayName} width={24} height={24} className="h-full w-full object-contain" unoptimized /> : null}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileTeamPicker({
+                                matchId: match.id,
+                                field: 'awayTeam',
+                                value: match.awayTeam,
+                              });
+                            }}
+                            className="min-w-0 text-left text-[11px] font-semibold leading-[1.15] text-[#F8FAFC] line-clamp-2 min-[390px]:text-[12px] sm:hidden"
+                          >
+                            {awayName || 'チームを選択'}
+                          </button>
+                          <div className="min-w-0 text-left text-[11px] font-semibold leading-[1.15] text-[#F8FAFC] line-clamp-2 min-[390px]:text-[12px] hidden sm:block">{awayName}</div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileDatePicker({
+                                matchId: match.id,
+                                value: match.matchDate || '',
+                              });
+                            }}
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1F2937] text-[#F8FAFC] hover:bg-[#334155] hover:text-[#F8FAFC] sm:hidden"
+                            aria-label="日付を設定"
+                          >
+                            <CalendarDays className="h-4 w-4 stroke-[1.5]" />
+                          </button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-6 text-[#F8FAFC] hover:bg-white/10 hover:text-[#F8FAFC]" aria-label="試合メニュー">
+                                <MoreVertical className="h-5 w-5 stroke-[1.5]" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="border-[#334155] bg-[#111827] text-[#F8FAFC]">
+                              <Link href={`/admin/competitions/${competitionId}/rounds/${currentRound.id}/matches/${match.id}`}>
+                                <DropdownMenuItem className="cursor-pointer focus:bg-[#1F2937] focus:text-[#F8FAFC]">
+                                  <Pencil className="h-4 w-4 stroke-[1.5]" />
+                                  試合を編集
+                                </DropdownMenuItem>
+                              </Link>
+                              <DropdownMenuItem className="cursor-pointer text-[#EF4444] focus:bg-[#1F2937] focus:text-[#EF4444]" onClick={() => setPendingDeleteMatch(match)}>
+                                <Trash2 className="h-4 w-4 stroke-[1.5]" />
+                                試合を削除
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden space-y-3 md:block">
+              {currentRound.matches.map(match => (
+                <MatchEditor
+                  key={match.id}
+                  match={{ ...(match as any), competitionFormat: competition.format }}
+                  teams={competitionTeams}
+                  allTeamsMap={allTeams}
+                  excludedTeamIds={excludedTeamIdsByMatchId.get(match.id) ?? new Set()}
+                  roundId={currentRound.id}
+                  season={competition.season}
+                  onUpdate={handleMatchUpdate}
+                  onDelete={fetchAllData}
+                />
+              ))}
+            </div>
+
+            <Button variant="outline" className="h-auto w-full justify-start rounded-xl border-dashed border-[#334155] bg-transparent px-4 py-3 text-[#F3F4F6] hover:bg-white/5 hover:text-[#F3F4F6] sm:px-5 sm:py-5" onClick={handleAddMatch}>
+              <span className="mr-2 flex h-9 w-9 items-center justify-center rounded-full bg-[#10B981]/15 text-[#F3F4F6] sm:h-11 sm:w-11">
+                <PlusCircle className="h-5 w-5 stroke-[1.5]" />
+              </span>
+              <span className="flex flex-col items-start">
+                <span className="text-sm font-semibold">試合を追加</span>
+                <span className="text-xs font-medium text-[#F3F4F6]/70">この節に試合を追加する</span>
+              </span>
+            </Button>
+
+            {canEditStandings ? (
+              <Link href={`/admin/competitions/${competitionId}/standings`}>
+                <Button className="h-auto w-full justify-between rounded-xl border border-[#10B981] bg-[#10B981]/15 px-4 py-3 text-[#F3F4F6] hover:bg-[#10B981]/25 hover:text-[#F3F4F6] sm:px-5 sm:py-5">
+                  <span className="flex items-center gap-3">
+                    <BarChart3 className="h-5 w-5 stroke-[1.5] text-[#10B981]" />
+                    <span className="flex flex-col items-start">
+                      <span className="text-sm font-semibold">順位表を手動で更新・編集</span>
+                      <span className="text-xs font-medium text-[#F3F4F6]/70">順位表を登録せず、直接編集できます</span>
+                    </span>
+                  </span>
+                  <ChevronRight className="h-5 w-5 stroke-[1.5] text-[#10B981]" />
                 </Button>
-              </AlertDialogTrigger>
+              </Link>
+            ) : null}
+
+            <AlertDialog open={!!pendingDeleteMatch} onOpenChange={(open) => !open && setPendingDeleteMatch(null)}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>⚠️ すべての試合スコアをリセット</AlertDialogTitle>
+                  <AlertDialogTitle>試合を削除しますか？</AlertDialogTitle>
                   <AlertDialogDescription>
-                    この操作は<strong>元に戻せません</strong>。
-                    <br /><br />
-                    すべての試合スコアがリセットされます。
-                    <br />
-                    本当に実行してもよろしいですか？
+                    この操作は元に戻せません。
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleResetAllScores} className="bg-red-600 hover:bg-red-700">
-                    リセットを実行
+                  <AlertDialogAction onClick={() => pendingDeleteMatch && handleDeleteMatch(pendingDeleteMatch)} className="bg-red-600 text-white hover:bg-red-700">
+                    削除
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="h-auto w-full justify-between rounded-xl border border-[#EF4444] bg-[#EF4444]/15 px-4 py-3 text-[#F3F4F6] hover:bg-[#EF4444]/25 hover:text-[#F3F4F6] sm:px-5 sm:py-5">
+                  <span className="flex items-center gap-3">
+                    <AlertTriangle className="h-5 w-5 stroke-[1.5] text-[#EF4444]" />
+                    <span className="flex flex-col items-start">
+                      <span className="text-sm font-semibold text-[#EF4444]">すべての試合スコアをリセット</span>
+                      <span className="text-xs font-medium text-[#F3F4F6]/70">登録済みのすべての試合結果を削除します</span>
+                    </span>
+                  </span>
+                  <ChevronRight className="h-5 w-5 stroke-[1.5] text-[#EF4444]" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>すべての試合スコアをリセットしますか？</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    この操作は元に戻せません。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleResetAllScores} className="bg-red-600 text-white hover:bg-red-700">
+                    リセット
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           </div>
-        </div>
-      ) : (
-        <div className="text-center py-10 text-muted-foreground">
-          <p>表示する節がありません。</p>
-          <Button className="mt-4" onClick={handleAddRound}>最初の節を追加</Button>
+        ) : (
+          <div className="mt-4 rounded-xl border border-white/10 bg-[#1F2937]/70 py-10 text-center text-[#F3F4F6]/80">
+            <p className="text-sm">表示する節がありません。</p>
+            <Button className="mt-4 bg-[#10B981] text-white hover:bg-[#10B981]/90" onClick={handleAddRound}>最初の節を追加</Button>
+          </div>
+        )}
+
+      {/* Mobile Score Picker */}
+      {mobileScorePicker && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4 sm:hidden" onClick={() => setMobileScorePicker(null)}>
+          <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#f4f4f6] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex h-12 items-center justify-between border-b border-slate-300/80 bg-white px-4">
+              <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobileScorePicker(null)}>
+                キャンセル
+              </button>
+              <div className="text-sm font-bold text-slate-500">スコアを選択</div>
+              <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobileScorePicker(null)}>
+                完了
+              </button>
+            </div>
+            <div className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
+              {Array.from({ length: 51 }, (_, i) => i).map((score) => {
+                const isPressed = pressedPickerValue === score.toString();
+                const isSelected = score.toString() === mobileScorePicker.value || (score.toString() === '0' && mobileScorePicker.value === '');
+                return (
+                  <button
+                    key={score}
+                    type="button"
+                    onPointerDown={() => setPressedPickerValue(score.toString())}
+                    onClick={() => {
+                      setPressedPickerValue(score.toString());
+                      window.setTimeout(() => {
+                        handleMatchUpdate(
+                          mobileScorePicker.matchId,
+                          mobileScorePicker.field,
+                          score === 0 ? null : score
+                        );
+                        setMobileScorePicker(null);
+                        setPressedPickerValue(null);
+                      }, 140);
+                    }}
+                    className={`block h-14 w-full scroll-mt-[22vh] [scroll-snap-align:center] truncate rounded-xl text-center text-[22px] font-bold leading-[56px] transition-colors ${isPressed ? 'bg-blue-500/25 text-blue-700' : isSelected ? 'bg-blue-500/10 text-blue-600' : 'text-slate-400'}`}
+                  >
+                    {score}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Mobile Team Picker */}
+      {mobileTeamPicker && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4 sm:hidden" onClick={() => setMobileTeamPicker(null)}>
+          <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#f4f4f6] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex h-12 items-center justify-between border-b border-slate-300/80 bg-white px-4">
+              <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobileTeamPicker(null)}>
+                キャンセル
+              </button>
+              <div className="text-sm font-bold text-slate-500">チームを選択</div>
+              <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobileTeamPicker(null)}>
+                完了
+              </button>
+            </div>
+            <div className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
+              {(() => {
+                const currentMatch = currentRound?.matches.find(m => m.id === mobileTeamPicker.matchId);
+                const excludedTeamIds = new Set<string>();
+                currentRound?.matches.forEach(m => {
+                  if (m.id !== mobileTeamPicker.matchId) {
+                    if (m.homeTeam) excludedTeamIds.add(m.homeTeam);
+                    if (m.awayTeam) excludedTeamIds.add(m.awayTeam);
+                  }
+                });
+                const currentOpponent = mobileTeamPicker.field === 'homeTeam' 
+                  ? (currentMatch?.awayTeam || null)
+                  : (currentMatch?.homeTeam || null);
+                if (currentOpponent) excludedTeamIds.add(currentOpponent);
+
+                const availableTeams = competitionTeams.filter(t => !excludedTeamIds.has(t.id));
+
+                return availableTeams.map((team) => {
+                  const isPressed = pressedPickerValue === team.id;
+                  const isSelected = team.id === mobileTeamPicker.value;
+                  return (
+                    <button
+                      key={team.id}
+                      type="button"
+                      onPointerDown={() => setPressedPickerValue(team.id)}
+                      onClick={() => {
+                        setPressedPickerValue(team.id);
+                        window.setTimeout(() => {
+                          handleMatchUpdate(
+                            mobileTeamPicker.matchId,
+                            mobileTeamPicker.field,
+                            team.id
+                          );
+                          setMobileTeamPicker(null);
+                          setPressedPickerValue(null);
+                        }, 140);
+                      }}
+                      className={`block h-14 w-full scroll-mt-[22vh] [scroll-snap-align:center] truncate rounded-xl text-center text-[22px] font-bold leading-[56px] transition-colors ${isPressed ? 'bg-blue-500/25 text-blue-700' : isSelected ? 'bg-blue-500/10 text-blue-600' : 'text-slate-400'}`}
+                    >
+                      {team.name}
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Date Picker */}
+      {mobileDatePicker && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4 sm:hidden" onClick={() => setMobileDatePicker(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111827] p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-[#F8FAFC]">日付を選択</h3>
+              <button
+                type="button"
+                onClick={() => setMobileDatePicker(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1F2937] text-[#94A3B8] hover:bg-[#334155] hover:text-[#F8FAFC]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <input
+              type="date"
+              value={mobileDatePicker.value}
+              onChange={(e) => {
+                handleMatchUpdate(mobileDatePicker.matchId, 'matchDate', e.target.value);
+                setMobileDatePicker(null);
+              }}
+              className="w-full rounded-md border border-[#334155] bg-[#0B1120] px-4 py-3 text-[#F8FAFC] outline-none focus:border-[#60A5FA]"
+            />
+          </div>
+        </div>
+      )}
+
+        <div className="mt-4 rounded-xl border border-white/10 bg-[#1F2937]/70 p-4 sm:mt-5 sm:p-5">
+          <div className="flex items-start gap-3">
+            <Lightbulb className="mt-0.5 h-5 w-5 stroke-[1.5] text-[#F3F4F6]/80" />
+            <div>
+              <h2 className="text-sm font-semibold text-[#F3F4F6]">使い方のヒント</h2>
+              <p className="mt-2 text-xs font-medium leading-relaxed text-[#F3F4F6]/75">
+                CSVファイルで一括登録するか、試合を個別に追加していくことができます。<br />
+                順位表は手動で編集することで、リアルタイムに反映されます。
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

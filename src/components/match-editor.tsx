@@ -172,7 +172,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
           </div>
         </div>
       ) : null}
-      <div className="rounded-xl border border-gray-100 bg-white p-3 text-gray-900 shadow-sm">
+      <div className="rounded-xl border border-[#334155] bg-[#111827] p-3 text-[#F8FAFC] shadow-sm">
       <div className="mb-5 flex items-center justify-between gap-3">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
@@ -180,16 +180,16 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               type="button"
               variant="outline"
               className={cn(
-                "h-8 w-auto justify-center gap-1.5 rounded-md border-gray-300 bg-white px-3 text-xs font-semibold text-gray-900 hover:bg-gray-50",
-                !match.matchDate && "text-muted-foreground"
+                "h-8 w-auto justify-center gap-1.5 rounded-md border-[#334155] bg-[#0B1120] px-3 text-xs font-semibold text-[#F8FAFC] hover:bg-[#1F2937] hover:text-[#F8FAFC]",
+                !match.matchDate && "text-[#94A3B8]"
               )}
             >
               <CalendarIcon className="h-3.5 w-3.5" />
               {match.matchDate ? format(selectedDate, 'yyyy年M月d日(E)', { locale: ja }) : '日付を選択'}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto border border-gray-200 bg-white p-0 text-gray-900 shadow-lg" align="start">
-            <Calendar className="bg-white text-gray-900"
+          <PopoverContent className="w-auto border border-[#334155] bg-[#111827] p-0 text-[#F8FAFC] shadow-lg" align="start">
+            <Calendar className="bg-[#111827] text-[#F8FAFC]"
               mode="single"
               selected={selectedDate}
               onSelect={handleDateSelect}
@@ -207,7 +207,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 bg-transparent text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+              className="h-8 w-8 bg-transparent text-[#94A3B8] hover:bg-white/10 hover:text-[#F8FAFC]"
               aria-label="試合詳細を編集"
             >
               <Pencil className="h-4 w-4" />
@@ -218,7 +218,7 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 bg-transparent text-red-600 hover:bg-red-50 hover:text-red-700"
+                className="h-8 w-8 bg-transparent text-[#EF4444] hover:bg-[#EF4444]/10 hover:text-[#EF4444]"
                 aria-label="試合を削除"
               >
                 <Trash2 className="h-4 w-4" />
@@ -257,13 +257,13 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               onSelect: (val) => onUpdate(match.id, 'homeTeam', val),
             });
           }}
-          className="h-9 w-full border-0 bg-transparent px-0 text-left text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0 sm:hidden"
+          className="h-9 w-full border-0 bg-transparent px-0 text-left text-xs font-semibold text-[#F8FAFC] shadow-none hover:bg-transparent focus:ring-0 sm:hidden"
         >
           {match.homeTeam && allTeamsMap.get(match.homeTeam) ? allTeamsMap.get(match.homeTeam)!.name : 'ホーム'}
         </button>
         <div className="hidden sm:block">
           <Select value={match.homeTeam || ''} onValueChange={(val) => onUpdate(match.id, 'homeTeam', val)}>
-            <SelectTrigger className="h-9 w-full border-0 bg-transparent px-0 text-left text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0 [&>span]:line-clamp-1">
+            <SelectTrigger className="h-9 w-full border-0 bg-transparent px-0 text-left text-xs font-semibold text-[#F8FAFC] shadow-none hover:bg-transparent focus:ring-0 [&>span]:line-clamp-1">
               <SelectValue placeholder="ホーム" />
             </SelectTrigger>
             <SelectContent>
@@ -289,11 +289,12 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
                 onSelect: (val) => onUpdate(match.id, 'scoreHome', val === '' ? null : clampScore(parseInt(val, 10))),
               });
             }}
-            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900 sm:hidden"
+            className="h-10 w-9 rounded-md border border-[#334155] bg-[#0B1120] !text-center text-base font-semibold text-[#F8FAFC] sm:hidden"
+            style={{ textAlign: 'center' }}
           >
             {match.scoreHome ?? '-'}
           </button>
-          <Input
+          <input
             type="number"
             min={0}
             value={(match.scoreHome ?? '').toString()}
@@ -306,9 +307,9 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               onUpdate(match.id, 'scoreHome', clampScore(n));
             }}
             placeholder="-"
-            className="hidden sm:inline-block h-10 w-9 rounded-md border border-gray-200 bg-white p-0 text-center text-base font-semibold text-gray-900"
+            className="hidden h-10 w-9 appearance-none rounded-md border border-[#334155] bg-[#0B1120] p-0 text-center text-base font-semibold text-[#F8FAFC] outline-none focus:border-[#60A5FA] sm:inline-block [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           />
-          <span className="text-sm text-gray-400">-</span>
+          <span className="text-sm text-[#94A3B8]">-</span>
           <button
             type="button"
             onClick={() => {
@@ -320,11 +321,12 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
                 onSelect: (val) => onUpdate(match.id, 'scoreAway', val === '' ? null : clampScore(parseInt(val, 10))),
               });
             }}
-            className="h-10 w-9 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900 sm:hidden"
+            className="h-10 w-9 rounded-md border border-[#334155] bg-[#0B1120] !text-center text-base font-semibold text-[#F8FAFC] sm:hidden"
+            style={{ textAlign: 'center' }}
           >
             {match.scoreAway ?? '-'}
           </button>
-          <Input
+          <input
             type="number"
             min={0}
             value={(match.scoreAway ?? '').toString()}
@@ -337,17 +339,17 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               onUpdate(match.id, 'scoreAway', clampScore(n));
             }}
             placeholder="-"
-            className="hidden sm:inline-block h-10 w-9 rounded-md border border-gray-200 bg-white p-0 text-center text-base font-semibold text-gray-900"
+            className="hidden h-10 w-9 appearance-none rounded-md border border-[#334155] bg-[#0B1120] p-0 text-center text-base font-semibold text-[#F8FAFC] outline-none focus:border-[#60A5FA] sm:inline-block [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           />
         </div>
 
         {canInputPk && (
-          <div className="flex items-center gap-1 text-[10px] text-gray-500">
+          <div className="flex items-center gap-1 text-[10px] text-[#94A3B8]">
             <span>PK</span>
-            <Input
+            <input
               type="number"
               min={0}
-              className="h-7 w-9 border border-gray-200 bg-white text-center text-xs font-semibold text-gray-900"
+              className="h-7 w-9 appearance-none border border-[#334155] bg-[#0B1120] p-0 text-center text-xs font-semibold text-[#F8FAFC] outline-none focus:border-[#60A5FA] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={(match as any).pkScoreHome ?? ''}
               onChange={(e) => {
                 if (e.target.value === '') {
@@ -359,11 +361,11 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               }}
               placeholder="-"
             />
-            <span className="text-xs text-gray-400">-</span>
-            <Input
+            <span className="text-xs text-[#94A3B8]">-</span>
+            <input
               type="number"
               min={0}
-              className="h-7 w-9 border border-gray-200 bg-white text-center text-xs font-semibold text-gray-900"
+              className="h-7 w-9 appearance-none border border-[#334155] bg-[#0B1120] p-0 text-center text-xs font-semibold text-[#F8FAFC] outline-none focus:border-[#60A5FA] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={(match as any).pkScoreAway ?? ''}
               onChange={(e) => {
                 if (e.target.value === '') {
@@ -392,13 +394,13 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
               onSelect: (val) => onUpdate(match.id, 'awayTeam', val),
             });
           }}
-          className="h-9 w-full border-0 bg-transparent px-0 text-right text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0 sm:hidden"
+          className="h-9 w-full border-0 bg-transparent px-0 text-right text-xs font-semibold text-[#F8FAFC] shadow-none hover:bg-transparent focus:ring-0 sm:hidden"
         >
           {match.awayTeam && allTeamsMap.get(match.awayTeam) ? allTeamsMap.get(match.awayTeam)!.name : 'アウェイ'}
         </button>
         <div className="hidden sm:block">
           <Select value={match.awayTeam || ''} onValueChange={(val) => onUpdate(match.id, 'awayTeam', val)}>
-            <SelectTrigger className="h-9 w-full border-0 bg-transparent px-0 text-right text-xs font-semibold text-gray-900 shadow-none hover:bg-transparent focus:ring-0 [&>span]:line-clamp-1">
+            <SelectTrigger className="h-9 w-full border-0 bg-transparent px-0 text-right text-xs font-semibold text-[#F8FAFC] shadow-none hover:bg-transparent focus:ring-0 [&>span]:line-clamp-1">
               <SelectValue placeholder="アウェイ" />
             </SelectTrigger>
             <SelectContent>
