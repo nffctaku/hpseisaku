@@ -865,31 +865,31 @@ export default function CompetitionDetailPage() {
           <p className="mt-1 text-base font-medium text-[#10B981] sm:mt-2 sm:text-sm sm:text-[#F3F4F6]/80">{competition?.season}</p>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <Button
             type="button"
             variant="outline"
-            className="h-[66px] justify-start rounded-xl border-white/10 bg-[#1F2937]/80 px-3 py-3 text-left text-[#F3F4F6] hover:bg-[#1F2937] hover:text-[#F3F4F6] sm:h-auto sm:px-5 sm:py-4"
+            className="h-[56px] justify-start rounded-lg border-white/10 bg-[#1F2937]/80 px-2 py-2 text-left text-[#F3F4F6] hover:bg-[#1F2937] hover:text-[#F3F4F6] sm:h-auto sm:px-5 sm:py-4"
             onClick={handleCsvDownload}
             disabled={!competition || !clubUid}
           >
-            <Download className="h-5 w-5 stroke-[1.5] text-[#10B981]" />
+            <Download className="h-4 w-4 stroke-[1.5] text-[#10B981]" />
             <span className="flex flex-col items-start">
-              <span className="text-sm font-semibold">CSVダウンロード</span>
-              <span className="text-xs font-medium text-[#F3F4F6]/70">大会データを出力</span>
+              <span className="text-xs font-semibold sm:text-sm">CSVダウンロード</span>
+              <span className="text-[10px] font-medium text-[#F3F4F6]/70 sm:text-xs">大会データを出力</span>
             </span>
           </Button>
           <Button
             type="button"
             variant="outline"
-            className="h-[66px] justify-start rounded-xl border-white/10 bg-[#1F2937]/80 px-3 py-3 text-left text-[#F3F4F6] hover:bg-[#1F2937] hover:text-[#F3F4F6] sm:h-auto sm:px-5 sm:py-4"
+            className="h-[56px] justify-start rounded-lg border-white/10 bg-[#1F2937]/80 px-2 py-2 text-left text-[#F3F4F6] hover:bg-[#1F2937] hover:text-[#F3F4F6] sm:h-auto sm:px-5 sm:py-4"
             onClick={() => fileInputRef.current?.click()}
             disabled={!competition || !clubUid}
           >
-            <Upload className="h-5 w-5 stroke-[1.5] text-[#10B981]" />
+            <Upload className="h-4 w-4 stroke-[1.5] text-[#10B981]" />
             <span className="flex flex-col items-start">
-              <span className="text-sm font-semibold">CSVインポート</span>
-              <span className="text-xs font-medium text-[#F3F4F6]/70">データを取り込み</span>
+              <span className="text-xs font-semibold sm:text-sm">CSVインポート</span>
+              <span className="text-[10px] font-medium text-[#F3F4F6]/70 sm:text-xs">データを取り込み</span>
             </span>
           </Button>
           <input
@@ -1111,7 +1111,7 @@ export default function CompetitionDetailPage() {
                     <BarChart3 className="h-5 w-5 stroke-[1.5] text-[#10B981]" />
                     <span className="flex flex-col items-start">
                       <span className="text-sm font-semibold">順位表を手動で更新・編集</span>
-                      <span className="text-xs font-medium text-[#F3F4F6]/70">順位表を登録せず、直接編集できます</span>
+                      <span className="text-xs font-medium text-[#F3F4F6]/70">試合結果を登録せず、順位表を直接編集できます。</span>
                     </span>
                   </span>
                   <ChevronRight className="h-5 w-5 stroke-[1.5] text-[#10B981]" />
@@ -1136,7 +1136,8 @@ export default function CompetitionDetailPage() {
               </AlertDialogContent>
             </AlertDialog>
 
-            <AlertDialog>
+            <div className="mt-3 sm:mt-4">
+              <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" className="h-auto w-full justify-between rounded-xl border border-[#EF4444] bg-[#EF4444]/15 px-4 py-3 text-[#F3F4F6] hover:bg-[#EF4444]/25 hover:text-[#F3F4F6] sm:px-5 sm:py-5">
                   <span className="flex items-center gap-3">
@@ -1164,6 +1165,7 @@ export default function CompetitionDetailPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+            </div>
           </div>
         ) : (
           <div className="mt-4 rounded-xl border border-white/10 bg-[#1F2937]/70 py-10 text-center text-[#F3F4F6]/80">
