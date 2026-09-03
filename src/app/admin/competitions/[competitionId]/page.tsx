@@ -1202,7 +1202,7 @@ export default function CompetitionDetailPage() {
                         handleMatchUpdate(
                           mobileScorePicker.matchId,
                           mobileScorePicker.field,
-                          score === 0 ? null : score
+                          score
                         );
                         setMobileScorePicker(null);
                         setPressedPickerValue(null);
