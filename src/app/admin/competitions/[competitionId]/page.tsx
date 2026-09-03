@@ -182,6 +182,7 @@ export default function CompetitionDetailPage() {
     matchId: string;
     value: string;
   } | null>(null);
+  const [tempDateValue, setTempDateValue] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchAllData = async () => {
@@ -1045,6 +1046,7 @@ export default function CompetitionDetailPage() {
                                 matchId: match.id,
                                 value: match.matchDate || '',
                               });
+                              setTempDateValue(match.matchDate || '');
                             }}
                             className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1F2937] text-[#F8FAFC] hover:bg-[#334155] hover:text-[#F8FAFC] sm:hidden"
                             aria-label="日付を設定"
@@ -1289,7 +1291,10 @@ export default function CompetitionDetailPage() {
               <h3 className="text-base font-semibold text-[#F8FAFC]">日付を選択</h3>
               <button
                 type="button"
-                onClick={() => setMobileDatePicker(null)}
+                onClick={() => {
+                  setMobileDatePicker(null);
+                  setTempDateValue('');
+                }}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1F2937] text-[#94A3B8] hover:bg-[#334155] hover:text-[#F8FAFC]"
               >
                 <X className="h-5 w-5" />
@@ -1297,13 +1302,21 @@ export default function CompetitionDetailPage() {
             </div>
             <input
               type="date"
-              value={mobileDatePicker.value}
-              onChange={(e) => {
-                handleMatchUpdate(mobileDatePicker.matchId, 'matchDate', e.target.value);
-                setMobileDatePicker(null);
-              }}
+              value={tempDateValue}
+              onChange={(e) => setTempDateValue(e.target.value)}
               className="w-full rounded-md border border-[#334155] bg-[#0B1120] px-4 py-3 text-[#F8FAFC] outline-none focus:border-[#60A5FA]"
             />
+            <button
+              type="button"
+              onClick={() => {
+                handleMatchUpdate(mobileDatePicker.matchId, 'matchDate', tempDateValue);
+                setMobileDatePicker(null);
+                setTempDateValue('');
+              }}
+              className="mt-4 w-full rounded-md bg-[#10B981] px-4 py-3 text-sm font-semibold text-white hover:bg-[#10B981]/90"
+            >
+              保存
+            </button>
           </div>
         </div>
       )}
