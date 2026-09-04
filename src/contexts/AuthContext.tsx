@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { User, onAuthStateChanged } from 'firebase/auth';
+import { User, onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -274,6 +274,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     }, 15000); // 15 second check
+
+    // Handle redirect result from Google sign-in
+    const handleRedirectResult = async () => {
+      try {
+        console.log('[AuthContext] Checking redirect result');
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          console.log('[AuthContext] Redirect result successful', { uid: result.user.uid });
+        }
+      } catch (error: any) {
+        if (error.code === 'auth/credential-already-in-use') {
+          console.log('[AuthContext] Credential already in use, ignoring');
+        } else if (error.code !== 'auth/popup-closed-by-user') {
+          console.error('[AuthContext] Error handling redirect result:', error);
+        }
+      }
+    };
+
+    handleRedirectResult();
 
     try {
       authUnsubscribe = onAuthStateChanged(auth, async (authUser) => {
