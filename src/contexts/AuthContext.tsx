@@ -94,113 +94,146 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchUserProfile = async (authUser: User) => {
     console.log('[AuthContext] fetchUserProfile start', { uid: authUser.uid });
+    
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Auth fetch timeout')), 10000);
+    });
+
     // 1. Prefer document whose ID is the uid (newer schema / webhook update target)
-    const profileDocRef = doc(db, 'club_profiles', authUser.uid);
-    const profileDocSnap = await getDoc(profileDocRef);
+    try {
+      const profileDocRef = doc(db, 'club_profiles', authUser.uid);
+      const profileDocSnap = await Promise.race([
+        getDoc(profileDocRef),
+        timeoutPromise
+      ]) as any;
 
-    if (profileDocSnap.exists()) {
-      const profileData = profileDocSnap.data();
-      const hasClubLink = Boolean(
-        (profileData as any)?.clubId ||
-          (profileData as any)?.ownerUid ||
-          (profileData as any)?.clubName ||
-          (profileData as any)?.mainTeamId ||
-          (profileData as any)?.admins
-      );
+      if (profileDocSnap.exists()) {
+        const profileData = profileDocSnap.data();
+        const hasClubLink = Boolean(
+          (profileData as any)?.clubId ||
+            (profileData as any)?.ownerUid ||
+            (profileData as any)?.clubName ||
+            (profileData as any)?.mainTeamId ||
+            (profileData as any)?.admins
+        );
 
-      // If this doc doesn't look like a club profile (e.g. admin user doc stub), fall through to other lookups.
-      if (!hasClubLink) {
-        console.warn('[AuthContext] club_profiles/{uid} exists but lacks club linkage; falling back', {
-          uid: authUser.uid,
-          keys: Object.keys(profileData || {}),
-        });
-      } else {
-        const resolvedOwnerUid = (profileData as any)?.ownerUid || authUser.uid;
-      const userProfile = applyUserOverrides(authUser.uid, {
-        ...authUser,
-        ...profileData,
-        ownerUid: resolvedOwnerUid,
-      }) as UserProfile;
-      if (userRef.current !== userProfile) {
-        userRef.current = userProfile;
-        setUser(userProfile);
+        // If this doc doesn't look like a club profile (e.g. admin user doc stub), fall through to other lookups.
+        if (!hasClubLink) {
+          console.warn('[AuthContext] club_profiles/{uid} exists but lacks club linkage; falling back', {
+            uid: authUser.uid,
+            keys: Object.keys(profileData || {}),
+          });
+        } else {
+          const resolvedOwnerUid = (profileData as any)?.ownerUid || authUser.uid;
+          const userProfile = applyUserOverrides(authUser.uid, {
+            ...authUser,
+            ...profileData,
+            ownerUid: resolvedOwnerUid,
+          }) as UserProfile;
+          if (userRef.current !== userProfile) {
+            userRef.current = userProfile;
+            setUser(userProfile);
+          }
+          if (clubProfileExistsRef.current !== true) {
+            clubProfileExistsRef.current = true;
+            setClubProfileExists(true);
+          }
+          if (ownerUidRef.current !== resolvedOwnerUid) {
+            ownerUidRef.current = resolvedOwnerUid;
+            setOwnerUid(resolvedOwnerUid);
+          }
+          try {
+            await updateDoc(profileDocRef, { lastLoginAt: serverTimestamp() } as any);
+          } catch (e) {
+            console.warn('[AuthContext] failed to update lastLoginAt (doc id)', e);
+          }
+          console.log('[AuthContext] profile found by doc id, user set', { uid: authUser.uid, profileData });
+          return;
+        }
       }
-      if (clubProfileExistsRef.current !== true) {
-        clubProfileExistsRef.current = true;
-        setClubProfileExists(true);
-      }
-      if (ownerUidRef.current !== resolvedOwnerUid) {
-        ownerUidRef.current = resolvedOwnerUid;
-        setOwnerUid(resolvedOwnerUid);
-      }
-      try {
-        await updateDoc(profileDocRef, { lastLoginAt: serverTimestamp() } as any);
-      } catch (e) {
-        console.warn('[AuthContext] failed to update lastLoginAt (doc id)', e);
-      }
-      console.log('[AuthContext] profile found by doc id, user set', { uid: authUser.uid, profileData });
-      return;
-      }
+    } catch (error) {
+      console.error('[AuthContext] Error in first profile fetch:', error);
+      // Continue to fallback queries
     }
 
     // 2. Fallback: club_profiles document where ownerUid == uid (older schema)
-    const q = query(collection(db, 'club_profiles'), where('ownerUid', '==', authUser.uid));
-    const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-      const docSnap = querySnapshot.docs[0];
-      const profileData = docSnap.data();
-      const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData }) as UserProfile;
-      if (userRef.current !== userProfile) {
-        userRef.current = userProfile;
-        setUser(userProfile);
+    try {
+      const q = query(collection(db, 'club_profiles'), where('ownerUid', '==', authUser.uid));
+      const querySnapshot = await Promise.race([
+        getDocs(q),
+        timeoutPromise
+      ]) as any;
+      
+      if (!querySnapshot.empty) {
+        const docSnap = querySnapshot.docs[0];
+        const profileData = docSnap.data();
+        const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData }) as UserProfile;
+        if (userRef.current !== userProfile) {
+          userRef.current = userProfile;
+          setUser(userProfile);
+        }
+        if (clubProfileExistsRef.current !== true) {
+          clubProfileExistsRef.current = true;
+          setClubProfileExists(true);
+        }
+        const nextOwnerUid = profileData.ownerUid || docSnap.id;
+        if (ownerUidRef.current !== nextOwnerUid) {
+          ownerUidRef.current = nextOwnerUid;
+          setOwnerUid(nextOwnerUid);
+        }
+        try {
+          await updateDoc(docSnap.ref, { lastLoginAt: serverTimestamp() } as any);
+        } catch (e) {
+          console.warn('[AuthContext] failed to update lastLoginAt (ownerUid query)', e);
+        }
+        console.log('[AuthContext] profile found by ownerUid, user set', { uid: authUser.uid, profileData });
+        return;
       }
-      if (clubProfileExistsRef.current !== true) {
-        clubProfileExistsRef.current = true;
-        setClubProfileExists(true);
-      }
-      const nextOwnerUid = profileData.ownerUid || docSnap.id;
-      if (ownerUidRef.current !== nextOwnerUid) {
-        ownerUidRef.current = nextOwnerUid;
-        setOwnerUid(nextOwnerUid);
-      }
-      try {
-        await updateDoc(docSnap.ref, { lastLoginAt: serverTimestamp() } as any);
-      } catch (e) {
-        console.warn('[AuthContext] failed to update lastLoginAt (ownerUid query)', e);
-      }
-      console.log('[AuthContext] profile found by ownerUid, user set', { uid: authUser.uid, profileData });
-      return;
+    } catch (error) {
+      console.error('[AuthContext] Error in second profile fetch:', error);
+      // Continue to fallback queries
     }
 
     // 2.5 Admin user: find club_profiles where this uid is listed as an admin
-    const adminQ = query(collection(db, 'club_profiles'), where('admins', 'array-contains', authUser.uid));
-    const adminSnap = await getDocs(adminQ);
-    if (!adminSnap.empty) {
-      const adminDoc = adminSnap.docs[0];
-      const profileData = adminDoc.data() as any;
-      const foundOwnerUid = (profileData?.ownerUid as string) || adminDoc.id;
-      const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData, ownerUid: foundOwnerUid }) as UserProfile;
-      if (userRef.current !== userProfile) {
-        userRef.current = userProfile;
-        setUser(userProfile);
+    try {
+      const adminQ = query(collection(db, 'club_profiles'), where('admins', 'array-contains', authUser.uid));
+      const adminSnap = await Promise.race([
+        getDocs(adminQ),
+        timeoutPromise
+      ]) as any;
+      
+      if (!adminSnap.empty) {
+        const adminDoc = adminSnap.docs[0];
+        const profileData = adminDoc.data() as any;
+        const foundOwnerUid = (profileData?.ownerUid as string) || adminDoc.id;
+        const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData, ownerUid: foundOwnerUid }) as UserProfile;
+        if (userRef.current !== userProfile) {
+          userRef.current = userProfile;
+          setUser(userProfile);
+        }
+        if (clubProfileExistsRef.current !== true) {
+          clubProfileExistsRef.current = true;
+          setClubProfileExists(true);
+        }
+        if (ownerUidRef.current !== foundOwnerUid) {
+          ownerUidRef.current = foundOwnerUid;
+          setOwnerUid(foundOwnerUid);
+        }
+        try {
+          await updateDoc(adminDoc.ref, { lastLoginAt: serverTimestamp() } as any);
+        } catch (e) {
+          console.warn('[AuthContext] failed to update lastLoginAt (admins query)', e);
+        }
+        console.log('[AuthContext] profile found by admins, user set', { uid: authUser.uid, foundOwnerUid, profileData });
+        return;
       }
-      if (clubProfileExistsRef.current !== true) {
-        clubProfileExistsRef.current = true;
-        setClubProfileExists(true);
-      }
-      if (ownerUidRef.current !== foundOwnerUid) {
-        ownerUidRef.current = foundOwnerUid;
-        setOwnerUid(foundOwnerUid);
-      }
-      try {
-        await updateDoc(adminDoc.ref, { lastLoginAt: serverTimestamp() } as any);
-      } catch (e) {
-        console.warn('[AuthContext] failed to update lastLoginAt (admins query)', e);
-      }
-      console.log('[AuthContext] profile found by admins, user set', { uid: authUser.uid, foundOwnerUid, profileData });
-      return;
+    } catch (error) {
+      console.error('[AuthContext] Error in third profile fetch:', error);
+      // Continue to fallback
     }
 
+    // Fallback: use authUser only
     const userProfile = applyUserOverrides(authUser.uid, authUser as UserProfile) as UserProfile;
     if (userRef.current !== userProfile) {
       userRef.current = userProfile;
