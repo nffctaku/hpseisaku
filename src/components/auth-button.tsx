@@ -38,26 +38,17 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       }
     }
 
-    const provider = new GoogleAuthProvider();
-    const ua = typeof window !== 'undefined' ? window.navigator.userAgent || '' : '';
-    const isMobileDevice = /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
-
-    if (isMobileDevice) {
-      // Redirect is faster on mobile because it avoids popup blocking/loading delays
-      console.log('[AuthButton] Using redirect for mobile');
-      await signInWithRedirect(auth, provider);
-      return;
-    }
-
     if (signingInRef.current) return;
     signingInRef.current = true;
+
+    const provider = new GoogleAuthProvider();
     try {
-      console.log('[AuthButton] Using popup for desktop');
+      console.log('[AuthButton] Using popup');
       await signInWithPopup(auth, provider);
     } catch (error: any) {
       console.error('[AuthButton] Error signing in with popup', error);
       if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
-        // User cancelled or concurrent popup; no action needed
+        // 無視してOK
       } else if (error.code === 'auth/popup-blocked') {
         try {
           await signInWithRedirect(auth, provider);
