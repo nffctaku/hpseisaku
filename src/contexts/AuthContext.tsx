@@ -269,13 +269,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log('[AuthContext] Checking redirect result');
         const result = await getRedirectResult(auth);
         console.log('[AuthContext] Redirect result received', { hasUser: !!result?.user });
+        const authDomain = (auth.app.options as any).authDomain;
+        const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
         if (result?.user) {
           if (typeof window !== 'undefined') {
-            window.alert(`[DEBUG] Redirect auth OK: ${result.user.uid}`);
+            window.alert(`[DEBUG] Redirect auth OK: ${result.user.uid}\nauthDomain: ${authDomain}\ncurrent: ${currentDomain}`);
           }
         } else {
           if (typeof window !== 'undefined') {
-            window.alert('[DEBUG] No user in redirect result');
+            window.alert(`[DEBUG] No user in redirect result\nauthDomain: ${authDomain}\ncurrent: ${currentDomain}\nmatch: ${authDomain === currentDomain}`);
           }
         }
       } catch (error: any) {
@@ -291,6 +293,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       authUnsubscribe = onAuthStateChanged(auth, async (authUser) => {
         console.log('[AuthContext] onAuthStateChanged triggered', { authUser, uid: authUser?.uid });
+        if (typeof window !== 'undefined') {
+          window.alert(`[DEBUG] onAuthStateChanged: ${authUser ? 'uid=' + authUser.uid : 'null'}`);
+        }
         if (authUser) {
           const isSameUid = lastProcessedUidRef.current === authUser.uid;
           console.log('[AuthContext] Checking same uid', { isSameUid, currentUid: lastProcessedUidRef.current, newUid: authUser.uid });

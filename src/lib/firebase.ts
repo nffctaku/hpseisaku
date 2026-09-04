@@ -12,11 +12,15 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'server';
 console.log('[Firebase] Config check', {
   hasApiKey: !!firebaseConfig.apiKey,
   hasAuthDomain: !!firebaseConfig.authDomain,
   hasProjectId: !!firebaseConfig.projectId,
   hasAppId: !!firebaseConfig.appId,
+  authDomain: firebaseConfig.authDomain,
+  currentDomain,
+  match: currentDomain === firebaseConfig.authDomain,
 });
 
 // Initialize Firebase
