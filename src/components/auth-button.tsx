@@ -26,43 +26,31 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
     ? 'bg-emerald-600/20 text-emerald-200 border-emerald-500/30'
     : 'bg-slate-700/50 text-slate-200 border-slate-500/30';
 
-  const shouldUseRedirect = () => {
-    if (typeof window === 'undefined') return false;
-    const ua = window.navigator.userAgent || '';
-    // In-app browsers often block popups or cannot handle them properly
-    const isInApp = /(Line|FBAN|FBAV|Instagram|MicroMessenger|Twitter)/i.test(ua);
-    return isInApp;
-  };
-
   const handleSignIn = async () => {
+    if (typeof window !== 'undefined') {
+      const ua = window.navigator.userAgent || '';
+      const isInApp = /(Line|FBAN|FBAV|Instagram|MicroMessenger|Twitter)/i.test(ua);
+      if (isInApp) {
+        window.alert('LINE/Instagram等のアプリ内ブラウザではGoogleログインがブロックされます。右上のメニューから「ブラウザで開く」を選ぶか、Safari/Chromeでこのページを開いてからログインしてください。');
+        return; // signInWithRedirectを試さず、ここで終了
+      }
+    }
+
     const provider = new GoogleAuthProvider();
     try {
-      console.log('[AuthButton] handleSignIn start');
-      if (shouldUseRedirect()) {
-        // Use redirect only for in-app browsers (LINE/Instagram/etc.)
-        console.log('[AuthButton] Using redirect for in-app browser');
-        await signInWithRedirect(auth, provider);
-        return;
-      }
-      // Use popup for normal browsers (desktop/mobile Safari/Chrome)
-      console.log('[AuthButton] Using popup');
+      console.log('[AuthButton] handleSignIn start (popup)');
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      console.error('[AuthButton] Error signing in', error);
-      if (typeof window !== 'undefined') {
-        window.alert(`ログインエラー: ${error.message || error.code || 'Unknown error'}`);
-      }
-      // Fallback for popup-blocked / cancelled popup requests
+      console.error('[AuthButton] Error signing in with popup', error);
+      // popupがブロックされた場合のみredirectにフォールバック（通常ブラウザ向け）
       if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
         try {
-          console.log('[AuthButton] Falling back to redirect');
           await signInWithRedirect(auth, provider);
         } catch (e: any) {
           console.error('[AuthButton] Error signing in with redirect fallback', e);
-          if (typeof window !== 'undefined') {
-            window.alert(`リダイレクトエラー: ${e.message || e.code || 'Unknown error'}`);
-          }
         }
+      } else {
+        window.alert(`ログインエラー: ${error.message || error.code || 'Unknown error'}`);
       }
     }
   };

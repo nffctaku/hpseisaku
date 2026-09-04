@@ -271,20 +271,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log('[AuthContext] Redirect result received', { hasUser: !!result?.user });
         const authDomain = (auth.app.options as any).authDomain;
         const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
+        console.log('[AuthContext] Redirect auth details', { authDomain, currentDomain, match: authDomain === currentDomain });
         if (result?.user) {
-          if (typeof window !== 'undefined') {
-            window.alert(`[DEBUG] Redirect auth OK: ${result.user.uid}\nauthDomain: ${authDomain}\ncurrent: ${currentDomain}`);
-          }
+          console.log('[AuthContext] Redirect auth OK', result.user.uid);
         } else {
-          if (typeof window !== 'undefined') {
-            window.alert(`[DEBUG] No user in redirect result\nauthDomain: ${authDomain}\ncurrent: ${currentDomain}\nmatch: ${authDomain === currentDomain}`);
-          }
+          console.log('[AuthContext] No user in redirect result');
         }
       } catch (error: any) {
         console.error('[AuthContext] Error handling redirect result:', error);
-        if (typeof window !== 'undefined') {
-          window.alert(`[DEBUG] Redirect error: ${error.code || ''} ${error.message || ''}`);
-        }
       }
     };
 
@@ -293,9 +287,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       authUnsubscribe = onAuthStateChanged(auth, async (authUser) => {
         console.log('[AuthContext] onAuthStateChanged triggered', { authUser, uid: authUser?.uid });
-        if (typeof window !== 'undefined') {
-          window.alert(`[DEBUG] onAuthStateChanged: ${authUser ? 'uid=' + authUser.uid : 'null'}`);
-        }
         if (authUser) {
           const isSameUid = lastProcessedUidRef.current === authUser.uid;
           console.log('[AuthContext] Checking same uid', { isSameUid, currentUid: lastProcessedUidRef.current, newUid: authUser.uid });
@@ -361,9 +352,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
     } catch (error) {
       console.error('[AuthContext] Error setting up auth listener:', error);
-      if (typeof window !== 'undefined') {
-        window.alert(`[DEBUG] Auth listener error: ${String(error)}`);
-      }
       if (loadingRef.current) {
         loadingRef.current = false;
         setLoading(false);
