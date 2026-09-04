@@ -263,8 +263,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     }, 30000); // 30 second global timeout
 
-    // Handle redirect result from Google sign-in
+    // Handle redirect result from Google sign-in (only when redirected from auth handler)
     const handleRedirectResult = async () => {
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      const hasRedirectParams = search.includes('providerId=') || search.includes('oauthToken=') || search.includes('authType=');
+      if (!hasRedirectParams) {
+        console.log('[AuthContext] Skipping redirect result check (no redirect params)');
+        return;
+      }
       try {
         console.log('[AuthContext] Checking redirect result');
         const result = await getRedirectResult(auth);
