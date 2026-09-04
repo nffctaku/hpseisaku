@@ -251,67 +251,113 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
-      console.log('[AuthContext] onAuthStateChanged triggered', { authUser });
-      if (authUser) {
-        const isSameUid = lastProcessedUidRef.current === authUser.uid;
-        if (isSameUid) {
-          // 同じ uid の再通知： サインアウトされていたらキャッシュで復元
-          if (userRef.current === null && lastUserProfileRef.current) {
-            console.log('[AuthContext] same uid, restoring from cache', { uid: authUser.uid });
-            userRef.current = lastUserProfileRef.current;
-            setUser(lastUserProfileRef.current);
-            if (clubProfileExistsRef.current !== true) {
-              clubProfileExistsRef.current = true;
-              setClubProfileExists(true);
-            }
-            const restoredOwnerUid = lastUserProfileRef.current.ownerUid;
-            if (ownerUidRef.current !== restoredOwnerUid) {
-              ownerUidRef.current = restoredOwnerUid;
-              setOwnerUid(restoredOwnerUid);
-            }
-            if (loadingRef.current) {
-              loadingRef.current = false;
-              setLoading(false);
-            }
-          } else {
-            console.log('[AuthContext] same uid, already resolved', { uid: authUser.uid });
-          }
-          return;
-        }
-        lastProcessedUidRef.current = authUser.uid;
-        if (!loadingRef.current) {
-          loadingRef.current = true;
-          setLoading(true);
-        }
-        await fetchUserProfile(authUser);
-        lastUserProfileRef.current = userRef.current;
-        if (loadingRef.current) {
-          loadingRef.current = false;
-          setLoading(false);
-        }
-      } else {
-        // すでに null ならスキップ
-        if (userRef.current === null) return;
-        console.log('[AuthContext] no authUser, signed out');
-        userRef.current = null;
-        setUser(null);
-        if (clubProfileExistsRef.current) {
-          clubProfileExistsRef.current = false;
-          setClubProfileExists(false);
-        }
-        if (ownerUidRef.current !== undefined) {
-          ownerUidRef.current = undefined;
-          setOwnerUid(undefined);
-        }
+    console.log('[AuthContext] useEffect starting');
+    let authUnsubscribe: (() => void) | null = null;
+    let hasAuthFired = false;
+    
+    // Global timeout to ensure loading state is always cleared
+    const globalTimeout = setTimeout(() => {
+      console.warn('[AuthContext] Global timeout reached, forcing loading to false');
+      if (loadingRef.current) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
+    }, 30000); // 30 second global timeout
+
+    // Secondary timeout to check if auth has fired at all
+    const authFireCheckTimeout = setTimeout(() => {
+      if (!hasAuthFired) {
+        console.error('[AuthContext] Auth state change never fired! Forcing loading to false.');
         if (loadingRef.current) {
           loadingRef.current = false;
           setLoading(false);
         }
       }
-    });
+    }, 15000); // 15 second check
 
-    return () => unsubscribe();
+    try {
+      authUnsubscribe = onAuthStateChanged(auth, async (authUser) => {
+        hasAuthFired = true;
+        console.log('[AuthContext] onAuthStateChanged triggered', { authUser, uid: authUser?.uid });
+        if (authUser) {
+          const isSameUid = lastProcessedUidRef.current === authUser.uid;
+          console.log('[AuthContext] Checking same uid', { isSameUid, currentUid: lastProcessedUidRef.current, newUid: authUser.uid });
+          if (isSameUid) {
+            // 同じ uid の再通知： サインアウトされていたらキャッシュで復元
+            if (userRef.current === null && lastUserProfileRef.current) {
+              console.log('[AuthContext] same uid, restoring from cache', { uid: authUser.uid });
+              userRef.current = lastUserProfileRef.current;
+              setUser(lastUserProfileRef.current);
+              if (clubProfileExistsRef.current !== true) {
+                clubProfileExistsRef.current = true;
+                setClubProfileExists(true);
+              }
+              const restoredOwnerUid = lastUserProfileRef.current.ownerUid;
+              if (ownerUidRef.current !== restoredOwnerUid) {
+                ownerUidRef.current = restoredOwnerUid;
+                setOwnerUid(restoredOwnerUid);
+              }
+              if (loadingRef.current) {
+                loadingRef.current = false;
+                setLoading(false);
+              }
+            } else {
+              console.log('[AuthContext] same uid, already resolved', { uid: authUser.uid });
+            }
+            return;
+          }
+          lastProcessedUidRef.current = authUser.uid;
+          if (!loadingRef.current) {
+            loadingRef.current = true;
+            setLoading(true);
+          }
+          console.log('[AuthContext] Starting fetchUserProfile');
+          await fetchUserProfile(authUser);
+          lastUserProfileRef.current = userRef.current;
+          if (loadingRef.current) {
+            loadingRef.current = false;
+            setLoading(false);
+          }
+          console.log('[AuthContext] fetchUserProfile completed, loading set to false');
+        } else {
+          // すでに null ならスキップ
+          if (userRef.current === null) {
+            console.log('[AuthContext] no authUser, already signed out');
+            return;
+          }
+          console.log('[AuthContext] no authUser, signed out');
+          userRef.current = null;
+          setUser(null);
+          if (clubProfileExistsRef.current) {
+            clubProfileExistsRef.current = false;
+            setClubProfileExists(false);
+          }
+          if (ownerUidRef.current !== undefined) {
+            ownerUidRef.current = undefined;
+            setOwnerUid(undefined);
+          }
+          if (loadingRef.current) {
+            loadingRef.current = false;
+            setLoading(false);
+          }
+        }
+      });
+    } catch (error) {
+      console.error('[AuthContext] Error setting up auth listener:', error);
+      if (loadingRef.current) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
+    }
+
+    return () => {
+      console.log('[AuthContext] cleanup, clearing timeouts');
+      clearTimeout(globalTimeout);
+      clearTimeout(authFireCheckTimeout);
+      if (authUnsubscribe) {
+        authUnsubscribe();
+      }
+    };
   }, []);
 
   const refreshUserProfile = async () => {

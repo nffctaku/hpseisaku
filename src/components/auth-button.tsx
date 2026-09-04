@@ -31,7 +31,9 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
     const ua = window.navigator.userAgent || '';
     // In-app browsers often block popups
     const isInApp = /(Line|FBAN|FBAV|Instagram|MicroMessenger|Twitter)/i.test(ua);
-    return isInApp;
+    // Also use redirect on mobile devices since popups often don't work well
+    const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
+    return isInApp || isMobile;
   };
 
   const handleSignIn = async () => {
@@ -39,7 +41,9 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
     try {
       console.log('[AuthButton] handleSignIn start');
       if (shouldUseRedirect()) {
-        window.alert('LINE/Instagram等のアプリ内ブラウザではGoogleログインがブロックされます。Safari/Chromeでこのページを開いてからログインしてください。');
+        // Use redirect for mobile and in-app browsers
+        console.log('[AuthButton] Using redirect for mobile/in-app browser');
+        await signInWithRedirect(auth, provider);
         return;
       }
       await signInWithPopup(auth, provider);

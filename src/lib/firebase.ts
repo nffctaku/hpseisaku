@@ -12,11 +12,25 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+console.log('[Firebase] Config check', {
+  hasApiKey: !!firebaseConfig.apiKey,
+  hasAuthDomain: !!firebaseConfig.authDomain,
+  hasProjectId: !!firebaseConfig.projectId,
+  hasAppId: !!firebaseConfig.appId,
+});
+
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+console.log('[Firebase] App initialized', { appName: app.name });
+
 const auth = getAuth(app);
+console.log('[Firebase] Auth initialized');
+
 const db = getFirestore(app);
 setLogLevel('error');
+console.log('[Firebase] Firestore initialized');
+
 const storage = getStorage(app);
+console.log('[Firebase] Storage initialized');
 
 export { app, auth, db, storage };
