@@ -4,6 +4,7 @@ import { signInWithPopup, signInWithRedirect, signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { GoogleAuthProvider } from "firebase/auth";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,7 @@ import { User } from 'lucide-react';
 
 export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const { user } = useAuth();
+  const signingInRef = useRef(false);
   console.log('[AuthButton] render', { hasUser: !!user, user });
 
   const planLabel = user?.plan === 'pro' ? 'Pro' : 'Free';
@@ -32,9 +34,11 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       const isInApp = /(Line|FBAN|FBAV|Instagram|MicroMessenger|Twitter)/i.test(ua);
       if (isInApp) {
         window.alert('LINE/Instagram等のアプリ内ブラウザではGoogleログインがブロックされます。右上のメニューから「ブラウザで開く」を選ぶか、Safari/Chromeでこのページを開いてからログインしてください。');
-        return; // signInWithRedirectを試さず、ここで終了
+        return;
       }
     }
+    if (signingInRef.current) return;
+    signingInRef.current = true;
 
     const provider = new GoogleAuthProvider();
     try {
@@ -42,8 +46,9 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
       console.error('[AuthButton] Error signing in with popup', error);
-      // popupがブロックされた場合のみredirectにフォールバック（通常ブラウザ向け）
-      if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+      if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
+        // User cancelled or concurrent popup; no action needed
+      } else if (error.code === 'auth/popup-blocked') {
         try {
           await signInWithRedirect(auth, provider);
         } catch (e: any) {
@@ -52,6 +57,8 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       } else {
         window.alert(`ログインエラー: ${error.message || error.code || 'Unknown error'}`);
       }
+    } finally {
+      signingInRef.current = false;
     }
   };
 
