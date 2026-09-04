@@ -29,9 +29,7 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const shouldUseRedirect = () => {
     if (typeof window === 'undefined') return false;
     const ua = window.navigator.userAgent || '';
-    // In-app browsers often block popups
     const isInApp = /(Line|FBAN|FBAV|Instagram|MicroMessenger|Twitter)/i.test(ua);
-    // Also use redirect on mobile devices since popups often don't work well
     const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
     return isInApp || isMobile;
   };
@@ -41,19 +39,28 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
     try {
       console.log('[AuthButton] handleSignIn start');
       if (shouldUseRedirect()) {
-        // Use redirect for mobile and in-app browsers
-        console.log('[AuthButton] Using redirect for mobile/in-app browser');
+        console.log('[AuthButton] Using redirect for mobile');
         await signInWithRedirect(auth, provider);
         return;
       }
+      console.log('[AuthButton] Using popup');
       await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error("Error signing in with Google", error);
+    } catch (error: any) {
+      console.error('[AuthButton] Error signing in', error);
+      if (typeof window !== 'undefined') {
+        window.alert(`ログインエラー: ${error.message || error.code || 'Unknown error'}`);
+      }
       // Fallback for popup-blocked / cancelled popup requests
-      try {
-        await signInWithRedirect(auth, provider);
-      } catch (e) {
-        console.error('Error signing in with redirect fallback', e);
+      if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+        try {
+          console.log('[AuthButton] Falling back to redirect');
+          await signInWithRedirect(auth, provider);
+        } catch (e: any) {
+          console.error('[AuthButton] Error signing in with redirect fallback', e);
+          if (typeof window !== 'undefined') {
+            window.alert(`リダイレクトエラー: ${e.message || e.code || 'Unknown error'}`);
+          }
+        }
       }
     }
   };

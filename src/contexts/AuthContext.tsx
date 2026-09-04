@@ -253,7 +253,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     console.log('[AuthContext] useEffect starting');
     let authUnsubscribe: (() => void) | null = null;
-    let hasAuthFired = false;
     
     // Global timeout to ensure loading state is always cleared
     const globalTimeout = setTimeout(() => {
@@ -264,30 +263,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     }, 30000); // 30 second global timeout
 
-    // Secondary timeout to check if auth has fired at all
-    const authFireCheckTimeout = setTimeout(() => {
-      if (!hasAuthFired) {
-        console.error('[AuthContext] Auth state change never fired! Forcing loading to false.');
-        if (loadingRef.current) {
-          loadingRef.current = false;
-          setLoading(false);
-        }
-      }
-    }, 15000); // 15 second check
-
     // Handle redirect result from Google sign-in
     const handleRedirectResult = async () => {
       try {
         console.log('[AuthContext] Checking redirect result');
         const result = await getRedirectResult(auth);
+        console.log('[AuthContext] Redirect result received', { hasUser: !!result?.user });
         if (result?.user) {
-          console.log('[AuthContext] Redirect result successful', { uid: result.user.uid });
+          if (typeof window !== 'undefined') {
+            window.alert(`[DEBUG] Redirect auth OK: ${result.user.uid}`);
+          }
+        } else {
+          if (typeof window !== 'undefined') {
+            window.alert('[DEBUG] No user in redirect result');
+          }
         }
       } catch (error: any) {
-        if (error.code === 'auth/credential-already-in-use') {
-          console.log('[AuthContext] Credential already in use, ignoring');
-        } else if (error.code !== 'auth/popup-closed-by-user') {
-          console.error('[AuthContext] Error handling redirect result:', error);
+        console.error('[AuthContext] Error handling redirect result:', error);
+        if (typeof window !== 'undefined') {
+          window.alert(`[DEBUG] Redirect error: ${error.code || ''} ${error.message || ''}`);
         }
       }
     };
@@ -296,7 +290,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       authUnsubscribe = onAuthStateChanged(auth, async (authUser) => {
-        hasAuthFired = true;
         console.log('[AuthContext] onAuthStateChanged triggered', { authUser, uid: authUser?.uid });
         if (authUser) {
           const isSameUid = lastProcessedUidRef.current === authUser.uid;
@@ -363,6 +356,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
     } catch (error) {
       console.error('[AuthContext] Error setting up auth listener:', error);
+      if (typeof window !== 'undefined') {
+        window.alert(`[DEBUG] Auth listener error: ${String(error)}`);
+      }
       if (loadingRef.current) {
         loadingRef.current = false;
         setLoading(false);
@@ -370,9 +366,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     return () => {
-      console.log('[AuthContext] cleanup, clearing timeouts');
+      console.log('[AuthContext] cleanup, clearing timeout');
       clearTimeout(globalTimeout);
-      clearTimeout(authFireCheckTimeout);
       if (authUnsubscribe) {
         authUnsubscribe();
       }
