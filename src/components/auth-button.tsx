@@ -29,9 +29,9 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const shouldUseRedirect = () => {
     if (typeof window === 'undefined') return false;
     const ua = window.navigator.userAgent || '';
+    // In-app browsers often block popups or cannot handle them properly
     const isInApp = /(Line|FBAN|FBAV|Instagram|MicroMessenger|Twitter)/i.test(ua);
-    const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
-    return isInApp || isMobile;
+    return isInApp;
   };
 
   const handleSignIn = async () => {
@@ -39,10 +39,12 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
     try {
       console.log('[AuthButton] handleSignIn start');
       if (shouldUseRedirect()) {
-        console.log('[AuthButton] Using redirect for mobile');
+        // Use redirect only for in-app browsers (LINE/Instagram/etc.)
+        console.log('[AuthButton] Using redirect for in-app browser');
         await signInWithRedirect(auth, provider);
         return;
       }
+      // Use popup for normal browsers (desktop/mobile Safari/Chrome)
       console.log('[AuthButton] Using popup');
       await signInWithPopup(auth, provider);
     } catch (error: any) {
