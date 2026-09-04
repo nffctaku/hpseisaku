@@ -334,9 +334,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
           console.log('[AuthContext] fetchUserProfile completed, loading set to false');
         } else {
-          // すでに null ならスキップ
+          // すでに null ならスキップするが、loading は確実に解除
           if (userRef.current === null) {
             console.log('[AuthContext] no authUser, already signed out');
+            if (loadingRef.current) {
+              loadingRef.current = false;
+              setLoading(false);
+            }
             return;
           }
           console.log('[AuthContext] no authUser, signed out');
