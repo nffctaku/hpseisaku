@@ -296,6 +296,19 @@ function getPositionColor(position: string): string {
   return positionColors[normalizePosition(position)] || 'rgba(255,255,255,0.4)';
 }
 
+function brightenColor(color: string, factor: number = 0.35): string {
+  if (color.startsWith('rgba')) return 'rgba(255,255,255,1)';
+  const hex = color.startsWith('#') ? color : '#ffffff';
+  if (hex.length < 7) return '#ffffff';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const nr = Math.min(255, Math.round(r + (255 - r) * factor));
+  const ng = Math.min(255, Math.round(g + (255 - g) * factor));
+  const nb = Math.min(255, Math.round(b + (255 - b) * factor));
+  return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`;
+}
+
 function getSeasonStats(player: Player, targetSeason?: string | null) {
   const season = targetSeason ?? '';
   if (player.stats) return player.stats;
@@ -567,6 +580,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
   }, [debugInfo]);
 
   const mainAccent = accentColor || '#1fd760';
+  const squadTextColor = brightenColor(mainAccent);
 
   function PlayerCard({ player }: { player: Player }) {
     const color = getPositionColor(player.position);
@@ -617,22 +631,22 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
             <div className="hidden sm:grid absolute inset-x-0 bottom-0 p-2 pt-8 bg-gradient-to-t from-black/95 via-black/80 to-transparent grid-cols-3 gap-1 max-h-0 overflow-hidden opacity-0 group-hover:max-h-16 group-hover:opacity-100 transition-all duration-300">
               <div className="text-center">
                 <div className="text-[10px] text-white/60">出場</div>
-                <div className={`text-[18px] font-black italic leading-none ${barlow.className}`} style={{ color: hex }}>{stats.appearances}</div>
+                <div className={`text-[18px] font-black italic leading-none ${barlow.className}`} style={{ color: brightenColor(hex) }}>{stats.appearances}</div>
               </div>
               <div className="text-center">
                 <div className="text-[10px] text-white/60">得点</div>
-                <div className={`text-[18px] font-black italic leading-none ${barlow.className}`} style={{ color: hex }}>{stats.goals}</div>
+                <div className={`text-[18px] font-black italic leading-none ${barlow.className}`} style={{ color: brightenColor(hex) }}>{stats.goals}</div>
               </div>
               <div className="text-center">
                 <div className="text-[10px] text-white/60">AS</div>
-                <div className={`text-[18px] font-black italic leading-none ${barlow.className}`} style={{ color: hex }}>{stats.assists}</div>
+                <div className={`text-[18px] font-black italic leading-none ${barlow.className}`} style={{ color: brightenColor(hex) }}>{stats.assists}</div>
               </div>
             </div>
           )}
         </div>
         <div className="p-2 px-3 pb-3">
           <div className="flex items-center justify-between mb-1">
-            <span className={`text-[13px] font-black italic ${barlow.className}`} style={{ color: hex }}>#{player.number}</span>
+            <span className={`text-[13px] font-black italic ${barlow.className}`} style={{ color: brightenColor(hex) }}>#{player.number}</span>
           </div>
           <div className="text-sm font-semibold text-white leading-tight line-clamp-2">{player.name}</div>
         </div>
@@ -678,6 +692,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
   function PlayerModal({ player }: { player: Player }) {
     const color = getPositionColor(player.position);
     const hex = color.startsWith('#') ? color : 'rgba(255,255,255,0.4)';
+    const posTextColor = brightenColor(hex);
     const [tab, setTab] = useState<'basic' | 'stats' | 'seasons'>('basic');
     useEffect(() => { setTab('basic'); }, [player.id]);
 
@@ -770,7 +785,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/95 via-black/60 to-transparent" />
             <div className="absolute top-0 left-0 right-0 p-4 flex items-start justify-between z-10">
               <div className="flex flex-col items-center gap-2">
-                <div className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ background: `${hex}1f`, color: hex, border: `1px solid ${hex}45` }}>
+                <div className="px-2.5 py-1 rounded-full text-[11px] font-black" style={{ background: `${hex}1f`, color: posTextColor, border: `1px solid ${hex}45` }}>
                   {normalizePosition(player.position)}
                 </div>
                 {flagUrl ? (
@@ -792,7 +807,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
               </div>
             ) : null}
             <div className="absolute bottom-5 left-5 z-10">
-              <div className="text-2xl font-black leading-none" style={{ color: mainAccent }}>#{player.number}</div>
+              <div className="text-2xl font-black leading-none" style={{ color: posTextColor }}>#{player.number}</div>
               <div className="text-2xl sm:text-[2.6rem] font-black leading-none text-white mt-1">{player.name}</div>
               {player.subName ? <div className="mt-0.5 text-sm font-semibold text-white/80">{player.subName}</div> : null}
             </div>
@@ -806,7 +821,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                 onClick={() => setTab(t)}
                 className={`flex-1 py-3 text-sm font-bold text-center transition-colors ${i === 0 ? '' : ''}`}
                 style={{
-                  color: tab === t ? mainAccent : 'rgba(255,255,255,0.38)',
+                  color: tab === t ? posTextColor : 'rgba(255,255,255,0.38)',
                   borderBottom: tab === t ? `0.5px solid ${mainAccent}` : '0.5px solid transparent',
                 }}
               >
@@ -865,7 +880,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                   <div className="mt-4 rounded-xl border border-white/[0.05] bg-white/[0.03] p-3">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] text-[#9CA3AF]">能力値</span>
-                      <div className="text-2xl font-black italic leading-none" style={{ color: mainAccent }}>{player.params.overall ?? '-'}</div>
+                      <div className="text-2xl font-black italic leading-none" style={{ color: posTextColor }}>{player.params.overall ?? '-'}</div>
                     </div>
                     <div className="flex justify-center py-2">
                       <svg viewBox="0 0 240 240" width="180" height="180" className="mx-auto">
@@ -1066,7 +1081,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                 <div className="grid grid-cols-3 gap-2">
                   {summaryItems.map((s) => (
                     <div key={s.label} className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-3 text-center" style={{ borderColor: `${mainAccent}15` }}>
-                      <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{s.value}</div>
+                      <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: posTextColor }}>{s.value}</div>
                       <div className="text-[10px] text-[#9CA3AF] mt-1">{s.label}</div>
                     </div>
                   ))}
@@ -1112,9 +1127,9 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                                 <span className={`text-lg font-black italic leading-none text-white ${barlow.className}`}>{scoreText}</span>
                               </div>
                               <div className="flex items-baseline gap-2 text-xs font-black">
-                                <span><span style={{ color: mainAccent }}>{minutesDisplay}</span><span className="ml-0.5 text-white/35">{minutesLabel}</span></span>
-                                <span><span style={{ color: (r.goals ?? 0) >= 1 ? mainAccent : 'rgba(255,255,255,0.35)' }}>{r.goals ?? 0}</span><span className="ml-0.5 text-white/35">G</span></span>
-                                <span><span style={{ color: (r.assists ?? 0) >= 1 ? mainAccent : 'rgba(255,255,255,0.35)' }}>{r.assists ?? 0}</span><span className="ml-0.5 text-white/35">A</span></span>
+                                <span><span style={{ color: posTextColor }}>{minutesDisplay}</span><span className="ml-0.5 text-white/35">{minutesLabel}</span></span>
+                                <span><span style={{ color: (r.goals ?? 0) >= 1 ? posTextColor : 'rgba(255,255,255,0.35)' }}>{r.goals ?? 0}</span><span className="ml-0.5 text-white/35">G</span></span>
+                                <span><span style={{ color: (r.assists ?? 0) >= 1 ? posTextColor : 'rgba(255,255,255,0.35)' }}>{r.assists ?? 0}</span><span className="ml-0.5 text-white/35">A</span></span>
                               </div>
                             </div>
                           </div>
@@ -1146,20 +1161,20 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                           className="w-full text-left"
                         >
                           <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.05] bg-white/[0.04]">
-                            <span className="text-sm font-black" style={{ color: mainAccent }}>{season}</span>
+                            <span className="text-sm font-black" style={{ color: posTextColor }}>{season}</span>
                             <span className="text-lg leading-none text-white/80">{isExpanded ? '−' : '+'}</span>
                           </div>
                           <div className="grid grid-cols-3 divide-x divide-white/[0.06] p-3">
                             <div className="text-center">
-                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{total.matches}</div>
+                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: posTextColor }}>{total.matches}</div>
                               <div className="text-[10px] text-[#9CA3AF] mt-1">出</div>
                             </div>
                             <div className="text-center">
-                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{total.goals}</div>
+                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: posTextColor }}>{total.goals}</div>
                               <div className="text-[10px] text-[#9CA3AF] mt-1">G</div>
                             </div>
                             <div className="text-center">
-                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: mainAccent }}>{total.assists}</div>
+                              <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: posTextColor }}>{total.assists}</div>
                               <div className="text-[10px] text-[#9CA3AF] mt-1">A</div>
                             </div>
                           </div>
@@ -1172,9 +1187,9 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                                 <div key={i} className="rounded-lg bg-white/[0.04] px-3 py-2 flex items-center justify-between text-sm ml-2">
                                   <span className="text-white/80 font-medium truncate pr-2">{c.competitionName}</span>
                                   <div className="flex gap-3 text-[11px] flex-shrink-0">
-                                    <span><span className="text-[#9CA3AF]">出</span> <span className="font-black" style={{ color: mainAccent }}>{c.matches}</span></span>
-                                    <span><span className="text-[#9CA3AF]">G</span> <span className="font-black" style={{ color: mainAccent }}>{c.goals}</span></span>
-                                    <span><span className="text-[#9CA3AF]">A</span> <span className="font-black" style={{ color: mainAccent }}>{c.assists}</span></span>
+                                    <span><span className="text-[#9CA3AF]">出</span> <span className="font-black" style={{ color: posTextColor }}>{c.matches}</span></span>
+                                    <span><span className="text-[#9CA3AF]">G</span> <span className="font-black" style={{ color: posTextColor }}>{c.goals}</span></span>
+                                    <span><span className="text-[#9CA3AF]">A</span> <span className="font-black" style={{ color: posTextColor }}>{c.assists}</span></span>
                                   </div>
                                 </div>
                               ))}
@@ -1264,7 +1279,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
       <div className="pt-8 pb-6">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.15em] font-black" style={{ color: mainAccent }}>SQUAD</div>
+            <div className="text-[10px] uppercase tracking-[0.15em] font-black" style={{ color: squadTextColor }}>SQUAD</div>
           </div>
           {allSeasons.length > 0 && (
             <select
