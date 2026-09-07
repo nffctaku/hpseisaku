@@ -85,6 +85,23 @@ export default function LandingPage() {
 
               <div className="divide-y divide-slate-800/90 border-y border-slate-800/90">
                 <article className="grid gap-3 py-4 sm:grid-cols-[120px_1fr] sm:gap-7 sm:py-8">
+                  <time className="font-mono text-xs text-emerald-300/55 sm:text-sm">2026.09.07</time>
+                  <div>
+                    <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black bg-emerald-500/15 text-emerald-300 sm:px-3 sm:py-1 sm:text-xs">
+                      新機能
+                    </span>
+                    <h3 className="mt-2 text-sm font-black leading-snug tracking-[-0.03em] text-white sm:mt-3 sm:text-lg sm:text-xl">
+                      管理画面の分析管理機能にバランス・ヒートマップ表示を追加
+                    </h3>
+                    <p className="mt-2 text-xs font-medium leading-6 text-slate-400 sm:mt-3 sm:text-sm sm:leading-7 sm:text-base">
+                      試合の得点・失点を時間帯別に比較できる「バランス」表示と、色の濃さで傾向を把握できる「ヒートマップ」表示を追加しました。
+                    </p>
+                    <div className="relative mt-4 aspect-[16/9] w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900">
+                      <Image src="/ヒートマップアップデート.png" alt="得点/失点の時間帯分析 バランス・ヒートマップ" fill className="object-contain" sizes="(max-width: 768px) 100vw, 800px" />
+                    </div>
+                  </div>
+                </article>
+                <article className="grid gap-3 py-4 sm:grid-cols-[120px_1fr] sm:gap-7 sm:py-8">
                   <time className="font-mono text-xs text-emerald-300/55 sm:text-sm">2026.08.12</time>
                   <div>
                     <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black bg-emerald-500/15 text-emerald-300 sm:px-3 sm:py-1 sm:text-xs">
