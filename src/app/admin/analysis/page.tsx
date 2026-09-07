@@ -11,6 +11,7 @@ import { TournamentTypeSelection } from "./components/tournament-type-selection"
 import { TournamentSelection } from "./components/tournament-selection";
 import { TeamVsTeamLeagueSection } from "./components/team-vs-team-league-section";
 import { MainStats } from "./components/main-stats";
+import { GoalTimeSection } from "./components/goal-time-section";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -1720,6 +1721,7 @@ export default function AnalysisPage() {
                 </div>
               </div>
             )}
+            <GoalTimeSection matches={filteredMatches} mainTeamId={mainTeamId} />
           </div>
         )}
       </div>
