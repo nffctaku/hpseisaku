@@ -25,7 +25,7 @@ export function useAnalysisData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
-  const [allPlayers, setAllPlayers] = useState<Array<{ playerId: string; playerName: string; position?: string }>>([]);
+  const [allPlayers, setAllPlayers] = useState<Array<{ playerId: string; playerName: string; number?: number; position?: string; nationality?: string; photoUrl?: string }>>([]);
 
   const computePlayerStatsFromEvents = (events: any[]): Array<{ playerId: string; playerName?: string; goals: number; assists: number }> => {
     const map = new Map<string, { playerId: string; playerName?: string; goals: number; assists: number }>();
@@ -69,7 +69,10 @@ export function useAnalysisData() {
           return {
             playerId: doc.id,
             playerName: data.name || data.displayName || 'Unknown',
+            number: typeof data.number === 'number' ? data.number : (typeof data.shirtNumber === 'number' ? data.shirtNumber : undefined),
             position: data.position || data.mainPosition || undefined,
+            nationality: data.nationality || data.country || undefined,
+            photoUrl: data.photoUrl || data.imageUrl || undefined,
           };
         });
 
@@ -80,7 +83,10 @@ export function useAnalysisData() {
             return {
               playerId: doc.id,
               playerName: data.name || data.displayName || 'Unknown',
+              number: typeof data.number === 'number' ? data.number : (typeof data.shirtNumber === 'number' ? data.shirtNumber : undefined),
               position: data.position || data.mainPosition || undefined,
+              nationality: data.nationality || data.country || undefined,
+              photoUrl: data.photoUrl || data.imageUrl || undefined,
             };
           });
         }
@@ -600,11 +606,14 @@ export function useAnalysisData() {
   }, [filteredMatches, mainTeamId]);
 
   const playerNameMap = useMemo(() => {
-    const map = new Map<string, { playerName: string; position?: string }>();
+    const map = new Map<string, { playerName: string; number?: number; position?: string; nationality?: string; photoUrl?: string }>();
     allPlayers.forEach((player) => {
       map.set(player.playerId, {
         playerName: player.playerName,
+        number: player.number,
         position: player.position,
+        nationality: player.nationality,
+        photoUrl: player.photoUrl,
       });
     });
     return map;
@@ -626,11 +635,13 @@ export function useAnalysisData() {
               playerId: player.playerId,
               playerName: currentPlayer?.playerName || player.playerName || 'Unknown',
               position: currentPlayer?.position || player.position || undefined,
+              photoUrl: currentPlayer?.photoUrl || player.photoUrl || undefined,
               goals: 0,
               assists: 0,
               matches: 0,
               starts: 0,
               substitutions: 0,
+        cleanSheets: 0,
             };
           }
           goals[player.playerId].goals += player.goals || 0;
@@ -661,11 +672,13 @@ export function useAnalysisData() {
               playerId: player.playerId,
               playerName: currentPlayer?.playerName || player.playerName || 'Unknown',
               position: currentPlayer?.position || player.position || undefined,
+              photoUrl: currentPlayer?.photoUrl || player.photoUrl || undefined,
               goals: 0,
               assists: 0,
               matches: 0,
               starts: 0,
               substitutions: 0,
+        cleanSheets: 0,
             };
           }
           assists[player.playerId].goals += player.goals || 0;
@@ -682,23 +695,30 @@ export function useAnalysisData() {
 
   const playerStatsList = useMemo(() => {
     const stats: { [key: string]: PlayerStats } = {};
+    const playerSeasons: { [key: string]: Set<string> } = {};
+    const currentPlayerIds = new Set(allPlayers.map(p => p.playerId));
 
     // 全選手を初期化
     allPlayers.forEach(player => {
       stats[player.playerId] = {
         playerId: player.playerId,
         playerName: player.playerName,
+        number: player.number,
         position: player.position || undefined,
+        nationality: player.nationality,
+        photoUrl: player.photoUrl,
         goals: 0,
         assists: 0,
         matches: 0,
         starts: 0,
         substitutions: 0,
+        cleanSheets: 0,
         rating: undefined,
       };
     });
 
     filteredMatches.forEach(match => {
+      const season = typeof match?.competitionSeason === 'string' ? String(match.competitionSeason).trim() : '';
       const sourcePlayerStats = (match.playerStats && Array.isArray(match.playerStats) && match.playerStats.length > 0)
         ? match.playerStats
         : computePlayerStatsFromEvents(Array.isArray(match.events) ? match.events : []);
@@ -710,12 +730,16 @@ export function useAnalysisData() {
             stats[player.playerId] = {
               playerId: player.playerId,
               playerName: currentPlayer?.playerName || player.playerName || 'Unknown',
+              number: currentPlayer?.number || player.number,
               position: currentPlayer?.position || player.position || undefined,
+              nationality: currentPlayer?.nationality || player.nationality,
+              photoUrl: currentPlayer?.photoUrl || player.photoUrl || undefined,
               goals: 0,
               assists: 0,
               matches: 0,
               starts: 0,
               substitutions: 0,
+        cleanSheets: 0,
               rating: undefined,
             };
           }
@@ -726,7 +750,18 @@ export function useAnalysisData() {
           const minutesPlayed = Number(player.minutesPlayed) || 0;
           const actuallyPlayed = minutesPlayed > 0;
           stats[player.playerId].substitutions += !isStarter && actuallyPlayed ? 1 : 0;
-          
+
+          const playerPosition = (currentPlayer?.position || player.position || "");
+          const played = isStarter || actuallyPlayed;
+          if (playerPosition.toUpperCase().includes("GK") && match.isCompleted && played && typeof match.goalsAgainst === "number" && match.goalsAgainst === 0) {
+            stats[player.playerId].cleanSheets += 1;
+          }
+
+          if (season) {
+            if (!playerSeasons[player.playerId]) playerSeasons[player.playerId] = new Set();
+            playerSeasons[player.playerId].add(season);
+          }
+
           if (player.rating !== undefined && player.rating !== null) {
             const currentRating = stats[player.playerId].rating || 0;
             const currentMatchesWithRating = (stats[player.playerId] as any).matchesWithRating || 0;
@@ -742,7 +777,22 @@ export function useAnalysisData() {
       player.matches = player.starts + player.substitutions;
     });
 
-    return Object.values(stats).sort((a, b) => b.matches - a.matches);
+    // 在籍期間・現所属を設定
+    Object.keys(stats).forEach(playerId => {
+      const player = stats[playerId];
+      player.isCurrent = currentPlayerIds.has(playerId);
+      const seasons = Array.from(playerSeasons[playerId] || []).sort();
+      if (seasons.length > 0) {
+        player.tenureStart = seasons[0];
+        player.tenureEnd = player.isCurrent ? 'PRESENT' : seasons[seasons.length - 1];
+      }
+    });
+
+    return Object.values(stats).sort((a, b) => {
+      const currentDiff = Number(b.isCurrent) - Number(a.isCurrent);
+      if (currentDiff !== 0) return currentDiff;
+      return b.matches - a.matches;
+    });
   }, [filteredMatches, allPlayers, playerNameMap]);
 
   return {

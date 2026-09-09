@@ -484,6 +484,10 @@ async function getPlayersData(
   // 背番号でソート（重複しても一旦そのまま）
   filteredPlayers.sort((a, b) => (a.number || 0) - (b.number || 0));
 
+  // Firestore からのオブジェクトが freeze されているケースがあるため、
+  // 以降の書き換え可能な shallow copy を作成しておく
+  filteredPlayers = filteredPlayers.map((p) => ({ ...p }));
+
   const filterStaffBySeasonMembership = (s: any) => {
     const seasons = Array.isArray(s?.seasons) ? (s.seasons as string[]) : [];
     if (seasons.length === 0) return true;

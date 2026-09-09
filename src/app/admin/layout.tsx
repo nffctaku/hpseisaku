@@ -35,7 +35,17 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
 
   const isPlainAdminPage = (pathname || '').startsWith('/admin/mypage');
 
-  const allowHorizontalScroll = (pathname || '').includes('/booklet');
+  const allowHorizontalScroll = pathname === '/admin/matches/calendar';
+  const isClubHistoryPage = pathname === '/admin/club/history';
+  const isPlayerRecordsPage = pathname.startsWith('/admin/club/history/players');
+  const isPlayerRecordsRoot = pathname === '/admin/club/history/players';
+
+  const playerRecordsBackHref = isClubHistoryPage || !isPlayerRecordsRoot
+    ? undefined
+    : '/admin/club/history';
+  const playerRecordsBackLabel = isClubHistoryPage || !isPlayerRecordsRoot
+    ? undefined
+    : 'クラブ史に戻る';
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
@@ -241,19 +251,23 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
       </div>
 
       <div className="flex flex-col flex-1 w-full min-w-0 relative z-10">
-        <div className="relative z-20">
+        <div className={isClubHistoryPage || isPlayerRecordsPage ? "absolute inset-x-0 top-0 z-30" : "relative z-20"}>
           <Header
-            logoUrl={clubInfo.logoUrl || user?.logoUrl}
+            logoUrl={isPlayerRecordsPage ? undefined : (clubInfo.logoUrl || user?.logoUrl)}
             clubName={clubInfo.clubName || user?.clubName}
             homePath={user ? `/admin/club/${user.uid}` : '/admin'}
             navLinks={null} // No nav links in admin header
             onMenuClick={toggleSidebar}
             isMenuOpen={isSidebarOpen}
             isAdminPage={true}
+            compact={isClubHistoryPage || isPlayerRecordsPage}
+            menuOnly={isClubHistoryPage || isPlayerRecordsPage}
+            backHref={playerRecordsBackHref}
+            backLabel={playerRecordsBackLabel}
           />
         </div>
         <main
-          className={`flex-1 w-full p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8 overflow-y-auto ${
+          className={`flex-1 w-full ${isClubHistoryPage || isPlayerRecordsPage ? 'p-0 pb-24' : 'p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8'} overflow-y-auto ${
             allowHorizontalScroll ? 'overflow-x-auto' : 'overflow-x-hidden'
           }`}
         >

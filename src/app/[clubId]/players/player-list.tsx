@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Barlow_Condensed } from 'next/font/google';
 import { calculateAge } from "@/lib/player-calculations";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
+import { getFlagUrl } from "@/lib/flag-url";
 import { MatchRecord } from "./lib/get-match-stats";
 import { PositionMap } from "./[playerId]/design-test/components/PositionMap";
 
@@ -19,187 +20,6 @@ const barlow = Barlow_Condensed({
 
 const POSITION_ORDER = ['GK', 'DF', 'MF', 'FW'] as const;
 
-function getFlagEmoji(countryName: string): string {
-  return countryName;
-}
-
-function getFlagUrl(countryName: string): string | null {
-  const countryCodes: Record<string, string> = {
-    '日本': 'jp',
-    'Japan': 'jp',
-    'JPN': 'jp',
-    '韓国': 'kr',
-    'Korea': 'kr',
-    'South Korea': 'kr',
-    'KOR': 'kr',
-    '中国': 'cn',
-    'China': 'cn',
-    'CHN': 'cn',
-    '北朝鮮': 'kp',
-    'North Korea': 'kp',
-    'PRK': 'kp',
-    'アメリカ': 'us',
-    'USA': 'us',
-    'United States': 'us',
-    'イギリス': 'gb',
-    'UK': 'gb',
-    'United Kingdom': 'gb',
-    'GBR': 'gb',
-    'England': 'gb-eng',
-    'ドイツ': 'de',
-    'Germany': 'de',
-    'GER': 'de',
-    'フランス': 'fr',
-    'France': 'fr',
-    'FRA': 'fr',
-    'イタリア': 'it',
-    'Italy': 'it',
-    'ITA': 'it',
-    'スペイン': 'es',
-    'Spain': 'es',
-    'ESP': 'es',
-    'オランダ': 'nl',
-    'Netherlands': 'nl',
-    'NED': 'nl',
-    'ベルギー': 'be',
-    'Belgium': 'be',
-    'BEL': 'be',
-    'ポルトガル': 'pt',
-    'Portugal': 'pt',
-    'POR': 'pt',
-    'ブラジル': 'br',
-    'Brazil': 'br',
-    'BRA': 'br',
-    'アルゼンチン': 'ar',
-    'Argentina': 'ar',
-    'ARG': 'ar',
-    'ウルグアイ': 'uy',
-    'Uruguay': 'uy',
-    'URU': 'uy',
-    'コロンビア': 'co',
-    'Colombia': 'co',
-    'COL': 'co',
-    'メキシコ': 'mx',
-    'Mexico': 'mx',
-    'MEX': 'mx',
-    'カナダ': 'ca',
-    'Canada': 'ca',
-    'CAN': 'ca',
-    'オーストラリア': 'au',
-    'Australia': 'au',
-    'AUS': 'au',
-    'ニュージーランド': 'nz',
-    'New Zealand': 'nz',
-    'NZL': 'nz',
-    'ナイジェリア': 'ng',
-    'Nigeria': 'ng',
-    'NGA': 'ng',
-    'ガーナ': 'gh',
-    'Ghana': 'gh',
-    'GHA': 'gh',
-    'コートジボワール': 'ci',
-    'Ivory Coast': 'ci',
-    'CIV': 'ci',
-    'セネガル': 'sn',
-    'Senegal': 'sn',
-    'SEN': 'sn',
-    'エジプト': 'eg',
-    'Egypt': 'eg',
-    'EGY': 'eg',
-    'モロッコ': 'ma',
-    'Morocco': 'ma',
-    'MAR': 'ma',
-    '南アフリカ': 'za',
-    'South Africa': 'za',
-    'RSA': 'za',
-    'サウジアラビア': 'sa',
-    'Saudi Arabia': 'sa',
-    'KSA': 'sa',
-    'アラブ首長国連邦': 'ae',
-    'UAE': 'ae',
-    'United Arab Emirates': 'ae',
-    'カタール': 'qa',
-    'Qatar': 'qa',
-    'QAT': 'qa',
-    'イラン': 'ir',
-    'Iran': 'ir',
-    'IRN': 'ir',
-    'トルコ': 'tr',
-    'Turkey': 'tr',
-    'TUR': 'tr',
-    'ロシア': 'ru',
-    'Russia': 'ru',
-    'RUS': 'ru',
-    'ウクライナ': 'ua',
-    'Ukraine': 'ua',
-    'UKR': 'ua',
-    'ポーランド': 'pl',
-    'Poland': 'pl',
-    'POL': 'pl',
-    'チェコ': 'cz',
-    'Czech Republic': 'cz',
-    'CZE': 'cz',
-    'スロバキア': 'sk',
-    'Slovakia': 'sk',
-    'SVK': 'sk',
-    'ハンガリー': 'hu',
-    'Hungary': 'hu',
-    'HUN': 'hu',
-    'ルーマニア': 'ro',
-    'Romania': 'ro',
-    'ROU': 'ro',
-    'ブルガリア': 'bg',
-    'Bulgaria': 'bg',
-    'BUL': 'bg',
-    'セルビア': 'rs',
-    'Serbia': 'rs',
-    'SRB': 'rs',
-    'クロアチア': 'hr',
-    'Croatia': 'hr',
-    'CRO': 'hr',
-    'スロベニア': 'si',
-    'Slovenia': 'si',
-    'SVN': 'si',
-    'ボスニア・ヘルツェゴビナ': 'ba',
-    'Bosnia': 'ba',
-    'BIH': 'ba',
-    '北マケドニア': 'mk',
-    'North Macedonia': 'mk',
-    'MKD': 'mk',
-    'ギリシャ': 'gr',
-    'Greece': 'gr',
-    'GRE': 'gr',
-    'スイス': 'ch',
-    'Switzerland': 'ch',
-    'SUI': 'ch',
-    'オーストリア': 'at',
-    'Austria': 'at',
-    'AUT': 'at',
-    'スウェーデン': 'se',
-    'Sweden': 'se',
-    'SWE': 'se',
-    'ノルウェー': 'no',
-    'Norway': 'no',
-    'NOR': 'no',
-    'デンマーク': 'dk',
-    'Denmark': 'dk',
-    'DEN': 'dk',
-    'フィンランド': 'fi',
-    'Finland': 'fi',
-    'FIN': 'fi',
-    'アイスランド': 'is',
-    'Iceland': 'is',
-    'ISL': 'is',
-  };
-
-  const normalized = countryName.trim();
-  const code = countryCodes[normalized];
-  if (code) {
-    return `https://flagcdn.com/w40/${code}.png`;
-  }
-
-  return null;
-}
 
 const MATCH_RESULT_COLORS: Record<string, string> = {
   W: '#22c55e',
@@ -789,7 +609,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                   {normalizePosition(player.position)}
                 </div>
                 {flagUrl ? (
-                  <img src={flagUrl} alt={nationality} className="h-5 w-7 object-cover" />
+                  <img src={flagUrl} alt={nationality ?? undefined} className="h-5 w-7 object-cover" />
                 ) : null}
               </div>
               <button
@@ -959,7 +779,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                           const r = 95;
                           const x = 120 + r * Math.cos(angle);
                           const y = 120 + r * Math.sin(angle);
-                          const label = item.name || item.label || item.key || `項目${i + 1}`;
+                          const label = item.name || `項目${i + 1}`;
                           const value = typeof item.value === 'number' && Number.isFinite(item.value) ? Math.round(item.value) : '-';
                           return (
                             <g key={i}>

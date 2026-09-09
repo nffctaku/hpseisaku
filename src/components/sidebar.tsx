@@ -21,7 +21,7 @@ import {
   Mail,
   LayoutGrid,
   User,
-  Image as ImageIcon,
+  History,
   type LucideIcon,
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
@@ -62,7 +62,7 @@ export function Sidebar() {
         // Prefer docId == uid schema
         const byUidSnap = await getDoc(clubProfileByUidRef);
         if (byUidSnap.exists()) {
-          const data = byUidSnap.data() as any;
+          const data = byUidSnap.data() as { mainTeamId?: string };
           const next = typeof data?.mainTeamId === 'string' ? String(data.mainTeamId).trim() : '';
           if (next) {
             setMainTeamId(next);
@@ -74,7 +74,7 @@ export function Sidebar() {
         const ownerQuery = query(collection(db, 'club_profiles'), where('ownerUid', '==', clubUid), limit(1));
         const ownerSnap = await getDocs(ownerQuery);
         if (!ownerSnap.empty) {
-          const data = ownerSnap.docs[0].data() as any;
+          const data = ownerSnap.docs[0].data() as { mainTeamId?: string };
           const next = typeof data?.mainTeamId === 'string' ? String(data.mainTeamId).trim() : '';
           if (next) {
             setMainTeamId(next);
@@ -163,6 +163,7 @@ export function Sidebar() {
       items: [
         { href: bookletHref, label: '選手名鑑', icon: BookOpen },
         { href: `/admin/analysis`, label: '分析管理', icon: LineChart },
+        { href: `/admin/club/history`, label: 'クラブ史', icon: History },
         { href: transfersHref, label: '移籍管理', icon: TransfersIcon },
       ],
     },

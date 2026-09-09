@@ -15,13 +15,20 @@ export interface SeasonRecord {
 export interface PlayerStats {
   playerId: string;
   playerName: string;
+  number?: number;
   position?: string;
+  nationality?: string;
+  photoUrl?: string;
   goals: number;
   assists: number;
   matches: number;
   starts: number;
   substitutions: number;
+  cleanSheets: number;
   rating?: number;
+  isCurrent?: boolean;
+  tenureStart?: string;
+  tenureEnd?: string;
 }
 
 export interface MainStats {

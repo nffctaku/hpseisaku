@@ -6,7 +6,6 @@ import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClub } from "@/contexts/ClubContext";
 import { db } from "@/lib/firebase";
-import { SystemAnnouncement } from "@/components/system-announcement";
 import {
   ArrowLeftRight,
   BookOpen,
@@ -16,7 +15,6 @@ import {
   LineChart,
   Mail,
   Newspaper,
-  Settings,
   Shield,
   Tv,
   Trophy,
@@ -26,7 +24,7 @@ import {
   Share2,
   History,
   Copy,
-  Image as ImageIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { collection, doc, getDoc, getDocs, limit, query, setDoc, where } from "firebase/firestore";
 import { toast } from "sonner";
@@ -69,7 +67,7 @@ export default function AdminHomePage() {
 
         const byUidSnap = await getDoc(clubProfileByUidRef);
         if (byUidSnap.exists()) {
-          const data = byUidSnap.data() as any;
+          const data = byUidSnap.data() as { mainTeamId?: string };
           const next = typeof data?.mainTeamId === "string" ? String(data.mainTeamId).trim() : "";
           if (next) {
             setMainTeamId(next);
@@ -80,7 +78,7 @@ export default function AdminHomePage() {
         const ownerQuery = query(collection(db, "club_profiles"), where("ownerUid", "==", clubUid), limit(1));
         const ownerSnap = await getDocs(ownerQuery);
         if (!ownerSnap.empty) {
-          const data = ownerSnap.docs[0].data() as any;
+          const data = ownerSnap.docs[0].data() as { mainTeamId?: string };
           const next = typeof data?.mainTeamId === "string" ? String(data.mainTeamId).trim() : "";
           if (next) {
             setMainTeamId(next);
@@ -118,7 +116,7 @@ export default function AdminHomePage() {
 
   useEffect(() => {
     if (!shouldShowAdminHomeAd) return;
-    const w = window as any;
+    const w = window as unknown as { adsbygoogle?: object[] };
     try {
       w.adsbygoogle = w.adsbygoogle || [];
       w.adsbygoogle.push({});
@@ -208,6 +206,7 @@ export default function AdminHomePage() {
     analysis: [
       { href: bookletHref, label: "選手名鑑", icon: BookOpen },
       { href: "/admin/analysis", label: "分析管理", icon: LineChart },
+      { href: "/admin/club/history", label: "クラブ史", icon: History },
       { href: transfersHref, label: "移籍管理", icon: ArrowLeftRight },
     ],
     account: [
@@ -225,8 +224,9 @@ export default function AdminHomePage() {
       const title = "FootChron";
       const text = SHARE_TEXT;
 
-      if (typeof (navigator as any)?.share === "function") {
-        await (navigator as any).share({ title, text, url });
+      const nav = navigator as unknown as { share?: (data: { title: string; text: string; url: string }) => Promise<void> };
+      if (typeof nav.share === "function") {
+        await nav.share({ title, text, url });
         return;
       }
 
@@ -503,7 +503,7 @@ export default function AdminHomePage() {
   );
 }
 
-function Section({ title, items, color }: { title: string; items: Array<{ href: string; label: string; icon: any; disabled?: boolean; badge?: { text: string; color: string }; external?: boolean }>; color: string }) {
+function Section({ title, items, color }: { title: string; items: Array<{ href: string; label: string; icon: LucideIcon; disabled?: boolean; badge?: { text: string; color: string }; external?: boolean }>; color: string }) {
   if (items.length === 0) return null;
 
   return (
