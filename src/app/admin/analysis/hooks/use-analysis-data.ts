@@ -14,6 +14,32 @@ const debugLog = (...args: any[]) => {
 
 // ユーザーが記録したカスタムスタッツを含め、teamStatsから動的に抽出
 
+export function computePlayerStatsFromEvents(events: any[]): Array<{ playerId: string; playerName?: string; goals: number; assists: number }> {
+  const map = new Map<string, { playerId: string; playerName?: string; goals: number; assists: number }>();
+  for (const ev of events || []) {
+    const type = typeof ev?.type === 'string' ? ev.type : '';
+    if (type !== 'goal') continue;
+    const scorerId = typeof ev?.playerId === 'string' ? ev.playerId : '';
+    const scorerName = typeof ev?.playerName === 'string' ? ev.playerName : undefined;
+    if (scorerId) {
+      const cur = map.get(scorerId) || { playerId: scorerId, playerName: scorerName, goals: 0, assists: 0 };
+      cur.goals += 1;
+      if (!cur.playerName && scorerName) cur.playerName = scorerName;
+      map.set(scorerId, cur);
+    }
+
+    const assistId = typeof ev?.assistPlayerId === 'string' ? ev.assistPlayerId : '';
+    const assistName = typeof ev?.assistPlayerName === 'string' ? ev.assistPlayerName : undefined;
+    if (assistId && assistId !== 'pk' && assistId !== 'none') {
+      const cur = map.get(assistId) || { playerId: assistId, playerName: assistName, goals: 0, assists: 0 };
+      cur.assists += 1;
+      if (!cur.playerName && assistName) cur.playerName = assistName;
+      map.set(assistId, cur);
+    }
+  }
+  return Array.from(map.values());
+}
+
 export function useAnalysisData() {
   const { ownerUid, user } = useAuth();
   const { clubInfo } = useClub();
@@ -26,32 +52,6 @@ export function useAnalysisData() {
   const [error, setError] = useState<string | null>(null);
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
   const [allPlayers, setAllPlayers] = useState<Array<{ playerId: string; playerName: string; number?: number; position?: string; nationality?: string; photoUrl?: string }>>([]);
-
-  const computePlayerStatsFromEvents = (events: any[]): Array<{ playerId: string; playerName?: string; goals: number; assists: number }> => {
-    const map = new Map<string, { playerId: string; playerName?: string; goals: number; assists: number }>();
-    for (const ev of events || []) {
-      const type = typeof ev?.type === 'string' ? ev.type : '';
-      if (type !== 'goal') continue;
-      const scorerId = typeof ev?.playerId === 'string' ? ev.playerId : '';
-      const scorerName = typeof ev?.playerName === 'string' ? ev.playerName : undefined;
-      if (scorerId) {
-        const cur = map.get(scorerId) || { playerId: scorerId, playerName: scorerName, goals: 0, assists: 0 };
-        cur.goals += 1;
-        if (!cur.playerName && scorerName) cur.playerName = scorerName;
-        map.set(scorerId, cur);
-      }
-
-      const assistId = typeof ev?.assistPlayerId === 'string' ? ev.assistPlayerId : '';
-      const assistName = typeof ev?.assistPlayerName === 'string' ? ev.assistPlayerName : undefined;
-      if (assistId && assistId !== 'pk' && assistId !== 'none') {
-        const cur = map.get(assistId) || { playerId: assistId, playerName: assistName, goals: 0, assists: 0 };
-        cur.assists += 1;
-        if (!cur.playerName && assistName) cur.playerName = assistName;
-        map.set(assistId, cur);
-      }
-    }
-    return Array.from(map.values());
-  };
 
   useEffect(() => {
     if (!mainTeamId) return;

@@ -5,14 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, User, ArrowLeft } from "lucide-react";
 import { useAnalysisData } from "@/app/admin/analysis/hooks/use-analysis-data";
+import { getFlagUrl } from "@/lib/flag-url";
 
 function getPositionColor(position?: string) {
-  const p = position?.toUpperCase() || "";
-  if (p.includes("GK")) return "bg-cyan-500";
-  if (p.includes("DF")) return "bg-amber-500";
-  if (p.includes("MF")) return "bg-emerald-500";
-  if (p.includes("FW")) return "bg-blue-500";
-  return "bg-slate-500";
+  return "bg-[#0A1F3D]";
 }
 
 function getPositionLabel(position?: string) {
@@ -22,6 +18,10 @@ function getPositionLabel(position?: string) {
   if (p.includes("MF")) return "MF";
   if (p.includes("FW")) return "FW";
   return position || "-";
+}
+
+function flagLoader({ src }: { src: string; width: number; quality?: number }): string {
+  return src;
 }
 
 export default function AllTimeRankingsPage() {
@@ -173,6 +173,16 @@ export default function AllTimeRankingsPage() {
                     >
                       {getPositionLabel(p.position)}
                     </span>
+                    {p.nationality && getFlagUrl(p.nationality) ? (
+                      <Image
+                        src={getFlagUrl(p.nationality)!}
+                        alt={p.nationality}
+                        width={16}
+                        height={11}
+                        className="h-3 w-4 object-cover"
+                        loader={flagLoader}
+                      />
+                    ) : null}
                   </div>
                   <p className="mt-0.5 text-[11px] text-[#8295AA]">
                     {p.tenureStart ? `${p.tenureStart} - ${p.tenureEnd || p.tenureStart}` : "在籍期間未設定"}

@@ -347,12 +347,12 @@ export default function PlayerDetailPage() {
       <div className="px-4 pt-5 sm:px-6">
         <p className="text-[10px] font-black text-white">所属記録</p>
         <div className="mt-1 grid grid-cols-4 gap-2">
-          <StatCard value={player.matches} label="出場" />
+          <StatCard value={totalStats.matches} label="出場" />
           <StatCard
-            value={isGk ? player.cleanSheets : player.goals}
+            value={isGk ? totalStats.cleanSheets : totalStats.goals}
             label={isGk ? "CS" : "得点"}
           />
-          <StatCard value={player.assists} label="アシスト" />
+          <StatCard value={totalStats.assists} label="アシスト" />
           <StatCard value={0} label="タイトル" />
         </div>
 
@@ -363,7 +363,8 @@ export default function PlayerDetailPage() {
             <div className="rounded border border-white/10 bg-[#071321] p-2 text-center">
               <p className="text-[9px] font-bold text-[#8295AA]">出場数</p>
               <p className="mt-1 text-base font-black text-white">
-                #{ranks.matchRank}
+                {ranks.matchRank}
+                <span className="text-[9px] font-bold">位</span>
               </p>
             </div>
             <div className="rounded border border-white/10 bg-[#071321] p-2 text-center">
@@ -373,19 +374,28 @@ export default function PlayerDetailPage() {
                   ranks.goalRank === 1 ? "text-yellow-400" : "text-white"
                 }`}
               >
-                #{ranks.goalRank}
+                {ranks.goalRank}
+                <span className="text-[9px] font-bold">位</span>
               </p>
             </div>
             <div className="rounded border border-white/10 bg-[#071321] p-2 text-center">
               <p className="text-[9px] font-bold text-[#8295AA]">アシスト</p>
               <p className="mt-1 text-base font-black text-white">
-                #{ranks.assistRank}
+                {ranks.assistRank}
+                <span className="text-[9px] font-bold">位</span>
               </p>
             </div>
             <div className="rounded border border-white/10 bg-[#071321] p-2 text-center">
               <p className="text-[9px] font-bold text-[#8295AA]">CS（GKのみ）</p>
               <p className="mt-1 text-base font-black text-white">
-                {ranks.csRank != null ? `#${ranks.csRank}` : "-"}
+                {ranks.csRank != null ? (
+                  <>
+                    {ranks.csRank}
+                    <span className="text-[9px] font-bold">位</span>
+                  </>
+                ) : (
+                  "-"
+                )}
               </p>
             </div>
           </div>
