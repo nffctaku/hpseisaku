@@ -71,6 +71,7 @@ export default function ClubHistoryPage() {
   const [loading, setLoading] = useState(true);
 
   const clubUid = ownerUid || user?.uid;
+  const isPro = user?.plan === "pro";
 
   useEffect(() => {
     if (!clubUid) return;
@@ -158,7 +159,7 @@ export default function ClubHistoryPage() {
           <div className="flex min-h-[220px] flex-col justify-between sm:min-h-[260px] lg:min-h-[150px] lg:flex-row lg:items-end">
             <div>
               <h1 className="text-[42px] font-black leading-[0.92] tracking-[-0.08em] text-slate-100 sm:text-6xl lg:text-[64px]">
-                CLUB <span className="text-blue-500">RECORDS</span>
+                CLUB <span className="text-yellow-400">RECORDS</span>
               </h1>
               <p className="mt-4 max-w-xs text-[13px] font-bold leading-6 text-slate-200 sm:max-w-lg sm:text-base lg:mt-2">
                 積み重ねたシーズンが、クラブの歴史になる。
@@ -196,7 +197,7 @@ export default function ClubHistoryPage() {
               <Link
                 key={card.title}
                 href={card.href}
-                className="group relative flex min-h-[220px] flex-col justify-between overflow-hidden rounded-lg border border-white/10 bg-slate-950 p-3 text-left shadow-[0_12px_30px_rgba(0,0,0,0.28)] transition hover:opacity-90 lg:min-h-[300px]"
+                className={`group relative flex min-h-[220px] flex-col justify-between overflow-hidden rounded-lg border border-white/10 bg-slate-950 p-3 text-left shadow-[0_12px_30px_rgba(0,0,0,0.28)] transition ${isPro ? 'hover:opacity-90' : 'opacity-60'} lg:min-h-[300px]`}
               >
                 <Image src={card.bgImage} alt="" fill className="object-cover" sizes="(max-width: 640px) 45vw, 320px" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/10" />
@@ -211,6 +212,11 @@ export default function ClubHistoryPage() {
                 <div className="absolute bottom-3 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-white/25 bg-black/35 text-white transition group-hover:translate-x-0.5">
                   <ArrowRight className="h-3 w-3" />
                 </div>
+                {!isPro && (
+                  <div className="absolute right-2 top-2 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-black text-yellow-400 border border-yellow-400/40">
+                    PRO
+                  </div>
+                )}
               </Link>
             );
           })}
@@ -220,7 +226,7 @@ export default function ClubHistoryPage() {
               <Link
                 key={card.title}
                 href={card.href}
-                className="group relative col-span-2 flex min-h-[190px] flex-col justify-between overflow-hidden rounded-lg border border-white/10 bg-slate-950 p-4 text-left shadow-[0_12px_30px_rgba(0,0,0,0.28)] transition hover:opacity-90 lg:col-span-4 lg:min-h-[280px] lg:p-6"
+                className={`group relative col-span-2 flex min-h-[190px] flex-col justify-between overflow-hidden rounded-lg border border-white/10 bg-slate-950 p-4 text-left shadow-[0_12px_30px_rgba(0,0,0,0.28)] transition ${isPro ? 'hover:opacity-90' : 'opacity-60'} lg:col-span-4 lg:min-h-[280px] lg:p-6`}
               >
                 <Image src={card.bgImage} alt="" fill className="object-cover" sizes="100vw" />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/35 to-black/10" />
@@ -237,6 +243,11 @@ export default function ClubHistoryPage() {
                   ベストイレブンを見る
                   <ArrowRight className="h-3 w-3" />
                 </div>
+                {!isPro && (
+                  <div className="absolute right-3 top-3 z-20 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-black text-yellow-400 border border-yellow-400/40">
+                    PRO
+                  </div>
+                )}
               </Link>
             );
           })}

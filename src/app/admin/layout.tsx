@@ -7,6 +7,7 @@ import { Header } from '@/components/header';
 import { useAuth } from '@/contexts/AuthContext';
 import { ClubProvider, useClub } from '@/contexts/ClubContext';
 import { AuthButton } from '@/components/auth-button';
+import { ProLockScreen } from '@/components/pro-lock-screen';
 import Link from 'next/link';
 import Image from 'next/image';
 import { db } from '@/lib/firebase';
@@ -39,6 +40,18 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   const isClubHistoryPage = pathname === '/admin/club/history';
   const isPlayerRecordsPage = pathname.startsWith('/admin/club/history/players');
   const isPlayerRecordsRoot = pathname === '/admin/club/history/players';
+  const isSeasonRecordsPage = pathname.startsWith('/admin/club/history/seasons');
+  const isSeasonRecordsRoot = pathname === '/admin/club/history/seasons';
+
+  const isPro = user?.plan === "pro";
+  const proLockedPrefixes = [
+    '/admin/club/history/players',
+    '/admin/club/history/seasons',
+    '/admin/club/history/team',
+    '/admin/club/history/transfers',
+    '/admin/club/history/eleven',
+  ];
+  const isProLockedRecordsPage = proLockedPrefixes.some((p) => pathname.startsWith(p));
 
   const playerRecordsBackHref = isClubHistoryPage || !isPlayerRecordsRoot
     ? undefined
@@ -46,6 +59,13 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   const playerRecordsBackLabel = isClubHistoryPage || !isPlayerRecordsRoot
     ? undefined
     : 'クラブ史に戻る';
+
+  const seasonRecordsBackHref = isSeasonRecordsRoot
+    ? '/admin/club/history'
+    : '/admin/club/history/seasons';
+  const seasonRecordsBackLabel = isSeasonRecordsRoot
+    ? 'クラブ史に戻る'
+    : 'シーズン一覧に戻る';
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
@@ -251,27 +271,27 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
       </div>
 
       <div className="flex flex-col flex-1 w-full min-w-0 relative z-10">
-        <div className={isClubHistoryPage || isPlayerRecordsPage ? "absolute inset-x-0 top-0 z-30" : "relative z-20"}>
+        <div className={isClubHistoryPage || isProLockedRecordsPage ? "absolute inset-x-0 top-0 z-30" : "relative z-20"}>
           <Header
-            logoUrl={isPlayerRecordsPage ? undefined : (clubInfo.logoUrl || user?.logoUrl)}
+            logoUrl={isProLockedRecordsPage ? undefined : (clubInfo.logoUrl || user?.logoUrl)}
             clubName={clubInfo.clubName || user?.clubName}
             homePath={user ? `/admin/club/${user.uid}` : '/admin'}
             navLinks={null} // No nav links in admin header
             onMenuClick={toggleSidebar}
             isMenuOpen={isSidebarOpen}
             isAdminPage={true}
-            compact={isClubHistoryPage || isPlayerRecordsPage}
-            menuOnly={isClubHistoryPage || isPlayerRecordsPage}
-            backHref={playerRecordsBackHref}
-            backLabel={playerRecordsBackLabel}
+            compact={isClubHistoryPage || isProLockedRecordsPage}
+            menuOnly={isClubHistoryPage || isProLockedRecordsPage}
+            backHref={isSeasonRecordsPage ? seasonRecordsBackHref : (isPlayerRecordsPage ? playerRecordsBackHref : undefined)}
+            backLabel={isSeasonRecordsPage ? seasonRecordsBackLabel : (isPlayerRecordsPage ? playerRecordsBackLabel : undefined)}
           />
         </div>
         <main
-          className={`flex-1 w-full ${isClubHistoryPage || isPlayerRecordsPage ? 'p-0 pb-24' : 'p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8'} overflow-y-auto ${
+          className={`flex-1 w-full ${isClubHistoryPage || isProLockedRecordsPage ? 'p-0 pb-24' : 'p-4 pb-24 sm:p-6 sm:pb-24 md:p-8 md:pb-8'} overflow-y-auto ${
             allowHorizontalScroll ? 'overflow-x-auto' : 'overflow-x-hidden'
           }`}
         >
-          {children}
+          {isProLockedRecordsPage && !isPro ? <ProLockScreen /> : children}
         </main>
         <footer className="relative z-20 border-t border-gray-800 px-4 sm:px-6 md:px-8 py-4 text-xs text-gray-400">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

@@ -814,5 +814,6 @@ export function useAnalysisData() {
     topAssists,
     mainTeamId,
     playerStatsList,
+    allPlayers,
   };
 }
