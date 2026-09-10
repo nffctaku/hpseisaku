@@ -98,7 +98,7 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
         <div className="absolute inset-0 opacity-25" style={{ background: `radial-gradient(circle at 18% 0%, ${accentColor} 0%, transparent 34%), linear-gradient(180deg, ${accentColor} 0%, #05080f 35%, #05080f 100%)` }} />
         <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.35) 1px, transparent 1px)', backgroundSize: '96px 96px' }} />
         {stadiumPhotoUrl && stadiumPhotoUrl.length > 0 ? (
-          <div className="pointer-events-none absolute right-0 top-0 h-[160px] w-[92vw] overflow-hidden opacity-15 mix-blend-screen lg:top-24 lg:h-[360px] lg:w-[54vw] lg:opacity-30">
+          <div className="pointer-events-none absolute right-0 top-0 h-[160px] w-[92vw] overflow-hidden opacity-20 mix-blend-screen lg:top-24 lg:h-[360px] lg:w-[54vw] lg:opacity-30">
             <Image
               src={stadiumPhotoUrl}
               alt={stadiumName || 'Stadium'}
@@ -109,7 +109,7 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
           </div>
         ) : null}
 
-        <div className="relative mx-auto w-full max-w-5xl px-5 py-14 sm:px-8 sm:py-20">
+        <div className="relative mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="mb-4 text-[10px] font-black uppercase tracking-[0.35em]" style={{ color: accentColor }}>Club・Profile</div>
