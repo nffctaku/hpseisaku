@@ -29,6 +29,7 @@ export interface PublicSeasonSummaryRow {
     avgRating: number | null;
     hasStats: boolean;
     overall?: number | null;
+    isManual?: boolean;
   }[];
 }
 
@@ -77,7 +78,8 @@ export function PublicPlayerSeasonSummaries({ rows }: { rows: PublicSeasonSummar
           <div className="divide-y">
             {rows.map((row) => {
               const comps = Array.isArray(row.competitions) ? row.competitions : [];
-              const hasBreakdown = row.hasStats && comps.length > 0;
+              const visibleComps = comps.filter((c) => !c.isManual);
+              const hasBreakdown = row.hasStats && visibleComps.length > 0;
               return (
                 <div key={row.season} className="bg-background">
                   {hasBreakdown ? (
@@ -141,7 +143,7 @@ export function PublicPlayerSeasonSummaries({ rows }: { rows: PublicSeasonSummar
                               </tr>
                             </thead>
                             <tbody className="divide-y">
-                              {comps.map((c) => (
+                              {visibleComps.map((c) => (
                                 <tr key={c.competitionId} className="bg-background">
                                   <td className="p-1.5 text-[11px] font-medium">
                                     <div className="flex items-center gap-2">

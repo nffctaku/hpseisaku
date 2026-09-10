@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import { ChevronDown, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
   PopoverContent,
@@ -34,195 +36,280 @@ import {
 } from "./player-form.schema";
 
 const detailedPositionLayout: Array<{ key: DetailedPosition; label: string; x: string; y: string }> = [
-  { key: "LW", label: "LW", x: "17%", y: "14%" },
-  { key: "ST", label: "ST", x: "50%", y: "12%" },
-  { key: "RW", label: "RW", x: "83%", y: "14%" },
-  { key: "AM", label: "AM", x: "50%", y: "28%" },
-  { key: "LM", label: "LM", x: "17%", y: "43%" },
-  { key: "CM", label: "CM", x: "50%", y: "46%" },
-  { key: "RM", label: "RM", x: "83%", y: "43%" },
+  { key: "LW", label: "LW", x: "16%", y: "12%" },
+  { key: "ST", label: "ST", x: "50%", y: "10%" },
+  { key: "RW", label: "RW", x: "84%", y: "12%" },
+  { key: "AM", label: "AM", x: "50%", y: "27%" },
+  { key: "LM", label: "LM", x: "16%", y: "42%" },
+  { key: "CM", label: "CM", x: "50%", y: "45%" },
+  { key: "RM", label: "RM", x: "84%", y: "42%" },
   { key: "DM", label: "DM", x: "50%", y: "61%" },
-  { key: "LB", label: "LB", x: "17%", y: "77%" },
+  { key: "LB", label: "LB", x: "16%", y: "76%" },
   { key: "CB", label: "CB", x: "50%", y: "80%" },
-  { key: "RB", label: "RB", x: "83%", y: "77%" },
-  { key: "GK", label: "GK", x: "50%", y: "93%" },
+  { key: "RB", label: "RB", x: "84%", y: "76%" },
+  { key: "GK", label: "GK", x: "50%", y: "92%" },
 ];
+
+function SectionCard({
+  title,
+  summary,
+  open,
+  onOpenChange,
+  children,
+}: {
+  title: string;
+  summary: string;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  children: React.ReactNode;
+}) {
+  const panelId = useId();
+  return (
+    <div className="rounded-xl border border-[#334155] bg-[#172334]">
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-[#1FD760] focus-visible:outline-none"
+        aria-expanded={open}
+        aria-controls={panelId}
+      >
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-[#F1F5F9]">{title}</div>
+          <div className="text-xs text-[#A8B5C8]">{summary}</div>
+        </div>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-[#A8B5C8] transition-transform",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+      <div id={panelId} className={cn("px-4 pb-4", !open && "hidden")}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function DetailedPositionsSection({
   form,
-  defaultOpen = false,
+  open,
+  onOpenChange,
 }: {
   form: UseFormReturn<PlayerFormValues>;
-  defaultOpen?: boolean;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [mode, setMode] = useState<"main" | "sub">("main");
+  const [guidance, setGuidance] = useState<string | null>(null);
 
   useEffect(() => {
-    setOpen(defaultOpen);
-  }, [defaultOpen]);
+    if (!guidance) return;
+    const t = setTimeout(() => setGuidance(null), 2500);
+    return () => clearTimeout(t);
+  }, [guidance]);
+
+  const mainPosition = form.watch("mainPosition") as DetailedPosition | undefined;
+  const subPositions = (form.watch("subPositions") || []) as DetailedPosition[];
+
+  const handleToggle = (p: DetailedPosition) => {
+    const currentMain = form.getValues("mainPosition") as DetailedPosition | undefined;
+    const currentSubs = ((form.getValues("subPositions") || []) as DetailedPosition[]).filter(Boolean);
+    const isMain = currentMain === p;
+    const isSub = currentSubs.includes(p);
+
+    if (mode === "main") {
+      if (isMain) {
+        form.setValue("mainPosition", undefined as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+        return;
+      }
+      if (isSub) {
+        const next = currentSubs.filter((x) => x !== p);
+        form.setValue("subPositions", next as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+        form.setValue("mainPosition", p as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+        return;
+      }
+      form.setValue("mainPosition", p as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+      return;
+    }
+
+    if (isMain) {
+      setGuidance("メインに選択中です。サブに追加する場合は、まずメインを解除してください。");
+      return;
+    }
+    if (isSub) {
+      const next = currentSubs.filter((x) => x !== p);
+      form.setValue("subPositions", next as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+      return;
+    }
+    if (currentSubs.length >= 3) {
+      setGuidance("サブポジションは3つまで選択できます。");
+      return;
+    }
+    form.setValue("subPositions", [...currentSubs, p] as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+  };
 
   return (
-    <FormItem className="md:col-span-2">
-      <FormControl>
-        <div className="rounded-lg border bg-muted/10 p-3">
-          <div className="flex items-center justify-between gap-3">
-            <FormLabel className="m-0">適正ポジション（メイン1 / サブ最大3）</FormLabel>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => setOpen((v) => !v)}
-            >
-              <ChevronDown className={open ? "h-4 w-4 transition-transform rotate-180" : "h-4 w-4 transition-transform"} />
-            </Button>
-          </div>
-
-          {open ? (
-            <div className="mt-4">
-              <div className="relative mx-auto h-[430px] w-full max-w-[360px] overflow-hidden rounded-xl border border-gray-300 bg-white">
-                <div className="absolute left-1/2 top-0 h-[52px] w-[42%] -translate-x-1/2 border-x border-b border-gray-200" />
-                <div className="absolute left-0 top-1/2 h-px w-full bg-gray-200" />
-                <div className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-gray-200" />
-                <div className="absolute bottom-0 left-1/2 h-[52px] w-[42%] -translate-x-1/2 border-x border-t border-gray-200" />
-                {detailedPositionLayout.map((p) => {
-                  const main = form.watch("mainPosition") as DetailedPosition | undefined;
-                  const subs = (form.watch("subPositions") || []) as DetailedPosition[];
-                  const isMain = main === p.key;
-                  const isSub = subs.includes(p.key);
-                  const selected = isMain || isSub;
-
-                  const onToggle = () => {
-                    const currentMain = (form.getValues("mainPosition") as DetailedPosition | undefined) ?? undefined;
-                    const currentSubs = ((form.getValues("subPositions") as DetailedPosition[] | undefined) ?? []).filter(Boolean);
-                    const isMainNow = currentMain === p.key;
-                    const isSubNow = currentSubs.includes(p.key);
-
-                    if (isMainNow) {
-                      form.setValue("mainPosition", undefined as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
-                      return;
-                    }
-
-                    if (isSubNow) {
-                      const next = currentSubs.filter((x) => x !== p.key);
-                      form.setValue("subPositions", next as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
-                      return;
-                    }
-
-                    if (currentMain == null) {
-                      form.setValue("mainPosition", p.key as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
-                      return;
-                    }
-
-                    if (currentSubs.length >= 3) {
-                      return;
-                    }
-
-                    form.setValue("subPositions", [...currentSubs, p.key] as any, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
-                  };
-
-                  const colorClass = isMain
-                    ? "border-blue-600 bg-blue-600 text-white shadow-sm"
-                    : isSub
-                      ? "border-blue-300 bg-blue-100 text-blue-700"
-                      : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50";
-                  const disabledClass = !selected && (form.watch("mainPosition") != null) && ((form.watch("subPositions") || []).length >= 3)
-                    ? "opacity-60"
-                    : "";
-
-                  return (
-                    <button
-                      key={p.key}
-                      type="button"
-                      onClick={onToggle}
-                      className={`absolute flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 select-none items-center justify-center rounded-full border text-sm font-semibold transition-colors ${colorClass} ${disabledClass}`}
-                      style={{ left: p.x, top: p.y }}
-                      aria-pressed={selected}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-
-          <div className="mt-4 rounded-md bg-muted/30 p-3 text-sm">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs text-muted-foreground">メイン</div>
-                <div className="font-semibold">{(form.watch("mainPosition") as any) || "未選択"}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">サブ</div>
-                <div className="font-semibold">
-                  {((form.watch("subPositions") as any[]) || []).length > 0
-                    ? ((form.watch("subPositions") as any[]) || []).join(", ")
-                    : "未選択"}
-                </div>
-              </div>
-            </div>
-          </div>
+    <SectionCard title="適正ポジション" summary="メイン1／サブ最大3" open={open} onOpenChange={onOpenChange}>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("main")}
+            className={cn(
+              "rounded-lg px-3 py-2 text-sm font-medium transition",
+              mode === "main"
+                ? "bg-[#1FD760] text-[#08111F]"
+                : "border border-[#334155] bg-[#172334] text-[#A8B5C8] hover:bg-[#1e293b]"
+            )}
+          >
+            メイン
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("sub")}
+            className={cn(
+              "rounded-lg px-3 py-2 text-sm font-medium transition",
+              mode === "sub"
+                ? "bg-[#60A5FA] text-[#08111F]"
+                : "border border-[#334155] bg-[#172334] text-[#A8B5C8] hover:bg-[#1e293b]"
+            )}
+          >
+            サブ
+          </button>
         </div>
-      </FormControl>
-    </FormItem>
+
+        {guidance && (
+          <div role="status" aria-live="polite" className="text-xs text-[#FCA5A5]">
+            {guidance}
+          </div>
+        )}
+
+        <div className="relative mx-auto aspect-[3/4] w-full max-w-[320px] rounded-xl border border-[#334155] bg-[#0f172a]">
+          <div className="absolute left-1/2 top-0 h-[14%] w-[40%] -translate-x-1/2 border-x border-b border-white/10" />
+          <div className="absolute left-0 top-1/2 h-px w-full bg-white/10" />
+          <div className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10" />
+          <div className="absolute bottom-0 left-1/2 h-[14%] w-[40%] -translate-x-1/2 border-x border-t border-white/10" />
+          {detailedPositionLayout.map((p) => {
+            const isMain = mainPosition === p.key;
+            const isSub = subPositions.includes(p.key);
+            const colorClass = isMain
+              ? "border-[#1FD760] bg-[#1FD760] text-[#08111F] shadow"
+              : isSub
+              ? "border-[#60A5FA] bg-transparent text-[#60A5FA]"
+              : "border-[#475569] bg-[#172334] text-[#A8B5C8] hover:border-[#64748B]";
+            return (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => handleToggle(p.key as DetailedPosition)}
+                className={cn(
+                  "absolute flex min-h-[44px] min-w-[44px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-sm font-semibold transition",
+                  colorClass
+                )}
+                style={{ left: p.x, top: p.y }}
+                aria-pressed={isMain || isSub}
+                aria-label={p.label}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <span className="inline-flex items-center gap-1 text-[#A8B5C8]">
+            <span className="h-3 w-3 rounded-full bg-[#1FD760]" />
+            メイン
+          </span>
+          <span className="inline-flex items-center gap-1 text-[#A8B5C8]">
+            <span className="h-3 w-3 rounded-full border border-[#60A5FA]" />
+            サブ
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {mainPosition ? (
+            <span className="inline-flex items-center rounded-full bg-[#1FD760] px-2.5 py-1 text-xs font-medium text-[#08111F]">
+              メイン: {mainPosition}
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full border border-[#334155] px-2.5 py-1 text-xs text-[#A8B5C8]">
+              メイン: 未選択
+            </span>
+          )}
+          {subPositions.length > 0 ? (
+            subPositions.map((pos) => (
+              <span
+                key={pos}
+                className="inline-flex items-center rounded-full border border-[#60A5FA] px-2.5 py-1 text-xs font-medium text-[#60A5FA]"
+              >
+                サブ: {pos}
+              </span>
+            ))
+          ) : (
+            <span className="inline-flex items-center rounded-full border border-[#334155] px-2.5 py-1 text-xs text-[#A8B5C8]">
+              サブ: 未選択
+            </span>
+          )}
+        </div>
+      </div>
+    </SectionCard>
   );
 }
 
 export function BasicInfoSection({
   form,
-  defaultOpen = false,
+  open,
+  onOpenChange,
   seasons = [],
 }: {
   form: UseFormReturn<PlayerFormValues>;
-  defaultOpen?: boolean;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
   seasons?: string[];
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const formatDateToLocal = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
-  useEffect(() => {
-    setOpen(defaultOpen);
-  }, [defaultOpen]);
+  const parseLocalDate = (dateString: string) => {
+    const [year, month, day] = dateString.split("-").map(Number);
+    return new Date(year, month - 1, day);
+  };
 
   return (
-    <div className="space-y-3 rounded-lg border bg-muted/10 p-3 md:col-span-2">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div className="space-y-0.5">
-          <FormLabel>基本情報</FormLabel>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0"
-          onClick={() => setOpen((v) => !v)}
-        >
-          <ChevronDown className={open ? "h-4 w-4 transition-transform rotate-180" : "h-4 w-4 transition-transform"} />
-        </Button>
-      </div>
+    <SectionCard title="基本情報" summary="国籍・身長・利き足など" open={open} onOpenChange={onOpenChange}>
+      <div className="space-y-3">
+        <FormField
+          control={form.control}
+          name="nationality"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-[#F1F5F9]">国籍</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="例: 日本"
+                  {...field}
+                  value={(field.value as any) ?? ""}
+                  className="h-11 bg-[#172334] border-[#334155] text-[#F1F5F9] placeholder:text-slate-500"
+                />
+              </FormControl>
+              <FormMessage className="text-[#FCA5A5]" />
+            </FormItem>
+          )}
+        />
 
-      {open ? (
-        <>
-          <FormField
-            control={form.control}
-            name="nationality"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>国籍</FormLabel>
-                <FormControl>
-                  <Input placeholder="例: 日本" {...field} value={(field.value as any) ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField
             control={form.control}
             name="height"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>身長 (cm)</FormLabel>
+                <FormLabel className="text-[#F1F5F9]">身長 (cm)</FormLabel>
                 <FormControl>
                   <Input
                     type="text"
@@ -232,9 +319,10 @@ export function BasicInfoSection({
                     {...field}
                     value={(field.value ?? "") as any}
                     onChange={(e) => field.onChange(e.target.value)}
+                    className="h-11 bg-[#172334] border-[#334155] text-[#F1F5F9] placeholder:text-slate-500"
                   />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-[#FCA5A5]" />
               </FormItem>
             )}
           />
@@ -244,7 +332,7 @@ export function BasicInfoSection({
             name="weight"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>体重 (kg)</FormLabel>
+                <FormLabel className="text-[#F1F5F9]">体重 (kg)</FormLabel>
                 <FormControl>
                   <Input
                     type="text"
@@ -254,346 +342,315 @@ export function BasicInfoSection({
                     {...field}
                     value={(field.value ?? "") as any}
                     onChange={(e) => field.onChange(e.target.value)}
+                    className="h-11 bg-[#172334] border-[#334155] text-[#F1F5F9] placeholder:text-slate-500"
                   />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-[#FCA5A5]" />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="preferredFoot"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-[#F1F5F9]">利き足</FormLabel>
+              <FormControl>
+                <Select value={field.value || ""} onValueChange={field.onChange}>
+                  <SelectTrigger className="h-11 w-full bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                    <SelectValue placeholder="選択" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                    <SelectItem value="right">右足</SelectItem>
+                    <SelectItem value="left">左足</SelectItem>
+                    <SelectItem value="both">両足</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <FormMessage className="text-[#FCA5A5]" />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="dateOfBirth"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel className="text-[#F1F5F9]">生年月日</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "h-11 w-full justify-start bg-[#172334] border-[#334155] text-[#F1F5F9] font-normal hover:bg-[#1e293b]",
+                          !field.value && "text-[#A8B5C8]"
+                        )}
+                      >
+                        {field.value ? (
+                          formatDateToLocal(parseLocalDate(field.value))
+                        ) : (
+                          <span>日付を選択</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-[#172334] border-[#334155]" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value ? parseLocalDate(field.value) : undefined}
+                      onSelect={(date) => field.onChange(date ? formatDateToLocal(date) : undefined)}
+                      disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                      initialFocus
+                      fromYear={1950}
+                      toYear={new Date().getFullYear() + 5}
+                      captionLayout="dropdown"
+                      className="text-[#F1F5F9]"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormMessage className="text-[#FCA5A5]" />
               </FormItem>
             )}
           />
 
           <FormField
             control={form.control}
-            name="preferredFoot"
+            name="joinedSeason"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>利き足</FormLabel>
+                <FormLabel className="text-[#F1F5F9]">加入シーズン</FormLabel>
                 <FormControl>
                   <Select value={field.value || ""} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="h-11 w-full bg-[#172334] border-[#334155] text-[#F1F5F9]">
                       <SelectValue placeholder="選択" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="right">右足</SelectItem>
-                      <SelectItem value="left">左足</SelectItem>
-                      <SelectItem value="both">両足</SelectItem>
+                    <SelectContent className="bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                      {seasons.map((season: string) => (
+                        <SelectItem key={season} value={season}>
+                          {season}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-[#FCA5A5]" />
               </FormItem>
             )}
           />
-
-          <div className="grid grid-cols-2 gap-3">
-            <FormField
-              control={form.control}
-              name="dateOfBirth"
-              render={({ field }) => {
-                const formatDateToLocal = (date: Date) => {
-                  const year = date.getFullYear();
-                  const month = String(date.getMonth() + 1).padStart(2, '0');
-                  const day = String(date.getDate()).padStart(2, '0');
-                  return `${year}-${month}-${day}`;
-                };
-                
-                const parseLocalDate = (dateString: string) => {
-                  const [year, month, day] = dateString.split('-').map(Number);
-                  return new Date(year, month - 1, day);
-                };
-                
-                return (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>生年月日</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              formatDateToLocal(new Date(field.value))
-                            ) : (
-                              <span>日付を選択</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-white" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? parseLocalDate(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date ? formatDateToLocal(date) : undefined)}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
-                          }
-                          initialFocus
-                          fromYear={1950}
-                          toYear={new Date().getFullYear() + 5}
-                          captionLayout="dropdown"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
-            />
-
-            <FormField
-              control={form.control}
-              name="joinedSeason"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>加入シーズン</FormLabel>
-                  <FormControl>
-                    <Select value={field.value || ""} onValueChange={field.onChange}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="選択" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {seasons.map((season: string) => (
-                          <SelectItem key={season} value={season}>
-                            {season}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </>
-      ) : null}
-    </div>
+        </div>
+      </div>
+    </SectionCard>
   );
 }
 
-export function OtherInfoSection({
+export function ContractInfoSection({
   form,
-  defaultOpen = false,
-  seasons = [],
+  open,
+  onOpenChange,
 }: {
   form: UseFormReturn<PlayerFormValues>;
-  defaultOpen?: boolean;
-  seasons?: string[];
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  useEffect(() => {
-    setOpen(defaultOpen);
-  }, [defaultOpen]);
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 15 }, (_, i) => currentYear + i);
 
   return (
-    <div className="space-y-3 rounded-lg border bg-muted/10 p-3 md:col-span-2">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div className="space-y-0.5">
-          <FormLabel>その他</FormLabel>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0"
-          onClick={() => setOpen((v) => !v)}
-        >
-          <ChevronDown className={open ? "h-4 w-4 transition-transform rotate-180" : "h-4 w-4 transition-transform"} />
-        </Button>
+    <SectionCard title="契約情報" summary="年俸・契約満了日" open={open} onOpenChange={onOpenChange}>
+      <div className="space-y-3">
+        <FormField
+          control={form.control}
+          name="annualSalary"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-[#F1F5F9]">年俸</FormLabel>
+              <FormControl>
+                <div className="flex gap-2">
+                  <FormField
+                    control={form.control}
+                    name="annualSalaryCurrency"
+                    render={({ field: currencyField }) => (
+                      <Select value={(currencyField.value || "JPY") as any} onValueChange={currencyField.onChange as any}>
+                        <SelectTrigger className="h-11 w-24 shrink-0 bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                          <SelectValue placeholder="通貨" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                          <SelectItem value="JPY">￥</SelectItem>
+                          <SelectItem value="GBP">￡</SelectItem>
+                          <SelectItem value="EUR">€</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="例: 10000"
+                    {...field}
+                    value={(field.value ?? "") as any}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    className="h-11 bg-[#172334] border-[#334155] text-[#F1F5F9] placeholder:text-slate-500"
+                  />
+                </div>
+              </FormControl>
+              <FormMessage className="text-[#FCA5A5]" />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="contractEndYear"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-[#F1F5F9]">契約満了年月</FormLabel>
+              <FormControl>
+                <div className="grid grid-cols-2 gap-2">
+                  <Select
+                    value={field.value != null ? String(field.value) : ""}
+                    onValueChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
+                  >
+                    <SelectTrigger className="h-11 bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                      <SelectValue placeholder="年" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                      {years.map((y) => (
+                        <SelectItem key={y} value={String(y)}>
+                          {y}年
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <FormField
+                    control={form.control}
+                    name="contractEndMonth"
+                    render={({ field: monthField }) => (
+                      <Select
+                        value={monthField.value != null ? String(monthField.value) : ""}
+                        onValueChange={(v) => monthField.onChange(v === "" ? undefined : Number(v))}
+                      >
+                        <SelectTrigger className="h-11 bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                          <SelectValue placeholder="月" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                            <SelectItem key={m} value={String(m)}>
+                              {m}月
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+              </FormControl>
+              <FormMessage className="text-[#FCA5A5]" />
+            </FormItem>
+          )}
+        />
       </div>
-
-      {open ? (
-        <>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="annualSalary"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>年俸</FormLabel>
-                  <FormControl>
-                    <div className="flex gap-2">
-                      <FormField
-                        control={form.control}
-                        name="annualSalaryCurrency"
-                        render={({ field: currencyField }) => (
-                          <Select value={(currencyField.value || "JPY") as any} onValueChange={currencyField.onChange as any}>
-                            <FormControl>
-                              <SelectTrigger className="w-24">
-                                <SelectValue placeholder="通貨" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="JPY">￥</SelectItem>
-                              <SelectItem value="GBP">￡</SelectItem>
-                              <SelectItem value="EUR">€</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        placeholder="例: 10000"
-                        value={(field.value ?? "") as any}
-                        onChange={(e) => field.onChange(e.target.value)}
-                      />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="contractEndYear"
-              render={({ field }) => {
-                const currentYear = new Date().getFullYear();
-                const years = Array.from({ length: 15 }, (_, i) => currentYear + i);
-                return (
-                  <FormItem>
-                    <FormLabel>契約満了日</FormLabel>
-                    <FormControl>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Select
-                          value={field.value != null ? String(field.value) : ""}
-                          onValueChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="年" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {years.map((y) => (
-                              <SelectItem key={y} value={String(y)}>
-                                {y}年
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        <FormField
-                          control={form.control}
-                          name="contractEndMonth"
-                          render={({ field: monthField }) => (
-                            <Select
-                              value={monthField.value != null ? String(monthField.value) : ""}
-                              onValueChange={(v) => monthField.onChange(v === "" ? undefined : Number(v))}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="月" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                                  <SelectItem key={m} value={String(m)}>
-                                    {m}月
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                );
-              }}
-            />
-          </div>
-        </>
-      ) : null}
-    </div>
+    </SectionCard>
   );
 }
+
+export function ProfileSection({
+  form,
+  open,
+  onOpenChange,
+}: {
+  form: UseFormReturn<PlayerFormValues>;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  return (
+    <SectionCard title="プロフィール" summary="選手の経歴・特徴" open={open} onOpenChange={onOpenChange}>
+      <FormField
+        control={form.control}
+        name="profile"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className="text-[#F1F5F9]">プロフィール</FormLabel>
+            <p className="text-xs text-[#A8B5C8]">
+              最大200文字まで入力できます。選手名鑑では通常80文字、パラメーターグラフOFF時は200文字まで表示されます。
+            </p>
+            <FormControl>
+              <Textarea
+                placeholder="選手の経歴や特徴など"
+                maxLength={200}
+                {...field}
+                value={(field.value as any) ?? ""}
+                className="min-h-[120px] bg-[#172334] border-[#334155] text-[#F1F5F9] placeholder:text-slate-500"
+              />
+            </FormControl>
+            <div className="text-right text-xs text-[#A8B5C8]">
+              {String(field.value || "").length}/200
+            </div>
+            <FormMessage className="text-[#FCA5A5]" />
+          </FormItem>
+        )}
+      />
+    </SectionCard>
+  );
+}
+
+const snsPlaceholders: Record<string, string> = {
+  x: "https://x.com/...",
+  youtube: "https://www.youtube.com/...",
+  tiktok: "https://www.tiktok.com/@...",
+  instagram: "https://www.instagram.com/...",
+};
+
+const snsLabels: Record<string, string> = {
+  x: "X",
+  youtube: "YouTube",
+  tiktok: "TikTok",
+  instagram: "Instagram",
+};
 
 export function SnsLinksSection({
   form,
+  open,
+  onOpenChange,
 }: {
   form: UseFormReturn<PlayerFormValues>;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <div className="space-y-3 rounded-lg border bg-muted/10 p-3">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div className="space-y-0.5">
-          <FormLabel>SNSリンク</FormLabel>
-          <p className="text-xs text-muted-foreground">入力したSNSのみHPの選手詳細に表示されます。</p>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0"
-          onClick={() => setOpen((v) => !v)}
-        >
-          <ChevronDown className={open ? "h-4 w-4 transition-transform rotate-180" : "h-4 w-4 transition-transform"} />
-        </Button>
+    <SectionCard title="SNSリンク" summary="入力したSNSのみ表示されます" open={open} onOpenChange={onOpenChange}>
+      <div className="space-y-3">
+        {["x", "youtube", "tiktok", "instagram"].map((service) => (
+          <FormField
+            key={service}
+            control={form.control}
+            name={`snsLinks.${service}` as any}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-[#F1F5F9]">{snsLabels[service]}</FormLabel>
+                <FormControl>
+                  <Input
+                    type="url"
+                    inputMode="url"
+                    placeholder={snsPlaceholders[service]}
+                    {...field}
+                    value={(field.value as any) ?? ""}
+                    className="h-11 bg-[#172334] border-[#334155] text-[#F1F5F9] placeholder:text-slate-500"
+                  />
+                </FormControl>
+                <FormMessage className="text-[#FCA5A5]" />
+              </FormItem>
+            )}
+          />
+        ))}
       </div>
-
-      {open ? (
-        <>
-          <FormField
-            control={form.control}
-            name="snsLinks.x"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>X</FormLabel>
-                <FormControl>
-                  <Input placeholder="https://x.com/..." {...field} value={(field.value as any) ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="snsLinks.youtube"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>YouTube</FormLabel>
-                <FormControl>
-                  <Input placeholder="https://www.youtube.com/..." {...field} value={(field.value as any) ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="snsLinks.tiktok"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>TikTok</FormLabel>
-                <FormControl>
-                  <Input placeholder="https://www.tiktok.com/@..." {...field} value={(field.value as any) ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="snsLinks.instagram"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Instagram</FormLabel>
-                <FormControl>
-                  <Input placeholder="https://www.instagram.com/..." {...field} value={(field.value as any) ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </>
-      ) : null}
-    </div>
+    </SectionCard>
   );
 }

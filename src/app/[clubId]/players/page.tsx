@@ -575,7 +575,7 @@ async function getPlayersData(
   if (ownerUid && activeSeason) {
     try {
       const playerIds = (filteredPlayers as any[]).map((p: any) => String(p?.id || "")).filter(Boolean);
-      const statsMap = await getMatchStatsForPlayers(ownerUid, playerIds, allSeasons, activeSeason);
+      const statsMap = await getMatchStatsForPlayers(ownerUid, playerIds, allSeasons, activeSeason, filteredPlayers as any[]);
       for (const p of filteredPlayers as any[]) {
         const s = statsMap.get(String(p?.id || ""));
         p.stats = s?.stats || { appearances: 0, goals: 0, assists: 0 };

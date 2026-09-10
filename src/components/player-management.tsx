@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
@@ -84,6 +84,17 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const [selectedSourceSeason, setSelectedSourceSeason] = useState<string>('');
   const [carryingOver, setCarryingOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isFormDirty, setIsFormDirty] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  const wasDialogOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (wasDialogOpenRef.current && !isDialogOpen && !isConfirmOpen) {
+      addButtonRef.current?.focus();
+    }
+    wasDialogOpenRef.current = isDialogOpen;
+  }, [isDialogOpen, isConfirmOpen]);
 
   const planTier = getPlanTier(user?.plan);
   const maxPlayers = getPlanLimit("players_per_team_per_season", planTier);
@@ -837,6 +848,21 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     setIsDialogOpen(true);
   };
 
+  const handleDialogOpenChange = (open: boolean) => {
+    if (open) {
+      setIsDialogOpen(true);
+      return;
+    }
+    if (isFormDirty) {
+      setIsConfirmOpen(true);
+      return;
+    }
+    setIsDialogOpen(false);
+    setEditingPlayer(null);
+  };
+
+  const handleClose = () => handleDialogOpenChange(false);
+
   const openAddDialog = () => {
     if (Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers) {
       toast.error(`現在のプランでは1チームあたり選手は最大${maxPlayers}人まで登録できます。`);
@@ -1254,9 +1280,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       <div className="mt-2">
         <div className="w-full mb-4">
           <div className="grid grid-cols-2 gap-1">
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
               <DialogTrigger asChild>
                 <Button
+                  ref={addButtonRef}
                   onClick={openAddDialog}
                   disabled={Number.isFinite(maxPlayers) && filteredPlayers.length >= maxPlayers}
                   className="w-full bg-blue-600 text-white hover:bg-blue-700 border border-blue-700"
@@ -1264,16 +1291,19 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                   選手を追加
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-h-[80vh]">
-                <DialogHeader>
-                  <DialogTitle>{editingPlayer ? '選手を編集' : '選手を追加'}</DialogTitle>
-                </DialogHeader>
+              <DialogContent
+                className="h-[100dvh] max-h-none w-full max-w-none gap-0 overflow-hidden border-0 bg-[#0C1422] p-0 sm:h-auto sm:max-h-[min(800px,90vh)] sm:max-w-[640px] sm:rounded-2xl sm:border sm:border-[#334155] [&>button:last-child]:hidden"
+                onPointerDownOutside={(e) => e.preventDefault()}
+              >
                 <PlayerForm
                   key={playerFormKey}
                   onSubmit={handleFormSubmit}
                   defaultValues={seasonDefaults || editingPlayer || undefined}
                   defaultSeason={selectedSeason}
                   ownerUid={user?.uid ?? null}
+                  isEdit={!!editingPlayer}
+                  onDirtyChange={setIsFormDirty}
+                  onClose={handleClose}
                 />
               </DialogContent>
             </Dialog>
@@ -1582,6 +1612,35 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <AlertDialogContent className="border-[#334155] bg-[#0C1422] text-[#F1F5F9]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>入力内容を破棄しますか？</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#A8B5C8]">
+              保存していない変更は失われます。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => setIsConfirmOpen(false)}
+              className="border-[#334155] bg-[#172334] text-[#F1F5F9] hover:bg-[#1e293b]"
+            >
+              入力を続ける
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setIsConfirmOpen(false);
+                setIsDialogOpen(false);
+                setEditingPlayer(null);
+              }}
+              className="bg-[#1FD760] text-[#08111F] hover:bg-[#17c054]"
+            >
+              破棄して閉じる
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

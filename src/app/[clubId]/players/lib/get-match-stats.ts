@@ -28,7 +28,8 @@ export async function getMatchStatsForPlayers(
   ownerUid: string,
   playerIds: string[],
   allSeasons: string[],
-  activeSeason?: string
+  activeSeason?: string,
+  players?: any[]
 ): Promise<Map<string, PlayerStatsWithRecords>> {
   const stats = new Map<string, PlayerStatsWithRecords>();
   const idSet = new Set(playerIds);
@@ -176,6 +177,42 @@ export async function getMatchStatsForPlayers(
             assists: assistsVal,
           });
         }
+      }
+    }
+  }
+
+  if (activeVariants && Array.isArray(players)) {
+    for (const p of players) {
+      const pid = typeof p?.id === "string" ? p.id : "";
+      const entry = stats.get(pid);
+      if (!entry) continue;
+
+      const seasonData =
+        p?.seasonData && typeof p.seasonData === "object" ? (p.seasonData as any) : {};
+      let manualRows: any[] = [];
+      for (const variant of activeVariants) {
+        const sd = seasonData?.[variant];
+        if (sd?.manualCompetitionStats && Array.isArray(sd.manualCompetitionStats)) {
+          manualRows = sd.manualCompetitionStats;
+          break;
+        }
+      }
+      if (manualRows.length === 0 && Array.isArray(p?.manualCompetitionStats)) {
+        manualRows = (p.manualCompetitionStats as any[]).filter((r: any) =>
+          activeVariants.has(r?.season)
+        );
+      }
+
+      for (const r of manualRows) {
+        const m =
+          typeof r?.matches === "number" && Number.isFinite(r.matches) ? r.matches : 0;
+        const g =
+          typeof r?.goals === "number" && Number.isFinite(r.goals) ? r.goals : 0;
+        const a =
+          typeof r?.assists === "number" && Number.isFinite(r.assists) ? r.assists : 0;
+        entry.stats.appearances += m;
+        entry.stats.goals += g;
+        entry.stats.assists += a;
       }
     }
   }

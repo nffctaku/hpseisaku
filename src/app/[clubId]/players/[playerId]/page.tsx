@@ -437,6 +437,7 @@ type SeasonSummaryCompetitionRow = {
   avgRating: number | null;
   hasStats: boolean;
   overall?: number | null;
+  isManual?: boolean;
 };
 
 type SeasonSummaryRow = {
@@ -453,7 +454,7 @@ type SeasonSummaryRow = {
 function buildManualStatsMapFromPlayer(playerData: any, targetSeason?: string | null) {
   const manualStatsMap = new Map<
     string,
-    { matches?: number; minutes?: number; goals?: number; assists?: number; yellowCards?: number; redCards?: number; avgRating?: number }
+    { matches?: number; minutes?: number; goals?: number; assists?: number; yellowCards?: number; redCards?: number; avgRating?: number; season?: string }
   >();
   if (!playerData || typeof playerData !== "object") return manualStatsMap;
 
@@ -473,11 +474,12 @@ function buildManualStatsMapFromPlayer(playerData: any, targetSeason?: string | 
           yellowCards: typeof r.yellowCards === "number" ? r.yellowCards : undefined,
           redCards: typeof r.redCards === "number" ? r.redCards : undefined,
           avgRating: typeof r.avgRating === "number" ? r.avgRating : undefined,
+          season: selectedSeasonKey ? toSlashSeason(selectedSeasonKey) : undefined,
         });
       }
     }
   } else {
-    for (const sd of Object.values(seasonData)) {
+    for (const [seasonKey, sd] of Object.entries(seasonData)) {
       const rows = Array.isArray((sd as any)?.manualCompetitionStats) ? ((sd as any).manualCompetitionStats as any[]) : [];
       for (const r of rows) {
         if (r && typeof r.competitionId === "string" && r.competitionId.trim().length > 0) {
@@ -489,6 +491,7 @@ function buildManualStatsMapFromPlayer(playerData: any, targetSeason?: string | 
             yellowCards: typeof r.yellowCards === "number" ? r.yellowCards : undefined,
             redCards: typeof r.redCards === "number" ? r.redCards : undefined,
             avgRating: typeof r.avgRating === "number" ? r.avgRating : undefined,
+            season: toSlashSeason(seasonKey),
           });
         }
       }
@@ -507,6 +510,7 @@ function buildManualStatsMapFromPlayer(playerData: any, targetSeason?: string | 
         yellowCards: typeof r.yellowCards === "number" ? r.yellowCards : undefined,
         redCards: typeof r.redCards === "number" ? r.redCards : undefined,
         avgRating: typeof r.avgRating === "number" ? r.avgRating : undefined,
+        season: toSlashSeason(r.season as string) || (selectedSeasonKey ? toSlashSeason(selectedSeasonKey) : undefined),
       });
     }
   }
@@ -629,6 +633,7 @@ type PlayerMatchRecord = {
   redCards: number;
   ratingSum: number;
   ratingCount: number;
+  isManual?: boolean;
 };
 
 type CompetitionMeta = {
@@ -736,15 +741,16 @@ async function getAllPlayerMatchRecords(
 
   for (const [competitionId, manual] of manualStatsMap.entries()) {
     const c = competitionsMap.get(competitionId);
-    if (!c) continue;
 
     const m = Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
     const r = Number.isFinite(manual.avgRating as any) ? Number(manual.avgRating) : NaN;
     manualRecords.push({
       competitionId,
-      competitionName: c.name,
-      competitionLogoUrl: c.logoUrl,
-      competitionSeason: c.season,
+      competitionName: c?.name ?? competitionId,
+      competitionLogoUrl: c?.logoUrl,
+      competitionSeason: typeof manual.season === "string" && manual.season.trim().length > 0
+        ? toSlashSeason(manual.season)
+        : (c?.season ?? ""),
       appearances: m,
       minutes: Number.isFinite(manual.minutes as any) ? Number(manual.minutes) : 0,
       goals: Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0,
@@ -753,6 +759,7 @@ async function getAllPlayerMatchRecords(
       redCards: Number.isFinite(manual.redCards as any) ? Number(manual.redCards) : 0,
       ratingSum: m > 0 && Number.isFinite(r) && r > 0 ? r * m : 0,
       ratingCount: m > 0 && Number.isFinite(r) && r > 0 ? m : 0,
+      isManual: true,
     });
   }
 
@@ -955,6 +962,7 @@ function getPlayerSeasonSummaries(
     assists: number;
     ratingSum: number;
     ratingCount: number;
+    isManual: boolean;
   };
 
   type SeasonAgg = {
@@ -998,7 +1006,7 @@ function getPlayerSeasonSummaries(
       }
       return existing;
     }
-    const created: CompetitionAgg = { name: compName, logoUrl: compLogoUrl, matches: 0, goals: 0, assists: 0, ratingSum: 0, ratingCount: 0 };
+    const created: CompetitionAgg = { name: compName, logoUrl: compLogoUrl, matches: 0, goals: 0, assists: 0, ratingSum: 0, ratingCount: 0, isManual: false };
     seasonAgg.competitions.set(compId, created);
     return created;
   };
@@ -1014,6 +1022,7 @@ function getPlayerSeasonSummaries(
     seasonAgg.ratingCount += record.ratingCount;
 
     const compAgg = getCompetitionAgg(seasonAgg, record.competitionId, record.competitionName, record.competitionLogoUrl);
+    if (record.isManual) compAgg.isManual = true;
     compAgg.matches += record.appearances;
     compAgg.goals += record.goals;
     compAgg.assists += record.assists;
@@ -1037,6 +1046,7 @@ function getPlayerSeasonSummaries(
           avgRating,
           hasStats,
           overall: seasonOverall,
+          isManual: c.isManual,
         };
       })
       .filter((c) => c.hasStats)
