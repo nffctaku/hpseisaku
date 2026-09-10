@@ -133,7 +133,7 @@ export function SeasonDetailView({ detail, season }: { detail: SeasonDetail; sea
     <div className="relative min-h-screen bg-[#050a12] text-white">
       <div className="absolute inset-x-0 top-0 h-1 bg-red-500" />
 
-      <section className="relative z-10 min-h-[360px] overflow-hidden sm:min-h-[440px] lg:min-h-[520px]">
+      <section className="relative z-10 min-h-[180px] overflow-hidden sm:min-h-[220px] lg:min-h-[260px]">
         <Image
           src="/シーズン記録背景.jpg"
           alt=""
@@ -144,7 +144,7 @@ export function SeasonDetailView({ detail, season }: { detail: SeasonDetail; sea
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-black/15" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#050a12]/85 via-transparent to-[#050a12]/25" />
-        <div className="relative z-10 flex min-h-[360px] flex-col justify-end px-4 pb-2 pt-20 sm:min-h-[440px] sm:px-6 sm:pb-3 sm:pt-24 lg:min-h-[520px] lg:pt-28">
+        <div className="relative z-10 flex min-h-[180px] flex-col justify-end px-4 pb-2 pt-20 sm:min-h-[220px] sm:px-6 sm:pb-3 sm:pt-24 lg:min-h-[260px] lg:pt-28">
           <h1 className="text-[36px] font-black leading-[0.92] tracking-[-0.08em] text-slate-100 sm:text-5xl">
             {season} <span className="text-yellow-400">SEASON</span>
           </h1>
@@ -154,6 +154,33 @@ export function SeasonDetailView({ detail, season }: { detail: SeasonDetail; sea
           <p className="mt-1 text-[10px] font-black tracking-[0.18em] text-[#8295AA]">
             {detail.matches}試合 {detail.wins}勝 {detail.draws}分 {detail.losses}敗 / {detail.titleCount} TITLES
           </p>
+        </div>
+      </section>
+
+      <section className="relative z-10 px-4 pt-4 sm:px-6">
+        <div className="mb-3 flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-yellow-400" />
+          <h2 className="text-[13px] font-black uppercase tracking-[0.22em] text-white">Competitions</h2>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {detail.competitionResults.map((c) => (
+            <div
+              key={c.competitionId}
+              className="flex flex-col items-center justify-between rounded-xl border border-white/10 bg-[#071321] p-2 text-center"
+            >
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-white p-1">
+                {c.competitionLogo ? (
+                  <Image src={c.competitionLogo} alt="" width={40} height={40} className="h-8 w-8 object-contain" />
+                ) : (
+                  <Trophy className="h-5 w-5 text-slate-400" />
+                )}
+              </div>
+              <p className="mt-1.5 text-[9px] font-bold leading-tight text-white line-clamp-2">{c.competitionName}</p>
+              <p className={`mt-0.5 text-[10px] font-black ${c.isChampion ? "text-yellow-400" : "text-slate-300"}`}>
+                {c.isChampion ? "優勝" : typeof c.rank === "number" ? `第${c.rank}位` : c.result === "LEAGUE" ? "-" : c.result}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 

@@ -34,6 +34,7 @@ export interface CompetitionResult {
   isChampion: boolean;
   record?: string;
   rank?: number;
+  competitionLogo?: string;
 }
 
 export interface LeaderEntry {
@@ -282,7 +283,8 @@ function buildCompetitionResult(
   competitionName: string,
   clubTitles: ClubTitleItem[],
   season: string,
-  competitionRankMap?: Map<string, number>
+  competitionRankMap?: Map<string, number>,
+  competitionLogoMap?: Map<string, string>
 ): CompetitionResult {
   const wins = competitionMatches.filter((m) => m.result === "win").length;
   const draws = competitionMatches.filter((m) => m.result === "draw").length;
@@ -299,6 +301,10 @@ function buildCompetitionResult(
   const isChampion = Boolean(championSeason);
 
   const competitionId = competitionMatches[0]?.competitionId || "";
+  const competitionLogo =
+    competitionLogoMap?.get(String(competitionId)) ??
+    competitionLogoMap?.get(normalizeCompetitionName(competitionName)) ??
+    undefined;
   let rank: number | undefined;
   if (isChampion) {
     rank = 1;
@@ -324,6 +330,7 @@ function buildCompetitionResult(
       isChampion,
       record: `${wins}勝 / ${draws}分 / ${losses}敗`,
       rank,
+      competitionLogo,
     };
   }
 
@@ -334,6 +341,7 @@ function buildCompetitionResult(
     isChampion,
     record: `${wins}勝 / ${draws}分 / ${losses}敗`,
     rank,
+    competitionLogo,
   };
 }
 
@@ -394,10 +402,24 @@ export function computeSeasonSummary(
     competitionMap.set(id, list);
   }
 
+  const competitionLogoMap = new Map<string, string>();
+  if (Array.isArray(competitions)) {
+    for (const c of competitions) {
+      const anyC = c as any;
+      const logoUrl = anyC?.logoUrl;
+      if (typeof logoUrl === "string" && logoUrl.trim()) {
+        const id = anyC?.id || "";
+        const name = anyC?.name || "";
+        if (id) competitionLogoMap.set(String(id), logoUrl.trim());
+        if (name) competitionLogoMap.set(normalizeCompetitionName(String(name)), logoUrl.trim());
+      }
+    }
+  }
+
   const competitionResults: CompetitionResult[] = [];
   for (const [id, list] of competitionMap.entries()) {
     const name = list[0]?.competitionName || id;
-    competitionResults.push(buildCompetitionResult(list, name, clubTitles, season, competitionRankMap));
+    competitionResults.push(buildCompetitionResult(list, name, clubTitles, season, competitionRankMap, competitionLogoMap));
   }
 
   competitionResults.sort((a, b) => {
