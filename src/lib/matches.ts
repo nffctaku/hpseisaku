@@ -1,9 +1,39 @@
 import { db } from "./firebase/admin"; // Use admin SDK for server-side fetching
 import { isValid, parseISO, startOfDay } from 'date-fns';
-import { MatchDetails } from "@/types/match";
+import { MatchDetails, MatchEvent } from "@/types/match";
 import { Timestamp } from 'firebase-admin/firestore';
 
-function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | undefined): number {
+function toDateString(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const raw = value.trim();
+    if (!raw) return "";
+    const normalized = raw
+      .replace(/\//g, "-")
+      .replace(/^(\d{4})-(\d{1,2})-(\d{1,2})$/, (_m, y, mo, da) => `${y}-${String(mo).padStart(2, "0")}-${String(da).padStart(2, "0")}`);
+    const dt = new Date(normalized);
+    if (!Number.isNaN(dt.getTime())) {
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    }
+    return raw;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+  }
+  if (typeof value === "object" && value !== null && "toDate" in value) {
+    try {
+      const dt = (value as any).toDate() as Date;
+      if (dt instanceof Date && !Number.isNaN(dt.getTime())) {
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return String(value);
+}
+
+export function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | undefined): number {
   const md: any = (m as any)?.matchDate;
   let base: Date | null = null;
 
@@ -66,7 +96,7 @@ export async function getMatchesGroupedByCompetition(): Promise<Record<string, M
 
 import { toSlashSeason } from './season';
 
-function getSeasonFromMatchDate(matchDate: string): string | null {
+export function getSeasonFromMatchDate(matchDate: string): string | null {
   if (typeof matchDate !== 'string') return null;
   const raw = matchDate.trim();
   if (!raw) return null;
@@ -80,16 +110,22 @@ function getSeasonFromMatchDate(matchDate: string): string | null {
   return month >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
 }
 
-export async function getMatchDataForClub(ownerUid: string): Promise<{
+export async function getMatchDataForClub(
+  ownerUid: string,
+  opts?: { includeAllSeasons?: boolean }
+): Promise<{
   latestResult: MatchDetails | null;
   nextMatch: MatchDetails | null;
   clubName: string | null;
+  mainTeamId: string | null;
+  mainSeason: string | null;
   recentMatches: MatchDetails[];
   upcomingMatches: MatchDetails[];
   allRecentMatches: MatchDetails[];
+  allOwnPastMatches: MatchDetails[];
 }> {
   if (!ownerUid) {
-    return { latestResult: null, nextMatch: null, clubName: null, recentMatches: [], upcomingMatches: [], allRecentMatches: [] };
+    return { latestResult: null, nextMatch: null, clubName: null, mainTeamId: null, mainSeason: null, recentMatches: [], upcomingMatches: [], allRecentMatches: [], allOwnPastMatches: [] };
   }
 
   // 1. Get club name and main team id
@@ -175,8 +211,8 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
       const competitionData = compDoc.data() as any;
       const compSeasonRaw = typeof competitionData?.season === 'string' ? competitionData.season.trim() : '';
       const compSeason = compSeasonRaw ? toSlashSeason(compSeasonRaw) : '';
-      if (publicSeasonIdSet.size > 0 && (!compSeason || !publicSeasonIdSet.has(compSeason))) return [] as MatchDetails[];
-      
+      if (!opts?.includeAllSeasons && publicSeasonIdSet.size > 0 && (!compSeason || !publicSeasonIdSet.has(compSeason))) return [] as MatchDetails[];
+
       const roundsQuery = db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`);
       const roundsSnap = await roundsQuery.get();
 
@@ -186,10 +222,15 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
             `clubs/${ownerUid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`
           );
           const matchesSnap = await matchesQuery.get();
-          return matchesSnap.docs.map((matchDoc) => {
+          return await Promise.all(matchesSnap.docs.map(async (matchDoc) => {
             const matchData = matchDoc.data() as any;
             const homeTeam = teamsMap.get(matchData.homeTeam);
             const awayTeam = teamsMap.get(matchData.awayTeam);
+            const inlineEvents = Array.isArray(matchData.events) ? (matchData.events as MatchEvent[]) : [];
+            const events =
+              inlineEvents.length > 0
+                ? inlineEvents
+                : (await matchDoc.ref.collection("events").orderBy("minute", "asc").get()).docs.map((d) => d.data() as MatchEvent);
             return {
               ...(matchData as any),
               id: matchDoc.id,
@@ -202,8 +243,10 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
               awayTeamName: awayTeam?.name || '不明',
               homeTeamLogo: homeTeam?.logoUrl,
               awayTeamLogo: awayTeam?.logoUrl,
+              season: compSeason || undefined,
+              events,
             } as MatchDetails;
-          });
+          }));
         })
       );
 
@@ -213,40 +256,49 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
 
   allMatches.push(...nestedMatches.flat());
 
-  const friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
-  friendlySnap.forEach((matchDoc) => {
-    const matchData = matchDoc.data() as any;
-    if (publicSeasonIdSet.size > 0) {
-      const sRaw = getSeasonFromMatchDate(String(matchData.matchDate || ''));
+  const friendlyMatches = await Promise.all(
+    (await db.collection(`clubs/${ownerUid}/friendly_matches`).get()).docs.map(async (matchDoc) => {
+      const matchData = matchDoc.data() as any;
+      const sRaw = getSeasonFromMatchDate(toDateString(matchData.matchDate));
       const s = sRaw ? toSlashSeason(sRaw) : null;
-      if (s && !publicSeasonIdSet.has(s)) return;
-    }
-    const compId = (matchData.competitionId as string) === 'practice' ? 'practice' : 'friendly';
-    const compName = matchData.competitionName || (compId === 'practice' ? '練習試合' : '親善試合');
-    const homeTeam = teamsMap.get(matchData.homeTeam);
-    const awayTeam = teamsMap.get(matchData.awayTeam);
+      if (!opts?.includeAllSeasons && publicSeasonIdSet.size > 0 && s && !publicSeasonIdSet.has(s)) return null;
+      const compId = (matchData.competitionId as string) === 'practice' ? 'practice' : 'friendly';
+      const compName = matchData.competitionName || (compId === 'practice' ? '練習試合' : '親善試合');
+      const homeTeam = teamsMap.get(matchData.homeTeam);
+      const awayTeam = teamsMap.get(matchData.awayTeam);
 
-    allMatches.push({
-      id: matchDoc.id,
-      competitionId: compId,
-      roundId: 'single',
-      homeTeam: matchData.homeTeam,
-      awayTeam: matchData.awayTeam,
-      homeTeamName: matchData.homeTeamName || homeTeam?.name || '不明なチーム',
-      awayTeamName: matchData.awayTeamName || awayTeam?.name || '不明なチーム',
-      competitionName: compName,
-      competitionLogoUrl: matchData.competitionLogoUrl,
-      roundName: typeof matchData.roundName === 'string' ? matchData.roundName : '',
-      homeTeamLogo: matchData.homeTeamLogo || homeTeam?.logoUrl,
-      awayTeamLogo: matchData.awayTeamLogo || awayTeam?.logoUrl,
-      matchDate: matchData.matchDate,
-      matchTime: matchData.matchTime,
-      scoreHome: matchData.scoreHome,
-      scoreAway: matchData.scoreAway,
-      pkScoreHome: matchData.pkScoreHome,
-      pkScoreAway: matchData.pkScoreAway,
-    } as MatchDetails);
-  });
+      const inlineEvents = Array.isArray(matchData.events) ? (matchData.events as MatchEvent[]) : [];
+      const events =
+        inlineEvents.length > 0
+          ? inlineEvents
+          : (await matchDoc.ref.collection("events").orderBy("minute", "asc").get()).docs.map((d) => d.data() as MatchEvent);
+
+      return {
+        id: matchDoc.id,
+        competitionId: compId,
+        roundId: 'single',
+        homeTeam: matchData.homeTeam,
+        awayTeam: matchData.awayTeam,
+        homeTeamName: matchData.homeTeamName || homeTeam?.name || '不明なチーム',
+        awayTeamName: matchData.awayTeamName || awayTeam?.name || '不明なチーム',
+        competitionName: compName,
+        competitionLogoUrl: matchData.competitionLogoUrl,
+        roundName: typeof matchData.roundName === 'string' ? matchData.roundName : '',
+        homeTeamLogo: matchData.homeTeamLogo || homeTeam?.logoUrl,
+        awayTeamLogo: matchData.awayTeamLogo || awayTeam?.logoUrl,
+        matchDate: matchData.matchDate,
+        matchTime: matchData.matchTime,
+        scoreHome: matchData.scoreHome,
+        scoreAway: matchData.scoreAway,
+        pkScoreHome: matchData.pkScoreHome,
+        pkScoreAway: matchData.pkScoreAway,
+        season: s || undefined,
+        events,
+      } as MatchDetails;
+    })
+  );
+
+  allMatches.push(...friendlyMatches.filter((m): m is MatchDetails => m !== null));
 
   // 4. Filter for own team's matches based on mainTeamId.
   // If該当試合が1件もない場合は、他クラブ同士の試合は出さず、null を返す。
@@ -255,8 +307,9 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
     : allMatches;
 
   // 5. Find latest result and next match based on score presence
-  const ownPastMatches = ownMatches.filter(m => m.scoreHome !== null && m.scoreAway !== null);
-  const ownFutureMatches = ownMatches.filter(m => m.scoreHome === null || m.scoreAway === null);
+  const isFinished = (m: MatchDetails) => typeof m.scoreHome === "number" && typeof m.scoreAway === "number";
+  const ownPastMatches = ownMatches.filter(isFinished);
+  const ownFutureMatches = ownMatches.filter(m => !isFinished(m));
 
   // Sort past matches descending to get the latest one first
   ownPastMatches.sort((a, b) => getMatchSortMs(b) - getMatchSortMs(a));
@@ -280,21 +333,32 @@ export async function getMatchDataForClub(ownerUid: string): Promise<{
     roundName: m.roundName,
     homeTeamLogo: m.homeTeamLogo,
     awayTeamLogo: m.awayTeamLogo,
-    matchDate: m.matchDate,
+    matchDate: toDateString(m.matchDate),
     matchTime: m.matchTime,
+    season: m.season,
     scoreHome: m.scoreHome,
     scoreAway: m.scoreAway,
     pkScoreHome: m.pkScoreHome,
     pkScoreAway: m.pkScoreAway,
+    events: m.events,
   });
+
+  const profileMainSeason =
+    typeof (clubProfileData as any)?.mainSeason === 'string' && (clubProfileData as any).mainSeason.trim().length > 0
+      ? toSlashSeason((clubProfileData as any).mainSeason.trim())
+      : null;
+  const fallbackSeason =
+    latestResult?.season || (latestResult ? toSlashSeason(getSeasonFromMatchDate(toDateString(latestResult.matchDate)) || "") : null);
+  const mainSeason = profileMainSeason || fallbackSeason;
 
   const recentMatches = ownPastMatches.slice(0, 5).map(simplifyMatch);
   const upcomingMatches = ownFutureMatches.slice(0, 7).map(simplifyMatch);
   const allRecentMatches = allMatches
-    .filter(m => m.scoreHome !== null && m.scoreAway !== null)
+    .filter(isFinished)
     .map(simplifyMatch)
     .sort((a, b) => getMatchSortMs(b) - getMatchSortMs(a));
 
+  const allOwnPastMatches = ownPastMatches.map(simplifyMatch);
 
-  return { latestResult, nextMatch, clubName, recentMatches, upcomingMatches, allRecentMatches };
+  return { latestResult, nextMatch, clubName, mainTeamId: resolvedMainTeamId, mainSeason, recentMatches, upcomingMatches, allRecentMatches, allOwnPastMatches };
 }

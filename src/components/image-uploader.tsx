@@ -10,9 +10,13 @@ import { Button } from '@/components/ui/button';
 interface ImageUploaderProps {
   value: string;
   onChange: (url: string) => void;
+  cropWidth?: number;
+  cropHeight?: number;
+  cropTitle?: string;
+  preparedImages?: string[];
 }
 
-export function ImageUploader({ value, onChange }: ImageUploaderProps) {
+export function ImageUploader({ value, onChange, cropWidth = 1200, cropHeight = 480, cropTitle = 'ロゴ画像をトリミング', preparedImages }: ImageUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
   const [sourceDataUrl, setSourceDataUrl] = useState<string | null>(null);
@@ -20,12 +24,13 @@ export function ImageUploader({ value, onChange }: ImageUploaderProps) {
   const [zoom, setZoom] = useState(1.2);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
+  const [preparedOpen, setPreparedOpen] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const CROP_W = 1200;
-  const CROP_H = 480;
+  const CROP_W = cropWidth;
+  const CROP_H = cropHeight;
 
   const previewScale = useMemo(() => {
     const maxW = 560;
@@ -196,25 +201,37 @@ export function ImageUploader({ value, onChange }: ImageUploaderProps) {
 
   return (
     <>
-      <div className="relative w-full h-48 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center text-gray-500 hover:border-gray-400 hover:text-gray-400 transition-colors cursor-pointer bg-muted/50">
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-          onChange={handleFileChange}
-          disabled={uploading}
-        />
-        {uploading ? (
-          <Loader2 className="h-8 w-8 animate-spin" />
-        ) : value ? (
-          <Image src={value} alt="Uploaded image" layout="fill" className="object-contain rounded-lg p-1" />
-        ) : (
-          <div className="text-center">
-            <UploadCloud className="mx-auto h-10 w-10" />
-            <p className="mt-2 text-sm">画像を選択またはドラッグ＆ドロップ</p>
-          </div>
-        )}
+      <div className="space-y-2">
+        <div className="relative w-full h-48 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center text-gray-500 hover:border-gray-400 hover:text-gray-400 transition-colors cursor-pointer bg-muted/50">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            onChange={handleFileChange}
+            disabled={uploading}
+          />
+          {uploading ? (
+            <Loader2 className="h-8 w-8 animate-spin" />
+          ) : value ? (
+            <Image src={value} alt="Selected image" layout="fill" className="object-contain rounded-lg p-1" />
+          ) : (
+            <div className="text-center">
+              <UploadCloud className="mx-auto h-10 w-10" />
+              <p className="mt-2 text-sm">{preparedImages ? '画像をアップロード' : '画像を選択またはドラッグ＆ドロップ'}</p>
+            </div>
+          )}
+        </div>
+        {preparedImages && preparedImages.length > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-slate-600 bg-slate-800 text-white hover:bg-slate-700 hover:text-white"
+            onClick={() => setPreparedOpen(true)}
+          >
+            素材から選ぶ
+          </Button>
+        ) : null}
       </div>
 
       <Dialog
@@ -233,7 +250,7 @@ export function ImageUploader({ value, onChange }: ImageUploaderProps) {
       >
         <DialogContent className="sm:max-w-[720px]">
           <DialogHeader>
-            <DialogTitle>ロゴ画像をトリミング</DialogTitle>
+            <DialogTitle>{cropTitle}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3">
@@ -286,6 +303,28 @@ export function ImageUploader({ value, onChange }: ImageUploaderProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {preparedImages && preparedImages.length > 0 ? (
+        <Dialog open={preparedOpen} onOpenChange={setPreparedOpen}>
+          <DialogContent className="sm:max-w-[720px]">
+            <DialogHeader>
+              <DialogTitle>画像を選択</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {preparedImages.map((src) => (
+                <button
+                  key={src}
+                  type="button"
+                  onClick={() => { onChange(src); setPreparedOpen(false); }}
+                  className="group relative aspect-video w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <Image src={src} alt="Prepared image" layout="fill" className="object-cover transition-transform group-hover:scale-105" />
+                </button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </>
   );
 }

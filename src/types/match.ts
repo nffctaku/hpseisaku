@@ -85,6 +85,7 @@ export interface MatchDetails {
   awayTeamLogo?: string;
   matchDate: string;
   matchTime?: string;
+  season?: string;
   scoreHome?: number | null;
   scoreAway?: number | null;
   pkScoreHome?: number | null;
