@@ -142,12 +142,16 @@ export default async function ClubPage({ params }: ClubPageProps) {
       const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy("publishedAt", "desc").limit(baseLimit * 2);
       const videosQuery = db.collection(`clubs/${ownerUid}/videos`).orderBy("publishedAt", "desc").limit(4);
       const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
+      const playersQuery = (profileData as any)?.mainTeamId
+        ? db.collection(`clubs/${ownerUid}/teams/${(profileData as any).mainTeamId}/players`).orderBy("number", "asc").limit(8)
+        : null;
 
-      const [{ latestResult, nextMatch, recentMatches, upcomingMatches, allRecentMatches }, newsSnap, videosSnap, competitionsSnap] = await Promise.all([
+      const [{ latestResult, nextMatch, recentMatches, upcomingMatches, allRecentMatches }, newsSnap, videosSnap, competitionsSnap, playersSnap] = await Promise.all([
         getMatchDataForClub(ownerUid),
         newsQuery.get(),
         videosQuery.get(),
         competitionsQuery.get(),
+        playersQuery ? playersQuery.get() : Promise.resolve(null),
       ]);
 
       const allNews = newsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any));
@@ -208,6 +212,13 @@ export default async function ClubPage({ params }: ClubPageProps) {
         };
       });
 
+      const players = playersSnap
+        ? playersSnap.docs
+            .map((doc) => ({ id: doc.id, __teamId: (profileData as any)?.mainTeamId, ...(doc.data() as any) }))
+            .filter((player: any) => player?.isPublished !== false)
+            .slice(0, 2)
+        : [];
+
       return {
         profile: resolvedProfile,
         data: clubData,
@@ -219,6 +230,7 @@ export default async function ClubPage({ params }: ClubPageProps) {
         news: latestNews,
         heroNews: heroNewsCopy,
         videos,
+        players,
         competitions: Array.isArray(competitions) ? competitions : [competitions].filter(Boolean),
       };
     } catch {

@@ -10,8 +10,10 @@ export function LayoutTab(props: {
   setHomeColorTheme: (v: 'dark' | 'light') => void;
   headerLayout: 'center' | 'left';
   setHeaderLayout: (v: 'center' | 'left') => void;
+  homeLayout: 'default' | 'pattern1' | 'pattern2';
+  setHomeLayout: (v: 'default' | 'pattern1' | 'pattern2') => void;
 }) {
-  const { homeBgColor, setHomeBgColor, homeColorTheme, setHomeColorTheme, headerLayout, setHeaderLayout } = props;
+  const { homeBgColor, setHomeBgColor, homeColorTheme, setHomeColorTheme, headerLayout, setHeaderLayout, homeLayout, setHomeLayout } = props;
 
   return (
     <div className="space-y-4">
@@ -34,6 +36,31 @@ export function LayoutTab(props: {
             >
               <div className="text-sm font-bold">{item.label}</div>
               <div className={`mt-1 text-xs ${homeColorTheme === item.value ? 'text-white/80' : 'text-gray-500'}`}>{item.description}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>トップページレイアウト</Label>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {[
+            { value: 'default' as const, label: '標準', description: 'ヒーロー・ニュース・試合結果' },
+            { value: 'pattern1' as const, label: 'パターン1', description: 'NEWS・動画・試合のブロック' },
+            { value: 'pattern2' as const, label: 'クラブストーリー', description: '直近3試合・順位表・選手名鑑をすっきり表示' },
+          ].map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => setHomeLayout(item.value)}
+              className={`rounded-md border px-3 py-3 text-left transition-colors ${
+                homeLayout === item.value
+                  ? 'border-blue-500 bg-blue-500 text-white'
+                  : 'border-border bg-white text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <div className="text-sm font-bold">{item.label}</div>
+              <div className={`mt-1 text-xs ${homeLayout === item.value ? 'text-white/80' : 'text-gray-500'}`}>{item.description}</div>
             </button>
           ))}
         </div>

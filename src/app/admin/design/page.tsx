@@ -20,6 +20,7 @@ export default function AdminDesignPage() {
   const [homeBgColor, setHomeBgColor] = useState<string>("");
   const [homeColorTheme, setHomeColorTheme] = useState<'dark' | 'light'>('dark');
   const [headerLayout, setHeaderLayout] = useState<'center' | 'left'>('left');
+  const [homeLayout, setHomeLayout] = useState<'default' | 'pattern1' | 'pattern2'>('default');
   const [savingLayout, setSavingLayout] = useState(false);
   const isSavingRef = useRef(false);
 
@@ -72,6 +73,9 @@ export default function AdminDesignPage() {
           if (data.headerLayout === "center" || data.headerLayout === "left") {
             setHeaderLayout(data.headerLayout);
           }
+          if (data.homeLayout === "default" || data.homeLayout === "pattern1" || data.homeLayout === "pattern2") {
+            setHomeLayout(data.homeLayout);
+          }
         } else {
           console.log("[admin/design] No profile data found by doc ID, trying clubId field query", clubId);
           // Fallback: try querying by clubId field
@@ -85,6 +89,9 @@ export default function AdminDesignPage() {
             }
             if (data.headerLayout === "center" || data.headerLayout === "left") {
               setHeaderLayout(data.headerLayout);
+            }
+            if (data.homeLayout === "default" || data.homeLayout === "pattern1" || data.homeLayout === "pattern2") {
+              setHomeLayout(data.homeLayout);
             }
           } else {
             console.log("[admin/design] No profile data found at all", clubId);
@@ -150,6 +157,9 @@ export default function AdminDesignPage() {
               if (data.headerLayout === "center" || data.headerLayout === "left") {
                 setHeaderLayout(data.headerLayout);
               }
+              if (data.homeLayout === "default" || data.homeLayout === "pattern1" || data.homeLayout === "pattern2") {
+                setHomeLayout(data.homeLayout);
+              }
             }
           }
         } catch {
@@ -174,7 +184,7 @@ export default function AdminDesignPage() {
 
   const saveLayout = async () => {
     setSavingLayout(true);
-    const ok = await save({ homeBgColor, homeColorTheme, headerLayout });
+    const ok = await save({ homeBgColor, homeColorTheme, headerLayout, homeLayout });
     if (ok) toast.success("デザインを保存しました");
     setSavingLayout(false);
   };
@@ -201,6 +211,8 @@ export default function AdminDesignPage() {
             setHomeColorTheme={setHomeColorTheme}
             headerLayout={headerLayout}
             setHeaderLayout={setHeaderLayout}
+            homeLayout={homeLayout}
+            setHomeLayout={setHomeLayout}
           />
           <div className="mt-6 flex justify-center">
             <Button

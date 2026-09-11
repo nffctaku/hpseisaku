@@ -44,6 +44,7 @@ export async function POST(request: Request) {
       homeBgColor,
       homeColorTheme,
       headerLayout,
+      homeLayout,
       foundedYear,
       hometown,
       stadiumName,
@@ -253,6 +254,10 @@ export async function POST(request: Request) {
 
     if (headerLayout === 'center' || headerLayout === 'left') {
       updateData.headerLayout = headerLayout;
+    }
+
+    if (homeLayout === 'default' || homeLayout === 'pattern1' || homeLayout === 'pattern2') {
+      updateData.homeLayout = homeLayout;
     }
 
     // Ensure clubId is preserved in the update

@@ -234,7 +234,7 @@ export function ClubHomePattern1({
   const hasMatches = (recentMatches && recentMatches.length > 0) || (upcomingMatches && upcomingMatches.length > 0);
 
   return (
-    <main className="bg-background text-foreground">
+    <div className="bg-background text-foreground">
       <NewsGrid news={news} />
       <VideosRow videos={videos} />
       <NextMatchHero match={nextMatch} />
@@ -247,6 +247,6 @@ export function ClubHomePattern1({
           </div>
         </section>
       )}
-    </main>
+    </div>
   );
 }
