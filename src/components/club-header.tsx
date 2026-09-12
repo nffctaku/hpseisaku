@@ -8,13 +8,13 @@ import { Loader2, Menu, Moon, Share2, Sun, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
 import { toast } from "sonner";
+import { DEFAULT_CLUB_COLOR, getContrastTextColor } from "@/lib/utils";
 import { useTheme } from "next-themes";
 
 interface ClubHeaderProps {
   clubId: string;
   clubName?: string;
   logoUrl?: string | null;
-  headerForeground?: "light" | "dark";
   headerBackgroundColor?: string;
   headerLayout?: "center" | "left";
   snsLinks?: {
@@ -39,7 +39,6 @@ export function ClubHeader({
   clubId,
   clubName,
   logoUrl,
-  headerForeground = "dark",
   headerBackgroundColor,
   headerLayout = "left",
   snsLinks,
@@ -53,6 +52,13 @@ export function ClubHeader({
   const [resolvedHeaderBackgroundColor, setResolvedHeaderBackgroundColor] = useState<string | undefined>(
     typeof headerBackgroundColor === 'string' ? headerBackgroundColor : undefined
   );
+
+  useEffect(() => {
+    setResolvedHeaderBackgroundColor((prev) =>
+      typeof headerBackgroundColor === 'string' ? headerBackgroundColor : prev
+    );
+  }, [headerBackgroundColor]);
+
   const [menuSettings, setMenuSettings] = useState<{
     menuShowNews: boolean;
     menuShowTv: boolean;
@@ -75,7 +81,6 @@ export function ClubHeader({
     menuShowPartner: true,
   });
   const pathname = usePathname();
-  const { theme, resolvedTheme, setTheme } = useTheme();
 
   const portalTarget = useMemo(() => {
     if (typeof document === "undefined") return null;
@@ -83,25 +88,35 @@ export function ClubHeader({
   }, []);
 
   const isNavigating = navigatingTo != null;
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const isDark = (resolvedTheme || theme) === "dark";
 
-  const computedForeground = headerForeground === "light" ? "text-white" : "text-black";
+  const effectiveBackground = resolvedHeaderBackgroundColor || DEFAULT_CLUB_COLOR;
+  const contrastColor = getContrastTextColor(effectiveBackground);
+  const isWhiteText = contrastColor === "#FFFFFF";
+  const computedForeground = isWhiteText ? "text-white" : "text-black";
 
-  const textShadow = computedForeground === "text-white"
+  const textShadow = isWhiteText
     ? "0 1px 2px rgba(0, 0, 0, 0.55), 0 0 1px rgba(0, 0, 0, 0.45)"
     : "none";
 
-  const headerStyle = {
-    backgroundColor: resolvedHeaderBackgroundColor,
+  const headerStyle: React.CSSProperties = {
+    backgroundColor: "var(--club-color)",
+    color: "var(--club-text-color)",
     textShadow,
-  } as const;
+    ["--club-color" as string]: effectiveBackground,
+    ["--club-text-color" as string]: contrastColor,
+  };
 
   const menuTextClass = computedForeground;
-  const menuBorderClass = computedForeground === "text-white" ? "border-white/15" : "border-black/15";
-  const menuIconBgClass = computedForeground === "text-white" ? "bg-white/10" : "bg-black/10";
-  const menuBgStyle = resolvedHeaderBackgroundColor
-    ? ({ backgroundColor: resolvedHeaderBackgroundColor } as const)
-    : ({ backgroundColor: headerForeground === "dark" ? "#ffffff" : "#000000" } as const);
+  const menuBorderClass = isWhiteText ? "border-white/15" : "border-black/15";
+  const menuIconBgClass = isWhiteText ? "bg-white/10" : "bg-black/10";
+  const menuBgStyle: React.CSSProperties = {
+    backgroundColor: "var(--club-color)",
+    color: "var(--club-text-color)",
+    ["--club-color" as string]: effectiveBackground,
+    ["--club-text-color" as string]: contrastColor,
+  };
 
   useEffect(() => {
     setResolvedClubName(clubName);
@@ -116,13 +131,10 @@ export function ClubHeader({
   }, [snsLinks]);
 
   useEffect(() => {
-    setResolvedHeaderBackgroundColor(typeof headerBackgroundColor === 'string' ? headerBackgroundColor : undefined);
-  }, [headerBackgroundColor]);
-
-  useEffect(() => {
     let cancelled = false;
 
     const needsFallback =
+      !resolvedHeaderBackgroundColor ||
       !resolvedClubName ||
       resolvedClubName.trim().length === 0 ||
       resolvedClubName === 'クラブ名未設定' ||
@@ -252,7 +264,7 @@ export function ClubHeader({
   }, [clubId]);
 
   const navLinkClass = (active: boolean, disabled: boolean) =>
-    `${active ? "text-primary" : ""} ${disabled ? "opacity-60 pointer-events-none" : ""} hover:text-primary transition-colors inline-flex items-center gap-1.5`;
+    `${active ? "underline underline-offset-4" : ""} ${disabled ? "opacity-60 pointer-events-none" : ""} hover:opacity-80 transition-opacity inline-flex items-center gap-1.5`;
 
   const handleShare = async () => {
     try {
@@ -311,7 +323,7 @@ export function ClubHeader({
                 )}
               </Link>
               <div className="flex flex-col min-w-0">
-                <span className="text-xs sm:text-sm md:text-lg font-semibold leading-tight max-w-[8rem] xs:max-w-[10rem] sm:max-w-none truncate">
+                <span className="text-xs sm:text-sm md:text-lg font-semibold leading-tight break-words">
                   {resolvedClubName || clubName || "クラブ名未設定"}
                 </span>
               </div>

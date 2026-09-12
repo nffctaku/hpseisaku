@@ -224,6 +224,32 @@ export async function GET(req: NextRequest) {
       data: d.data() as Record<string, unknown>,
     }));
 
+    const mainTeamMap = new Map<string, Record<string, unknown>>();
+    const mainTeamRefs: admin.firestore.DocumentReference[] = [];
+    for (const r of profileRows) {
+      const ownerUid = String(r.data.ownerUid || r.id);
+      const mainTeamId = typeof r.data.mainTeamId === "string" ? r.data.mainTeamId : null;
+      if (mainTeamId) {
+        mainTeamRefs.push(db.collection(`clubs/${ownerUid}/teams`).doc(mainTeamId));
+      }
+    }
+    if (mainTeamRefs.length > 0) {
+      try {
+        const dbWithGetAll = db as unknown as {
+          getAll: (...refs: admin.firestore.DocumentReference[]) => Promise<admin.firestore.DocumentSnapshot[]>;
+        };
+        const mainTeamSnaps = await dbWithGetAll.getAll(...mainTeamRefs);
+        for (const snap of mainTeamSnaps) {
+          if (snap.exists) {
+            const ownerUid = snap.ref.parent.parent?.id || "";
+            mainTeamMap.set(`${ownerUid}/${snap.id}`, snap.data() as Record<string, unknown>);
+          }
+        }
+      } catch {
+        // メインチーム取得失敗時は club_profiles の値を使用
+      }
+    }
+
     const profileIdsByOwner: Record<string, string[]> = {};
     for (const r of profileRows) {
       const ownerUid = String(r.data.ownerUid || r.id);
@@ -266,6 +292,11 @@ export async function GET(req: NextRequest) {
       const planRaw = String(data.plan || "free").toLowerCase();
       const plan = planRaw === "officia" ? "officia" : planRaw === "pro" ? "pro" : "free";
 
+      const mainTeamData =
+        typeof data.mainTeamId === "string"
+          ? mainTeamMap.get(`${ownerUid}/${data.mainTeamId}`)
+          : undefined;
+
       const pCount = isUnique ? playerCountBy[ownerUid] || 0 : null;
       const cCount = isUnique ? competitionCountBy[ownerUid] || 0 : null;
       const mCount = isUnique ? matchCountBy[ownerUid] || 0 : null;
@@ -283,7 +314,12 @@ export async function GET(req: NextRequest) {
         id: r.id,
         clubName,
         nameSet,
-        logoUrl: typeof data.logoUrl === "string" ? data.logoUrl : null,
+        logoUrl:
+          typeof mainTeamData?.logoUrl === "string"
+            ? mainTeamData.logoUrl
+            : typeof data.logoUrl === "string"
+              ? data.logoUrl
+              : null,
         publicUrl: `/${encodeURIComponent(publicSlug)}`,
         publicSlug,
         ownerUid,

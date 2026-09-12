@@ -5,6 +5,7 @@ import { notFound, useRouter } from 'next/navigation';
 import Image from "next/image";
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { DEFAULT_CLUB_COLOR, getClubColor, getContrastTextColor } from '@/lib/utils';
 import { Hero } from "@/components/hero";
 import { LeagueTable } from "@/components/league-table";
 import { ClubTv } from "@/components/club-tv";
@@ -54,12 +55,10 @@ export default function ClubPageContent({
         }
 
         let cancelled = false;
-        let idleHandle: number | null = null;
-        let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
         const runFullFetch = async () => {
             try {
-                const fullRes = await fetch(`/api/club/${clubId}`);
+                const fullRes = await fetch(`/api/club/${clubId}`, { cache: 'no-store' });
                 if (!fullRes.ok) {
                     console.error(`Full club data HTTP error: ${fullRes.status}`);
                     setError("データの読み込みに失敗しました");
@@ -75,21 +74,23 @@ export default function ClubPageContent({
             }
         };
 
-        // Since SSR now includes all data including videos, client-side fetch is no longer needed
-        // Remove the redundant fetch to save bandwidth and Firestore read operations
+        void runFullFetch();
 
         return () => {
             cancelled = true;
-            const cic = (globalThis as any).cancelIdleCallback as ((id: number) => void) | undefined;
-            if (idleHandle != null && cic) cic(idleHandle);
-            if (timeoutHandle) clearTimeout(timeoutHandle);
         };
     }, [clubId, initialClubInfo]);
 
-    const homeBgColor = clubInfo.profile?.homeBgColor as string | undefined;
-    const homeColorTheme = (clubInfo.profile?.homeColorTheme === 'dark' || clubInfo.profile?.homeColorTheme === 'light')
-      ? clubInfo.profile.homeColorTheme
+    const homeBgColor = getClubColor(clubInfo);
+    const rawHomeColorTheme =
+      ((clubInfo.data?.homeColorTheme as string | undefined) ??
+      (clubInfo.profile?.homeColorTheme as string | undefined) ??
+      (clubInfo.homeColorTheme as string | undefined));
+    const homeColorTheme = (rawHomeColorTheme === 'dark' || rawHomeColorTheme === 'light')
+      ? rawHomeColorTheme
       : 'light';
+    const clubColor = homeBgColor || DEFAULT_CLUB_COLOR;
+    const contrastColor = getContrastTextColor(clubColor);
     const headerLayout = (clubInfo.profile?.headerLayout === 'center' || clubInfo.profile?.headerLayout === 'left')
       ? clubInfo.profile.headerLayout
       : 'left';
@@ -97,6 +98,7 @@ export default function ClubPageContent({
       ? clubInfo.profile.homeLayout
       : 'default';
     const isDarkHomeTheme = homeColorTheme === 'dark';
+    const mainTextColor = homeBgColor ? contrastColor : (isDarkHomeTheme ? '#FFFFFF' : '#000000');
     const heroNewsLimit =
         (clubInfo.data?.heroNewsLimit as number | undefined) ??
         (clubInfo.profile?.heroNewsLimit as number | undefined) ??
@@ -350,13 +352,15 @@ export default function ClubPageContent({
 
     if (homeLayout === 'pattern2') {
       return (
-        <main className="min-h-screen bg-[#FAF9F7]">
+        <main
+          className="min-h-screen bg-[#FAF9F7]"
+          style={{ '--club-color': clubColor, '--club-text-color': contrastColor } as React.CSSProperties}
+        >
           <ClubHeader
             clubId={clubId}
             clubName={clubInfo.profile?.clubName || ""}
             logoUrl={clubInfo.profile?.logoUrl || null}
             headerBackgroundColor={homeBgColor}
-            headerForeground={isDarkHomeTheme ? "light" : "dark"}
             headerLayout={headerLayout}
             snsLinks={clubInfo.profile?.snsLinks || {}}
           />
@@ -364,7 +368,7 @@ export default function ClubPageContent({
             clubId={clubId}
             clubName={clubInfo.profile?.clubName || ""}
             logoUrl={clubInfo.profile?.logoUrl || null}
-            accentColor={homeBgColor || "#861B1D"}
+            accentColor={clubColor}
             foundedYear={clubInfo.profile?.foundedYear || ""}
             stadiumPhotoUrl={clubInfo.profile?.stadiumPhotoUrl || clubInfo.data?.headerImageUrl || ""}
             heroNews={heroNews}
@@ -391,13 +395,15 @@ export default function ClubPageContent({
 
     if (homeLayout === 'pattern1') {
       return (
-        <main className="min-h-screen bg-background text-foreground">
+        <main
+          className="min-h-screen bg-background text-foreground"
+          style={{ '--club-color': clubColor, '--club-text-color': contrastColor } as React.CSSProperties}
+        >
           <ClubHeader
             clubId={clubId}
             clubName={clubInfo.profile?.clubName || ""}
             logoUrl={clubInfo.profile?.logoUrl || null}
             headerBackgroundColor={homeBgColor}
-            headerForeground={isDarkHomeTheme ? "light" : "dark"}
             headerLayout={headerLayout}
             snsLinks={clubInfo.profile?.snsLinks || {}}
           />
@@ -425,14 +431,18 @@ export default function ClubPageContent({
     return (
         <main
           className="min-h-screen"
-          style={{ backgroundColor: homeBgColor || (isDarkHomeTheme ? '#050506' : '#ffffff') }}
+          style={{
+            backgroundColor: homeBgColor || (isDarkHomeTheme ? '#050506' : '#ffffff'),
+            color: mainTextColor,
+            '--club-color': clubColor,
+            '--club-text-color': contrastColor,
+          } as React.CSSProperties}
         >
             <ClubHeader
                 clubId={clubId}
                 clubName={clubInfo.profile?.clubName || ""}
                 logoUrl={clubInfo.profile?.logoUrl || null}
                 headerBackgroundColor={homeBgColor}
-                headerForeground={isDarkHomeTheme ? "light" : "dark"}
                 headerLayout={headerLayout}
                 snsLinks={clubInfo.profile?.snsLinks || {}}
             />

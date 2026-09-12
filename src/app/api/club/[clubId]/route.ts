@@ -1,47 +1,21 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/firebase/admin';
 import { getMatchDataForClub } from '@/lib/matches';
+import { resolvePublicClubProfile } from '@/lib/public-club-profile';
 import { NewsArticle } from '@/types/news';
 
 async function getClubData(clubId: string) {
-  const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
-  const profilesSnap = await profilesQuery.get();
-
-  const clubProfileDoc = !profilesSnap.empty ? profilesSnap.docs[0] : null;
-  const directSnap = clubProfileDoc ? null : await db.collection('club_profiles').doc(clubId).get();
-
-  if (!clubProfileDoc && !directSnap?.exists) {
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) {
     throw new Error('Club not found');
   }
 
-  const profileData = (clubProfileDoc ? clubProfileDoc.data() : (directSnap!.data() as any))!;
-  const ownerUid = (profileData as any).ownerUid || (clubProfileDoc ? clubProfileDoc.id : directSnap!.id);
-
-  if (!ownerUid) {
-    throw new Error('Club owner UID not found');
-  }
+  const resolvedProfile = resolved.profileData;
+  const ownerUid = resolved.ownerUid;
 
   const clubDataRef = db.collection('clubs').doc(ownerUid);
   const clubDataSnap = await clubDataRef.get();
   const clubData = clubDataSnap.exists ? clubDataSnap.data() : { headerImageUrl: null };
-
-  // メインチームの情報を取得して、表示用のクラブ名・ロゴに反映
-  const mainTeamId = (profileData as any)?.mainTeamId;
-  let mainTeamData: any = null;
-  if (mainTeamId) {
-    const mainTeamRef = db.collection(`clubs/${ownerUid}/teams`).doc(mainTeamId);
-    const mainTeamSnap = await mainTeamRef.get();
-    if (mainTeamSnap.exists) {
-      mainTeamData = mainTeamSnap.data();
-    }
-  }
-
-  const resolvedProfile = {
-    ...profileData,
-    ownerUid,
-    clubName: (mainTeamData as any)?.name || (profileData as any).clubName,
-    logoUrl: (mainTeamData as any)?.logoUrl || (profileData as any).logoUrl,
-  } as any;
   const heroLimitRaw = (clubData as any)?.heroNewsLimit;
   const heroLimit = typeof heroLimitRaw === 'number' && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;
 
