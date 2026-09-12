@@ -912,16 +912,18 @@ export default function CompetitionDetailPage() {
               <CalendarDays className="h-5 w-5 stroke-[1.5] text-[#10B981]" />
               節の選択
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddRound}
-              title="節を追加"
-              className="h-8 rounded-lg border-white/10 bg-[#0B1120]/80 px-3 text-xs font-medium text-[#F3F4F6] hover:bg-[#111827] hover:text-[#F3F4F6]"
-            >
-              <PlusCircle className="h-5 w-5 stroke-[1.5]" />
-              節を追加
-            </Button>
+            {currentRoundIndex === rounds.length - 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddRound}
+                title="節を追加"
+                className="h-8 rounded-lg border-white/10 bg-[#0B1120]/80 px-3 text-xs font-medium text-[#F3F4F6] hover:bg-[#111827] hover:text-[#F3F4F6]"
+              >
+                <PlusCircle className="h-5 w-5 stroke-[1.5]" />
+                節を追加
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center gap-1 rounded-lg border border-[#334155] bg-[#0B1120] p-1.5 sm:gap-2 sm:p-2">

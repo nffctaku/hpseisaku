@@ -39,6 +39,28 @@ const seasons = Array.from({ length: 91 }, (_, i) => {
 
 const RANK_LABEL_COLORS = ["#1fd760", "#ef4444", "#facc15", "#3b82f6", "#a855f7"] as const;
 
+const RANK_LABEL_COLOR_NAMES: Record<(typeof RANK_LABEL_COLORS)[number], string> = {
+  "#1fd760": "緑",
+  "#ef4444": "赤",
+  "#facc15": "黄",
+  "#3b82f6": "青",
+  "#a855f7": "紫",
+};
+
+const RANK_LABEL_SUGGESTIONS = [
+  "国際大会出場圏",
+  "自動昇格圏",
+  "昇格プレーオフ圏",
+  "降格プレーオフ圏",
+  "降格圏",
+];
+
+const hexToRgba = (hex: string, alpha: number) => {
+  const n = parseInt(hex.replace("#", ""), 16);
+  if (Number.isNaN(n)) return `rgba(0,0,0,${alpha})`;
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+};
+
 const formSchema = z.object({
   name: z.string().min(1, "大会名は必須です。"),
   season: z.string().min(1, "シーズンを選択してください。"),
@@ -160,6 +182,8 @@ export default function NewCompetitionPage() {
     name: "rankLabels",
   });
 
+  const [editingRankLabel, setEditingRankLabel] = useState<number | null>(null);
+
   const selectedFormat = form.watch("format");
 
   // カップ系の場合、最低1つ回戦を用意
@@ -169,15 +193,12 @@ export default function NewCompetitionPage() {
     }
   }, [selectedFormat, cupRoundFields.length, appendCupRound]);
 
-  const showOnTableValue = form.watch("showOnTable");
-  const formatValue = form.watch("format");
-
-  // 順位表に表示しない場合、順位ラベルは不要なのでクリアしておく
+  // カップの場合、順位ラベルは不要なのでクリアしておく
   useEffect(() => {
-    if (!showOnTableValue || formatValue === "cup") {
+    if (selectedFormat === "cup") {
       form.setValue("rankLabels", [], { shouldValidate: false });
     }
-  }, [showOnTableValue, formatValue, form]);
+  }, [selectedFormat, form]);
 
   useEffect(() => {
     if (!user) return;
@@ -399,7 +420,7 @@ export default function NewCompetitionPage() {
         logoUrl: data.logoUrl && data.logoUrl !== "" ? data.logoUrl : null,
         showOnHome: !!data.showOnHome,
         showOnTable: data.format === "cup" ? false : !!data.showOnTable,
-        rankLabels: data.format === "cup" || !data.showOnTable ? [] : (Array.isArray(data.rankLabels) ? data.rankLabels : []),
+        rankLabels: data.format === "cup" ? [] : (Array.isArray(data.rankLabels) ? data.rankLabels : []),
       };
 
       const removeUndefined = (obj: unknown): unknown => {
@@ -960,7 +981,7 @@ export default function NewCompetitionPage() {
 
   const renderStep3 = () => {
     const data = form.getValues();
-    const showTable = data.format !== "cup" && data.showOnTable;
+    const rankLabels = data.rankLabels || [];
 
     return (
       <div className="space-y-6 px-4 pb-8 pt-2">
@@ -1006,125 +1027,249 @@ export default function NewCompetitionPage() {
           />
         </div>
 
-        {showTable && (
-          <div className="space-y-3 rounded-2xl border border-white/[0.08] bg-[#111c2d] p-4">
-            <p className="text-xs text-[#94a3b8]">
-              CL圏・昇格圏・降格圏などを順位表に色分けして表示できます。設定しなくても大会を作成できます。
-            </p>
+        {data.format !== "cup" && (
+          <div className="space-y-4 rounded-2xl border border-white/[0.08] bg-[#111c2d] p-4">
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-[#f0f4ff]">順位ラベル（任意）</p>
+              <p className="text-xs text-[#94a3b8]">
+                国際大会への出場権や、昇格・降格の対象となる順位を色分けして表示できます。設定はあとから変更できます。
+              </p>
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-white/[0.08] bg-[#0d1520] p-3">
+              <p className="text-xs font-bold text-[#f0f4ff]">順位表での表示イメージ</p>
+              {rankLabels.length > 0 ? (
+                <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1">
+                  {rankLabels.map((label, idx) => (
+                    <span
+                      key={idx}
+                      className="text-xs font-bold"
+                      style={{ color: label.color }}
+                    >
+                      {label.name || "（未設定）"} {label.startRank}位〜{label.endRank}位
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mb-2 text-xs text-[#94a3b8]">ラベルが設定されていません</p>
+              )}
+              <div className="space-y-1">
+                {["AFCレイソル", "ノーザンメアFC", "東部クラブ", "西部スポーツ", "サウスアイランド"].map((club, i) => {
+                  const rank = i + 1;
+                  const activeLabel = rankLabels.find((l) => l.startRank <= rank && rank <= l.endRank);
+                  return (
+                    <div
+                      key={club}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5"
+                      style={{
+                        backgroundColor: activeLabel ? hexToRgba(activeLabel.color, 0.1) : "transparent",
+                        borderLeft: `3px solid ${activeLabel ? activeLabel.color : "transparent"}`,
+                      }}
+                    >
+                      <span className="w-5 text-xs font-bold text-[#94a3b8]">{rank}</span>
+                      <span className="flex-1 text-xs text-[#f0f4ff]">{club}</span>
+                      <span className="text-xs text-[#94a3b8]">{[42, 38, 31, 27, 22][i]}pt</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             {rankLabelFields.map((field, index) => (
-              <div key={field.id} className="space-y-3 rounded-xl border border-white/[0.08] bg-[#0d1520] p-3">
-                <div className="flex items-center gap-2">
-                  <FormField
-                    control={form.control}
-                    name={`rankLabels.${index}.name`}
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormLabel className="text-xs text-[#94a3b8]">ラベル名</FormLabel>
-                        <FormControl>
-                          <Input
-                            value={field.value}
-                            onChange={field.onChange}
-                            placeholder="CL圏"
-                            className="h-10 border-white/[0.08] bg-[#111c2d] text-[#f0f4ff] placeholder:text-[#94a3b8]"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeRankLabel(index)}
-                    aria-label="ラベルを削除"
-                    className="mt-5 text-[#f0f4ff] hover:bg-white/5"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <FormField
-                    control={form.control}
-                    name={`rankLabels.${index}.startRank`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs text-[#94a3b8]">開始順位</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={field.value ?? ""}
-                            onChange={(e) => {
-                              const n = Number(e.target.value);
-                              field.onChange(Number.isNaN(n) ? 1 : n);
-                            }}
-                            className="h-10 border-white/[0.08] bg-[#111c2d] text-[#f0f4ff]"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={`rankLabels.${index}.endRank`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs text-[#94a3b8]">終了順位</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={field.value ?? ""}
-                            onChange={(e) => {
-                              const n = Number(e.target.value);
-                              field.onChange(Number.isNaN(n) ? 1 : n);
-                            }}
-                            className="h-10 border-white/[0.08] bg-[#111c2d] text-[#f0f4ff]"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name={`rankLabels.${index}.color`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs text-[#94a3b8]">表示色</FormLabel>
-                      <FormControl>
-                        <div className="flex flex-wrap gap-2">
-                          {RANK_LABEL_COLORS.map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => field.onChange(c)}
-                              className={`h-8 w-8 rounded-full border-2 transition ${
-                                field.value === c ? "border-white" : "border-transparent"
-                              }`}
-                              style={{ backgroundColor: c }}
-                              aria-label={`色 ${c}`}
-                              aria-pressed={field.value === c}
+              <div key={field.id} className="rounded-xl border border-white/[0.08] bg-[#0d1520] p-3">
+                {editingRankLabel === index ? (
+                  <div className="space-y-3">
+                    <FormField
+                      control={form.control}
+                      name={`rankLabels.${index}.name`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-[#94a3b8]">ラベル名</FormLabel>
+                          <FormControl>
+                            <Input
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="例：国際大会出場圏"
+                              className="h-10 border-white/[0.08] bg-[#111c2d] text-[#f0f4ff] placeholder:text-[#94a3b8]"
                             />
-                          ))}
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                          </FormControl>
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {RANK_LABEL_SUGGESTIONS.map((s) => (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => field.onChange(s)}
+                                className="rounded-full border border-white/10 bg-[#111c2d] px-2.5 py-1 text-[10px] text-[#94a3b8] transition hover:bg-[#1a2940]"
+                              >
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="space-y-1">
+                      <p className="text-xs text-[#94a3b8]">順位範囲</p>
+                      <div className="flex items-start gap-1">
+                        <FormField
+                          control={form.control}
+                          name={`rankLabels.${index}.startRank`}
+                          render={({ field }) => (
+                            <FormItem className="space-y-1">
+                              <FormLabel className="sr-only">開始順位</FormLabel>
+                              <FormControl>
+                                <div className="flex items-center gap-1">
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    value={field.value ?? ""}
+                                    onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === "") {
+                                field.onChange("");
+                                return;
+                              }
+                              const n = Number(raw);
+                              field.onChange(Number.isNaN(n) ? 1 : n || "");
+                            }}
+                                    className="h-10 w-14 border-white/[0.08] bg-[#111c2d] text-center text-[#f0f4ff]"
+                                  />
+                                  <span className="text-sm text-[#f0f4ff]">位</span>
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <span className="mt-3 text-sm text-[#94a3b8]">〜</span>
+                        <FormField
+                          control={form.control}
+                          name={`rankLabels.${index}.endRank`}
+                          render={({ field }) => (
+                            <FormItem className="space-y-1">
+                              <FormLabel className="sr-only">終了順位</FormLabel>
+                              <FormControl>
+                                <div className="flex items-center gap-1">
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    value={field.value ?? ""}
+                                    onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === "") {
+                                field.onChange("");
+                                return;
+                              }
+                              const n = Number(raw);
+                              field.onChange(Number.isNaN(n) ? 1 : n || "");
+                            }}
+                                    className="h-10 w-14 border-white/[0.08] bg-[#111c2d] text-center text-[#f0f4ff]"
+                                  />
+                                  <span className="text-sm text-[#f0f4ff]">位</span>
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name={`rankLabels.${index}.color`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-[#94a3b8]">表示色</FormLabel>
+                          <FormControl>
+                            <div className="flex flex-wrap gap-2">
+                              {RANK_LABEL_COLORS.map((c) => (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  onClick={() => field.onChange(c)}
+                                  className={`h-8 w-8 rounded-full border-2 transition flex items-center justify-center ${
+                                    field.value === c ? "border-white" : "border-transparent"
+                                  }`}
+                                  style={{ backgroundColor: c }}
+                                  aria-label={RANK_LABEL_COLOR_NAMES[c]}
+                                  aria-pressed={field.value === c}
+                                >
+                                  {field.value === c && <Check className="h-4 w-4 text-white" />}
+                                </button>
+                              ))}
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setEditingRankLabel(null)}
+                        className="flex-1 border-white/[0.08] bg-[#111c2d] text-[#f0f4ff] hover:bg-white/5"
+                      >
+                        完了
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          removeRankLabel(index);
+                          setEditingRankLabel(null);
+                        }}
+                        className="text-[#f0f4ff] hover:bg-white/5"
+                      >
+                        削除
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-sm text-[#f0f4ff]">
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-full"
+                        style={{ backgroundColor: rankLabels[index]?.color }}
+                      />
+                      <span className="min-w-0 break-words">
+                        {rankLabels[index]?.name || "（未設定）"} {rankLabels[index]?.startRank}〜{rankLabels[index]?.endRank}位
+                      </span>
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingRankLabel(index)}
+                        className="text-xs text-[#1fd760] hover:underline"
+                      >
+                        編集
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          removeRankLabel(index);
+                          setEditingRankLabel(null);
+                        }}
+                        className="text-xs text-[#94a3b8] hover:text-red-400"
+                      >
+                        削除
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
 
             <Button
               type="button"
               variant="outline"
-              onClick={() => appendRankLabel({ name: "", startRank: 1, endRank: 1, color: RANK_LABEL_COLORS[0] })}
+              onClick={() => {
+                appendRankLabel({ name: "", startRank: 1, endRank: 1, color: RANK_LABEL_COLORS[0] });
+                setEditingRankLabel(rankLabelFields.length);
+              }}
               disabled={rankLabelFields.length >= 5}
               className="w-full border-white/[0.08] bg-[#0d1520] text-[#f0f4ff] hover:bg-white/5 disabled:opacity-50"
             >
@@ -1143,7 +1288,7 @@ export default function NewCompetitionPage() {
       .map((id) => allTeams.find((t) => t.id === id)?.name)
       .filter(Boolean) as string[];
     const formatLabel = formatOptions.find((o) => o.value === data.format);
-    const showTable = data.format !== "cup" && data.showOnTable;
+    const showLabels = data.format !== "cup";
 
     return (
       <div className="space-y-6 px-4 pb-8 pt-2">
@@ -1214,7 +1359,7 @@ export default function NewCompetitionPage() {
               順位表に表示する：{data.showOnTable ? "はい" : "いいえ"}
             </p>
           )}
-          {showTable && data.rankLabels && data.rankLabels.length > 0 && (
+          {showLabels && data.rankLabels && data.rankLabels.length > 0 && (
             <div>
               <p className="mb-2 text-xs text-[#94a3b8]">順位ラベル</p>
               <div className="flex flex-wrap gap-2">
@@ -1230,7 +1375,7 @@ export default function NewCompetitionPage() {
               </div>
             </div>
           )}
-          {showTable && (!data.rankLabels || data.rankLabels.length === 0) && (
+          {showLabels && (!data.rankLabels || data.rankLabels.length === 0) && (
             <p className="text-sm text-[#94a3b8]">順位ラベル：設定なし</p>
           )}
         </div>

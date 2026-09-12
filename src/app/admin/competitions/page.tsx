@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, query, getDocs, onSnapshot, doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
 
 import { Button } from "@/components/ui/button";
@@ -41,9 +41,6 @@ interface Competition {
   logoUrl?: string;
 }
 
-type MatchStat = { scheduled: number; finished: number; unregistered: number; };
-type MatchIndexDoc = { competitionId?: string; matchDate?: string; scoreHome?: number | null; scoreAway?: number | null; };
-
 export default function CompetitionsPage() {
   const { user, ownerUid } = useAuth();
   const router = useRouter();
@@ -55,8 +52,6 @@ export default function CompetitionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [retryKey, setRetryKey] = useState(0);
-  const [matchStats, setMatchStats] = useState<Record<string, MatchStat>>({});
-  const [matchStatsLoaded, setMatchStatsLoaded] = useState(false);
 
   const planTier = getPlanTier(user?.plan);
   const isPaid = planTier !== "free";
@@ -107,39 +102,6 @@ export default function CompetitionsPage() {
 
     return () => unsubscribe();
   }, [user, clubUid, retryKey]);
-
-  useEffect(() => {
-    if (!clubUid) return;
-    const fetchMatchStats = async () => {
-      setMatchStatsLoaded(false);
-      try {
-        const indexRef = collection(db, `clubs/${clubUid}/public_match_index`);
-        const snap = await getDocs(query(indexRef));
-        const stats: Record<string, MatchStat> = {};
-        snap.forEach((d) => {
-          const data = d.data() as MatchIndexDoc;
-          const id = data.competitionId;
-          if (!id) return;
-          if (!stats[id]) stats[id] = { scheduled: 0, finished: 0, unregistered: 0 };
-          const hasResult = typeof data.scoreHome === "number" && typeof data.scoreAway === "number";
-          const hasSchedule = typeof data.matchDate === "string" && data.matchDate.length > 0;
-          if (hasResult) {
-            stats[id].finished += 1;
-          } else if (hasSchedule) {
-            stats[id].scheduled += 1;
-          } else {
-            stats[id].unregistered += 1;
-          }
-        });
-        setMatchStats(stats);
-      } catch (e) {
-        console.error("Error fetching match index:", e);
-      } finally {
-        setMatchStatsLoaded(true);
-      }
-    };
-    fetchMatchStats();
-  }, [clubUid, retryKey]);
 
   // Auto-select latest season on initial load
   useEffect(() => {
@@ -213,7 +175,7 @@ export default function CompetitionsPage() {
       <div className="mx-auto w-full max-w-4xl">
         <div className="mb-6 space-y-2">
           <h1 className="text-[28px] font-bold text-[#f0f4ff] sm:text-3xl">大会管理</h1>
-          <p className="text-[14px] text-[#94a3b8]">大会ごとに日程・結果・順位表を管理</p>
+          <p className="text-[14px] text-white">大会の日程・結果を管理</p>
         </div>
 
         <div className="mb-6 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -234,7 +196,7 @@ export default function CompetitionsPage() {
           </div>
           <Button
             onClick={handleCreateCompetition}
-            className="min-w-0 w-full shrink-0 bg-[#1fd760] font-bold text-[#080c14] hover:bg-[#17c054] sm:w-auto sm:px-6 h-12"
+            className="min-w-0 w-full shrink-0 bg-[#1fd760] font-bold text-white hover:bg-[#17c054] sm:w-auto sm:px-6 h-12"
           >
             <Plus className="mr-2 h-4 w-4" />
             大会を追加
@@ -310,20 +272,6 @@ export default function CompetitionsPage() {
                         </span>
                       )}
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      <div className="rounded-xl border border-white/[0.08] bg-[#0d1520] p-2 text-center">
-                        <div className="text-[10px] text-[#94a3b8]">日程</div>
-                        <div className="text-sm font-bold text-white">{matchStatsLoaded ? (matchStats[comp.id]?.scheduled ?? 0) : "—"}</div>
-                      </div>
-                      <div className="rounded-xl border border-white/[0.08] bg-[#0d1520] p-2 text-center">
-                        <div className="text-[10px] text-[#94a3b8]">結果</div>
-                        <div className="text-sm font-bold text-white">{matchStatsLoaded ? (matchStats[comp.id]?.finished ?? 0) : "—"}</div>
-                      </div>
-                      <div className="rounded-xl border border-white/[0.08] bg-[#0d1520] p-2 text-center">
-                        <div className="text-[10px] text-[#94a3b8]">未登録</div>
-                        <div className="text-sm font-bold text-white">{matchStatsLoaded ? (matchStats[comp.id]?.unregistered ?? 0) : "—"}</div>
-                      </div>
-                    </div>
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -361,7 +309,7 @@ export default function CompetitionsPage() {
                   <Button
                     type="button"
                     onClick={() => router.push(`/admin/competitions/${comp.id}`)}
-                    className="h-14 w-full rounded-xl bg-[#1fd760] font-bold text-[#080c14] hover:bg-[#17c054]"
+                    className="h-14 w-full rounded-xl bg-[#1fd760] font-bold text-white hover:bg-[#17c054]"
                   >
                     <span className="flex w-full items-center justify-between">
                       <span className="flex items-center">
