@@ -8,7 +8,7 @@ import { Loader2, Menu, Moon, Share2, Sun, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
 import { toast } from "sonner";
-import { DEFAULT_CLUB_COLOR, getContrastTextColor } from "@/lib/utils";
+import { DEFAULT_HEADER_BACKGROUND, getContrastTextColor } from "@/lib/utils";
 import { useTheme } from "next-themes";
 
 interface ClubHeaderProps {
@@ -91,7 +91,7 @@ export function ClubHeader({
   const { theme, resolvedTheme, setTheme } = useTheme();
   const isDark = (resolvedTheme || theme) === "dark";
 
-  const effectiveBackground = resolvedHeaderBackgroundColor || DEFAULT_CLUB_COLOR;
+  const effectiveBackground = resolvedHeaderBackgroundColor || DEFAULT_HEADER_BACKGROUND;
   const contrastColor = getContrastTextColor(effectiveBackground);
   const isWhiteText = contrastColor === "#FFFFFF";
   const computedForeground = isWhiteText ? "text-white" : "text-black";

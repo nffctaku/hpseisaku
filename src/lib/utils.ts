@@ -6,6 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const DEFAULT_CLUB_COLOR = '#dc143c';
+export const DEFAULT_HEADER_BACKGROUND = '#ffffff';
 
 export function parseColorToRgb(color: string): { r: number; g: number; b: number } | null {
   const input = color.trim();
