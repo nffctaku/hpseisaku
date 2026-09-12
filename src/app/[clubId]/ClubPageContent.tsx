@@ -89,7 +89,7 @@ export default function ClubPageContent({
     const homeBgColor = clubInfo.profile?.homeBgColor as string | undefined;
     const homeColorTheme = (clubInfo.profile?.homeColorTheme === 'dark' || clubInfo.profile?.homeColorTheme === 'light')
       ? clubInfo.profile.homeColorTheme
-      : 'dark';
+      : 'light';
     const headerLayout = (clubInfo.profile?.headerLayout === 'center' || clubInfo.profile?.headerLayout === 'left')
       ? clubInfo.profile.headerLayout
       : 'left';
@@ -356,6 +356,7 @@ export default function ClubPageContent({
             clubName={clubInfo.profile?.clubName || ""}
             logoUrl={clubInfo.profile?.logoUrl || null}
             headerBackgroundColor={homeBgColor}
+            headerForeground={isDarkHomeTheme ? "light" : "dark"}
             headerLayout={headerLayout}
             snsLinks={clubInfo.profile?.snsLinks || {}}
           />
@@ -396,6 +397,7 @@ export default function ClubPageContent({
             clubName={clubInfo.profile?.clubName || ""}
             logoUrl={clubInfo.profile?.logoUrl || null}
             headerBackgroundColor={homeBgColor}
+            headerForeground={isDarkHomeTheme ? "light" : "dark"}
             headerLayout={headerLayout}
             snsLinks={clubInfo.profile?.snsLinks || {}}
           />
@@ -430,6 +432,7 @@ export default function ClubPageContent({
                 clubName={clubInfo.profile?.clubName || ""}
                 logoUrl={clubInfo.profile?.logoUrl || null}
                 headerBackgroundColor={homeBgColor}
+                headerForeground={isDarkHomeTheme ? "light" : "dark"}
                 headerLayout={headerLayout}
                 snsLinks={clubInfo.profile?.snsLinks || {}}
             />

@@ -14,7 +14,7 @@ interface ClubHeaderProps {
   clubId: string;
   clubName?: string;
   logoUrl?: string | null;
-  headerForeground?: "auto" | "light" | "dark";
+  headerForeground?: "light" | "dark";
   headerBackgroundColor?: string;
   headerLayout?: "center" | "left";
   snsLinks?: {
@@ -23,47 +23,6 @@ interface ClubHeaderProps {
     tiktok?: string;
     instagram?: string;
   };
-}
-
-function parseColorToRgb(input: string): { r: number; g: number; b: number } | null {
-  const v = input.trim();
-
-  const hexMatch = v.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-  if (hexMatch) {
-    const hex = hexMatch[1];
-    if (hex.length === 3) {
-      const r = parseInt(hex[0] + hex[0], 16);
-      const g = parseInt(hex[1] + hex[1], 16);
-      const b = parseInt(hex[2] + hex[2], 16);
-      return { r, g, b };
-    }
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    return { r, g, b };
-  }
-
-  const rgbMatch = v.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d*\.?\d+)\s*)?\)$/i);
-  if (rgbMatch) {
-    const r = Math.min(255, Math.max(0, Number(rgbMatch[1])));
-    const g = Math.min(255, Math.max(0, Number(rgbMatch[2])));
-    const b = Math.min(255, Math.max(0, Number(rgbMatch[3])));
-    return { r, g, b };
-  }
-
-  return null;
-}
-
-function isDarkColor(input: string): boolean | null {
-  const rgb = parseColorToRgb(input);
-  if (!rgb) return null;
-  const { r, g, b } = rgb;
-  const srgb = [r, g, b].map((c) => {
-    const v = c / 255;
-    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-  });
-  const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
-  return luminance < 0.5;
 }
 
 function hasAnySnsLink(v: ClubHeaderProps["snsLinks"] | undefined): boolean {
@@ -80,7 +39,7 @@ export function ClubHeader({
   clubId,
   clubName,
   logoUrl,
-  headerForeground = "auto",
+  headerForeground = "dark",
   headerBackgroundColor,
   headerLayout = "left",
   snsLinks,
@@ -126,33 +85,23 @@ export function ClubHeader({
   const isNavigating = navigatingTo != null;
   const isDark = (resolvedTheme || theme) === "dark";
 
-  const computedForeground = (() => {
-    if (headerForeground === "light") return "text-white";
-    if (headerForeground === "dark") return "text-black";
+  const computedForeground = headerForeground === "light" ? "text-white" : "text-black";
 
-    if (resolvedHeaderBackgroundColor) {
-      const bgIsDark = isDarkColor(resolvedHeaderBackgroundColor);
-      if (bgIsDark === true) return "text-white";
-      if (bgIsDark === false) return "text-black";
-    }
+  const textShadow = computedForeground === "text-white"
+    ? "0 1px 2px rgba(0, 0, 0, 0.55), 0 0 1px rgba(0, 0, 0, 0.45)"
+    : "none";
 
-    return isDark ? "text-white" : "text-black";
-  })();
+  const headerStyle = {
+    backgroundColor: resolvedHeaderBackgroundColor,
+    textShadow,
+  } as const;
 
-  const menuIsDark = (() => {
-    if (resolvedHeaderBackgroundColor) {
-      const bgIsDark = isDarkColor(resolvedHeaderBackgroundColor);
-      if (bgIsDark != null) return bgIsDark;
-    }
-    return true;
-  })();
-
-  const menuTextClass = menuIsDark ? "text-white" : "text-black";
-  const menuBorderClass = menuIsDark ? "border-white/15" : "border-black/15";
-  const menuIconBgClass = menuIsDark ? "bg-white/5" : "bg-black/5";
+  const menuTextClass = computedForeground;
+  const menuBorderClass = computedForeground === "text-white" ? "border-white/15" : "border-black/15";
+  const menuIconBgClass = computedForeground === "text-white" ? "bg-white/10" : "bg-black/10";
   const menuBgStyle = resolvedHeaderBackgroundColor
     ? ({ backgroundColor: resolvedHeaderBackgroundColor } as const)
-    : ({ backgroundColor: "#000" } as const);
+    : ({ backgroundColor: headerForeground === "dark" ? "#ffffff" : "#000000" } as const);
 
   useEffect(() => {
     setResolvedClubName(clubName);
@@ -342,7 +291,7 @@ export function ClubHeader({
   return (
     <header
       className={`w-full border-b border-border/60 relative z-20 ${computedForeground}`}
-      style={{ backgroundColor: resolvedHeaderBackgroundColor }}
+      style={headerStyle}
     >
       <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-4">
         {headerLayout === 'left' ? (
@@ -358,7 +307,7 @@ export function ClubHeader({
                     className="w-full h-full object-contain"
                   />
                 ) : (
-                  <span className="text-xs text-muted-foreground">LOGO</span>
+                  <span className="text-xs opacity-70">LOGO</span>
                 )}
               </Link>
               <div className="flex flex-col min-w-0">
@@ -483,7 +432,7 @@ export function ClubHeader({
                     className="w-full h-full object-contain"
                   />
                 ) : (
-                  <span className="text-xs text-muted-foreground">LOGO</span>
+                  <span className="text-xs opacity-70">LOGO</span>
                 )}
               </Link>
             </div>
@@ -598,7 +547,7 @@ export function ClubHeader({
         ? createPortal(
             <div
               className={`sm:hidden fixed inset-0 z-[9999] ${menuTextClass} pointer-events-auto`}
-              style={menuBgStyle}
+              style={{ ...menuBgStyle, textShadow }}
               onClick={() => setMenuOpen(false)}
             >
               <div className="h-full w-full overflow-y-auto" onClick={(e) => e.stopPropagation()}>

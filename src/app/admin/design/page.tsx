@@ -18,7 +18,7 @@ export default function AdminDesignPage() {
   const { clubInfo } = useClub();
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [homeBgColor, setHomeBgColor] = useState<string>("");
-  const [homeColorTheme, setHomeColorTheme] = useState<'dark' | 'light'>('dark');
+  const [homeColorTheme, setHomeColorTheme] = useState<'dark' | 'light'>('light');
   const [headerLayout, setHeaderLayout] = useState<'center' | 'left'>('left');
   const [homeLayout, setHomeLayout] = useState<'default' | 'pattern1' | 'pattern2'>('default');
   const [savingLayout, setSavingLayout] = useState(false);
