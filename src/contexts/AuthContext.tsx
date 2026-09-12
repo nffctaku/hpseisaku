@@ -1,9 +1,11 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { User, onAuthStateChanged, getRedirectResult } from 'firebase/auth';
+import { User, onAuthStateChanged, getRedirectResult, getAdditionalUserInfo } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { saveUserAcquisition, trackEvent, getAcquisitionSnapshot } from '@/lib/analytics';
+import { ADMIN_UID } from "@/lib/admin-config";
 
 // Define a more detailed user profile type
 export interface UserProfile extends User {
@@ -81,10 +83,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const ownerUidRef = useRef<string | undefined>(undefined);
 
   const applyUserOverrides = (uid: string, profile: Partial<UserProfile>) => {
-    if (uid === "m7OPZIn0vyX9yKaFWFjqoanB4Bh1") {
+    if (uid === ADMIN_UID) {
       return {
         ...profile,
-        ownerUid: "m7OPZIn0vyX9yKaFWFjqoanB4Bh1",
+        ownerUid: ADMIN_UID,
         mainTeamId: "RlHXQOanXvp5ZMjNztWk",
         plan: "pro",
       };
@@ -280,6 +282,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log('[AuthContext] Redirect auth details', { authDomain, currentDomain, match: authDomain === currentDomain });
         if (result?.user) {
           console.log('[AuthContext] Redirect auth OK', result.user.uid);
+          const info = getAdditionalUserInfo(result);
+          if (info?.isNewUser) {
+            const snap = getAcquisitionSnapshot();
+            void saveUserAcquisition(result.user.uid);
+            void trackEvent('signup_complete', result.user.uid, {
+              firstSource: snap.firstSource,
+              firstMedium: snap.firstMedium,
+              firstCampaign: snap.firstCampaign,
+              firstReferrer: snap.firstReferrer,
+              sampleViewed: snap.sampleViewed,
+              signupSource: snap.signupSource,
+            });
+          }
         } else {
           console.log('[AuthContext] No user in redirect result');
         }

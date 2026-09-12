@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, updateDoc, addDoc, setDoc, increment, deleteDoc } from "firebase/firestore";
+import { setActivationOnce, trackEvent } from "@/lib/analytics";
 import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -815,6 +816,27 @@ export default function CompetitionDetailPage() {
 
       const matchesPath = `clubs/${clubUid}/competitions/${competitionId}/rounds/${currentRound.id}/matches`;
       const matchRef = await addDoc(collection(db, matchesPath), newMatchData);
+
+      if (clubUid) {
+        const first = await setActivationOnce(clubUid, 'firstMatchCreatedAt');
+        if (first) {
+          void trackEvent('match_create_first', clubUid, {
+            profileId: clubUid,
+            ownerUid: clubUid,
+            competitionId,
+            roundId: currentRound.id,
+            matchId: matchRef.id,
+          });
+        }
+        void trackEvent('match_create', clubUid, {
+          profileId: clubUid,
+          ownerUid: clubUid,
+          competitionId,
+          roundId: currentRound.id,
+          matchId: matchRef.id,
+        });
+      }
+
       const newMatch = { id: matchRef.id, ...newMatchData };
       setRounds(prev => prev.map(r => r.id === currentRound.id ? {...r, matches: [...r.matches, newMatch] } : r));
 

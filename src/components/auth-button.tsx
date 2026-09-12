@@ -1,9 +1,15 @@
 "use client";
 
-import { signInWithPopup, signInWithRedirect, signOut } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, signOut, getAdditionalUserInfo } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { GoogleAuthProvider } from "firebase/auth";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  getAcquisitionSnapshot,
+  saveUserAcquisition,
+  setSignupSource,
+  trackEvent,
+} from "@/lib/analytics";
 import { useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -41,10 +47,30 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
     if (signingInRef.current) return;
     signingInRef.current = true;
 
+    const snap = getAcquisitionSnapshot();
+    void trackEvent("signup_cta_click", null, {
+      source: snap.signupSource || "admin_login",
+      firstSource: snap.firstSource,
+      sampleViewed: snap.sampleViewed,
+    });
+
     const provider = new GoogleAuthProvider();
     try {
       console.log('[AuthButton] Using popup');
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const info = getAdditionalUserInfo(result);
+      const isNewUser = info?.isNewUser ?? false;
+      if (isNewUser && result.user) {
+        void saveUserAcquisition(result.user.uid);
+        void trackEvent("signup_complete", result.user.uid, {
+          firstSource: snap.firstSource,
+          firstMedium: snap.firstMedium,
+          firstCampaign: snap.firstCampaign,
+          firstReferrer: snap.firstReferrer,
+          sampleViewed: snap.sampleViewed,
+          signupSource: snap.signupSource,
+        });
+      }
     } catch (error: any) {
       console.error('[AuthButton] Error signing in with popup', error);
       if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
@@ -92,7 +118,9 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
           <DropdownMenuLabel>{user.displayName}</DropdownMenuLabel>
           <DropdownMenuSeparator />
                     <Link href="/admin/club">
-            <DropdownMenuItem>管理ダッシュボード</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSignupSource("admin_dropdown")}>
+              管理ダッシュボード
+            </DropdownMenuItem>
           </Link>
           <DropdownMenuItem onClick={handleSignOut}>ログアウト</DropdownMenuItem>
         </DropdownMenuContent>

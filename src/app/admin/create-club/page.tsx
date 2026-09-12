@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, doc, setDoc, writeBatch } from 'firebase/firestore';
+import { setActivationOnce, trackEvent } from '@/lib/analytics';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -63,6 +64,13 @@ export default function CreateClubPage() {
       });
 
       await batch.commit();
+
+      void setActivationOnce(user.uid, 'clubCreatedAt');
+      void trackEvent('club_create_complete', user.uid, {
+        profileId: user.uid,
+        ownerUid: user.uid,
+        clubId: values.clubId,
+      });
 
       toast.success('クラブを作成しました！');
       router.push('/admin/club'); // Redirect to the main admin page

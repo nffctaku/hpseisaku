@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, writeBatch, doc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { setActivationOnce, trackEvent } from "@/lib/analytics";
 import { useForm, useFieldArray, type SubmitHandler, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -452,6 +453,17 @@ export default function NewCompetitionPage() {
 
       const cleanedData = removeUndefined(competitionData) as Record<string, unknown>;
       const compRef = await addDoc(collection(db, `clubs/${clubUid}/competitions`), cleanedData);
+
+      if (clubUid) {
+        const first = await setActivationOnce(clubUid, 'firstCompetitionCreatedAt');
+        if (first) {
+          void trackEvent('competition_create_first', clubUid, {
+            profileId: clubUid,
+            ownerUid: clubUid,
+            competitionId: compRef.id,
+          });
+        }
+      }
 
       const roundsColRef = collection(db, `clubs/${clubUid}/competitions`, compRef.id, "rounds");
       if (data.format === "league" || data.format === "league_cup") {

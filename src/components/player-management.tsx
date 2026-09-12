@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
+import { setActivationOnce, trackEvent } from "@/lib/analytics";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc, getDocs, getDoc, writeBatch } from "firebase/firestore";
@@ -738,6 +739,18 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         });
         const created = await addDoc(playersColRef, (createPayload || {}) as any);
         savedPlayerId = created.id;
+
+        if (clubUid) {
+          const first = await setActivationOnce(clubUid, 'firstPlayerCreatedAt');
+          if (first) {
+            void trackEvent('player_create_first', clubUid, {
+              profileId: clubUid,
+              ownerUid: clubUid,
+              playerId: created.id,
+              teamId,
+            });
+          }
+        }
 
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster`, created.id);
         console.log("[PlayerManagement] write roster (create)", {

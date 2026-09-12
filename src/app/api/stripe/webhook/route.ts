@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { db } from '@/lib/firebase/admin';
+import { db, admin } from '@/lib/firebase/admin';
 import type { DocumentReference } from 'firebase-admin/firestore';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -95,6 +95,27 @@ export async function POST(req: NextRequest) {
         }
 
         await profileRef.set(updateData, { merge: true });
+
+        // Analytics: record subscription start
+        try {
+          await db.collection('users').doc(ownerUid).set(
+            {
+              subscription: {
+                status: 'pro',
+                startedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+            },
+            { merge: true }
+          );
+          await db.collection('analyticsEvents').add({
+            eventName: 'subscription_start',
+            userId: ownerUid,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            properties: { plan, customerId, sessionId: session.id },
+          });
+        } catch (e) {
+          console.warn('[StripeWebhook] analytics write failed', e);
+        }
 
         // create-checkout-session側の再利用キャッシュを完了扱いに
         await db

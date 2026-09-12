@@ -4,6 +4,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { Analytics } from "@vercel/analytics/react";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AcquisitionTracker } from "@/components/AcquisitionTracker";
 import Script from "next/script";
 
 const siteUrl =
@@ -74,6 +75,7 @@ export default function RootLayout({
       <body className="antialiased notranslate" translate="no">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
+            <AcquisitionTracker />
             {children}
             <Toaster richColors position="top-right" />
             <Analytics />

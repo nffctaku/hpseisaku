@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams } from "next/navigation";
 import { getPlanTier } from "@/lib/plan-limits";
+import { trackEvent } from "@/lib/analytics";
 import Image from "next/image";
 
 export default function PlanPage() {
@@ -24,6 +25,13 @@ export default function PlanPage() {
     }
   }, [refreshUserProfile, searchParams]);
 
+  useEffect(() => {
+    void trackEvent("pricing_view", user?.uid ?? null, {
+      ownerUid: ownerUid || user?.uid,
+      plan: planTier,
+    });
+  }, [user?.uid, planTier]);
+
   const handleUpgrade = async (opts?: { plan?: "pro" | "officia"; productId?: string }) => {
     setLoading(true);
     try {
@@ -32,6 +40,12 @@ export default function PlanPage() {
         alert("ログインしてからプランを変更してください。");
         return;
       }
+
+      void trackEvent("checkout_start", user?.uid ?? null, {
+        ownerUid: ownerUid || user?.uid,
+        plan: opts?.plan || "pro",
+        productId: opts?.productId,
+      });
 
       const res = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
