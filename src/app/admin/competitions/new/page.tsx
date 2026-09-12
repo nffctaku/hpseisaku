@@ -434,6 +434,7 @@ export default function NewCompetitionPage() {
       if (!currentUser) throw new Error("ログインが必要です");
       const idToken = await currentUser.getIdToken();
 
+      console.log("[CompetitionNewPage] submitting", { clubUid, body: data });
       const res = await fetch("/api/club/competitions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
@@ -452,6 +453,7 @@ export default function NewCompetitionPage() {
       });
 
       const json = await res.json();
+      console.log("[CompetitionNewPage] response", { status: res.status, json });
 
       if (res.status === 403 && json.limit !== undefined) {
         setCompetitionLimitReached(true);
@@ -835,6 +837,9 @@ export default function NewCompetitionPage() {
       <div className="space-y-1">
         <h2 className="text-xl font-bold text-[#f0f4ff]">参加チーム</h2>
         <p className="text-sm text-[#94a3b8]">大会に参加するチームを選択します</p>
+        <p className="text-xs text-[#1fd760]">
+          1チーム以上の登録で大会を作成できます。自クラブのみでも作成可能です。
+        </p>
       </div>
 
       <div className="space-y-3 rounded-2xl border border-white/[0.08] bg-[#111c2d] p-4">

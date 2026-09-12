@@ -1368,7 +1368,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                 </Button>
               </DialogTrigger>
               <DialogContent
-                className="h-[100dvh] max-h-none w-full max-w-none gap-0 overflow-hidden border-0 bg-[#0C1422] p-0 sm:h-auto sm:max-h-[min(800px,90vh)] sm:max-w-[640px] sm:rounded-2xl sm:border sm:border-[#334155] [&>button:last-child]:hidden"
+                className="h-[100dvh] max-h-none w-full max-w-none gap-0 overflow-y-auto border-0 bg-[#0C1422] p-0 sm:h-auto sm:max-h-[min(800px,90vh)] sm:max-w-[640px] sm:rounded-2xl sm:border sm:border-[#334155] [&>button:last-child]:hidden"
                 onPointerDownOutside={(e) => e.preventDefault()}
               >
                 <PlayerForm

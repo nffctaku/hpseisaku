@@ -44,6 +44,7 @@ function removeUndefined(obj: unknown): unknown {
 
 export async function POST(req: NextRequest) {
   try {
+    console.log("[API /api/club/competitions] POST start");
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
     if (!token) {
@@ -189,6 +190,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("[API] create competition error:", error);
+    if (error instanceof Error && error.stack) {
+      console.error("[API] create competition stack:", error.stack);
+    }
     const message = error instanceof Error ? error.message : "大会の作成に失敗しました";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
