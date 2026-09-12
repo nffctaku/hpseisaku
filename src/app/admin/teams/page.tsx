@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, deleteField, getDocs, where, limit, setDoc, getDoc } from "firebase/firestore";
 import Image from 'next/image';
 import Link from 'next/link';
@@ -19,6 +19,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Loader2, Pencil, Trash2, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ProPaywall } from "@/components/pro-paywall";
+import { PlanLimitBadge } from "@/components/plan-limit-badge";
 
 const teamSchema = z.object({
   name: z.string().min(1, { message: "チーム名は必須です。" }),
@@ -41,7 +43,6 @@ export default function TeamsPage() {
   const { user, ownerUid, clubProfileId } = useAuth();
   const router = useRouter();
   const clubUid = ownerUid || user?.uid;
-  const isPro = user?.plan === "pro";
   const [teams, setTeams] = useState<Team[]>([]);
   const [categories, setCategories] = useState<TeamCategory[]>([]);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
@@ -55,6 +56,9 @@ export default function TeamsPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [teamSeasons, setTeamSeasons] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallDetail, setPaywallDetail] = useState<{ currentCount: number; limit: number } | null>(null);
+  const [teamImageUsage, setTeamImageUsage] = useState<{ current: number; limit: number; plan: string } | null>(null);
   const itemsPerPage = 30;
 
   const getTeamInitial = (name: string) => {
@@ -197,18 +201,31 @@ export default function TeamsPage() {
     return () => unsubscribe();
   }, [clubUid]);
 
+  useEffect(() => {
+    if (!user) return;
+    const fetchUsage = async () => {
+      try {
+        if (!auth.currentUser) return;
+        const idToken = await auth.currentUser.getIdToken();
+        const res = await fetch('/api/club/teams/usage', {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setTeamImageUsage({
+            current: data.currentCount ?? 0,
+            limit: data.limit ?? 0,
+            plan: data.plan ?? 'free',
+          });
+        }
+      } catch (e) {
+        console.error('[AdminTeamsPage] team usage fetch failed', e);
+      }
+    };
+    void fetchUsage();
+  }, [user]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const primaryTeamId = teams[0]?.id;
-    const isEditingPrimary = editingTeam && editingTeam.id === primaryTeamId;
-    const isCreatingFirstTeam = !editingTeam && teams.length === 0;
-    const canUseLogo = isPro || isEditingPrimary || isCreatingFirstTeam;
-
-    if (!canUseLogo) {
-      // 無料プランの2チーム目以降ではロゴ画像は設定できない
-      toast.info("無料プランではメインチームのみロゴ画像を設定できます。");
-      return;
-    }
-
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
@@ -277,44 +294,70 @@ export default function TeamsPage() {
     }
   };
 
+  const uploadLogoToCloudinary = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) throw new Error('画像のアップロードに失敗しました。');
+    const data = await response.json();
+    return data.secure_url as string;
+  };
+
+  const saveTeamLogoServerSide = async (teamId: string, logoUrl: string): Promise<{ currentCount?: number; limit?: number; plan?: string }> => {
+    if (!auth.currentUser) throw new Error('認証が必要です');
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch('/api/club/teams/logo', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ teamId, logoUrl }),
+    });
+    const data = (await res.json().catch(() => ({ error: '保存に失敗しました' }))) as { error?: string; currentCount?: number; limit?: number; plan?: string };
+    if (!res.ok) {
+      if (res.status === 403 && data.limit !== undefined && data.currentCount !== undefined) {
+        setPaywallDetail({ currentCount: data.currentCount, limit: data.limit });
+        setPaywallOpen(true);
+      }
+      throw new Error(data.error || 'チーム画像の保存に失敗しました');
+    }
+    return data;
+  };
+
   const handleFormSubmit = async (values: TeamFormValues) => {
     if (!user) return;
     if (!clubUid) return;
     setLoading(true);
+    setPaywallOpen(false);
+    setPaywallDetail(null);
 
     let logoUrl = editingTeam?.logoUrl || '';
 
-    const primaryTeamId = teams[0]?.id;
-    const isEditingPrimary = editingTeam && editingTeam.id === primaryTeamId;
-    const isCreatingFirstTeam = !editingTeam && teams.length === 0;
-    const canUseLogo = isPro || isEditingPrimary || isCreatingFirstTeam;
-
     try {
-      if (selectedFile && canUseLogo) {
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-        formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
-
-        const response = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) throw new Error('画像のアップロードに失敗しました。');
-        const data = await response.json();
-        logoUrl = data.secure_url;
+      if (selectedFile) {
+        logoUrl = await uploadLogoToCloudinary(selectedFile);
+      } else if (previewUrl === null && editingTeam?.logoUrl) {
+        // プレビューがクリアされた場合は削除
+        logoUrl = '';
       }
 
       const categoryId = typeof values.categoryId === "string" && values.categoryId.trim() ? values.categoryId : undefined;
       const processedValues: any = {
         name: values.name,
-        logoUrl,
         ownerUid: clubUid,
         ...(clubProfileId ? { clubProfileId } : {}),
         ...(categoryId ? { categoryId } : {}),
       };
 
+      let targetTeamId: string;
+
       if (editingTeam) {
+        targetTeamId = editingTeam.id;
         const teamDocRef = doc(db, `clubs/${clubUid}/teams`, editingTeam.id);
         if (!categoryId) {
           processedValues.categoryId = deleteField();
@@ -325,6 +368,7 @@ export default function TeamsPage() {
         const teamsColRef = collection(db, `clubs/${clubUid}/teams`);
         const creatingFirstTeam = teams.length === 0;
         const created = await addDoc(teamsColRef, processedValues);
+        targetTeamId = created.id;
 
         if (creatingFirstTeam) {
           try {
@@ -351,6 +395,19 @@ export default function TeamsPage() {
 
         toast.success("新しいチームを追加しました。");
       }
+
+      const hasLogoChange = (editingTeam?.logoUrl || '') !== logoUrl;
+      if (hasLogoChange) {
+        const logoResult = await saveTeamLogoServerSide(targetTeamId, logoUrl);
+        if (typeof logoResult.currentCount === 'number' && typeof logoResult.limit === 'number' && typeof logoResult.plan === 'string') {
+          setTeamImageUsage({
+            current: logoResult.currentCount,
+            limit: logoResult.limit,
+            plan: logoResult.plan,
+          });
+        }
+      }
+
       setIsDialogOpen(false);
     } catch (error) {
       console.error("Error saving team: ", error);
@@ -576,41 +633,25 @@ export default function TeamsPage() {
                 <FormControl>
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-center gap-4">
-                      {/* ロゴ画像アップロードは、無料プランではメインチーム（最初の1チーム）のみ許可 */}
-                      {(() => {
-                        const primaryTeamId = teams[0]?.id;
-                        const isEditingPrimary = editingTeam && editingTeam.id === primaryTeamId;
-                        const isCreatingFirstTeam = !editingTeam && teams.length === 0;
-                        const canUseLogo = isPro || isEditingPrimary || isCreatingFirstTeam;
-
-                        return (
-                          <label
-                            className={`border-2 border-dashed rounded-md w-20 h-20 flex flex-col items-center justify-center text-muted-foreground transition-colors ${
-                              canUseLogo
-                                ? 'cursor-pointer hover:bg-muted/50'
-                                : 'opacity-50 cursor-not-allowed'
-                            }`}
-                          >
-                            {previewUrl ? (
-                              <Image src={previewUrl} alt="Preview" width={80} height={80} className="object-contain" />
-                            ) : (
-                              <>
-                                <ImagePlus className="h-8 w-8" />
-                                <span className="text-xs mt-1">画像を選択</span>
-                              </>
-                            )}
-                            {canUseLogo && (
-                              <Input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-                            )}
-                          </label>
-                        );
-                      })()}
+                      <label className="border-2 border-dashed rounded-md w-20 h-20 flex flex-col items-center justify-center text-muted-foreground transition-colors cursor-pointer hover:bg-muted/50">
+                        {previewUrl ? (
+                          <Image src={previewUrl} alt="Preview" width={80} height={80} className="object-contain" />
+                        ) : (
+                          <>
+                            <ImagePlus className="h-8 w-8" />
+                            <span className="text-xs mt-1">画像を選択</span>
+                          </>
+                        )}
+                        <Input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                      </label>
                     </div>
-                    {!isPro && teams.length > 0 && !editingTeam && (
-                      <p className="text-xs text-muted-foreground">
-                        無料プランではメインチーム以外のロゴ画像は設定できません。
-                      </p>
-                    )}
+                    <PlanLimitBadge
+                      plan={teamImageUsage?.plan ?? 'free'}
+                      current={teamImageUsage?.current ?? 0}
+                      limit={teamImageUsage?.limit ?? 20}
+                      label="チーム画像"
+                      unit="チーム"
+                    />
                   </div>
                 </FormControl>
                 <FormMessage />
@@ -666,6 +707,25 @@ export default function TeamsPage() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {paywallOpen && paywallDetail && (
+        <Dialog open={paywallOpen} onOpenChange={setPaywallOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>上限に達しました</DialogTitle>
+            </DialogHeader>
+            <ProPaywall
+              uid={clubUid || ''}
+              limitType="team_image"
+              label="チーム画像"
+              current={paywallDetail.currentCount}
+              limit={paywallDetail.limit}
+              sourcePage="admin/teams"
+              onClose={() => setPaywallOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       <AlertDialog open={!!deletingTeam} onOpenChange={() => setDeletingTeam(null)}>
         <AlertDialogContent>

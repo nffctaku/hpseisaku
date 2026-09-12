@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, auth } from '@/lib/firebase/admin';
 import { ADMIN_UID } from '@/lib/admin-config';
+import {
+  toDateMillis,
+  isNonEmptyString,
+  isProPlan,
+  getClubName,
+  ownerUidFromPath,
+  validTeam,
+  validPlayer,
+  validCompetition,
+  validMatch,
+  hasTeamImage,
+  hasPlayerImage,
+  computeProStatus,
+  computeTeamImageWithFallback,
+} from '@/lib/admin-analytics/uid-analytics';
+import { computeLastActivityForUid } from '@/lib/admin-analytics/last-activity';
 
 // FC27 発売スケジュール（JST）。実際の日時が確定したらここを 1 箇所だけ変更してください。
 const FC27_EARLY_ACCESS_DATE = new Date('2026-09-18T00:00:00+09:00').getTime();
@@ -51,6 +67,20 @@ interface FunnelRow {
   daysToFirstMatch: number | null;
   paidStartedAt: number;
   daysToPaid: number | null;
+  subscriptionStatus: string | null;
+  lastActivityAt: number;
+  activeDetail: {
+    lastActivityAt: number;
+    eventAt: number;
+    userAt: number;
+    authAt: number;
+    profileAt: number;
+    representativeAt: number;
+    userCreatedAt: number;
+    profileCreatedAt: number;
+    profileUpdatedAt: number;
+    adoptedAt: number;
+  };
 }
 
 interface FunnelSummary {
@@ -69,83 +99,8 @@ interface FunnelSummary {
   isPaidPro: number;
   isGrantedPro: number;
   isFree: number;
-}
-
-function ownerUidFromPath(path: string): string | null {
-  const parts = path.split('/');
-  if (parts.length >= 2 && parts[0] === 'clubs') {
-    return parts[1];
-  }
-  return null;
-}
-
-function toDateMillis(value: unknown): number {
-  if (!value) return 0;
-  if (value instanceof Date) return value.getTime();
-  const ts = value as { toMillis?: () => number };
-  if (typeof ts.toMillis === 'function') return ts.toMillis();
-  const d = new Date(String(value));
-  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim() !== '';
-}
-
-function isProPlan(plan: unknown): boolean {
-  return typeof plan === 'string' && (plan.toLowerCase() === 'pro' || plan.toLowerCase() === 'officia');
-}
-
-function getClubName(data: Record<string, unknown>): string | null {
-  const clubName = data.clubName;
-  if (isNonEmptyString(clubName)) return clubName.trim();
-  const name = data.name;
-  if (isNonEmptyString(name)) return name.trim();
-  const teamName = data.teamName;
-  if (isNonEmptyString(teamName)) return teamName.trim();
-  const club = data.club as Record<string, unknown> | undefined;
-  if (club) {
-    const clubNameInClub = club.name;
-    if (isNonEmptyString(clubNameInClub)) return clubNameInClub.trim();
-  }
-  const profile = data.profile as Record<string, unknown> | undefined;
-  if (profile) {
-    const profileClubName = profile.clubName;
-    if (isNonEmptyString(profileClubName)) return profileClubName.trim();
-  }
-  return null;
-}
-
-function hasImageField(data: Record<string, unknown>): boolean {
-  return (
-    isNonEmptyString(data.image) ||
-    isNonEmptyString(data.photo) ||
-    isNonEmptyString(data.photoUrl) ||
-    isNonEmptyString(data.imageUrl) ||
-    isNonEmptyString(data.logoUrl)
-  );
-}
-
-function validTeam(data: Record<string, unknown>): boolean {
-  return !data.isDeleted && isNonEmptyString(data.name);
-}
-
-function validPlayer(data: Record<string, unknown>): boolean {
-  return !data.isDeleted && isNonEmptyString(data.name);
-}
-
-function validCompetition(data: Record<string, unknown>): boolean {
-  return !data.isDeleted && (isNonEmptyString(data.name) || isNonEmptyString(data.competitionName));
-}
-
-function validMatch(data: Record<string, unknown>): boolean {
-  if (data.isDeleted) return false;
-  return (
-    isNonEmptyString(data.homeTeam) ||
-    isNonEmptyString(data.awayTeam) ||
-    isNonEmptyString(data.matchDate) ||
-    data.matchDate !== undefined
-  );
+  hasTeamImage: number;
+  hasPlayerImage20: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -165,7 +120,7 @@ export async function GET(req: NextRequest) {
     const full = searchParams.get('full') === '1';
 
     // 1. Auth ユーザー
-    const authUsers: { uid: string; email: string | null; registrationAt: number }[] = [];
+    const authUsers: { uid: string; email: string | null; registrationAt: number; metadata: { lastSignInTime?: string } }[] = [];
     let nextPageToken: string | undefined;
     do {
       const listResult = await auth.listUsers(1000, nextPageToken);
@@ -174,6 +129,7 @@ export async function GET(req: NextRequest) {
           uid: u.uid,
           email: u.email || null,
           registrationAt: toDateMillis((u.metadata as unknown as { creationTime?: string }).creationTime),
+          metadata: { lastSignInTime: (u.metadata as unknown as { lastSignInTime?: string }).lastSignInTime },
         });
       }
       nextPageToken = listResult.pageToken;
@@ -181,7 +137,9 @@ export async function GET(req: NextRequest) {
 
     const now = Date.now();
     const ms30 = 30 * 24 * 60 * 60 * 1000;
+    const ms7 = 7 * 24 * 60 * 60 * 1000;
     const since30 = new Date(now - ms30);
+    const since7 = new Date(now - ms7);
 
     // 2. 最小限のフィールド取得（Firestore read コスト削減）
     const [
@@ -192,20 +150,24 @@ export async function GET(req: NextRequest) {
       playersSnap,
       competitionsSnap,
       matchesSnap,
+      friendlySnap,
     ] = await Promise.all([
-      db.collection('club_profiles').select('ownerUid', 'clubName', 'name', 'teamName', 'club', 'profile', 'plan', 'stripeCustomerId', 'lastLoginAt', 'createdAt').get(),
+      db.collection('club_profiles').select('ownerUid', 'clubName', 'name', 'teamName', 'club', 'profile', 'plan', 'stripeCustomerId', 'lastLoginAt', 'createdAt', 'mainTeamId', 'logoUrl').get(),
       db.collection('users').select('subscription', 'lastLoginAt', 'createdAt', 'utm_campaign', 'utm_source').get(),
-      db.collection('analyticsEvents').where('createdAt', '>=', since30).select('userId', 'createdAt').get(),
+      db.collection('analyticsEvents').where('createdAt', '>=', since30).select('userId', 'createdAt', 'eventName', 'properties').get(),
       db.collectionGroup('teams').select('name', 'logoUrl', 'image', 'photoUrl', 'imageUrl', 'isDeleted', 'createdAt').get(),
-      db.collectionGroup('players').select('name', 'image', 'photo', 'photoUrl', 'imageUrl', 'isDeleted', 'createdAt').get(),
+      db.collectionGroup('players').select('name', 'image', 'photo', 'photoUrl', 'photoURL', 'seasonData', 'imageUrl', 'isDeleted', 'createdAt').get(),
       db.collectionGroup('competitions').select('name', 'competitionName', 'ownerUid', 'clubProfileId', 'isDeleted', 'createdAt').get(),
       db.collectionGroup('matches').select('homeTeam', 'awayTeam', 'matchDate', 'ownerUid', 'clubProfileId', 'isDeleted', 'createdAt').get(),
+      db.collectionGroup('friendly_matches').select('homeTeam', 'awayTeam', 'matchDate', 'ownerUid', 'clubProfileId', 'isDeleted', 'createdAt').get(),
     ]);
 
     // 3. club_profiles を UID ごとに集約
     const profilesByOwner: Record<string, FirebaseFirestore.QueryDocumentSnapshot[]> = {};
     const uidToPlan: Record<string, boolean> = {};
     const uidHasStripeCustomer: Record<string, boolean> = {};
+    const mainTeamIdByUid: Record<string, string | null> = {};
+    const clubLogoUrlByUid: Record<string, string | null> = {};
 
     for (const d of profilesSnap.docs) {
       const data = d.data() as Record<string, unknown>;
@@ -220,6 +182,13 @@ export async function GET(req: NextRequest) {
       }
       if (!uidHasStripeCustomer[uid] && isProPlan(data.plan) && isNonEmptyString(data.stripeCustomerId)) {
         uidHasStripeCustomer[uid] = true;
+      }
+
+      if (mainTeamIdByUid[uid] == null && isNonEmptyString(data.mainTeamId)) {
+        mainTeamIdByUid[uid] = data.mainTeamId.trim();
+      }
+      if (clubLogoUrlByUid[uid] == null && isNonEmptyString(data.logoUrl)) {
+        clubLogoUrlByUid[uid] = data.logoUrl.trim();
       }
     }
 
@@ -241,11 +210,120 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const monetizationEventNames = [
+      'plan_limit_reached',
+      'pro_paywall_view',
+      'pro_cta_click',
+      'checkout_start',
+      'subscription_start',
+    ] as const;
+    type MonetizationEvent = (typeof monetizationEventNames)[number];
+
+    const uidCohort: Record<string, 'pre_fc27' | 'early_access' | 'global_launch' | 'unknown'> = {};
+    for (const d of usersSnap.docs) {
+      const data = d.data() as Record<string, unknown>;
+      const reg = toDateMillis(data.createdAt);
+      const cohort =
+        reg >= FC27_GLOBAL_RELEASE_DATE
+          ? 'global_launch'
+          : reg >= FC27_EARLY_ACCESS_DATE
+            ? 'early_access'
+            : reg > 0
+              ? 'pre_fc27'
+              : 'unknown';
+      uidCohort[d.id] = cohort;
+    }
+
+    const eventSet: Record<MonetizationEvent, { last7: Set<string>; last30: Set<string>; byCohort: Record<string, Set<string>> }> = {
+      plan_limit_reached: { last7: new Set<string>(), last30: new Set<string>(), byCohort: {} },
+      pro_paywall_view: { last7: new Set<string>(), last30: new Set<string>(), byCohort: {} },
+      pro_cta_click: { last7: new Set<string>(), last30: new Set<string>(), byCohort: {} },
+      checkout_start: { last7: new Set<string>(), last30: new Set<string>(), byCohort: {} },
+      subscription_start: { last7: new Set<string>(), last30: new Set<string>(), byCohort: {} },
+    };
+    for (const d of eventsSnap.docs) {
+      const data = d.data() as Record<string, unknown>;
+      const uid = typeof data.userId === 'string' ? data.userId : null;
+      const eventName = typeof data.eventName === 'string' ? data.eventName : null;
+      if (!uid || !eventName || !(monetizationEventNames as readonly string[]).includes(eventName)) continue;
+      const ts = toDateMillis(data.createdAt);
+      const key = eventName as MonetizationEvent;
+      if (ts >= since7.getTime()) {
+        eventSet[key].last7.add(uid);
+        eventSet[key].last30.add(uid);
+      } else if (ts >= since30.getTime()) {
+        eventSet[key].last30.add(uid);
+      }
+      const cohort = uidCohort[uid] || 'unknown';
+      eventSet[key].byCohort[cohort] = eventSet[key].byCohort[cohort] || new Set<string>();
+      eventSet[key].byCohort[cohort].add(uid);
+    }
+
+    const toObj = (set: Set<string>) => set.size;
+    const toCohortObj = (byCohort: Record<string, Set<string>>) =>
+      Object.fromEntries(Object.entries(byCohort).map(([k, v]) => [k, v.size]));
+
+    const last7: Record<MonetizationEvent, number> = {
+      plan_limit_reached: toObj(eventSet.plan_limit_reached.last7),
+      pro_paywall_view: toObj(eventSet.pro_paywall_view.last7),
+      pro_cta_click: toObj(eventSet.pro_cta_click.last7),
+      checkout_start: toObj(eventSet.checkout_start.last7),
+      subscription_start: toObj(eventSet.subscription_start.last7),
+    };
+    const last30: Record<MonetizationEvent, number> = {
+      plan_limit_reached: toObj(eventSet.plan_limit_reached.last30),
+      pro_paywall_view: toObj(eventSet.pro_paywall_view.last30),
+      pro_cta_click: toObj(eventSet.pro_cta_click.last30),
+      checkout_start: toObj(eventSet.checkout_start.last30),
+      subscription_start: toObj(eventSet.subscription_start.last30),
+    };
+    const byCohort: Record<MonetizationEvent, Record<string, number>> = {
+      plan_limit_reached: toCohortObj(eventSet.plan_limit_reached.byCohort),
+      pro_paywall_view: toCohortObj(eventSet.pro_paywall_view.byCohort),
+      pro_cta_click: toCohortObj(eventSet.pro_cta_click.byCohort),
+      checkout_start: toCohortObj(eventSet.checkout_start.byCohort),
+      subscription_start: toCohortObj(eventSet.subscription_start.byCohort),
+    };
+
+    const monetizationFunnel: {
+      last7: Record<MonetizationEvent, number>;
+      last30: Record<MonetizationEvent, number>;
+      byCohort: Record<MonetizationEvent, Record<string, number>>;
+      limitType: Record<string, { last7: number; last30: number }>;
+    } = {
+      last7,
+      last30,
+      byCohort,
+      limitType: {},
+    };
+
+    const limitTypes = ['player_photo', 'competition', 'ocr'] as const;
+    for (const lt of limitTypes) {
+      const last7Set = new Set<string>();
+      const last30Set = new Set<string>();
+      for (const d of eventsSnap.docs) {
+        const data = d.data() as Record<string, unknown>;
+        const uid = typeof data.userId === 'string' ? data.userId : null;
+        const eventName = typeof data.eventName === 'string' ? data.eventName : null;
+        const props = (data.properties || {}) as Record<string, unknown>;
+        if (!uid || eventName !== 'plan_limit_reached' || props.limitType !== lt) continue;
+        const ts = toDateMillis(data.createdAt);
+        if (ts >= since7.getTime()) {
+          last7Set.add(uid);
+          last30Set.add(uid);
+        } else if (ts >= since30.getTime()) {
+          last30Set.add(uid);
+        }
+      }
+      monetizationFunnel.limitType[lt] = { last7: last7Set.size, last30: last30Set.size };
+    }
+
     // 6. 各種データを UID ごとに集約
     const hasTeamByUid: Record<string, boolean> = {};
     const teamCountByUid: Record<string, number> = {};
     const teamImageCountByUid: Record<string, number> = {};
     const firstTeamAtByUid: Record<string, number> = {};
+    const mainTeamMap = new Map<string, Record<string, unknown>>();
     const hasPlayerByUid: Record<string, boolean> = {};
     const playerCountByUid: Record<string, number> = {};
     const playerImageCountByUid: Record<string, number> = {};
@@ -265,9 +343,10 @@ export async function GET(req: NextRequest) {
       teamCountByUid[uid] = (teamCountByUid[uid] || 0) + 1;
       const ts = toDateMillis(data.createdAt);
       if (ts > 0 && (!firstTeamAtByUid[uid] || ts < firstTeamAtByUid[uid])) firstTeamAtByUid[uid] = ts;
-      if (hasImageField(data)) {
+      if (hasTeamImage(data)) {
         teamImageCountByUid[uid] = (teamImageCountByUid[uid] || 0) + 1;
       }
+      mainTeamMap.set(`${uid}/${d.id}`, data);
     }
     for (const d of playersSnap.docs) {
       const uid = ownerUidFromPath(d.ref.path);
@@ -278,7 +357,7 @@ export async function GET(req: NextRequest) {
       playerCountByUid[uid] = (playerCountByUid[uid] || 0) + 1;
       const ts = toDateMillis(data.createdAt);
       if (ts > 0 && (!firstPlayerAtByUid[uid] || ts < firstPlayerAtByUid[uid])) firstPlayerAtByUid[uid] = ts;
-      if (hasImageField(data)) {
+      if (hasPlayerImage(data)) {
         playerImageCountByUid[uid] = (playerImageCountByUid[uid] || 0) + 1;
       }
     }
@@ -294,23 +373,28 @@ export async function GET(req: NextRequest) {
         if (ts > 0 && (!firstCompetitionAtByUid[uid] || ts < firstCompetitionAtByUid[uid])) firstCompetitionAtByUid[uid] = ts;
       }
     }
-    for (const d of matchesSnap.docs) {
+    const processMatchDoc = (d: FirebaseFirestore.QueryDocumentSnapshot) => {
       const data = d.data() as Record<string, unknown>;
       const uidFromPath = ownerUidFromPath(d.ref.path);
-      const uidFromData = typeof data.ownerUid === 'string' ? data.ownerUid : typeof data.clubProfileId === 'string' ? data.clubProfileId : null;
+      const uidFromData = typeof data.ownerUid === 'string' ? data.ownerUid : null;
       const uid = (uidFromPath && uidFromPath.trim()) || (uidFromData && uidFromData.trim());
       if (uid && validMatch(data)) {
         matchCountByUid[uid] = (matchCountByUid[uid] || 0) + 1;
         const ts = toDateMillis(data.createdAt);
         if (ts > 0 && (!firstMatchAtByUid[uid] || ts < firstMatchAtByUid[uid])) firstMatchAtByUid[uid] = ts;
       }
+    };
+
+    for (const d of matchesSnap.docs) {
+      processMatchDoc(d);
+    }
+    for (const d of friendlySnap.docs) {
+      processMatchDoc(d);
     }
 
     // 7. 1ユーザーごとにファネル状態を判定
-    const ms7 = 7 * 24 * 60 * 60 * 1000;
     const msDay = 24 * 60 * 60 * 1000;
     const msWeek = 7 * msDay;
-
     const rows: FunnelRow[] = [];
     for (const u of authUsers) {
       const uid = u.uid;
@@ -333,7 +417,16 @@ export async function GET(req: NextRequest) {
       const hasPlayerImage10 = playerImageCount >= 10;
       const hasPlayerImage20 = playerImageCount >= 20;
       const teamCount = teamCountByUid[uid] || 0;
-      const teamImageCount = teamImageCountByUid[uid] || 0;
+      const ownTeamImageCount = teamImageCountByUid[uid] || 0;
+      const mainTeamId = mainTeamIdByUid[uid] || null;
+      const mainTeamData = mainTeamId ? mainTeamMap.get(`${uid}/${mainTeamId}`) : undefined;
+      const mainTeamLogoUrl = typeof mainTeamData?.logoUrl === 'string' ? mainTeamData.logoUrl : null;
+      const clubLogoUrl = clubLogoUrlByUid[uid] || null;
+      const teamImageCount = computeTeamImageWithFallback(ownTeamImageCount, teamCount, {
+        mainTeamId,
+        mainTeamLogoUrl,
+        clubLogoUrl,
+      });
       const hasTeamImage = teamImageCount > 0;
       const competitionCount = competitionCountByUid[uid] || 0;
 
@@ -363,26 +456,42 @@ export async function GET(req: NextRequest) {
       const daysToCompetition = days(signupAt, firstCompetitionAt);
       const daysToFirstMatch = days(signupAt, firstMatchAt);
 
-      // active 優先順： analyticsEvents > users.lastLoginAt > club_profiles.lastLoginAt
-      const eventActivity = lastEventByUid[uid] || 0;
-      const userActivity = toDateMillis(userDataByUid[uid]?.lastLoginAt);
-      const profileActivity = Math.max(
-        ...profiles.map((d) => toDateMillis((d.data() as Record<string, unknown>).lastLoginAt))
-      );
-      const lastActivity = Math.max(eventActivity, userActivity, profileActivity);
-      const active7 = lastActivity > now - ms7;
-      const active30 = lastActivity > now - ms30;
+      const authLastSignInAt = (u.metadata as unknown as { lastSignInTime?: string }).lastSignInTime;
+      const { lastActivityAt: lastActivity, active7, active30, sources } = computeLastActivityForUid({
+        userData: userDataByUid[uid],
+        authLastSignInAt,
+        profileDocs: profiles.map((d) => d.data() as Record<string, unknown>),
+        lastEventAt: lastEventByUid[uid],
+        now,
+      });
+      const activeDetail = {
+        lastActivityAt: sources.lastActivityAt ?? 0,
+        eventAt: sources.eventAt ?? 0,
+        userAt: sources.userAt ?? 0,
+        authAt: sources.authAt ?? 0,
+        profileAt: sources.profileAt ?? 0,
+        representativeAt: sources.representativeAt ?? 0,
+        userCreatedAt: sources.userCreatedAt ?? 0,
+        profileCreatedAt: sources.profileCreatedAt ?? 0,
+        profileUpdatedAt: sources.profileUpdatedAt ?? 0,
+        adoptedAt: lastActivity ?? 0,
+      };
 
       const userSubscription = userDataByUid[uid]?.subscription as { status?: string; startedAt?: unknown } | undefined;
-      const isPaidPro = (userSubscription?.status === 'pro') || !!uidHasStripeCustomer[uid];
-      const isGrantedPro = !isPaidPro && !!uidToPlan[uid];
-      const isFree = !isPaidPro && !isGrantedPro;
+      const proStatus = computeProStatus(uid, {
+        userSubscription,
+        uidHasStripeCustomer,
+        uidToPlan,
+      });
+      const { isPaidPro, isGrantedPro, isFree } = proStatus;
 
       const paidStartedAt = toDateMillis(userSubscription?.startedAt);
       const daysToPaid = isPaidPro && paidStartedAt > 0 && signupAt > 0 ? days(signupAt, paidStartedAt) : null;
 
       const utmCampaign = typeof userDataByUid[uid]?.utm_campaign === 'string' ? userDataByUid[uid].utm_campaign : null;
       const utmSource = typeof userDataByUid[uid]?.utm_source === 'string' ? userDataByUid[uid].utm_source : null;
+
+      const subscriptionStatus = typeof userSubscription?.status === 'string' ? userSubscription.status : null;
 
       rows.push({
         uid,
@@ -429,6 +538,9 @@ export async function GET(req: NextRequest) {
         daysToFirstMatch,
         paidStartedAt,
         daysToPaid,
+        subscriptionStatus,
+        lastActivityAt: lastActivity ?? 0,
+        activeDetail,
       });
     }
 
@@ -437,42 +549,50 @@ export async function GET(req: NextRequest) {
     const filteredRows = cohortParam === 'all' ? rows : rows.filter((r) => r.cohort === cohortParam);
 
     // 9. summary
-    const summary = filteredRows.reduce<FunnelSummary>(
-      (acc, r) => ({
-        total: acc.total + 1,
-        hasProfile: acc.hasProfile + (r.hasProfile ? 1 : 0),
-        clubNameSet: acc.clubNameSet + (r.clubNameSet ? 1 : 0),
-        hasTeam: acc.hasTeam + (r.hasTeam ? 1 : 0),
-        hasPlayer: acc.hasPlayer + (r.hasPlayer ? 1 : 0),
-        hasCompetition: acc.hasCompetition + (r.hasCompetition ? 1 : 0),
-        hasMatch: acc.hasMatch + (r.hasMatch ? 1 : 0),
-        has10Matches: acc.has10Matches + (r.has10Matches ? 1 : 0),
-        has50Matches: acc.has50Matches + (r.has50Matches ? 1 : 0),
-        has100Matches: acc.has100Matches + (r.has100Matches ? 1 : 0),
-        active7: acc.active7 + (r.active7 ? 1 : 0),
-        active30: acc.active30 + (r.active30 ? 1 : 0),
-        isPaidPro: acc.isPaidPro + (r.isPaidPro ? 1 : 0),
-        isGrantedPro: acc.isGrantedPro + (r.isGrantedPro ? 1 : 0),
-        isFree: acc.isFree + (r.isFree ? 1 : 0),
-      }),
-      {
-        total: 0,
-        hasProfile: 0,
-        clubNameSet: 0,
-        hasTeam: 0,
-        hasPlayer: 0,
-        hasCompetition: 0,
-        hasMatch: 0,
-        has10Matches: 0,
-        has50Matches: 0,
-        has100Matches: 0,
-        active7: 0,
-        active30: 0,
-        isPaidPro: 0,
-        isGrantedPro: 0,
-        isFree: 0,
-      }
-    );
+    const buildSummary = (targetRows: FunnelRow[]): FunnelSummary =>
+      targetRows.reduce<FunnelSummary>(
+        (acc, r) => ({
+          total: acc.total + 1,
+          hasProfile: acc.hasProfile + (r.hasProfile ? 1 : 0),
+          clubNameSet: acc.clubNameSet + (r.clubNameSet ? 1 : 0),
+          hasTeam: acc.hasTeam + (r.hasTeam ? 1 : 0),
+          hasPlayer: acc.hasPlayer + (r.hasPlayer ? 1 : 0),
+          hasCompetition: acc.hasCompetition + (r.hasCompetition ? 1 : 0),
+          hasMatch: acc.hasMatch + (r.hasMatch ? 1 : 0),
+          has10Matches: acc.has10Matches + (r.has10Matches ? 1 : 0),
+          has50Matches: acc.has50Matches + (r.has50Matches ? 1 : 0),
+          has100Matches: acc.has100Matches + (r.has100Matches ? 1 : 0),
+          active7: acc.active7 + (r.active7 ? 1 : 0),
+          active30: acc.active30 + (r.active30 ? 1 : 0),
+          isPaidPro: acc.isPaidPro + (r.isPaidPro ? 1 : 0),
+          isGrantedPro: acc.isGrantedPro + (r.isGrantedPro ? 1 : 0),
+          isFree: acc.isFree + (r.isFree ? 1 : 0),
+          hasTeamImage: acc.hasTeamImage + (r.hasTeamImage ? 1 : 0),
+          hasPlayerImage20: acc.hasPlayerImage20 + (r.hasPlayerImage20 ? 1 : 0),
+        }),
+        {
+          total: 0,
+          hasProfile: 0,
+          clubNameSet: 0,
+          hasTeam: 0,
+          hasPlayer: 0,
+          hasCompetition: 0,
+          hasMatch: 0,
+          has10Matches: 0,
+          has50Matches: 0,
+          has100Matches: 0,
+          active7: 0,
+          active30: 0,
+          isPaidPro: 0,
+          isGrantedPro: 0,
+          isFree: 0,
+          hasTeamImage: 0,
+          hasPlayerImage20: 0,
+        }
+      );
+
+    const summary = buildSummary(filteredRows);
+    const summaryByProfile = buildSummary(filteredRows.filter((r) => r.hasProfile));
 
     const mainFunnel = [
       { key: 'total', label: '登録', count: summary.total, prev: summary.total },
@@ -679,6 +799,15 @@ export async function GET(req: NextRequest) {
       source: utmGroups('utmSource', postRows),
     };
 
+    const freeRows = filteredRows.filter((r) => r.isFree);
+    const potentialProUsers = {
+      playerImage20plus: freeRows.filter((r) => r.playerImageCount >= 20).length,
+      competition3plus: freeRows.filter((r) => r.competitionCount >= 3).length,
+      player30plus: freeRows.filter((r) => r.playerCount >= 30).length,
+      match50plus: freeRows.filter((r) => r.matchCount >= 50).length,
+      match100plus: freeRows.filter((r) => r.matchCount >= 100).length,
+    };
+
     // 11. 整合性チェック
     const consistency = {
       profileLeTotal: summary.hasProfile <= summary.total,
@@ -693,6 +822,7 @@ export async function GET(req: NextRequest) {
       globalReleaseAt: FC27_GLOBAL_RELEASE_DATE,
       cohort: cohortParam,
       summary,
+      summaryByProfile,
       funnel: mainFunnel.map(buildStep),
       matchDepth: matchDepth.map(buildStep),
       active: activeSteps.map(buildStep),
@@ -719,6 +849,8 @@ export async function GET(req: NextRequest) {
         unmappedCompetitionDocs,
       },
       consistency,
+      monetizationFunnel,
+      potentialProUsers,
       users: full ? filteredRows : null,
     });
   } catch (error) {

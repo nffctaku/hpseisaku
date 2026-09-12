@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase/admin';
+import { touchUserActivity } from '@/lib/server-activity';
 
 export async function POST(request: Request) {
   try {
@@ -39,6 +40,8 @@ export async function POST(request: Request) {
       clubProfileId: ownerUid,
       createdAt: new Date(),
     }, { merge: true });
+
+    await touchUserActivity(ownerUid);
 
     return new NextResponse(JSON.stringify({ message: 'クラブが正常に登録されました。', docId: newClubRef.id }), { status: 201 });
 

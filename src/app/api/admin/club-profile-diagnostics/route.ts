@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, auth } from '@/lib/firebase/admin';
 import { ADMIN_UID } from '@/lib/admin-config';
+import { scoreRepresentativeProfiles, hasValue } from '@/lib/representative-profile';
 
 interface OwnerProfileGroup {
   profiles: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>[];
@@ -13,25 +14,6 @@ interface CoverageStats {
   uncovered: number;
   rate: number;
 }
-
-function hasValue(data: Record<string, unknown>, key: string): boolean {
-  const v = data[key];
-  return v !== undefined && v !== null && !(typeof v === 'string' && v.trim() === '');
-}
-
-function toDateMillis(value: unknown): number {
-  if (!value) return 0;
-  if (value instanceof Date) return value.getTime();
-  const ts = value as { toMillis?: () => number };
-  if (typeof ts.toMillis === 'function') return ts.toMillis();
-  const d = new Date(String(value));
-  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
-}
-
-function hasTeamLogo(data: Record<string, unknown>): boolean {
-  return typeof data.logoUrl === 'string' && data.logoUrl.trim().length > 0;
-}
-
 
 export async function GET(req: NextRequest) {
   try {
@@ -185,39 +167,11 @@ export async function GET(req: NextRequest) {
       }
 
       // 代表 profile 候補をスコアリング
-      const scored = profiles.map((d) => {
-        const data = d.data() as Record<string, unknown>;
-        const hasClubName = hasValue(data, 'clubName');
-        const hasClubId = hasValue(data, 'clubId');
-        const hasMainTeam = hasValue(data, 'mainTeamId');
-        const hasLogo = hasValue(data, 'logoUrl') || hasTeamLogo(data);
-        const plan = String(data.plan || '').toLowerCase();
-        const hasClubProfileId = hasValue(data, 'clubProfileId');
-        const updatedAt = toDateMillis(data.updatedAt);
-        const lastLogin = toDateMillis(data.lastLoginAt);
-        const dataCount = dataCountsByClubProfile[d.id] || 0;
-        const isPublic = data.isPublic !== false;
+      const now = Date.now();
+      const ranked = scoreRepresentativeProfiles(profiles, { dataCountsByClubProfile, now });
 
-        let score = 0;
-        if (hasMainTeam) score += 20;
-        if (hasClubName) score += 15;
-        if (hasClubId) score += 10;
-        if (hasLogo) score += 8;
-        if (plan === 'pro' || plan === 'officia') score += 5;
-        if (hasClubProfileId) score += 5;
-        if (dataCount > 0) score += Math.min(15, dataCount);
-        if (isPublic) score += 2;
-        const now = Date.now();
-        const updatedDays = Math.floor((now - updatedAt) / 86400000);
-        const loginDays = Math.floor((now - lastLogin) / 86400000);
-        score += Math.max(0, 10 - updatedDays);
-        score += Math.max(0, 5 - loginDays);
-
-        return { id: d.id, score, data, hasClubName, hasClubId, hasMainTeam };
-      }).sort((a, b) => b.score - a.score);
-
-      const representative = scored[0];
-      const runnerUp = scored[1];
+      const representative = ranked[0];
+      const runnerUp = ranked[1];
       const secondScore = runnerUp ? runnerUp.score : 0;
       const confidenceGap = representative.score - secondScore;
       const hasClearRepresentative = profiles.length === 1 || confidenceGap >= 10;
@@ -227,12 +181,12 @@ export async function GET(req: NextRequest) {
       if (profiles.length === 1) {
         pattern = 'single';
       } else {
-        const allClubId = new Set(scored.map((s) => s.data.clubId as string | undefined).filter(Boolean));
-        const allClubName = new Set(scored.map((s) => s.data.clubName as string | undefined).filter(Boolean));
-        const allMainTeam = new Set(scored.map((s) => s.data.mainTeamId as string | undefined).filter(Boolean));
+        const allClubId = new Set(ranked.map((s) => s.data.clubId as string | undefined).filter(Boolean));
+        const allClubName = new Set(ranked.map((s) => s.data.clubName as string | undefined).filter(Boolean));
+        const allMainTeam = new Set(ranked.map((s) => s.data.mainTeamId as string | undefined).filter(Boolean));
 
-        const hasEmpty = scored.some((s) => !s.hasClubName && !s.hasMainTeam);
-        const hasFilled = scored.some((s) => s.hasClubName || s.hasMainTeam);
+        const hasEmpty = ranked.some((s) => !s.hasClubName && !s.hasMainTeam);
+        const hasFilled = ranked.some((s) => s.hasClubName || s.hasMainTeam);
         const hasUidDoc = profiles.some((d) => d.id === ownerUid);
         const hasSlugDoc = profiles.some((d) => (d.data() as Record<string, unknown>).clubId === d.id);
 
@@ -287,7 +241,7 @@ export async function GET(req: NextRequest) {
           authFound,
           profileCount: profiles.length,
           representativeProfileId: hasClearRepresentative ? representative.id : null,
-          otherProfileIds: scored.slice(1).map((s) => s.id),
+          otherProfileIds: ranked.slice(1).map((s) => s.id),
           pattern,
           hasClearRepresentative,
           confidenceGap,

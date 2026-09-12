@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { STATS_IMAGE_ANALYSIS_PROMPT, TEAM_MATCHING_PROMPT, StatsImageAnalysisResult, StatsImageAnalysisWithMatching, matchTeamNames } from '@/lib/stats-image-parser';
+import { auth, db, admin } from '@/lib/firebase/admin';
+import { getPlanLimit } from '@/lib/plan-limits';
+import { getEffectivePlanForUid } from '@/lib/server-plan';
+import { touchUserActivity } from '@/lib/server-activity';
+
+function monthKey() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `ocr_${year}_${month}`;
+}
+
+function usageDocRef(uid: string) {
+  return db.collection('users').doc(uid).collection('usage').doc(monthKey());
+}
 
 // APIキーの設定（環境変数から取得）
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -16,11 +31,54 @@ interface AnalyzeImageResponse {
   success: boolean;
   result?: StatsImageAnalysisWithMatching;
   error?: string;
+  limit?: number;
+  currentCount?: number;
 }
 
 export async function POST(req: NextRequest) {
   console.log('[API] Image analysis request received');
   try {
+    const authHeader = req.headers.get('Authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!token) {
+      return NextResponse.json<AnalyzeImageResponse>({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    const decoded = await auth.verifyIdToken(token);
+    const uid = decoded.uid;
+
+    const [effectivePlan, usageSnap] = await Promise.all([
+      getEffectivePlanForUid(uid),
+      usageDocRef(uid).get(),
+    ]);
+    const { plan, tier } = effectivePlan;
+    const limit = getPlanLimit('ocr_per_month', tier);
+    const currentCount = usageSnap.exists ? (Number((usageSnap.data() as Record<string, unknown>)?.count) || 0) : 0;
+
+    if (Number.isFinite(limit) && currentCount >= limit) {
+      await db.collection('analyticsEvents').add({
+        eventName: 'plan_limit_reached',
+        userId: uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        properties: {
+          uid,
+          limitType: 'ocr',
+          currentCount,
+          limit,
+          plan,
+          sourcePage: 'analyze-stats-image',
+        },
+      });
+      return NextResponse.json<AnalyzeImageResponse>(
+        {
+          success: false,
+          error: '今月のOCR無料枠を使い切りました。',
+          limit,
+          currentCount,
+        },
+        { status: 403 }
+      );
+    }
+
     const body: AnalyzeImageRequest = await req.json();
     const { image, imageType = 'image/jpeg', prompt = STATS_IMAGE_ANALYSIS_PROMPT, registeredTeams = [] } = body;
     console.log('[API] Request body parsed, image length:', image?.length, 'image type:', imageType, 'registered teams:', registeredTeams.length);
@@ -89,9 +147,20 @@ export async function POST(req: NextRequest) {
         registeredTeams
       );
 
+      await usageDocRef(uid).set(
+        {
+          count: currentCount + 1,
+          plan: plan || 'free',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      await touchUserActivity(uid);
       return NextResponse.json<AnalyzeImageResponse>({
         success: true,
-        result: { ...directResult, team_matching: teamMatching }
+        result: { ...directResult, team_matching: teamMatching },
+        limit,
+        currentCount: currentCount + 1,
       });
     }
 
@@ -238,9 +307,20 @@ export async function POST(req: NextRequest) {
       registeredTeams
     );
 
+    await usageDocRef(uid).set(
+      {
+        count: currentCount + 1,
+        plan: plan || 'free',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    await touchUserActivity(uid);
     return NextResponse.json<AnalyzeImageResponse>({ 
       success: true, 
-      result: { ...transformedResult, team_matching: teamMatching } 
+      result: { ...transformedResult, team_matching: teamMatching },
+      limit,
+      currentCount: currentCount + 1,
     });
   } catch (error) {
     console.error('Image analysis error:', error);

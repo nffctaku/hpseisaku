@@ -4,13 +4,15 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, writeBatch, doc, getDocs, query, setDoc, where } from "firebase/firestore";
-import { setActivationOnce, trackEvent } from "@/lib/analytics";
+import { collection, getDocs, query } from "firebase/firestore";
 import { useForm, useFieldArray, type SubmitHandler, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
-import { toDashSeason } from "@/lib/season";
+import { logProPaywallView } from "@/lib/plan-analytics";
+import { ProPaywall } from "@/components/pro-paywall";
+import { PlanLimitBadge } from "@/components/plan-limit-badge";
+import { auth } from "@/lib/firebase";
 import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
@@ -142,11 +144,11 @@ export default function NewCompetitionPage() {
   const [competitionNameMode, setCompetitionNameMode] = useState<"existing" | "new">("new");
   const [selectedCompetitionName, setSelectedCompetitionName] = useState<string>("__new__");
   const [templateByName, setTemplateByName] = useState<Record<string, CompetitionTemplate>>({});
-  const [competitionCountBySeason, setCompetitionCountBySeason] = useState<Record<string, number>>({});
+  const [, setCompetitionCountBySeason] = useState<Record<string, number>>({});
+  const [competitionUsage, setCompetitionUsage] = useState<{ current: number; limit: number; plan: string } | null>(null);
 
   const clubUid = ownerUid || user?.uid;
   const planTier = getPlanTier(user?.plan);
-  const maxCompetitions = getPlanLimit("competitions_per_season", planTier);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema) as unknown as Resolver<FormValues>,
@@ -164,6 +166,31 @@ export default function NewCompetitionPage() {
     },
     mode: "onChange",
   });
+
+  const currentSeason = form.watch("season");
+
+  useEffect(() => {
+    if (!user || !currentSeason) return;
+    const fetchUsage = async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch(`/api/club/competitions/usage?season=${encodeURIComponent(currentSeason)}`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setCompetitionUsage({
+            current: data.currentCount ?? 0,
+            limit: data.limit ?? 0,
+            plan: data.plan ?? 'free',
+          });
+        }
+      } catch (e) {
+        console.error('[CompetitionNewPage] usage fetch failed', e);
+      }
+    };
+    void fetchUsage();
+  }, [user, currentSeason]);
 
   const {
     fields: cupRoundFields,
@@ -383,6 +410,10 @@ export default function NewCompetitionPage() {
     }
   };
 
+  const [competitionLimitReached, setCompetitionLimitReached] = useState(false);
+  const [competitionLimit, setCompetitionLimit] = useState<number | null>(null);
+  const [competitionCount, setCompetitionCount] = useState<number | null>(null);
+
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     if (!user) {
       toast.error("ログインしていません。");
@@ -396,105 +427,50 @@ export default function NewCompetitionPage() {
       return;
     }
 
-    if (Number.isFinite(maxCompetitions)) {
-      const seasonKey = typeof data?.season === "string" ? data.season.trim() : "";
-      const currentCount = seasonKey ? (competitionCountBySeason[seasonKey] ?? 0) : 0;
-      if (seasonKey && currentCount >= maxCompetitions) {
-        toast.error(`このシーズンでは大会は${maxCompetitions}つまで作成できます。`);
+    setLoading(true);
+    setCompetitionLimitReached(false);
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error("ログインが必要です");
+      const idToken = await currentUser.getIdToken();
+
+      const res = await fetch("/api/club/competitions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          name: data.name,
+          season: data.season,
+          format: data.format,
+          leagueRounds: data.leagueRounds,
+          cupRounds: data.cupRounds,
+          teams: data.teams,
+          logoUrl: data.logoUrl,
+          showOnHome: data.showOnHome,
+          showOnTable: data.showOnTable,
+          rankLabels: data.rankLabels,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (res.status === 403 && json.limit !== undefined) {
+        setCompetitionLimitReached(true);
+        setCompetitionLimit(json.limit);
+        setCompetitionCount(json.currentCount);
+        await logProPaywallView({ uid: clubUid, limitType: "competition", sourcePage: "admin/competitions/new" });
+        toast.error(json.error || "大会作成上限に達しました。");
         return;
       }
-    }
 
-    setLoading(true);
-    try {
-      if (data.season) {
-        const seasonId = toDashSeason(data.season.trim());
-        const seasonRef = doc(db, `clubs/${clubUid}/seasons`, seasonId);
-        await setDoc(seasonRef, { id: seasonId }, { merge: true });
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "大会の作成に失敗しました");
       }
 
-      const competitionData: Record<string, unknown> = {
-        name: String(data.name || "").trim(),
-        season: String(data.season || ""),
-        format: String(data.format || "league") as "league" | "cup" | "league_cup",
-        teams: Array.isArray(data.teams) ? data.teams : [],
-        logoUrl: data.logoUrl && data.logoUrl !== "" ? data.logoUrl : null,
-        showOnHome: !!data.showOnHome,
-        showOnTable: data.format === "cup" ? false : !!data.showOnTable,
-        rankLabels: data.format === "cup" ? [] : (Array.isArray(data.rankLabels) ? data.rankLabels : []),
-      };
-
-      const removeUndefined = (obj: unknown): unknown => {
-        if (obj === null || obj === undefined) return null;
-        if (Array.isArray(obj)) return obj.map(removeUndefined);
-        if (typeof obj === "object") {
-          const cleaned: Record<string, unknown> = {};
-          for (const key in obj as Record<string, unknown>) {
-            if ((obj as Record<string, unknown>)[key] !== undefined) {
-              cleaned[key] = removeUndefined((obj as Record<string, unknown>)[key]);
-            }
-          }
-          return cleaned;
-        }
-        return obj;
-      };
-
-      const batch = writeBatch(db);
-
-      if (data.showOnHome) {
-        const homeSnap = await getDocs(
-          query(collection(db, `clubs/${clubUid}/competitions`), where("showOnHome", "==", true))
-        );
-        homeSnap.docs.forEach((d) => {
-          const ref = doc(db, `clubs/${clubUid}/competitions`, d.id);
-          batch.update(ref, { showOnHome: false });
-        });
-      }
-
-      const cleanedData = removeUndefined({
-        ...competitionData,
-        ownerUid: clubUid,
-        clubProfileId: clubProfileId || null,
-      }) as Record<string, unknown>;
-      const compRef = await addDoc(collection(db, `clubs/${clubUid}/competitions`), cleanedData);
-
-      if (clubUid) {
-        const first = await setActivationOnce(clubUid, 'firstCompetitionCreatedAt');
-        if (first) {
-          void trackEvent('competition_create_first', clubUid, {
-            profileId: clubUid,
-            ownerUid: clubUid,
-            clubProfileId: clubProfileId || null,
-            competitionId: compRef.id,
-          });
-        }
-      }
-
-      const roundsColRef = collection(db, `clubs/${clubUid}/competitions`, compRef.id, "rounds");
-      if (data.format === "league" || data.format === "league_cup") {
-        for (let i = 1; i <= data.leagueRounds!; i++) {
-          const roundDoc = doc(roundsColRef);
-          batch.set(roundDoc, { name: `第${i}節` });
-        }
-      }
-      if (data.format === "cup" || data.format === "league_cup") {
-        data.cupRounds?.forEach((round) => {
-          const roundDoc = doc(roundsColRef);
-          batch.set(roundDoc, { name: round.name });
-        });
-      }
-
-      await batch.commit();
       toast.success("新しい大会が作成されました。");
-      router.push(`/admin/competitions/${compRef.id}`);
+      router.push(`/admin/competitions/${json.competitionId}`);
     } catch (error) {
       console.error("Error creating competition:", error);
-      let errorMessage = "大会の作成に失敗しました。";
-      if (error instanceof Error) {
-        errorMessage = `大会の作成に失敗しました: ${error.message}`;
-      } else if (typeof error === "string") {
-        errorMessage = `大会の作成に失敗しました: ${error}`;
-      }
+      const errorMessage = error instanceof Error ? error.message : "大会の作成に失敗しました";
       toast.error(errorMessage, { duration: 5000 });
     } finally {
       setLoading(false);
@@ -715,6 +691,15 @@ export default function NewCompetitionPage() {
                 ))}
               </SelectContent>
             </Select>
+            {competitionUsage && (
+              <PlanLimitBadge
+                plan={competitionUsage.plan}
+                current={competitionUsage.current}
+                limit={competitionUsage.limit}
+                label="大会作成"
+                unit="大会"
+              />
+            )}
             <FormMessage />
           </FormItem>
         )}
@@ -1404,6 +1389,19 @@ export default function NewCompetitionPage() {
     <div className="flex min-h-[100dvh] flex-col bg-[#08111f] text-[#f0f4ff]">
       {/* ヘッダー */}
       <header className="shrink-0 sticky top-0 z-20 flex h-14 items-center justify-between border-b border-white/[0.08] bg-[#08111f]/95 px-4 backdrop-blur">
+        {competitionLimitReached && clubUid && competitionLimit !== null && competitionCount !== null && (
+          <div className="fixed inset-x-0 top-14 z-30 border-b border-white/[0.08] bg-[#08111f]/95 p-4">
+            <ProPaywall
+              uid={clubUid}
+              limitType="competition"
+              label="1シーズンの大会"
+              current={competitionCount}
+              limit={competitionLimit}
+              proLabel="無制限"
+              sourcePage="admin/competitions/new"
+            />
+          </div>
+        )}
         <Button
           type="button"
           variant="ghost"

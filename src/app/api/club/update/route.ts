@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase/admin';
 import { getAuth } from 'firebase-admin/auth';
+import { touchUserActivity } from '@/lib/server-activity';
 
 // この関数は、リクエストから認証トークンを取得し、ユーザーUIDを検証するために使用します。
 // 実際のアプリケーションでは、より堅牢な認証方法を検討してください。
@@ -348,6 +349,7 @@ export async function POST(request: Request) {
     }
 
     await Promise.all(writePromises);
+    await touchUserActivity(uid);
 
     return new NextResponse(
       JSON.stringify({

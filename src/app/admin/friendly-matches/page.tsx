@@ -15,6 +15,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { CalendarDays, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { touchUserActivity } from "@/lib/client-activity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -180,6 +181,7 @@ export default function FriendlyMatchesPage() {
         collection(db, `clubs/${user.uid}/friendly_matches`),
         payload as any
       );
+      await touchUserActivity();
 
       toast.success("単発試合を作成しました。");
 

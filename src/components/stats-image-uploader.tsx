@@ -7,8 +7,10 @@ import { UploadCloud, X, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { STATS_IMAGE_ANALYSIS_PROMPT, StatsImageAnalysisResult } from '@/lib/stats-image-parser';
 import { useAuth } from '@/contexts/AuthContext';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
+import { logProPaywallView, logPlanLimitReached } from '@/lib/plan-analytics';
+import { ProPaywall } from '@/components/pro-paywall';
+import { PlanLimitBadge } from '@/components/plan-limit-badge';
 
 interface StatsImageUploaderProps {
   onAnalysisComplete: (result: StatsImageAnalysisResult) => void;
@@ -24,39 +26,48 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
   const [error, setError] = useState<string | null>(null);
   const [remainingCount, setRemainingCount] = useState<number>(5);
   const [isLimitReached, setIsLimitReached] = useState(false);
-  const [isProPlan, setIsProPlan] = useState(false);
+  const [limit, setLimit] = useState<number>(5);
+  const [usedCount, setUsedCount] = useState<number>(0);
+  const [plan, setPlan] = useState<string>('free');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 上限到達時にペイウォールログを送信
+  useEffect(() => {
+    if (!isLimitReached || !user) return;
+    void logPlanLimitReached({
+      uid: user.uid,
+      limitType: 'ocr',
+      currentCount: usedCount,
+      limit,
+      plan,
+      sourcePage: 'stats-image-uploader',
+    });
+    void logProPaywallView({ uid: user.uid, limitType: 'ocr', sourcePage: 'stats-image-uploader' });
+  }, [isLimitReached, user, usedCount, limit, plan]);
 
   // ユーザーのプランと月のOCR使用回数を取得
   useEffect(() => {
     const fetchUserData = async () => {
       if (!user) return;
 
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth() + 1; // 1-12
-      const monthKey = `${year}-${month.toString().padStart(2, '0')}`;
-
-      // AuthContextからプランを確認
-      const plan = user?.plan || 'free';
-      console.log('[StatsImageUploader] User plan from auth:', plan);
-      const isPro = plan === 'pro';
-      setIsProPlan(isPro);
-      console.log('[StatsImageUploader] isProPlan set to:', isPro);
-
-      // 使用回数をチェック
-      const usageDocRef = doc(db, 'club_profiles', user.uid, 'ocr_usage', monthKey);
-      const usageDoc = await getDoc(usageDocRef);
-
-      if (usageDoc.exists()) {
-        const count = usageDoc.data()?.count || 0;
-        const limit = plan === 'pro' ? 150 : 5;
-        setRemainingCount(Math.max(0, limit - count));
-        setIsLimitReached(count >= limit);
-      } else {
-        const limit = plan === 'pro' ? 150 : 5;
-        setRemainingCount(limit);
-        setIsLimitReached(false);
+      try {
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) return;
+        const res = await fetch('/api/analyze-stats-image/usage', {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          const currentLimit = typeof data.limit === 'number' ? data.limit : 5;
+          const currentCount = typeof data.currentCount === 'number' ? data.currentCount : 0;
+          setPlan(data.plan || 'free');
+          setLimit(currentLimit);
+          setUsedCount(currentCount);
+          setRemainingCount(Math.max(0, currentLimit - currentCount));
+          setIsLimitReached(currentCount >= currentLimit);
+        }
+      } catch (e) {
+        console.error('[StatsImageUploader] usage fetch failed', e);
       }
     };
 
@@ -119,7 +130,6 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
     }
 
     if (isLimitReached) {
-      toast.error('今月の無料枠（5枚）を使い切りました。来月までお待ちいただくか、有料プランでご利用ください');
       return;
     }
 
@@ -128,30 +138,15 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
     console.log('[StatsImageUploader] Starting image analysis for file:', selectedFile.name);
 
     try {
-      const result = await analyzeImage(selectedFile, registeredTeams);
+      const { result, limit, currentCount } = await analyzeImage(selectedFile, registeredTeams);
       console.log('[StatsImageUploader] Analysis successful:', result);
-      
-      // 使用回数をインクリメント
-      if (user) {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth() + 1; // 1-12
-        const monthKey = `${year}-${month.toString().padStart(2, '0')}`;
 
-        const usageDocRef = doc(db, 'club_profiles', user.uid, 'ocr_usage', monthKey);
-        const usageDoc = await getDoc(usageDocRef);
-        const currentCount = usageDoc.exists() ? (usageDoc.data()?.count || 0) : 0;
-        const limit = isProPlan ? 150 : 5;
-        
-        await setDoc(usageDocRef, {
-          count: currentCount + 1,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-
-        setRemainingCount(Math.max(0, limit - (currentCount + 1)));
-        setIsLimitReached(currentCount + 1 >= limit);
+      if (typeof limit === 'number' && typeof currentCount === 'number') {
+        const nextRemaining = Math.max(0, limit - currentCount);
+        setRemainingCount(nextRemaining);
+        setIsLimitReached(nextRemaining <= 0);
       }
-      
+
       onAnalysisComplete(result);
       toast.success('画像解析が完了しました');
       handleRemoveFile();
@@ -165,14 +160,12 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
     }
   };
 
-  const analyzeImage = async (file: File, teams: string[]): Promise<StatsImageAnalysisResult> => {
+  const analyzeImage = async (file: File, teams: string[]): Promise<{ result: StatsImageAnalysisResult; limit?: number; currentCount?: number }> => {
     console.log('[StatsImageUploader] Converting file to base64...');
-    // Convert file to base64
     const base64 = await new Promise<string>((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        // Remove data URL prefix (e.g., "data:image/jpeg;base64,")
         const base64Data = result.split(',')[1];
         console.log('[StatsImageUploader] Base64 conversion complete, size:', base64Data.length);
         resolve(base64Data);
@@ -184,10 +177,17 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
       reader.readAsDataURL(file);
     });
 
+    const currentUser = auth.currentUser;
+    if (!currentUser) throw new Error('ログインが必要です');
+    const idToken = await currentUser.getIdToken();
+
     console.log('[StatsImageUploader] Calling API endpoint...');
     const response = await fetch('/api/analyze-stats-image', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
       body: JSON.stringify({
         image: base64,
         imageType: file.type,
@@ -197,21 +197,29 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
     });
 
     console.log('[StatsImageUploader] API response status:', response.status);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('[StatsImageUploader] API error response:', errorData);
-      throw new Error(errorData.error || '画像解析に失敗しました');
-    }
 
     const data = await response.json();
     console.log('[StatsImageUploader] API response data:', data);
-    
+
+    if (response.status === 403 && data.limit !== undefined) {
+      setRemainingCount(0);
+      setIsLimitReached(true);
+      if (user) {
+        await logProPaywallView({ uid: user.uid, limitType: 'ocr', sourcePage: 'stats-image-uploader' });
+      }
+      throw new Error(data.error || '今月のOCR無料枠を使い切りました。');
+    }
+
+    if (!response.ok) {
+      console.error('[StatsImageUploader] API error response:', data);
+      throw new Error(data.error || '画像解析に失敗しました');
+    }
+
     if (!data.success || !data.result) {
       throw new Error('画像解析結果の取得に失敗しました');
     }
 
-    return data.result;
+    return { result: data.result, limit: data.limit, currentCount: data.currentCount };
   };
 
   const content = (
@@ -231,11 +239,23 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
       </div>
       <div className="px-0 pb-0">
         <div className="space-y-4">
-          {isLimitReached && (
-            <div className="flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">
-              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <span>{isProPlan ? '今月の使用枠（150枚）を使い切りました。来月までお待ちください。' : '今月の無料枠（5枚）を使い切りました。来月までお待ちいただくか、有料プランでご利用ください'}</span>
-            </div>
+          <PlanLimitBadge
+            plan={plan}
+            current={usedCount}
+            limit={limit}
+            label="OCR"
+            unit="回"
+          />
+          {isLimitReached && user && (
+            <ProPaywall
+              uid={user.uid}
+              limitType="ocr"
+              label="試合スタッツの自動読み取り"
+              current={usedCount}
+              limit={limit}
+              proLabel="150枚/月"
+              sourcePage="stats-image-uploader"
+            />
           )}
           {!selectedFile ? (
             <div

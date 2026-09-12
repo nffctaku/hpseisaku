@@ -50,6 +50,7 @@ interface PlayerFormProps {
   defaultValues?: Partial<PlayerFormValues>;
   defaultSeason?: string;
   ownerUid?: string | null;
+  teamId?: string;
   isEdit?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
   onClose?: () => void;
@@ -60,6 +61,7 @@ export function PlayerForm({
   defaultValues,
   defaultSeason,
   ownerUid,
+  teamId,
   isEdit = false,
   onDirtyChange,
   onClose,
@@ -526,7 +528,7 @@ export function PlayerForm({
                   <FormItem>
                     <FormLabel className="text-[#F1F5F9]">選手写真</FormLabel>
                     <FormControl>
-                      <PlayerPhotoUploader value={field.value || ""} onChange={field.onChange} />
+                      <PlayerPhotoUploader value={field.value || ""} onChange={field.onChange} teamId={teamId} season={defaultSeason} uid={ownerUid || undefined} />
                     </FormControl>
                     <FormMessage className="text-[#FCA5A5]" />
                   </FormItem>

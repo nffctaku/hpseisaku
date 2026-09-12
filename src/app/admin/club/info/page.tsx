@@ -7,7 +7,7 @@ import { auth, db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { collection, getDocs, query, where, limit, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, getDocs, setDoc, collection, query, where, limit } from 'firebase/firestore';
 import { SettingsTab } from './components/SettingsTab';
 import { SnsTab } from './components/SnsTab';
 
@@ -325,10 +325,13 @@ export default function ClubInfoPage() {
       // メインチームのチーム情報も同期（IDで紐付けたまま、表示だけ更新）
       if (user && mainTeam && selectedTeamId) {
         try {
-          const teamDocRef = doc(db, `clubs/${user.uid}/teams`, selectedTeamId);
-          await updateDoc(teamDocRef, {
-            name: effectiveClubName,
-            logoUrl: effectiveLogoUrl,
+          await fetch('/api/club/teams/logo', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ teamId: selectedTeamId, logoUrl: effectiveLogoUrl }),
           });
         } catch (syncError) {
           console.error('Failed to sync main team with club info:', syncError);

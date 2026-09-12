@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase/admin";
 import { getAuth } from "firebase-admin/auth";
+import { touchUserActivity } from "@/lib/server-activity";
 
 async function getUidFromRequest(request: Request): Promise<string | null> {
   const authHeader = request.headers.get("Authorization");
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
     const docIds = await resolveProfileDocIdsForOwnerUid(uid);
 
     await Promise.all(docIds.map((id) => clubProfilesRef.doc(id).set({ ownerUid: uid, transfersPublic }, { merge: true })));
+    await touchUserActivity(uid);
 
     return NextResponse.json({ transfersPublic });
   } catch (e) {

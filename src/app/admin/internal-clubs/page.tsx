@@ -31,6 +31,9 @@ interface ClubItem {
   competitionCount: number | null;
   matchCount: number | null;
   newsCount: number | null;
+  isPaidPro: boolean;
+  isGrantedPro: boolean;
+  isFree: boolean;
   plan: string;
   analyticsCohort: string;
   isPublic: boolean;
@@ -43,6 +46,19 @@ interface ClubItem {
   engaged30: boolean;
   matchActive7: boolean;
   matchActive30: boolean;
+  duplicateProfileCount: number;
+  authExists: boolean;
+  allProfilePlans: string[];
+  allStripeCustomerIds: string[];
+  anyProPlan: boolean;
+  anyStripeCustomer: boolean;
+  lastActivityAtMillis: number;
+  activeDetail: {
+    eventAt: number;
+    userAt: number;
+    profileAt: number;
+    adoptedAt: number;
+  };
 }
 
 interface Summary {
@@ -52,7 +68,9 @@ interface Summary {
   nameUnset: number;
   nameUnsetRate: number;
   public: number;
-  pro: number;
+  paidPro: number;
+  grantedPro: number;
+  totalPro: number;
   free: number;
   active7: number;
   active30: number;
@@ -81,6 +99,50 @@ interface Summary {
   engaged30: number;
   matchActive7: number;
   matchActive30: number;
+  clubProfilesTotal: number;
+  reducedDisplayRows: number;
+}
+
+interface FunnelSummary {
+  total: number;
+  hasProfile: number;
+  isPaidPro: number;
+  isGrantedPro: number;
+  isFree: number;
+  hasMatch: number;
+  has10Matches: number;
+  has50Matches: number;
+  has100Matches: number;
+  active7: number;
+  active30: number;
+  hasPlayerImage20: number;
+  hasTeamImage: number;
+}
+
+interface FunnelRow {
+  uid: string;
+  email: string | null;
+  hasProfile: boolean;
+  hasMatch: boolean;
+  has10Matches: boolean;
+  has50Matches: boolean;
+  has100Matches: boolean;
+  hasPlayerImage20: boolean;
+  hasTeamImage: boolean;
+  active7: boolean;
+  active30: boolean;
+  isPaidPro: boolean;
+  isGrantedPro: boolean;
+  isFree: boolean;
+  matchCount: number;
+  subscriptionStatus: string | null;
+  lastActivityAt: number;
+  activeDetail: {
+    eventAt: number;
+    userAt: number;
+    profileAt: number;
+    adoptedAt: number;
+  };
 }
 
 type SortKey =
@@ -194,6 +256,12 @@ export default function InternalClubsPage() {
   const { user, loading } = useAuth();
   const [items, setItems] = useState<ClubItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [matchDiagnostics, setMatchDiagnostics] = useState<Record<string, { total: number; valid: number; friendly: number; invalid: number }> | null>(null);
+  const [authlessUids, setAuthlessUids] = useState<string[]>([]);
+  const [funnelSummary, setFunnelSummary] = useState<FunnelSummary | null>(null);
+  const [funnelRows, setFunnelRows] = useState<FunnelRow[]>([]);
+  const [monetizationFunnel, setMonetizationFunnel] = useState<Record<string, unknown> | null>(null);
+  const [potentialProUsers, setPotentialProUsers] = useState<Record<string, number> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
 
@@ -218,13 +286,34 @@ export default function InternalClubsPage() {
         const currentUser = auth.currentUser;
         if (!currentUser) throw new Error("ログインが必要です");
         const token = await currentUser.getIdToken();
-        const res = await fetch("/api/admin/clubs", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as { summary: Summary; clubs: ClubItem[] };
-        setItems(json.clubs);
-        setSummary(json.summary);
+        const [clubsRes, funnelRes] = await Promise.all([
+          fetch("/api/admin/clubs", { headers: { Authorization: `Bearer ${token}` } }),
+          fetch("/api/admin/activation-funnel?cohort=all&full=1", { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+        if (!clubsRes.ok) throw new Error(`HTTP ${clubsRes.status}`);
+        const clubsJson = (await clubsRes.json()) as {
+          summary: Summary;
+          clubs: ClubItem[];
+          authlessUids: string[];
+          matchDiagnostics: Record<string, { total: number; valid: number; friendly: number; invalid: number }>;
+        };
+        setItems(clubsJson.clubs);
+        setSummary(clubsJson.summary);
+        setAuthlessUids(clubsJson.authlessUids);
+        setMatchDiagnostics(clubsJson.matchDiagnostics);
+
+        if (funnelRes.ok) {
+          const funnelJson = (await funnelRes.json()) as {
+            summaryByProfile: FunnelSummary;
+            users: FunnelRow[];
+            monetizationFunnel?: Record<string, unknown>;
+            potentialProUsers?: Record<string, number>;
+          };
+          setFunnelSummary(funnelJson.summaryByProfile);
+          setFunnelRows(funnelJson.users || []);
+          setMonetizationFunnel(funnelJson.monetizationFunnel || null);
+          setPotentialProUsers(funnelJson.potentialProUsers || null);
+        }
       } catch (e) {
         console.error("[InternalClubs] fetch failed", e);
         setError("データの取得に失敗しました");
@@ -334,6 +423,85 @@ export default function InternalClubsPage() {
   const pageCount = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
   const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
+  const consistency = useMemo(() => {
+    if (!summary || !funnelSummary) return null;
+    const items = [
+      { key: "totalUsers", label: "総ユーザー", left: summary.total, right: funnelSummary.total },
+      { key: "paidPro", label: "Paid Pro", left: summary.paidPro, right: funnelSummary.isPaidPro },
+      { key: "grantedPro", label: "Granted Pro", left: summary.grantedPro, right: funnelSummary.isGrantedPro },
+      { key: "free", label: "Free", left: summary.free, right: funnelSummary.isFree },
+      { key: "hasMatch", label: "試合登録あり", left: summary.withMatches, right: funnelSummary.hasMatch },
+      { key: "match10", label: "10試合以上", left: summary.matches10, right: funnelSummary.has10Matches },
+      { key: "match50", label: "50試合以上", left: summary.matches50, right: funnelSummary.has50Matches },
+      { key: "match100", label: "100試合以上", left: summary.matches100, right: funnelSummary.has100Matches },
+      { key: "teamImage", label: "チーム画像あり", left: summary.withTeamImages, right: funnelSummary.hasTeamImage },
+      { key: "playerImage20", label: "選手画像20人以上", left: summary.withPlayerImages20, right: funnelSummary.hasPlayerImage20 },
+      { key: "active7", label: "7日Active", left: summary.active7, right: funnelSummary.active7 },
+      { key: "active30", label: "30日Active", left: summary.active30, right: funnelSummary.active30 },
+    ];
+    return items.map((i) => ({
+      ...i,
+      ok: i.left === i.right,
+      diff: typeof i.right === 'number' && !Number.isNaN(i.right) ? i.right - i.left : 0,
+    }));
+  }, [summary, funnelSummary]);
+
+  const authItems = useMemo(() => items.filter((c) => c.authExists), [items]);
+
+  const proDiffUsers = useMemo(() => {
+    if (funnelRows.length === 0) return [];
+    const profileRows = funnelRows.filter((r) => r.hasProfile);
+    const rowByUid = new Map(profileRows.map((r) => [r.uid, r]));
+    const diff: { uid: string; ic: ClubItem; f: FunnelRow }[] = [];
+    for (const ic of authItems) {
+      const f = rowByUid.get(ic.ownerUid);
+      if (!f) continue;
+      if (ic.isPaidPro !== f.isPaidPro || ic.isGrantedPro !== f.isGrantedPro || ic.isFree !== f.isFree) {
+        diff.push({ uid: ic.ownerUid, ic, f });
+      }
+    }
+    return diff;
+  }, [authItems, funnelRows]);
+
+  const matchDiffUsers = useMemo(() => {
+    if (funnelRows.length === 0) return [];
+    const profileRows = funnelRows.filter((r) => r.hasProfile);
+    const rowByUid = new Map(profileRows.map((r) => [r.uid, r]));
+    const diff: { uid: string; ic: ClubItem; f: FunnelRow }[] = [];
+    for (const ic of authItems) {
+      const f = rowByUid.get(ic.ownerUid);
+      if (!f) continue;
+      if ((ic.matchCount ?? 0) !== f.matchCount) {
+        diff.push({ uid: ic.ownerUid, ic, f });
+      }
+    }
+    return diff;
+  }, [authItems, funnelRows]);
+
+  const activeDiffUsers = useMemo(() => {
+    if (funnelRows.length === 0) return [];
+    const profileRows = funnelRows.filter((r) => r.hasProfile);
+    const rowByUid = new Map(profileRows.map((r) => [r.uid, r]));
+    const diff: { uid: string; ic: ClubItem; f: FunnelRow }[] = [];
+    for (const ic of authItems) {
+      const f = rowByUid.get(ic.ownerUid);
+      if (!f) continue;
+      if (ic.active7 !== f.active7 || ic.active30 !== f.active30) {
+        diff.push({ uid: ic.ownerUid, ic, f });
+      }
+    }
+    return diff;
+  }, [authItems, funnelRows]);
+
+  const orphanMatchDiffUsers = useMemo(() => {
+    if (!matchDiagnostics) return [];
+    const allUids = new Set(authItems.map((c) => c.ownerUid));
+    return Object.entries(matchDiagnostics)
+      .filter(([uid, d]) => !allUids.has(uid) && d.total !== d.valid)
+      .map(([uid, d]) => ({ uid, ...d }))
+      .sort((a, b) => b.total - a.total);
+  }, [matchDiagnostics, authItems]);
+
   useEffect(() => {
     setPage(0);
   }, [search, sort, planFilter, publicFilter, cohortFilter, nameFilter, aggregateFilter, levelFilter]);
@@ -396,7 +564,7 @@ export default function InternalClubsPage() {
         {summary && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <SummaryCard label="総クラブ数" value={summary.total} color="text-white" />
+              <SummaryCard label="総ユーザー" value={summary.total} color="text-white" />
               <SummaryCard
                 label="クラブ名未設定"
                 value={summary.nameUnset}
@@ -404,7 +572,9 @@ export default function InternalClubsPage() {
                 color="text-red-400"
               />
               <SummaryCard label="公開中" value={summary.public} color="text-emerald-400" />
-              <SummaryCard label="Pro" value={summary.pro} color="text-amber-400" />
+              <SummaryCard label="Total Pro" value={summary.totalPro} color="text-amber-400" />
+              <SummaryCard label="Paid Pro" value={summary.paidPro} color="text-amber-400" />
+              <SummaryCard label="Granted Pro" value={summary.grantedPro} color="text-indigo-400" />
               <SummaryCard label="7日アクティブ" value={summary.active7} color="text-emerald-400" />
               <SummaryCard label="30日アクティブ" value={summary.active30} color="text-emerald-400" />
             </div>
@@ -426,68 +596,107 @@ export default function InternalClubsPage() {
                 <SummaryCard
                   label="試合登録あり"
                   value={summary.withMatches}
-                  sub={`${summary.withMatchesRate}%（${summary.aggregatable}件中）`}
+                  sub={`${summary.withMatchesRate}%（全 ${summary.total} ユーザー中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
                   label="10試合以上"
                   value={summary.matches10}
-                  sub={`${summary.matches10Rate}%（${summary.aggregatable}件中）`}
+                  sub={`${summary.matches10Rate}%（全 ${summary.total} ユーザー中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
                   label="50試合以上"
                   value={summary.matches50}
-                  sub={`${summary.matches50Rate}%（${summary.aggregatable}件中）`}
+                  sub={`${summary.matches50Rate}%（全 ${summary.total} ユーザー中）`}
                   color="text-amber-400"
                 />
                 <SummaryCard
                   label="100試合以上"
                   value={summary.matches100}
-                  sub={`${summary.matches100Rate}%（${summary.aggregatable}件中）`}
+                  sub={`${summary.matches100Rate}%（全 ${summary.total} ユーザー中）`}
                   color="text-fuchsia-400"
                 />
                 <SummaryCard
                   label="選手画像20人以上"
                   value={summary.withPlayerImages20}
-                  sub={`${summary.withPlayerImages20Rate}%（${summary.aggregatable}件中）`}
+                  sub={`${summary.withPlayerImages20Rate}%（全 ${summary.total} ユーザー中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
                   label="チーム画像あり"
                   value={summary.withTeamImages}
-                  sub={`${summary.withTeamImagesRate}%（${summary.aggregatable}件中）`}
+                  sub={`${summary.withTeamImagesRate}%（全 ${summary.total} ユーザー中）`}
                   color="text-emerald-400"
                 />
               </div>
 
               <div className="mt-3 rounded-2xl border border-white/10 bg-[#0b1220] p-4">
-                <p className="mb-3 text-xs font-bold text-slate-300">集計状況</p>
+                <p className="mb-3 text-xs font-bold text-slate-300">ユーザー / 重複診断</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                  <SummaryCard label="集計可能" value={summary.aggregatable} color="text-emerald-400" />
+                  <SummaryCard label="club_profiles総件数" value={summary.clubProfilesTotal} color="text-slate-300" />
+                  <SummaryCard label="重複profile保有UID数" value={summary.multiClubOwners} color="text-amber-400" />
                   <SummaryCard
-                    label="集計不可"
-                    value={summary.total - summary.aggregatable}
-                    color="text-red-400"
+                    label="重複によって削減された表示行数"
+                    value={summary.reducedDisplayRows}
+                    color="text-amber-400"
                   />
-                  <SummaryCard label="複数クラブ所有者" value={summary.multiClubOwners} color="text-amber-400" />
                   <SummaryCard
-                    label="平均所有数"
+                    label="平均重複profile数"
                     value={summary.avgClubsPerMultiOwner}
                     color="text-slate-300"
                   />
-                  <SummaryCard label="最大所有数" value={summary.maxClubsPerOwner} color="text-slate-300" />
-                  <SummaryCard label="複数クラブ総数" value={summary.multiClubProfiles} color="text-slate-300" />
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-400">
-                  {Object.entries(summary.unavailableByReason).map(([reason, count]) => (
-                    <span key={reason} className="rounded-md border border-white/10 px-2 py-1">
-                      {reason}: {count}
-                    </span>
-                  ))}
+                  <SummaryCard label="最大重複profile数" value={summary.maxClubsPerOwner} color="text-slate-300" />
+                  <SummaryCard label="Granted Pro" value={summary.grantedPro} color="text-indigo-400" />
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {(monetizationFunnel || potentialProUsers) && (
+          <div className="space-y-3">
+            {monetizationFunnel && (
+              <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
+                <p className="mb-3 text-xs font-bold text-slate-300">Monetization Funnel（Free → Pro）</p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  {(() => {
+                    const mf = monetizationFunnel as {
+                      last7?: Record<string, number>;
+                      last30?: Record<string, number>;
+                    };
+                    const last7 = mf.last7 || {};
+                    const last30 = mf.last30 || {};
+                    return (
+                      <>
+                        <SummaryCard label="plan_limit_reached 7日" value={last7.plan_limit_reached ?? 0} color="text-amber-400" />
+                        <SummaryCard label="pro_paywall_view 7日" value={last7.pro_paywall_view ?? 0} color="text-amber-400" />
+                        <SummaryCard label="pro_cta_click 7日" value={last7.pro_cta_click ?? 0} color="text-emerald-400" />
+                        <SummaryCard label="checkout_start 7日" value={last7.checkout_start ?? 0} color="text-emerald-400" />
+                        <SummaryCard label="subscription_start 7日" value={last7.subscription_start ?? 0} color="text-fuchsia-400" />
+                        <SummaryCard label="plan_limit_reached 30日" value={last30.plan_limit_reached ?? 0} color="text-amber-400" />
+                        <SummaryCard label="pro_paywall_view 30日" value={last30.pro_paywall_view ?? 0} color="text-amber-400" />
+                        <SummaryCard label="pro_cta_click 30日" value={last30.pro_cta_click ?? 0} color="text-emerald-400" />
+                        <SummaryCard label="checkout_start 30日" value={last30.checkout_start ?? 0} color="text-emerald-400" />
+                        <SummaryCard label="subscription_start 30日" value={last30.subscription_start ?? 0} color="text-fuchsia-400" />
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+            {potentialProUsers && (
+              <div className="rounded-2xl border border-white/10 bg-[#0b1220] p-4">
+                <p className="mb-3 text-xs font-bold text-slate-300">潜在課金Freeユーザー</p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  <SummaryCard label="選手画像20人以上" value={potentialProUsers.playerImage20plus ?? 0} color="text-emerald-400" />
+                  <SummaryCard label="大会3つ以上" value={potentialProUsers.competition3plus ?? 0} color="text-emerald-400" />
+                  <SummaryCard label="選手30人以上" value={potentialProUsers.player30plus ?? 0} color="text-amber-400" />
+                  <SummaryCard label="50試合以上" value={potentialProUsers.match50plus ?? 0} color="text-slate-300" />
+                  <SummaryCard label="100試合以上" value={potentialProUsers.match100plus ?? 0} color="text-slate-300" />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -495,12 +704,171 @@ export default function InternalClubsPage() {
           <div className="flex items-start gap-2 text-xs leading-relaxed text-slate-400">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
             <p>
-              1 ユーザーが複数のクラブを所有している場合、選手・大会・試合・ニュース数は
-              クラブ単位で一意に特定できないため「—」を表示しています。
-              利用深度・試合数系 KPI も集計可能クラブのみを分母に使用しています。
+              1 Auth UID = 1 行で表示しています。同一ユーザーが複数の club_profiles を保有する
+              legacy データも、代表 profile を選定し UID 単位で集約しています。既存データは
+              削除・統合していません。重複 profile 数はメタ情報として表示しています。
             </p>
           </div>
         </div>
+
+        {consistency && (
+          <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
+            <p className="mb-3 text-xs font-bold text-slate-300">profile保有Auth UID 整合性チェック</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              {consistency.map((c) => {
+                const right = typeof c.right === 'number' && !Number.isNaN(c.right) ? c.right : '—';
+                return (
+                  <div
+                    key={c.key}
+                    className={`rounded-xl border p-2 text-center ${
+                      c.ok ? "border-emerald-500/30 bg-emerald-500/10" : "border-rose-500/30 bg-rose-500/10"
+                    }`}
+                  >
+                    <p className="text-[10px] text-slate-400">{c.label}</p>
+                    <p className={`text-sm font-black ${c.ok ? "text-emerald-400" : "text-rose-400"}`}>
+                      {c.ok ? "OK" : `${c.diff > 0 ? `+${c.diff}` : c.diff}`}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      IC {c.left} / F {right}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {authlessUids.length > 0 && (
+          <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
+            <p className="mb-3 text-xs font-bold text-slate-300">Authに存在しない ownerUid 一覧（{authlessUids.length} 件）</p>
+            <p className="text-[10px] text-slate-500 mb-2">整合性チェックはこれらを除外しています。データは削除していません。</p>
+            <div className="max-h-32 overflow-auto rounded-xl border border-white/10 p-2 font-mono text-[10px] text-slate-400">
+              {authlessUids.join(", ")}
+            </div>
+          </div>
+        )}
+
+        {proDiffUsers.length > 0 && (
+          <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
+            <p className="mb-3 text-xs font-bold text-slate-300">Paid/Granted/Free 差分 UID（{proDiffUsers.length} 件）</p>
+            <div className="max-h-48 overflow-auto rounded-xl border border-white/10">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="sticky top-0 bg-[#0b1220] text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2">UID</th>
+                    <th className="px-3 py-2">subscription</th>
+                    <th className="px-3 py-2">plans</th>
+                    <th className="px-3 py-2">stripeIds</th>
+                    <th className="px-3 py-2 text-right">IC判定</th>
+                    <th className="px-3 py-2 text-right">F判定</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {proDiffUsers.map((u) => (
+                    <tr key={u.uid} className="border-t border-white/5">
+                      <td className="px-3 py-2 font-mono text-slate-400">{u.uid}</td>
+                      <td className="px-3 py-2">{u.f.subscriptionStatus || '—'}</td>
+                      <td className="px-3 py-2">{u.ic.allProfilePlans.join(', ') || '—'}</td>
+                      <td className="px-3 py-2">{u.ic.allStripeCustomerIds.join(', ') || '—'}</td>
+                      <td className="px-3 py-2 text-right">{u.ic.isPaidPro ? 'Paid' : u.ic.isGrantedPro ? 'Granted' : 'Free'}</td>
+                      <td className="px-3 py-2 text-right">{u.f.isPaidPro ? 'Paid' : u.f.isGrantedPro ? 'Granted' : 'Free'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {matchDiffUsers.length > 0 && (
+          <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
+            <p className="mb-3 text-xs font-bold text-slate-300">試合数差分 UID（IC ≠ Funnel）</p>
+            <div className="max-h-48 overflow-auto rounded-xl border border-white/10">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="sticky top-0 bg-[#0b1220] text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2">UID</th>
+                    <th className="px-3 py-2 text-right">IC</th>
+                    <th className="px-3 py-2 text-right">Funnel</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {matchDiffUsers.map((u) => (
+                    <tr key={u.uid} className="border-t border-white/5">
+                      <td className="px-3 py-2 font-mono text-slate-400">{u.uid}</td>
+                      <td className="px-3 py-2 text-right">{u.ic.matchCount ?? 0}</td>
+                      <td className="px-3 py-2 text-right">{u.f.matchCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeDiffUsers.length > 0 && (
+          <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
+            <p className="mb-3 text-xs font-bold text-slate-300">Active差分 UID（IC ≠ Funnel）</p>
+            <div className="max-h-64 overflow-auto rounded-xl border border-white/10">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="sticky top-0 bg-[#0b1220] text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2">UID</th>
+                    <th className="px-3 py-2 text-center">IC 7/30</th>
+                    <th className="px-3 py-2 text-center">Funnel 7/30</th>
+                    <th className="px-3 py-2 text-right">event latest</th>
+                    <th className="px-3 py-2 text-right">users.lastLoginAt</th>
+                    <th className="px-3 py-2 text-right">profile lastLoginAt</th>
+                    <th className="px-3 py-2 text-right">adopted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeDiffUsers.map((u) => (
+                    <tr key={u.uid} className="border-t border-white/5">
+                      <td className="px-3 py-2 font-mono text-slate-400">{u.uid}</td>
+                      <td className="px-3 py-2 text-center">{u.ic.active7 ? '1' : '0'}/{u.ic.active30 ? '1' : '0'}</td>
+                      <td className="px-3 py-2 text-center">{u.f.active7 ? '1' : '0'}/{u.f.active30 ? '1' : '0'}</td>
+                      <td className="px-3 py-2 text-right">{u.f.activeDetail.eventAt ? new Date(u.f.activeDetail.eventAt).toLocaleString('ja-JP', { hour12: false }) : '—'}</td>
+                      <td className="px-3 py-2 text-right">{u.f.activeDetail.userAt ? new Date(u.f.activeDetail.userAt).toLocaleString('ja-JP', { hour12: false }) : '—'}</td>
+                      <td className="px-3 py-2 text-right">{u.ic.activeDetail.profileAt ? new Date(u.ic.activeDetail.profileAt).toLocaleString('ja-JP', { hour12: false }) : '—'}</td>
+                      <td className="px-3 py-2 text-right">{u.f.activeDetail.adoptedAt ? new Date(u.f.activeDetail.adoptedAt).toLocaleString('ja-JP', { hour12: false }) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {orphanMatchDiffUsers.length > 0 && (
+          <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
+            <p className="mb-3 text-xs font-bold text-slate-300">Auth不在・legacy 試合差分 UID（total ≠ valid）</p>
+            <div className="max-h-48 overflow-auto rounded-xl border border-white/10">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="sticky top-0 bg-[#0b1220] text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2">UID</th>
+                    <th className="px-3 py-2 text-right">total</th>
+                    <th className="px-3 py-2 text-right">valid</th>
+                    <th className="px-3 py-2 text-right">friendly</th>
+                    <th className="px-3 py-2 text-right">invalid</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orphanMatchDiffUsers.map((u) => (
+                    <tr key={u.uid} className="border-t border-white/5">
+                      <td className="px-3 py-2 font-mono text-slate-400">{u.uid}</td>
+                      <td className="px-3 py-2 text-right">{u.total}</td>
+                      <td className="px-3 py-2 text-right">{u.valid}</td>
+                      <td className="px-3 py-2 text-right">{u.friendly}</td>
+                      <td className="px-3 py-2 text-right">{u.invalid}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-[#111827] p-4 sm:flex-row sm:flex-wrap sm:items-center">
           <input
@@ -594,7 +962,7 @@ export default function InternalClubsPage() {
         </div>
 
         <p className="text-xs text-slate-500">
-          全 {items.length} 件中 {totalFiltered} 件表示（{page + 1}/{pageCount} ページ）
+          全 {items.length} 件（Auth {authItems.length} / Legacy {items.length - authItems.length}）中 {totalFiltered} 件表示（{page + 1}/{pageCount} ページ）
         </p>
 
         <div className="space-y-3">
@@ -641,6 +1009,11 @@ export default function InternalClubsPage() {
                         設定未完了
                       </span>
                     )}
+                    {c.duplicateProfileCount > 1 && (
+                      <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-400">
+                        重複 {c.duplicateProfileCount}
+                      </span>
+                    )}
                     {!c.aggregateAvailable && (
                       <span
                         className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] font-bold text-slate-400"
@@ -683,6 +1056,7 @@ export default function InternalClubsPage() {
                     <span>UID: {c.ownerUid}</span>
                     <span>slug: {c.publicSlug}</span>
                     <span>作成: {formatDate(c.clubCreatedAt)}</span>
+                    <span>重複profile: {c.duplicateProfileCount > 1 ? c.duplicateProfileCount : "—"}</span>
                   </div>
                 </div>
               </div>

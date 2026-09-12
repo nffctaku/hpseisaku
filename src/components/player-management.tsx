@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { setActivationOnce, trackEvent } from "@/lib/analytics";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { MoreHorizontal } from "lucide-react";
 import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
+import { PlanLimitBadge } from "@/components/plan-limit-badge";
 import {
   Dialog,
   DialogContent,
@@ -87,6 +88,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const [isDragging, setIsDragging] = useState(false);
   const [isFormDirty, setIsFormDirty] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [playerUsage, setPlayerUsage] = useState<{ current: number; limit: number; plan: string } | null>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const wasDialogOpenRef = useRef(false);
 
@@ -96,6 +98,30 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     }
     wasDialogOpenRef.current = isDialogOpen;
   }, [isDialogOpen, isConfirmOpen]);
+
+  useEffect(() => {
+    if (!selectedSeason) return;
+    const fetchUsage = async () => {
+      try {
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) return;
+        const res = await fetch(`/api/club/players/usage?season=${encodeURIComponent(selectedSeason)}`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setPlayerUsage({
+            current: data.currentCount ?? 0,
+            limit: data.limit ?? 0,
+            plan: data.plan ?? 'free',
+          });
+        }
+      } catch (e) {
+        console.error('[PlayerManagement] usage fetch failed', e);
+      }
+    };
+    void fetchUsage();
+  }, [selectedSeason]);
 
   const planTier = getPlanTier(user?.plan);
   const maxPlayers = getPlanLimit("players_per_team_per_season", planTier);
@@ -513,7 +539,6 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         editingPlayerId: editingPlayer?.id ?? null,
         position: valuesNormalized.position,
         number: valuesNormalized.number,
-        photoUrl: valuesNormalized.photoUrl,
       });
       const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
 
@@ -580,7 +605,6 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         annualSalary: (values as any).annualSalary,
         annualSalaryCurrency: (values as any).annualSalaryCurrency,
         contractEndDate,
-        photoUrl: valuesNormalized.photoUrl,
         snsLinks: snsLinksClean,
         params: paramsNormalized as any,
         showParamsOnPublic: (values as any).showParamsOnPublic,
@@ -598,6 +622,38 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
       let savedPlayerId: string | null = null;
 
+      const attachPhotoIfNeeded = async (playerId: string) => {
+        if (!isNewPhoto || !nextPhotoUrl) return;
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error("認証が必要です");
+        const idToken = await currentUser.getIdToken();
+        const syncSeasons = editingPlayer
+          ? Array.from(new Set<string>([
+              selectedSeasonDash,
+              ...(editingPlayer.seasons || []).map(s => toDashSeason(String(s || ''))).filter(Boolean),
+              ...Object.keys(editingPlayer.seasonData || {}),
+            ])).filter(Boolean)
+          : [selectedSeasonDash];
+        const attachRes = await fetch('/api/club/player-photos', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            teamId,
+            season: selectedSeasonDash,
+            playerId,
+            photoUrl: nextPhotoUrl,
+            seasons: syncSeasons,
+          }),
+        });
+        const attachData = (await attachRes.json().catch(() => ({ error: '画像保存に失敗しました' }))) as { error?: string };
+        if (!attachRes.ok) {
+          throw new Error(attachData.error || '選手画像の保存に失敗しました');
+        }
+      };
+
       if (editingPlayer) {
         const currentSeasons = Array.isArray((editingPlayer as any)?.seasons) ? (((editingPlayer as any).seasons as string[]) || []) : [];
         const nextSeasons = currentSeasons.includes(selectedSeason) ? currentSeasons : [...currentSeasons, selectedSeason];
@@ -610,7 +666,6 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           mainPosition: (values as any).mainPosition,
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
           number: valuesNormalized.number as any,
-          photoUrl: valuesNormalized.photoUrl,
           joinedSeason,
           tenureYears,
           seasons: nextSeasons,
@@ -620,14 +675,13 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         });
         console.log("[PlayerManagement] write players", {
           path: `clubs/${clubUid}/teams/${teamId}/players/${editingPlayer.id}`,
-          photoUrl: values.photoUrl,
           seasonPayloadClean,
           selectedSeasonDash,
           updatePayloadSeasonData: updatePayload[`seasonData.${selectedSeasonDash}`]
         });
         await updateDoc(playerDocRef, (updatePayload || {}) as any);
         savedPlayerId = editingPlayer.id;
-        
+
         // 公開ページのキャッシュをクリア
         await invalidatePlayerStatsCache(editingPlayer.id);
 
@@ -672,13 +726,11 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           position: valuesNormalized.position as any,
           mainPosition: (values as any).mainPosition,
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
-          photoUrl: valuesNormalized.photoUrl,
           joinedSeason,
           tenureYears,
         });
         console.log("[PlayerManagement] write roster", {
           path: `clubs/${clubUid}/seasons/${selectedSeason}/roster/${editingPlayer.id}`,
-          photoUrl: values.photoUrl,
           rosterPayload,
           rosterUpdate
         });
@@ -699,21 +751,16 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           const syncBatch = writeBatch(db);
           const playerSeasonDataUpdates: any = {};
           for (const s of otherSeasons) {
-            if (valuesNormalized.photoUrl !== undefined) {
-              playerSeasonDataUpdates[`seasonData.${s}.photoUrl`] = valuesNormalized.photoUrl;
-            }
             if ((values as any).subName !== undefined) {
               playerSeasonDataUpdates[`seasonData.${s}.subName`] = (values as any).subName;
             }
             const otherRosterRef = doc(db, `clubs/${clubUid}/seasons/${s}/roster`, editingPlayer.id);
             const seasonDataPatch: any = {};
-            if (valuesNormalized.photoUrl !== undefined) seasonDataPatch.photoUrl = valuesNormalized.photoUrl;
             if ((values as any).subName !== undefined) seasonDataPatch.subName = (values as any).subName;
             const rosterSync: any = {
               name: valuesNormalized.name,
             };
             if ((values as any).subName !== undefined) rosterSync.subName = (values as any).subName;
-            if (valuesNormalized.photoUrl !== undefined) rosterSync.photoUrl = valuesNormalized.photoUrl;
             if (Object.keys(seasonDataPatch).length > 0) {
               rosterSync.seasonData = { [s]: seasonDataPatch };
             }
@@ -727,6 +774,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       } else {
         const createPayload = stripUndefinedDeep({
           ...valuesNormalized,
+          photoUrl: undefined,
           subName: (values as any).subName,
           joinedSeason,
           tenureYears,
@@ -758,7 +806,6 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster`, created.id);
         console.log("[PlayerManagement] write roster (create)", {
           path: `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster/${created.id}`,
-          photoUrl: values.photoUrl,
         });
         await setDoc(
           rosterDocRef,
@@ -776,7 +823,6 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             position: values.position as any,
             mainPosition: (values as any).mainPosition,
             subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
-            photoUrl: values.photoUrl,
             joinedSeason,
             tenureYears,
           }) || {}) as any,
@@ -786,6 +832,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
       if (savedPlayerId) {
         await invalidatePlayerStatsCache(savedPlayerId);
+        await attachPhotoIfNeeded(savedPlayerId);
       }
 
       toast.success("保存しました。", {
@@ -1297,6 +1344,17 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     <>
       <div className="mt-2">
         <div className="w-full mb-4">
+          {playerUsage && (
+            <div className="mb-2">
+              <PlanLimitBadge
+                plan={playerUsage.plan}
+                current={playerUsage.current}
+                limit={playerUsage.limit}
+                label="選手登録"
+                unit="人"
+              />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-1">
             <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
               <DialogTrigger asChild>
@@ -1319,6 +1377,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                   defaultValues={seasonDefaults || editingPlayer || undefined}
                   defaultSeason={selectedSeason}
                   ownerUid={user?.uid ?? null}
+                  teamId={teamId}
                   isEdit={!!editingPlayer}
                   onDirtyChange={setIsFormDirty}
                   onClose={handleClose}
