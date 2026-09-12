@@ -451,7 +451,11 @@ export default function NewCompetitionPage() {
         });
       }
 
-      const cleanedData = removeUndefined(competitionData) as Record<string, unknown>;
+      const cleanedData = removeUndefined({
+        ...competitionData,
+        ownerUid: clubUid,
+        clubProfileId: clubProfileId || null,
+      }) as Record<string, unknown>;
       const compRef = await addDoc(collection(db, `clubs/${clubUid}/competitions`), cleanedData);
 
       if (clubUid) {
@@ -460,6 +464,7 @@ export default function NewCompetitionPage() {
           void trackEvent('competition_create_first', clubUid, {
             profileId: clubUid,
             ownerUid: clubUid,
+            clubProfileId: clubProfileId || null,
             competitionId: compRef.id,
           });
         }

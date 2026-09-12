@@ -155,7 +155,7 @@ function isLeagueRoundName(name: string | undefined): boolean {
 }
 
 export default function CompetitionDetailPage() {
-  const { user, ownerUid } = useAuth();
+  const { user, ownerUid, clubProfileId } = useAuth();
   const params = useParams();
   const competitionId = params.competitionId as string;
 
@@ -811,7 +811,9 @@ export default function CompetitionDetailPage() {
         matchDate: defaultMatchDate ?? '', 
         competitionId, 
         scoreHome: null, scoreAway: null,
-        pkScoreHome: null, pkScoreAway: null 
+        pkScoreHome: null, pkScoreAway: null,
+        ownerUid: clubUid,
+        clubProfileId: clubProfileId || null,
       };
 
       const matchesPath = `clubs/${clubUid}/competitions/${competitionId}/rounds/${currentRound.id}/matches`;
@@ -823,6 +825,7 @@ export default function CompetitionDetailPage() {
           void trackEvent('match_create_first', clubUid, {
             profileId: clubUid,
             ownerUid: clubUid,
+            clubProfileId: clubProfileId || null,
             competitionId,
             roundId: currentRound.id,
             matchId: matchRef.id,
@@ -831,6 +834,7 @@ export default function CompetitionDetailPage() {
         void trackEvent('match_create', clubUid, {
           profileId: clubUid,
           ownerUid: clubUid,
+          clubProfileId: clubProfileId || null,
           competitionId,
           roundId: currentRound.id,
           matchId: matchRef.id,

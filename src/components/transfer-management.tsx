@@ -58,7 +58,7 @@ interface TransferManagementProps {
 }
 
 export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSeason }: TransferManagementProps) {
-  const { user, ownerUid } = useAuth();
+  const { user, ownerUid, clubProfileId } = useAuth();
   const clubUid = ownerUid || user?.uid;
 
   const normalizedSelectedSeason = useMemo(() => toSlashSeason(selectedSeason), [selectedSeason]);
@@ -230,6 +230,8 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
       kind: (values as any).kind || "完全",
       playerName: values.playerName,
       counterparty: values.counterparty,
+      ownerUid: clubUid,
+      clubProfileId: clubProfileId || null,
       updatedAt: serverTimestamp(),
     };
 

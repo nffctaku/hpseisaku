@@ -53,6 +53,8 @@ export default function CreateClubPage() {
       batch.set(clubProfileRef, {
         clubName,
         ownerUid: user.uid,
+        clubProfileId: clubId,
+        clubId,
         createdAt: new Date(),
       });
 
@@ -60,6 +62,8 @@ export default function CreateClubPage() {
       const teamRef = doc(collection(db, `clubs/${user.uid}/teams`));
       batch.set(teamRef, {
         name: clubName,
+        ownerUid: user.uid,
+        clubProfileId: clubId,
         // You can add more fields like logoUrl here if needed
       });
 
@@ -69,6 +73,7 @@ export default function CreateClubPage() {
       void trackEvent('club_create_complete', user.uid, {
         profileId: user.uid,
         ownerUid: user.uid,
+        clubProfileId: clubId,
         clubId: values.clubId,
       });
 

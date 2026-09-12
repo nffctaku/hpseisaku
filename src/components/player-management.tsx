@@ -69,7 +69,7 @@ interface PlayerManagementProps {
 }
 
 export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementProps) {
-  const { user, ownerUid } = useAuth();
+  const { user, ownerUid, clubProfileId } = useAuth();
   const clubUid = ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [players, setPlayers] = useState<Player[]>([]);
@@ -736,6 +736,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           },
           params: paramsNormalized as any,
           showParamsOnPublic: (values as any).showParamsOnPublic,
+          ownerUid: clubUid,
+          clubProfileId: clubProfileId || null,
         });
         const created = await addDoc(playersColRef, (createPayload || {}) as any);
         savedPlayerId = created.id;
@@ -746,6 +748,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             void trackEvent('player_create_first', clubUid, {
               profileId: clubUid,
               ownerUid: clubUid,
+              clubProfileId: clubProfileId || null,
               playerId: created.id,
               teamId,
             });
@@ -763,6 +766,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             ...(createPayload || {}),
             subName: (values as any).subName,
             teamId,
+            ownerUid: clubUid,
+            clubProfileId: clubProfileId || null,
             seasons: [selectedSeason],
             seasonData: {
               [selectedSeasonDash]: seasonPayloadClean,

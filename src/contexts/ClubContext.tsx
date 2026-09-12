@@ -7,6 +7,7 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 
 interface ClubInfo {
   id: string | null;
+  clubProfileId: string | null;
   logoUrl: string | null;
   clubName: string | null;
 }
@@ -14,6 +15,7 @@ interface ClubInfo {
 interface ClubContextType {
   clubInfo: ClubInfo;
   mainTeamId: string | null;
+  clubProfileId: string | null;
   fetchClubInfo: () => void;
 }
 
@@ -21,8 +23,9 @@ const ClubContext = createContext<ClubContextType | undefined>(undefined);
 
 export function ClubProvider({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
-  const [clubInfo, setClubInfo] = useState<ClubInfo>({ id: null, logoUrl: null, clubName: null });
+  const [clubInfo, setClubInfo] = useState<ClubInfo>({ id: null, clubProfileId: null, logoUrl: null, clubName: null });
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
+  const [clubProfileId, setClubProfileId] = useState<string | null>(null);
 
   const fetchClubInfo = useCallback(async () => {
     if (user && !loading) {
@@ -33,13 +36,17 @@ export function ClubProvider({ children }: { children: ReactNode }) {
         const profilesSnap = await getDocs(profilesQuery);
 
         let clubProfileData: any = {};
+        let nextClubProfileId: string | null = null;
 
         if (!profilesSnap.empty) {
-          clubProfileData = profilesSnap.docs[0].data();
+          const firstDoc = profilesSnap.docs[0];
+          clubProfileData = firstDoc.data();
+          nextClubProfileId = firstDoc.id;
         } else {
           // Fallback: document whose ID is the uid (newer schema)
           const clubProfileRef = doc(db, 'club_profiles', user.uid);
           const clubProfileSnap = await getDoc(clubProfileRef);
+          nextClubProfileId = clubProfileSnap.exists() ? clubProfileSnap.id : null;
           clubProfileData = clubProfileSnap.exists() ? clubProfileSnap.data() : {};
         }
 
@@ -73,6 +80,7 @@ export function ClubProvider({ children }: { children: ReactNode }) {
 
         setClubInfo({
           id: resolvedClubId,
+          clubProfileId: nextClubProfileId,
           // 表示優先度: メインチーム > club_profiles > clubs
           clubName:
             (teamData as any).name ||
@@ -87,6 +95,7 @@ export function ClubProvider({ children }: { children: ReactNode }) {
             null,
         });
         setMainTeamId(mainTeamId);
+        setClubProfileId(nextClubProfileId);
       } catch (error) {
         console.error("Error fetching club info for context:", error);
       }
@@ -98,7 +107,7 @@ export function ClubProvider({ children }: { children: ReactNode }) {
   }, [fetchClubInfo]);
 
   return (
-    <ClubContext.Provider value={{ clubInfo, mainTeamId, fetchClubInfo }}>
+    <ClubContext.Provider value={{ clubInfo, mainTeamId, clubProfileId, fetchClubInfo }}>
       {children}
     </ClubContext.Provider>
   );

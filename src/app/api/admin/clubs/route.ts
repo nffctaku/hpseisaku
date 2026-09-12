@@ -16,6 +16,12 @@ interface ClubListItem {
   clubCreatedAt: string | null;
   lastActivityAt: string | null;
   playerCount: number | null;
+  playerImageCount: number | null;
+  playerImageRate: number | null;
+  mainTeamName: string | null;
+  teamCount: number | null;
+  teamImageCount: number | null;
+  teamImageRate: number | null;
   competitionCount: number | null;
   matchCount: number | null;
   newsCount: number | null;
@@ -23,9 +29,14 @@ interface ClubListItem {
   analyticsCohort: string;
   isPublic: boolean;
   aggregateAvailable: boolean;
+  aggregateUnavailableReason: string | null;
   usageLevel: number | null;
   active7: boolean;
   active30: boolean;
+  engaged7: boolean;
+  engaged30: boolean;
+  matchActive7: boolean;
+  matchActive30: boolean;
 }
 
 interface Summary {
@@ -47,6 +58,23 @@ interface Summary {
   matches10Rate: number;
   matches50Rate: number;
   matches100Rate: number;
+  withPlayerImages10: number;
+  withPlayerImages20: number;
+  withTeamImages: number;
+  withTeamImages5: number;
+  withPlayerImages10Rate: number;
+  withPlayerImages20Rate: number;
+  withTeamImagesRate: number;
+  withTeamImages5Rate: number;
+  unavailableByReason: Record<string, number>;
+  multiClubOwners: number;
+  multiClubProfiles: number;
+  avgClubsPerMultiOwner: number;
+  maxClubsPerOwner: number;
+  engaged7: number;
+  engaged30: number;
+  matchActive7: number;
+  matchActive30: number;
 }
 
 function toIso(value: unknown): string | null {
@@ -80,6 +108,17 @@ function eventClubId(data: Record<string, unknown>): string | null {
   return null;
 }
 
+function eventClubProfileId(data: Record<string, unknown>): string | null {
+  const props = (data.properties as Record<string, unknown>) || {};
+  if (typeof props.clubProfileId === "string" && props.clubProfileId.trim()) {
+    return props.clubProfileId;
+  }
+  if (typeof data.clubProfileId === "string" && data.clubProfileId.trim()) {
+    return data.clubProfileId;
+  }
+  return null;
+}
+
 function calcUsageLevel(
   playerCount: number,
   competitionCount: number,
@@ -99,6 +138,33 @@ function isWithinDays(iso: string | null, now: number, days: number): boolean {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return false;
   return now - t <= days * 24 * 60 * 60 * 1000;
+}
+
+function isValidPlayer(data: Record<string, unknown>): boolean {
+  if (data.isDeleted === true) return false;
+  if (data.deletedAt != null) return false;
+  if (typeof data.name !== "string" || !data.name.trim()) return false;
+  return true;
+}
+
+function hasTeamLogo(data: Record<string, unknown>): boolean {
+  return typeof data.logoUrl === "string" && data.logoUrl.trim().length > 0;
+}
+
+function hasPlayerPhoto(data: Record<string, unknown>): boolean {
+  if (typeof data.photoUrl === "string" && data.photoUrl.trim()) return true;
+  const seasonData =
+    data.seasonData && typeof data.seasonData === "object"
+      ? (data.seasonData as Record<string, unknown>)
+      : null;
+  if (!seasonData) return false;
+  for (const value of Object.values(seasonData)) {
+    if (value && typeof value === "object") {
+      const sd = value as Record<string, unknown>;
+      if (typeof sd.photoUrl === "string" && sd.photoUrl.trim()) return true;
+    }
+  }
+  return false;
 }
 
 export async function GET(req: NextRequest) {
@@ -122,6 +188,7 @@ export async function GET(req: NextRequest) {
       profilesSnap,
       usersSnap,
       playersSnap,
+      teamsSnap,
       competitionsSnap,
       newsSnap,
       matchesSnap,
@@ -131,6 +198,7 @@ export async function GET(req: NextRequest) {
       db.collection("club_profiles").get(),
       db.collection("users").get(),
       db.collectionGroup("players").get(),
+      db.collectionGroup("teams").get(),
       db.collectionGroup("competitions").get(),
       db.collectionGroup("news").get(),
       db.collectionGroup("matches").get(),
@@ -148,51 +216,125 @@ export async function GET(req: NextRequest) {
       if (typeof c === "string") cohortByUid[d.id] = c;
     }
 
-    const playerCountBy: Record<string, number> = {};
+    const playerStatsByTeam: Record<string, { count: number; imageCount: number }> = {};
     for (const d of playersSnap.docs) {
-      const uid = ownerUidFromPath(d.ref.path);
-      if (!uid) continue;
-      playerCountBy[uid] = (playerCountBy[uid] || 0) + 1;
+      const parts = d.ref.path.split("/");
+      if (
+        parts.length !== 6 ||
+        parts[0] !== "clubs" ||
+        parts[2] !== "teams" ||
+        parts[4] !== "players"
+      ) {
+        continue;
+      }
+      const uid = parts[1];
+      const teamId = parts[3];
+      const data = d.data() as Record<string, unknown>;
+      if (!isValidPlayer(data)) continue;
+
+      const key = `${uid}/${teamId}`;
+      const prev = playerStatsByTeam[key] || { count: 0, imageCount: 0 };
+      playerStatsByTeam[key] = {
+        count: prev.count + 1,
+        imageCount: prev.imageCount + (hasPlayerPhoto(data) ? 1 : 0),
+      };
     }
 
     const competitionCountBy: Record<string, number> = {};
+    const competitionCountByClubProfile: Record<string, number> = {};
     for (const d of competitionsSnap.docs) {
       const uid = ownerUidFromPath(d.ref.path);
-      if (!uid) continue;
-      competitionCountBy[uid] = (competitionCountBy[uid] || 0) + 1;
+      const data = d.data() as Record<string, unknown>;
+      if (typeof data.clubProfileId === "string" && data.clubProfileId.trim()) {
+        competitionCountByClubProfile[data.clubProfileId] = (competitionCountByClubProfile[data.clubProfileId] || 0) + 1;
+      }
+      if (uid) {
+        competitionCountBy[uid] = (competitionCountBy[uid] || 0) + 1;
+      }
     }
 
     const newsCountBy: Record<string, number> = {};
+    const newsCountByClubProfile: Record<string, number> = {};
     for (const d of newsSnap.docs) {
       const uid = ownerUidFromPath(d.ref.path);
-      if (!uid) continue;
-      newsCountBy[uid] = (newsCountBy[uid] || 0) + 1;
+      const data = d.data() as Record<string, unknown>;
+      if (typeof data.clubProfileId === "string" && data.clubProfileId.trim()) {
+        newsCountByClubProfile[data.clubProfileId] = (newsCountByClubProfile[data.clubProfileId] || 0) + 1;
+      }
+      if (uid) {
+        newsCountBy[uid] = (newsCountBy[uid] || 0) + 1;
+      }
     }
 
     const matchCountBy: Record<string, number> = {};
+    const matchCountByClubProfile: Record<string, number> = {};
     for (const d of matchesSnap.docs) {
       const uid = ownerUidFromPath(d.ref.path);
-      if (!uid) continue;
-      matchCountBy[uid] = (matchCountBy[uid] || 0) + 1;
+      const data = d.data() as Record<string, unknown>;
+      if (typeof data.clubProfileId === "string" && data.clubProfileId.trim()) {
+        matchCountByClubProfile[data.clubProfileId] = (matchCountByClubProfile[data.clubProfileId] || 0) + 1;
+      }
+      if (uid) {
+        matchCountBy[uid] = (matchCountBy[uid] || 0) + 1;
+      }
     }
     for (const d of friendlySnap.docs) {
       const uid = ownerUidFromPath(d.ref.path);
-      if (!uid) continue;
-      matchCountBy[uid] = (matchCountBy[uid] || 0) + 1;
+      const data = d.data() as Record<string, unknown>;
+      if (typeof data.clubProfileId === "string" && data.clubProfileId.trim()) {
+        matchCountByClubProfile[data.clubProfileId] = (matchCountByClubProfile[data.clubProfileId] || 0) + 1;
+      }
+      if (uid) {
+        matchCountBy[uid] = (matchCountBy[uid] || 0) + 1;
+      }
+    }
+
+    const profileRows = profilesSnap.docs.map((d) => ({
+      id: d.id,
+      data: d.data() as Record<string, unknown>,
+    }));
+
+    const profileIdsByOwner: Record<string, string[]> = {};
+    for (const r of profileRows) {
+      const ownerUid = String(r.data.ownerUid || r.id);
+      profileIdsByOwner[ownerUid] = profileIdsByOwner[ownerUid] || [];
+      profileIdsByOwner[ownerUid].push(r.id);
+    }
+
+    const uniquePublicSlugByOwner: Record<string, string> = {};
+    for (const [uid, ids] of Object.entries(profileIdsByOwner)) {
+      if (ids.length === 1) {
+        const r = profileRows.find((row) => row.id === ids[0])!;
+        uniquePublicSlugByOwner[uid] = String(r.data.clubId || r.id);
+      }
     }
 
     const now = Date.now();
     const lastActiveByClub: Record<string, string> = {};
-    const active7ByClub: Record<string, boolean> = {};
-    const active30ByClub: Record<string, boolean> = {};
+    const lastActiveByClubProfile: Record<string, string> = {};
     const lastActiveByOwner: Record<string, string> = {};
-    const active7ByOwner: Record<string, boolean> = {};
-    const active30ByOwner: Record<string, boolean> = {};
+    const engaged7ByClub: Record<string, boolean> = {};
+    const engaged30ByClub: Record<string, boolean> = {};
+    const engaged7ByClubProfile: Record<string, boolean> = {};
+    const engaged30ByClubProfile: Record<string, boolean> = {};
+    const matchActive7ByClub: Record<string, boolean> = {};
+    const matchActive30ByClub: Record<string, boolean> = {};
+    const matchActive7ByClubProfile: Record<string, boolean> = {};
+    const matchActive30ByClubProfile: Record<string, boolean> = {};
+
+    const engagedEventNames = new Set([
+      "match_create",
+      "match_create_first",
+      "competition_create_first",
+      "player_create_first",
+    ]);
+    const matchEventNames = new Set(["match_create", "match_create_first"]);
 
     for (const d of eventsSnap.docs) {
       const data = d.data() as Record<string, unknown>;
       const userId = typeof data.userId === "string" ? data.userId : null;
-      const clubId = eventClubId(data);
+      const props = (data.properties as Record<string, unknown>) || {};
+      const eventName = typeof data.eventName === "string" ? data.eventName : "";
       const createdAt = data.createdAt;
       let time: number | null = null;
       if (createdAt instanceof admin.firestore.Timestamp) {
@@ -206,55 +348,86 @@ export async function GET(req: NextRequest) {
       if (time === null) continue;
       const iso = new Date(time).toISOString();
 
-      if (clubId) {
+      let clubId: string | null = null;
+      const directClubProfileId = eventClubProfileId(data);
+      const directClubId = eventClubId(data);
+      if (directClubProfileId) {
+        clubId = directClubProfileId;
+      } else if (directClubId) {
+        clubId = directClubId;
+      } else {
+        const candidateUid =
+          userId ||
+          (typeof props.ownerUid === "string" ? props.ownerUid : null) ||
+          (typeof props.profileId === "string" ? props.profileId : null);
+        if (candidateUid && uniquePublicSlugByOwner[candidateUid]) {
+          clubId = uniquePublicSlugByOwner[candidateUid];
+        }
+      }
+
+      if (directClubProfileId) {
+        if (!lastActiveByClubProfile[directClubProfileId]) lastActiveByClubProfile[directClubProfileId] = iso;
+        if (engagedEventNames.has(eventName)) {
+          engaged30ByClubProfile[directClubProfileId] = true;
+          if (now - time < 7 * 24 * 60 * 60 * 1000) engaged7ByClubProfile[directClubProfileId] = true;
+        }
+        if (matchEventNames.has(eventName)) {
+          matchActive30ByClubProfile[directClubProfileId] = true;
+          if (now - time < 7 * 24 * 60 * 60 * 1000) matchActive7ByClubProfile[directClubProfileId] = true;
+        }
+      } else if (clubId) {
         if (!lastActiveByClub[clubId]) lastActiveByClub[clubId] = iso;
-        active30ByClub[clubId] = true;
-        if (now - time < 7 * 24 * 60 * 60 * 1000) active7ByClub[clubId] = true;
+        if (engagedEventNames.has(eventName)) {
+          engaged30ByClub[clubId] = true;
+          if (now - time < 7 * 24 * 60 * 60 * 1000) engaged7ByClub[clubId] = true;
+        }
+        if (matchEventNames.has(eventName)) {
+          matchActive30ByClub[clubId] = true;
+          if (now - time < 7 * 24 * 60 * 60 * 1000) matchActive7ByClub[clubId] = true;
+        }
       }
 
       if (userId) {
         if (!lastActiveByOwner[userId]) lastActiveByOwner[userId] = iso;
-        active30ByOwner[userId] = true;
-        if (now - time < 7 * 24 * 60 * 60 * 1000) active7ByOwner[userId] = true;
       }
     }
-
-    const profileRows = profilesSnap.docs.map((d) => ({
-      id: d.id,
-      data: d.data() as Record<string, unknown>,
-    }));
 
     const mainTeamMap = new Map<string, Record<string, unknown>>();
-    const mainTeamRefs: admin.firestore.DocumentReference[] = [];
-    for (const r of profileRows) {
-      const ownerUid = String(r.data.ownerUid || r.id);
-      const mainTeamId = typeof r.data.mainTeamId === "string" ? r.data.mainTeamId : null;
-      if (mainTeamId) {
-        mainTeamRefs.push(db.collection(`clubs/${ownerUid}/teams`).doc(mainTeamId));
+    const teamStatsByUid: Record<string, { count: number; imageCount: number }> = {};
+    const teamStatsByClubProfile: Record<string, { count: number; imageCount: number }> = {};
+    const teamIdsByClubProfile: Record<string, string[]> = {};
+    for (const d of teamsSnap.docs) {
+      const parts = d.ref.path.split("/");
+      if (
+        parts.length !== 4 ||
+        parts[0] !== "clubs" ||
+        parts[2] !== "teams"
+      ) {
+        continue;
       }
-    }
-    if (mainTeamRefs.length > 0) {
-      try {
-        const dbWithGetAll = db as unknown as {
-          getAll: (...refs: admin.firestore.DocumentReference[]) => Promise<admin.firestore.DocumentSnapshot[]>;
-        };
-        const mainTeamSnaps = await dbWithGetAll.getAll(...mainTeamRefs);
-        for (const snap of mainTeamSnaps) {
-          if (snap.exists) {
-            const ownerUid = snap.ref.parent.parent?.id || "";
-            mainTeamMap.set(`${ownerUid}/${snap.id}`, snap.data() as Record<string, unknown>);
-          }
-        }
-      } catch {
-        // メインチーム取得失敗時は club_profiles の値を使用
-      }
-    }
+      const uid = parts[1];
+      const data = d.data() as Record<string, unknown>;
+      if (data.isDeleted === true || data.deletedAt != null) continue;
+      if (typeof data.name !== "string" || !data.name.trim()) continue;
 
-    const profileIdsByOwner: Record<string, string[]> = {};
-    for (const r of profileRows) {
-      const ownerUid = String(r.data.ownerUid || r.id);
-      profileIdsByOwner[ownerUid] = profileIdsByOwner[ownerUid] || [];
-      profileIdsByOwner[ownerUid].push(r.id);
+      mainTeamMap.set(`${uid}/${d.id}`, data);
+
+      const prev = teamStatsByUid[uid] || { count: 0, imageCount: 0 };
+      teamStatsByUid[uid] = {
+        count: prev.count + 1,
+        imageCount: prev.imageCount + (hasTeamLogo(data) ? 1 : 0),
+      };
+
+      const cpid = typeof data.clubProfileId === "string" ? data.clubProfileId : null;
+      if (cpid) {
+        const prevByProfile = teamStatsByClubProfile[cpid] || { count: 0, imageCount: 0 };
+        teamStatsByClubProfile[cpid] = {
+          count: prevByProfile.count + 1,
+          imageCount: prevByProfile.imageCount + (hasTeamLogo(data) ? 1 : 0),
+        };
+        teamIdsByClubProfile[cpid] = teamIdsByClubProfile[cpid] || [];
+        teamIdsByClubProfile[cpid].push(d.id);
+      }
     }
 
     const uids = profileRows.map((r) => String(r.data.ownerUid || "")).filter(Boolean);
@@ -273,16 +446,44 @@ export async function GET(req: NextRequest) {
       const data = r.data;
       const ownerUid = String(data.ownerUid || r.id);
       const publicSlug = String(data.clubId || r.id);
-      const isUnique = (profileIdsByOwner[ownerUid]?.length || 0) === 1;
+      const profileCountForOwner = profileIdsByOwner[ownerUid]?.length || 0;
+      const isUnique = profileCountForOwner === 1;
+
+      const clubProfileId = r.id;
+      const hasClubProfileIdData =
+        Boolean(teamStatsByClubProfile[clubProfileId]) ||
+        Boolean(competitionCountByClubProfile[clubProfileId]) ||
+        Boolean(matchCountByClubProfile[clubProfileId]) ||
+        Boolean(newsCountByClubProfile[clubProfileId]);
+      const canAggregate = isUnique || hasClubProfileIdData;
+
+      const aggregateUnavailableReason = canAggregate
+        ? null
+        : (typeof data.ownerUid === "string" && data.ownerUid
+            ? "MULTIPLE_PROFILES"
+            : "NO_OWNER_UID");
+
+      const mainTeamId = typeof data.mainTeamId === "string" ? data.mainTeamId : null;
+      const mainTeamData = mainTeamId
+        ? mainTeamMap.get(`${ownerUid}/${mainTeamId}`)
+        : undefined;
 
       const rawName = data.clubName;
+      const mainTeamName =
+        typeof mainTeamData?.name === "string" ? mainTeamData.name.trim() : null;
       const nameSet =
-        typeof rawName === "string" && rawName.trim().length > 0;
-      const clubName = nameSet ? rawName.trim() : "(未設定)";
+        (typeof rawName === "string" && rawName.trim().length > 0) ||
+        Boolean(mainTeamName);
+      const clubName =
+        (typeof rawName === "string" && rawName.trim()) ||
+        mainTeamName ||
+        publicSlug ||
+        r.id;
 
       const lastLogin = toIso(data.lastLoginAt);
       const created = toIso(data.createdAt);
       const lastActivity =
+        lastActiveByClubProfile[clubProfileId] ||
         lastActiveByClub[publicSlug] ||
         lastActiveByClub[r.id] ||
         (isUnique ? lastActiveByOwner[ownerUid] : null) ||
@@ -292,15 +493,65 @@ export async function GET(req: NextRequest) {
       const planRaw = String(data.plan || "free").toLowerCase();
       const plan = planRaw === "officia" ? "officia" : planRaw === "pro" ? "pro" : "free";
 
-      const mainTeamData =
-        typeof data.mainTeamId === "string"
-          ? mainTeamMap.get(`${ownerUid}/${data.mainTeamId}`)
-          : undefined;
+      // mainTeamId がなければ clubProfileId に紐づくチームが1つだけならそれを使う
+      const uidCandidates = Array.from(new Set([ownerUid, publicSlug].filter(Boolean)));
+      const teamIdsForCandidates = new Set<string>();
+      for (const uid of uidCandidates) {
+        for (const key of Object.keys(playerStatsByTeam)) {
+          if (key.startsWith(`${uid}/`)) teamIdsForCandidates.add(key.slice(uid.length + 1));
+        }
+      }
+      const fallbackTeamIds = teamIdsByClubProfile[clubProfileId] || [];
+      const targetTeamId =
+        mainTeamId ||
+        (fallbackTeamIds.length === 1 ? fallbackTeamIds[0] : null) ||
+        (teamIdsForCandidates.size === 1 ? Array.from(teamIdsForCandidates)[0] : null);
 
-      const pCount = isUnique ? playerCountBy[ownerUid] || 0 : null;
-      const cCount = isUnique ? competitionCountBy[ownerUid] || 0 : null;
-      const mCount = isUnique ? matchCountBy[ownerUid] || 0 : null;
-      const nCount = isUnique ? newsCountBy[ownerUid] || 0 : null;
+      let pCount: number | null = null;
+      let pImage: number | null = null;
+      if (canAggregate && targetTeamId) {
+        pCount = 0;
+        pImage = 0;
+        for (const uid of uidCandidates) {
+          const stats = playerStatsByTeam[`${uid}/${targetTeamId}`];
+          if (stats) {
+            pCount += stats.count;
+            pImage += stats.imageCount;
+          }
+        }
+      }
+
+      let tCount: number | null = null;
+      let tImage: number | null = null;
+      if (canAggregate) {
+        const byProfile = teamStatsByClubProfile[clubProfileId];
+        if (byProfile) {
+          tCount = byProfile.count;
+          tImage = byProfile.imageCount;
+        } else if (isUnique) {
+          tCount = 0;
+          tImage = 0;
+          for (const uid of uidCandidates) {
+            const stats = teamStatsByUid[uid];
+            if (stats) {
+              tCount += stats.count;
+              tImage += stats.imageCount;
+            }
+          }
+        }
+      }
+
+      let cCount: number | null = null;
+      let mCount: number | null = null;
+      let nCount: number | null = null;
+      if (canAggregate) {
+        const byProfileCompetition = competitionCountByClubProfile[clubProfileId];
+        const byProfileMatch = matchCountByClubProfile[clubProfileId];
+        const byProfileNews = newsCountByClubProfile[clubProfileId];
+        cCount = byProfileCompetition ?? (isUnique ? (competitionCountBy[ownerUid] ?? 0) : 0);
+        mCount = byProfileMatch ?? (isUnique ? (matchCountBy[ownerUid] ?? 0) : 0);
+        nCount = byProfileNews ?? (isUnique ? (newsCountBy[ownerUid] ?? 0) : 0);
+      }
 
       const usageLevel =
         pCount !== null && cCount !== null && mCount !== null
@@ -327,16 +578,45 @@ export async function GET(req: NextRequest) {
         clubCreatedAt: created,
         lastActivityAt: lastActivity,
         playerCount: pCount,
+        playerImageCount: pImage,
+        playerImageRate:
+          pCount !== null && pCount > 0 ? Math.round(((pImage || 0) / pCount) * 1000) / 10 : null,
+        mainTeamName: mainTeamName || null,
+        teamCount: tCount,
+        teamImageCount: tImage,
+        teamImageRate:
+          tCount !== null && tCount > 0 ? Math.round(((tImage || 0) / tCount) * 1000) / 10 : null,
         competitionCount: cCount,
         matchCount: mCount,
         newsCount: nCount,
         plan,
         analyticsCohort: cohortByUid[ownerUid] || "pre_tracking",
         isPublic: data.isPublic !== false,
-        aggregateAvailable: isUnique,
+        aggregateAvailable: canAggregate,
+        aggregateUnavailableReason,
         usageLevel,
         active7,
         active30,
+        engaged7:
+          engaged7ByClubProfile[clubProfileId] ||
+          engaged7ByClub[publicSlug] ||
+          engaged7ByClub[r.id] ||
+          false,
+        engaged30:
+          engaged30ByClubProfile[clubProfileId] ||
+          engaged30ByClub[publicSlug] ||
+          engaged30ByClub[r.id] ||
+          false,
+        matchActive7:
+          matchActive7ByClubProfile[clubProfileId] ||
+          matchActive7ByClub[publicSlug] ||
+          matchActive7ByClub[r.id] ||
+          false,
+        matchActive30:
+          matchActive30ByClubProfile[clubProfileId] ||
+          matchActive30ByClub[publicSlug] ||
+          matchActive30ByClub[r.id] ||
+          false,
       };
     });
 
@@ -358,6 +638,41 @@ export async function GET(req: NextRequest) {
       (c) => c.aggregateAvailable && (c.matchCount ?? 0) >= 100
     ).length;
 
+    const unavailableByReason: Record<string, number> = {};
+    for (const c of clubs) {
+      if (c.aggregateAvailable) continue;
+      const reason = c.aggregateUnavailableReason || "UNKNOWN";
+      unavailableByReason[reason] = (unavailableByReason[reason] || 0) + 1;
+    }
+
+    let multiClubOwners = 0;
+    let multiClubProfiles = 0;
+    let maxClubsPerOwner = 0;
+    for (const [, ids] of Object.entries(profileIdsByOwner)) {
+      if (ids.length > 1) {
+        multiClubOwners += 1;
+        multiClubProfiles += ids.length;
+      }
+      if (ids.length > maxClubsPerOwner) maxClubsPerOwner = ids.length;
+    }
+    const avgClubsPerMultiOwner =
+      multiClubOwners > 0
+        ? Math.round((multiClubProfiles / multiClubOwners) * 10) / 10
+        : 0;
+
+    const withPlayerImages10 = clubs.filter(
+      (c) => c.aggregateAvailable && (c.playerImageCount ?? 0) >= 10
+    ).length;
+    const withPlayerImages20 = clubs.filter(
+      (c) => c.aggregateAvailable && (c.playerImageCount ?? 0) >= 20
+    ).length;
+    const withTeamImages = clubs.filter(
+      (c) => c.aggregateAvailable && (c.teamImageCount ?? 0) >= 1
+    ).length;
+    const withTeamImages5 = clubs.filter(
+      (c) => c.aggregateAvailable && (c.teamImageCount ?? 0) >= 5
+    ).length;
+
     const summary: Summary = {
       total,
       aggregatable,
@@ -377,6 +692,27 @@ export async function GET(req: NextRequest) {
       matches10Rate: aggregatable > 0 ? Math.round((matches10 / aggregatable) * 1000) / 10 : 0,
       matches50Rate: aggregatable > 0 ? Math.round((matches50 / aggregatable) * 1000) / 10 : 0,
       matches100Rate: aggregatable > 0 ? Math.round((matches100 / aggregatable) * 1000) / 10 : 0,
+      withPlayerImages10,
+      withPlayerImages20,
+      withTeamImages,
+      withTeamImages5,
+      withPlayerImages10Rate:
+        aggregatable > 0 ? Math.round((withPlayerImages10 / aggregatable) * 1000) / 10 : 0,
+      withPlayerImages20Rate:
+        aggregatable > 0 ? Math.round((withPlayerImages20 / aggregatable) * 1000) / 10 : 0,
+      withTeamImagesRate:
+        aggregatable > 0 ? Math.round((withTeamImages / aggregatable) * 1000) / 10 : 0,
+      withTeamImages5Rate:
+        aggregatable > 0 ? Math.round((withTeamImages5 / aggregatable) * 1000) / 10 : 0,
+      unavailableByReason,
+      multiClubOwners,
+      multiClubProfiles,
+      avgClubsPerMultiOwner,
+      maxClubsPerOwner,
+      engaged7: clubs.filter((c) => c.engaged7).length,
+      engaged30: clubs.filter((c) => c.engaged30).length,
+      matchActive7: clubs.filter((c) => c.matchActive7).length,
+      matchActive30: clubs.filter((c) => c.matchActive30).length,
     };
 
     return NextResponse.json({ summary, clubs });

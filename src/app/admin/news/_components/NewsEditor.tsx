@@ -141,7 +141,7 @@ function isDraftGenerateResponse(value: unknown): value is { title: string; cont
 }
 
 export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initialMode }: NewsEditorProps) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, clubProfileId } = useAuth();
   const [mode, setMode] = useState<CreationMode>("manual");
   const [aiMatches, setAiMatches] = useState<MatchDetails[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>("");
@@ -471,6 +471,8 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
         status,
         creationMethod,
         sourceMatchId: sourceMatchId ?? null,
+        ownerUid: clubUid,
+        clubProfileId: clubProfileId || null,
         publishedAt: Timestamp.fromDate(values.publishedAt),
         updatedAt: serverTimestamp(),
       };

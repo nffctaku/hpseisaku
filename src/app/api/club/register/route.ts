@@ -31,12 +31,14 @@ export async function POST(request: Request) {
     }
 
     // 新しいクラブ情報を登録
-    const newClubRef = db.collection('club_profiles').doc();
+    // ownerUid を documentId とし、重複 profile を作らない
+    const newClubRef = db.collection('club_profiles').doc(ownerUid);
     await newClubRef.set({
       clubId,
       ownerUid,
+      clubProfileId: ownerUid,
       createdAt: new Date(),
-    });
+    }, { merge: true });
 
     return new NextResponse(JSON.stringify({ message: 'クラブが正常に登録されました。', docId: newClubRef.id }), { status: 201 });
 

@@ -38,7 +38,7 @@ interface TeamCategory {
 type TeamFormValues = z.infer<typeof teamSchema>;
 
 export default function TeamsPage() {
-  const { user, ownerUid } = useAuth();
+  const { user, ownerUid, clubProfileId } = useAuth();
   const router = useRouter();
   const clubUid = ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
@@ -305,10 +305,12 @@ export default function TeamsPage() {
         logoUrl = data.secure_url;
       }
 
-      const categoryId = typeof values.categoryId === 'string' && values.categoryId.trim() ? values.categoryId : undefined;
+      const categoryId = typeof values.categoryId === "string" && values.categoryId.trim() ? values.categoryId : undefined;
       const processedValues: any = {
         name: values.name,
         logoUrl,
+        ownerUid: clubUid,
+        ...(clubProfileId ? { clubProfileId } : {}),
         ...(categoryId ? { categoryId } : {}),
       };
 

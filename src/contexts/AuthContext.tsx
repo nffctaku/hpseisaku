@@ -10,6 +10,7 @@ import { ADMIN_UID } from "@/lib/admin-config";
 // Define a more detailed user profile type
 export interface UserProfile extends User {
   clubId?: string;
+  clubProfileId?: string;
   clubName?: string;
   logoUrl?: string;
   layoutType?: string;
@@ -60,6 +61,7 @@ interface AuthContextType {
   loading: boolean;
   clubProfileExists: boolean;
   ownerUid?: string;
+  clubProfileId?: string;
   refreshUserProfile?: () => Promise<void>;
 }
 
@@ -75,12 +77,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [clubProfileExists, setClubProfileExists] = useState(false);
   const [ownerUid, setOwnerUid] = useState<string | undefined>(undefined);
+  const [clubProfileId, setClubProfileId] = useState<string | undefined>(undefined);
   const lastProcessedUidRef = useRef<string | null>(null);
   const lastUserProfileRef = useRef<UserProfile | null>(null);
   const userRef = useRef<UserProfile | null>(null);
   const loadingRef = useRef<boolean>(true);
   const clubProfileExistsRef = useRef<boolean>(false);
   const ownerUidRef = useRef<string | undefined>(undefined);
+  const clubProfileIdRef = useRef<string | undefined>(undefined);
 
   const applyUserOverrides = (uid: string, profile: Partial<UserProfile>) => {
     if (uid === ADMIN_UID) {
@@ -128,10 +132,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           });
         } else {
           const resolvedOwnerUid = (profileData as any)?.ownerUid || authUser.uid;
+          const resolvedClubProfileId = profileDocSnap.id;
           const userProfile = applyUserOverrides(authUser.uid, {
             ...authUser,
             ...profileData,
             ownerUid: resolvedOwnerUid,
+            clubProfileId: resolvedClubProfileId,
           }) as UserProfile;
           if (userRef.current !== userProfile) {
             userRef.current = userProfile;
@@ -144,6 +150,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (ownerUidRef.current !== resolvedOwnerUid) {
             ownerUidRef.current = resolvedOwnerUid;
             setOwnerUid(resolvedOwnerUid);
+          }
+          if (clubProfileIdRef.current !== resolvedClubProfileId) {
+            clubProfileIdRef.current = resolvedClubProfileId;
+            setClubProfileId(resolvedClubProfileId);
           }
           try {
             await updateDoc(profileDocRef, { lastLoginAt: serverTimestamp() } as any);
@@ -170,7 +180,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!querySnapshot.empty) {
         const docSnap = querySnapshot.docs[0];
         const profileData = docSnap.data();
-        const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData }) as UserProfile;
+        const nextClubProfileId = docSnap.id;
+        const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData, clubProfileId: nextClubProfileId }) as UserProfile;
         if (userRef.current !== userProfile) {
           userRef.current = userProfile;
           setUser(userProfile);
@@ -183,6 +194,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (ownerUidRef.current !== nextOwnerUid) {
           ownerUidRef.current = nextOwnerUid;
           setOwnerUid(nextOwnerUid);
+        }
+        if (clubProfileIdRef.current !== nextClubProfileId) {
+          clubProfileIdRef.current = nextClubProfileId;
+          setClubProfileId(nextClubProfileId);
         }
         try {
           await updateDoc(docSnap.ref, { lastLoginAt: serverTimestamp() } as any);
@@ -209,7 +224,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const adminDoc = adminSnap.docs[0];
         const profileData = adminDoc.data() as any;
         const foundOwnerUid = (profileData?.ownerUid as string) || adminDoc.id;
-        const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData, ownerUid: foundOwnerUid }) as UserProfile;
+        const foundClubProfileId = adminDoc.id;
+        const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData, ownerUid: foundOwnerUid, clubProfileId: foundClubProfileId }) as UserProfile;
         if (userRef.current !== userProfile) {
           userRef.current = userProfile;
           setUser(userProfile);
@@ -221,6 +237,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (ownerUidRef.current !== foundOwnerUid) {
           ownerUidRef.current = foundOwnerUid;
           setOwnerUid(foundOwnerUid);
+        }
+        if (clubProfileIdRef.current !== foundClubProfileId) {
+          clubProfileIdRef.current = foundClubProfileId;
+          setClubProfileId(foundClubProfileId);
         }
         try {
           await updateDoc(adminDoc.ref, { lastLoginAt: serverTimestamp() } as any);
@@ -248,6 +268,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (ownerUidRef.current !== undefined) {
       ownerUidRef.current = undefined;
       setOwnerUid(undefined);
+    }
+    if (clubProfileIdRef.current !== undefined) {
+      clubProfileIdRef.current = undefined;
+      setClubProfileId(undefined);
     }
     console.log('[AuthContext] no profile, using authUser only', { uid: authUser.uid });
   };
@@ -325,6 +349,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               if (ownerUidRef.current !== restoredOwnerUid) {
                 ownerUidRef.current = restoredOwnerUid;
                 setOwnerUid(restoredOwnerUid);
+              }
+              const restoredClubProfileId = lastUserProfileRef.current?.clubProfileId;
+              if (restoredClubProfileId && clubProfileIdRef.current !== restoredClubProfileId) {
+                clubProfileIdRef.current = restoredClubProfileId;
+                setClubProfileId(restoredClubProfileId);
               }
               if (loadingRef.current) {
                 loadingRef.current = false;
@@ -408,7 +437,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, clubProfileExists, ownerUid, refreshUserProfile }}>
+    <AuthContext.Provider value={{ user, loading, clubProfileExists, ownerUid, clubProfileId, refreshUserProfile }}>
       {children}
     </AuthContext.Provider>
   );

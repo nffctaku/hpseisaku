@@ -22,6 +22,12 @@ interface ClubItem {
   clubCreatedAt: string | null;
   lastActivityAt: string | null;
   playerCount: number | null;
+  playerImageCount: number | null;
+  playerImageRate: number | null;
+  mainTeamName: string | null;
+  teamCount: number | null;
+  teamImageCount: number | null;
+  teamImageRate: number | null;
   competitionCount: number | null;
   matchCount: number | null;
   newsCount: number | null;
@@ -29,9 +35,14 @@ interface ClubItem {
   analyticsCohort: string;
   isPublic: boolean;
   aggregateAvailable: boolean;
+  aggregateUnavailableReason: string | null;
   usageLevel: number | null;
   active7: boolean;
   active30: boolean;
+  engaged7: boolean;
+  engaged30: boolean;
+  matchActive7: boolean;
+  matchActive30: boolean;
 }
 
 interface Summary {
@@ -53,6 +64,23 @@ interface Summary {
   matches10Rate: number;
   matches50Rate: number;
   matches100Rate: number;
+  withPlayerImages10: number;
+  withPlayerImages20: number;
+  withTeamImages: number;
+  withTeamImages5: number;
+  withPlayerImages10Rate: number;
+  withPlayerImages20Rate: number;
+  withTeamImagesRate: number;
+  withTeamImages5Rate: number;
+  unavailableByReason: Record<string, number>;
+  multiClubOwners: number;
+  multiClubProfiles: number;
+  avgClubsPerMultiOwner: number;
+  maxClubsPerOwner: number;
+  engaged7: number;
+  engaged30: number;
+  matchActive7: number;
+  matchActive30: number;
 }
 
 type SortKey =
@@ -69,6 +97,15 @@ type PublicFilter = "all" | "public" | "private";
 type CohortFilter = "all" | "tracked" | "pre_tracking";
 type NameFilter = "all" | "unset";
 type LevelFilter = "all" | "0" | "1" | "2" | "3" | "4" | "5" | "6";
+type AggregateFilter =
+  | "all"
+  | "available"
+  | "unavailable"
+  | "multipleProfiles"
+  | "noOwnerUid"
+  | "profileMappingFailed"
+  | "dataStructureUnsupported"
+  | "unknown";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -166,6 +203,7 @@ export default function InternalClubsPage() {
   const [publicFilter, setPublicFilter] = useState<PublicFilter>("all");
   const [cohortFilter, setCohortFilter] = useState<CohortFilter>("all");
   const [nameFilter, setNameFilter] = useState<NameFilter>("all");
+  const [aggregateFilter, setAggregateFilter] = useState<AggregateFilter>("all");
   const [levelFilter, setLevelFilter] = useState<LevelFilter>("all");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<ClubItem | null>(null);
@@ -219,6 +257,18 @@ export default function InternalClubsPage() {
     if (publicFilter === "private") out = out.filter((c) => !c.isPublic);
     if (cohortFilter !== "all") out = out.filter((c) => c.analyticsCohort === cohortFilter);
     if (nameFilter === "unset") out = out.filter((c) => !c.nameSet);
+    if (aggregateFilter === "available") out = out.filter((c) => c.aggregateAvailable);
+    if (aggregateFilter === "unavailable") out = out.filter((c) => !c.aggregateAvailable);
+    if (aggregateFilter === "multipleProfiles")
+      out = out.filter((c) => c.aggregateUnavailableReason === "MULTIPLE_PROFILES");
+    if (aggregateFilter === "noOwnerUid")
+      out = out.filter((c) => c.aggregateUnavailableReason === "NO_OWNER_UID");
+    if (aggregateFilter === "profileMappingFailed")
+      out = out.filter((c) => c.aggregateUnavailableReason === "PROFILE_MAPPING_FAILED");
+    if (aggregateFilter === "dataStructureUnsupported")
+      out = out.filter((c) => c.aggregateUnavailableReason === "DATA_STRUCTURE_UNSUPPORTED");
+    if (aggregateFilter === "unknown")
+      out = out.filter((c) => c.aggregateUnavailableReason === "UNKNOWN");
     if (levelFilter !== "all") {
       out = out.filter((c) => c.usageLevel !== null && c.usageLevel === Number(levelFilter));
     }
@@ -278,7 +328,7 @@ export default function InternalClubsPage() {
         break;
     }
     return out;
-  }, [items, search, sort, planFilter, publicFilter, cohortFilter, nameFilter, levelFilter]);
+  }, [items, search, sort, planFilter, publicFilter, cohortFilter, nameFilter, aggregateFilter, levelFilter]);
 
   const totalFiltered = filtered.length;
   const pageCount = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
@@ -286,7 +336,7 @@ export default function InternalClubsPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [search, sort, planFilter, publicFilter, cohortFilter, nameFilter, levelFilter]);
+  }, [search, sort, planFilter, publicFilter, cohortFilter, nameFilter, aggregateFilter, levelFilter]);
 
   if (loading || fetching) {
     return (
@@ -360,33 +410,82 @@ export default function InternalClubsPage() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
-              <p className="mb-3 text-xs font-bold text-slate-300">利用状況（集計可能クラブ: {summary.aggregatable}）</p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <p className="mb-3 text-xs font-bold text-slate-300">
+                利用状況（分母: 集計可能 {summary.aggregatable} クラブ / 全 {summary.total} クラブ）
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                <SummaryCard label="7日Active" value={summary.active7} color="text-emerald-400" />
+                <SummaryCard label="30日Active" value={summary.active30} color="text-emerald-400" />
+                <SummaryCard label="30日Engaged" value={summary.engaged30} color="text-amber-400" />
+                <SummaryCard label="7日Match Active" value={summary.matchActive7} color="text-fuchsia-400" />
+                <SummaryCard label="30日Match Active" value={summary.matchActive30} color="text-fuchsia-400" />
+                <SummaryCard label="Free" value={summary.free} color="text-slate-300" />
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 <SummaryCard
                   label="試合登録あり"
                   value={summary.withMatches}
-                  sub={`${summary.withMatchesRate}%`}
+                  sub={`${summary.withMatchesRate}%（${summary.aggregatable}件中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
                   label="10試合以上"
                   value={summary.matches10}
-                  sub={`${summary.matches10Rate}%`}
+                  sub={`${summary.matches10Rate}%（${summary.aggregatable}件中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
                   label="50試合以上"
                   value={summary.matches50}
-                  sub={`${summary.matches50Rate}%`}
+                  sub={`${summary.matches50Rate}%（${summary.aggregatable}件中）`}
                   color="text-amber-400"
                 />
                 <SummaryCard
                   label="100試合以上"
                   value={summary.matches100}
-                  sub={`${summary.matches100Rate}%`}
+                  sub={`${summary.matches100Rate}%（${summary.aggregatable}件中）`}
                   color="text-fuchsia-400"
                 />
-                <SummaryCard label="Free" value={summary.free} color="text-slate-300" />
+                <SummaryCard
+                  label="選手画像20人以上"
+                  value={summary.withPlayerImages20}
+                  sub={`${summary.withPlayerImages20Rate}%（${summary.aggregatable}件中）`}
+                  color="text-emerald-400"
+                />
+                <SummaryCard
+                  label="チーム画像あり"
+                  value={summary.withTeamImages}
+                  sub={`${summary.withTeamImagesRate}%（${summary.aggregatable}件中）`}
+                  color="text-emerald-400"
+                />
+              </div>
+
+              <div className="mt-3 rounded-2xl border border-white/10 bg-[#0b1220] p-4">
+                <p className="mb-3 text-xs font-bold text-slate-300">集計状況</p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  <SummaryCard label="集計可能" value={summary.aggregatable} color="text-emerald-400" />
+                  <SummaryCard
+                    label="集計不可"
+                    value={summary.total - summary.aggregatable}
+                    color="text-red-400"
+                  />
+                  <SummaryCard label="複数クラブ所有者" value={summary.multiClubOwners} color="text-amber-400" />
+                  <SummaryCard
+                    label="平均所有数"
+                    value={summary.avgClubsPerMultiOwner}
+                    color="text-slate-300"
+                  />
+                  <SummaryCard label="最大所有数" value={summary.maxClubsPerOwner} color="text-slate-300" />
+                  <SummaryCard label="複数クラブ総数" value={summary.multiClubProfiles} color="text-slate-300" />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-400">
+                  {Object.entries(summary.unavailableByReason).map(([reason, count]) => (
+                    <span key={reason} className="rounded-md border border-white/10 px-2 py-1">
+                      {reason}: {count}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -454,22 +553,36 @@ export default function InternalClubsPage() {
               <option value="pre_tracking">pre_tracking</option>
             </select>
             <select
-              value={levelFilter}
-              onChange={(e) => setLevelFilter(e.target.value as LevelFilter)}
-              className="rounded-lg border border-white/10 bg-[#0b1220] px-3 py-2 text-sm text-white"
-            >
-              <option value="all">全深度</option>
-              <option value="6">Lv.6</option>
-              <option value="5">Lv.5</option>
-              <option value="4">Lv.4</option>
-              <option value="3">Lv.3</option>
-              <option value="2">Lv.2</option>
-              <option value="1">Lv.1</option>
-              <option value="0">Lv.0</option>
-            </select>
-            <button
-              onClick={() => setNameFilter((v) => (v === "unset" ? "all" : "unset"))}
-              className={`rounded-full px-3 py-2 text-xs font-bold transition ${
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value as LevelFilter)}
+            className="rounded-full border border-white/20 bg-[#0b1220] px-3 py-2 text-xs text-slate-300"
+          >
+            <option value="all">利用深度</option>
+            <option value="0">Lv.0</option>
+            <option value="1">Lv.1</option>
+            <option value="2">Lv.2</option>
+            <option value="3">Lv.3</option>
+            <option value="4">Lv.4</option>
+            <option value="5">Lv.5</option>
+            <option value="6">Lv.6</option>
+          </select>
+          <select
+            value={aggregateFilter}
+            onChange={(e) => setAggregateFilter(e.target.value as AggregateFilter)}
+            className="rounded-full border border-white/20 bg-[#0b1220] px-3 py-2 text-xs text-slate-300"
+          >
+            <option value="all">集計: すべて</option>
+            <option value="available">集計可能のみ</option>
+            <option value="unavailable">集計不可のみ</option>
+            <option value="multipleProfiles">複数クラブ所有</option>
+            <option value="noOwnerUid">ownerUidなし</option>
+            <option value="profileMappingFailed">紐付け不可</option>
+            <option value="dataStructureUnsupported">旧形式</option>
+            <option value="unknown">その他</option>
+          </select>
+          <button
+            onClick={() => setNameFilter((v) => (v === "unset" ? "all" : "unset"))}
+            className={`rounded-full px-3 py-2 text-xs font-bold transition ${
                 nameFilter === "unset"
                   ? "bg-red-500/20 text-red-400 border border-red-500/40"
                   : "border border-white/20 text-slate-300 hover:bg-white/5"
@@ -531,21 +644,29 @@ export default function InternalClubsPage() {
                     {!c.aggregateAvailable && (
                       <span
                         className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] font-bold text-slate-400"
-                        title="同一ユーザーが複数クラブを所有しているため、集計を1クラブに特定できません"
+                        title={c.aggregateUnavailableReason || "集計を1クラブに特定できません"}
                       >
-                        集計不可
+                        {c.aggregateUnavailableReason || "集計不可"}
                       </span>
                     )}
                   </div>
 
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+                    <div>
+                      <p className="text-[10px] text-slate-500">選手</p>
+                      <p className="font-black text-slate-300">
+                        {countLabel(c.playerCount)} <span className="text-[10px] font-normal text-slate-500">/ 画像{countLabel(c.playerImageCount)}</span>
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500">チーム</p>
+                      <p className="font-black text-slate-300">
+                        {countLabel(c.teamCount)} <span className="text-[10px] font-normal text-slate-500">/ 画像{countLabel(c.teamImageCount)}</span>
+                      </p>
+                    </div>
                     <div>
                       <p className="text-[10px] text-slate-500">試合</p>
                       <p className="font-black text-white">{countLabel(c.matchCount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500">選手</p>
-                      <p className="font-black text-slate-300">{countLabel(c.playerCount)}</p>
                     </div>
                     <div>
                       <p className="text-[10px] text-slate-500">大会</p>
@@ -660,6 +781,14 @@ export default function InternalClubsPage() {
                 <span className="text-right text-slate-300">{selected.email || "—"}</span>
               </div>
               <div className="flex justify-between border-b border-white/5 py-2">
+                <span className="text-slate-400">クラブID</span>
+                <span className="text-slate-300">{selected.id}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 py-2">
+                <span className="text-slate-400">チーム名</span>
+                <span className="text-slate-300">{selected.mainTeamName ?? "未設定"}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 py-2">
                 <span className="text-slate-400">プラン</span>
                 <span className="font-bold">{selected.plan}</span>
               </div>
@@ -681,10 +810,22 @@ export default function InternalClubsPage() {
                 <span className="text-slate-400">最終活動</span>
                 <span className="text-slate-300">{formatDateTime(selected.lastActivityAt)}</span>
               </div>
-              <div className="grid grid-cols-4 gap-2 py-2 text-center">
+              <div className="grid grid-cols-3 gap-2 py-2 text-center sm:grid-cols-8">
                 <div>
                   <p className="text-xs text-slate-400">選手</p>
                   <p className="font-black">{countLabel(selected.playerCount)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">選手画像</p>
+                  <p className="font-black">{countLabel(selected.playerImageCount)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">チーム</p>
+                  <p className="font-black">{countLabel(selected.teamCount)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">チーム画像</p>
+                  <p className="font-black">{countLabel(selected.teamImageCount)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400">大会</p>
@@ -695,8 +836,12 @@ export default function InternalClubsPage() {
                   <p className="font-black">{countLabel(selected.matchCount)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">ニュース</p>
-                  <p className="font-black">{countLabel(selected.newsCount)}</p>
+                  <p className="text-xs text-slate-400">30日Engaged</p>
+                  <p className="font-black">{selected.engaged30 ? "Yes" : "No"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">30日Match</p>
+                  <p className="font-black">{selected.matchActive30 ? "Yes" : "No"}</p>
                 </div>
               </div>
             </div>

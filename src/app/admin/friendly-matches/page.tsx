@@ -51,7 +51,7 @@ interface FriendlyMatch {
 }
 
 export default function FriendlyMatchesPage() {
-  const { user } = useAuth();
+  const { user, clubProfileId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [teams, setTeams] = useState<Team[]>([]);
   const [matches, setMatches] = useState<FriendlyMatch[]>([]);
@@ -170,6 +170,8 @@ export default function FriendlyMatchesPage() {
         awayTeamLogo: away?.logoUrl,
         scoreHome: null,
         scoreAway: null,
+        ownerUid: user?.uid,
+        clubProfileId: clubProfileId || null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
