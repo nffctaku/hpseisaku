@@ -1,32 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase/admin";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 export const runtime = "nodejs";
-
-async function resolveClubProfile(clubId: string): Promise<any | null> {
-  try {
-    const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
-    const profileSnap = await profilesQuery.get();
-
-    if (!profileSnap.empty) {
-      return profileSnap.docs[0];
-    }
-
-    const ownerSnap = await db.collection("club_profiles").where("ownerUid", "==", clubId).limit(1).get();
-    if (!ownerSnap.empty) {
-      return ownerSnap.docs[0];
-    }
-
-    const directSnap = await db.collection("club_profiles").doc(clubId).get();
-    if (directSnap.exists) {
-      return directSnap;
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 export async function GET(request: NextRequest, context: { params: Promise<{ clubId: string }> }) {
   try {
@@ -38,35 +13,22 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
     const url = new URL(request.url);
     const debug = url.searchParams.get("debug") === "1";
 
-    const snap = await resolveClubProfile(clubId);
-    if (!snap || !snap.exists) {
+    const resolved = await resolvePublicClubProfile(clubId);
+    if (!resolved) {
       return NextResponse.json({ ok: false }, { status: 404 });
     }
 
-    const data = snap.data() as any;
-    const s = (data?.displaySettings || {}) as any;
-
-    const out = {
-      menuShowNews: s.menuShowNews !== false,
-      menuShowTv: s.menuShowTv !== false,
-      menuShowClub: s.menuShowClub !== false,
-      menuShowTransfers: s.menuShowTransfers !== false,
-      menuShowMatches: s.menuShowMatches !== false,
-      menuShowTable: s.menuShowTable !== false,
-      menuShowStats: s.menuShowStats !== false,
-      menuShowSquad: s.menuShowSquad !== false,
-      menuShowPartner: s.menuShowPartner !== false,
-    };
-
-    const payload: any = { ok: true, settings: out };
+    const payload: any = { ok: true, settings: resolved.displaySettings };
     if (debug) {
+      const data = resolved.profileData as any;
       payload.debug = {
-        profileDocId: snap.id,
-        profilePath: snap.ref.path,
+        profileDocId: resolved.profileDocId,
         clubIdParam: clubId,
+        resolvedClubUid: resolved.clubUid,
+        resolvedClubId: resolved.clubId,
         storedClubId: typeof data?.clubId === "string" ? data.clubId : null,
         storedOwnerUid: typeof data?.ownerUid === "string" ? data.ownerUid : null,
-        rawDisplaySettings: s,
+        rawDisplaySettings: data?.displaySettings || {},
       };
     }
 

@@ -11,6 +11,11 @@ import { Button } from "@/components/ui/button";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, limit, query, where, doc, getDoc } from "firebase/firestore";
 import { LayoutTab } from "@/app/admin/club/info/components/LayoutTab";
+import {
+  ArrowLeftRight, Calendar, ChevronDown, ChevronRight, Flag, Handshake,
+  Home, LayoutGrid, LineChart, ListOrdered, Monitor, Newspaper, Pencil,
+  Settings, Shield, Tv, Users,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminDesignPage() {
@@ -123,10 +128,7 @@ export default function AdminDesignPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({
-          ...(user?.clubUid ? { clubId: user.clubUid } : {}),
-          ...payload,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -189,99 +191,155 @@ export default function AdminDesignPage() {
     setSavingLayout(false);
   };
 
+  const menuRows = [
+    { href: "/admin/design/top", label: "TOP", icon: Home, hasToggle: false },
+    { href: "/admin/design/news", label: "News", icon: Newspaper, hasToggle: true, key: "menuShowNews", value: menuShowNews, setValue: setMenuShowNews },
+    { href: "/admin/design/tv", label: "TV", icon: Tv, hasToggle: true, key: "menuShowTv", value: menuShowTv, setValue: setMenuShowTv },
+    { href: "/admin/design/club", label: "Club", icon: Shield, hasToggle: true, key: "menuShowClub", value: menuShowClub, setValue: setMenuShowClub },
+    { href: "/admin/design/transfers", label: "Transfer", icon: ArrowLeftRight, hasToggle: true, key: "menuShowTransfers", value: menuShowTransfers, setValue: setMenuShowTransfers },
+    { href: "/admin/design/matches", label: "Matches", icon: Calendar, hasToggle: true, key: "menuShowMatches", value: menuShowMatches, setValue: setMenuShowMatches },
+    { href: "/admin/design/table", label: "TABLE", icon: ListOrdered, hasToggle: true, key: "menuShowTable", value: menuShowTable, setValue: setMenuShowTable },
+    { href: "/admin/design/stats", label: "Stats", icon: LineChart, hasToggle: true, key: "menuShowStats", value: menuShowStats, setValue: setMenuShowStats },
+    { href: "/admin/design/squad", label: "Squad", icon: Users, hasToggle: true, key: "menuShowSquad", value: menuShowSquad, setValue: setMenuShowSquad },
+    { href: "/admin/design/partner", label: "Partner", icon: Handshake, hasToggle: true, key: "menuShowPartner", value: menuShowPartner, setValue: setMenuShowPartner },
+    { href: "/admin/design/results", label: "Results", icon: Flag, hasToggle: false },
+  ];
+
+  const saveButton = (
+    <Button
+      type="button"
+      onClick={() => void saveLayout()}
+      disabled={savingLayout}
+      className="w-full bg-[#1fd760] font-bold text-[#080c14] hover:bg-[#17c054]"
+    >
+      {savingLayout ? "保存中..." : "デザインを保存する"}
+    </Button>
+  );
+
   return (
-    <div className="container mx-auto py-10">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl sm:text-3xl font-bold">デザイン</h1>
-        <Link href="/admin" className="text-sm text-muted-foreground hover:text-foreground">
-          管理画面トップへ
-        </Link>
+    <div className="mx-auto w-full max-w-5xl py-4 sm:py-8">
+      <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-[#0d1b2e] to-[#08111f] p-4 sm:p-6">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <h1 className="flex items-center gap-2 text-xl sm:text-2xl font-bold text-white">
+            <LayoutGrid className="h-6 w-6 text-sky-400" aria-hidden="true" />
+            デザイン
+          </h1>
+          <Link
+            href="/admin"
+            className="flex items-center gap-1 text-xs sm:text-sm text-slate-300 transition-colors hover:text-white"
+          >
+            管理画面トップへ
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="border-white/10 bg-white/[0.03]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-white">
+                <Monitor className="h-5 w-5 text-sky-400" aria-hidden="true" />
+                レイアウト
+              </CardTitle>
+              <CardDescription>公開HPトップの見た目を設定します。</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <LayoutTab
+                homeBgColor={homeBgColor}
+                setHomeBgColor={setHomeBgColor}
+                homeColorTheme={homeColorTheme}
+                setHomeColorTheme={setHomeColorTheme}
+                headerLayout={headerLayout}
+                setHeaderLayout={setHeaderLayout}
+                homeLayout={homeLayout}
+                setHomeLayout={setHomeLayout}
+              />
+              <div className="mt-6">{saveButton}</div>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-4">
+            <Card className="border-white/10 bg-white/[0.03]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <Monitor className="h-5 w-5 text-sky-400" aria-hidden="true" />
+                  表示レイアウト
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex w-full items-center justify-between rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
+                  標準レイアウト
+                  <ChevronDown className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  現在は標準レイアウトのみ利用できます。今後プランに応じてレイアウトが追加される予定です。
+                </p>
+                <div className="mt-4">{saveButton}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-white/10 bg-white/[0.03]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <Settings className="h-5 w-5 text-sky-400" aria-hidden="true" />
+                  ページ表示設定
+                </CardTitle>
+                <CardDescription>公開ページのメニュー表示を設定できます。</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {menuRows.map((row: any) => {
+                    const RowIcon = row.icon;
+                    return (
+                      <div
+                        key={row.href}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white"
+                      >
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <RowIcon className="h-4 w-4 shrink-0 text-slate-300" aria-hidden="true" />
+                          <span className="font-medium">{row.label}</span>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-3">
+                          {row.hasToggle ? (
+                            <Switch
+                              checked={Boolean(row.value)}
+                              disabled={!user || !clubInfo?.id || savingKey === row.key}
+                              onCheckedChange={async (checked) => {
+                                const next = checked === true;
+                                row.setValue(next);
+                                setSavingKey(row.key);
+                                const ok = await save({
+                                  displaySettings: {
+                                    [row.key]: next,
+                                  },
+                                });
+                                if (ok) toast.success("設定を保存しました");
+                                setSavingKey(null);
+                              }}
+                            />
+                          ) : (
+                            <span className="text-xs text-white/70">—</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <Link
+            href="/admin/club/info"
+            className="inline-flex items-center gap-2 rounded-full bg-[#1fd760] px-5 py-2 text-sm font-bold text-[#080c14] transition hover:bg-[#17c054]"
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+            編集
+          </Link>
+        </div>
       </div>
-
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>レイアウト</CardTitle>
-          <CardDescription>公開HPトップの見た目を設定します。</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <LayoutTab
-            homeBgColor={homeBgColor}
-            setHomeBgColor={setHomeBgColor}
-            homeColorTheme={homeColorTheme}
-            setHomeColorTheme={setHomeColorTheme}
-            headerLayout={headerLayout}
-            setHeaderLayout={setHeaderLayout}
-            homeLayout={homeLayout}
-            setHomeLayout={setHomeLayout}
-          />
-          <div className="mt-6 flex justify-center">
-            <Button
-              type="button"
-              onClick={() => void saveLayout()}
-              disabled={savingLayout}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              {savingLayout ? "保存中..." : "デザインを保存する"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>ページ表示設定</CardTitle>
-          <CardDescription>公開ページのメニュー表示を設定できます。</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {[
-              { href: "/admin/design/top", label: "TOP", hasToggle: false },
-              { href: "/admin/design/news", label: "News", hasToggle: true, key: "menuShowNews", value: menuShowNews, setValue: setMenuShowNews },
-              { href: "/admin/design/tv", label: "TV", hasToggle: true, key: "menuShowTv", value: menuShowTv, setValue: setMenuShowTv },
-              { href: "/admin/design/club", label: "Club", hasToggle: true, key: "menuShowClub", value: menuShowClub, setValue: setMenuShowClub },
-              { href: "/admin/design/transfers", label: "Transfer", hasToggle: true, key: "menuShowTransfers", value: menuShowTransfers, setValue: setMenuShowTransfers },
-              { href: "/admin/design/matches", label: "Matchs", hasToggle: true, key: "menuShowMatches", value: menuShowMatches, setValue: setMenuShowMatches },
-              { href: "/admin/design/table", label: "TABLE", hasToggle: true, key: "menuShowTable", value: menuShowTable, setValue: setMenuShowTable },
-              { href: "/admin/design/stats", label: "Stats", hasToggle: true, key: "menuShowStats", value: menuShowStats, setValue: setMenuShowStats },
-              { href: "/admin/design/squad", label: "Squad", hasToggle: true, key: "menuShowSquad", value: menuShowSquad, setValue: setMenuShowSquad },
-              { href: "/admin/design/partner", label: "Partner", hasToggle: true, key: "menuShowPartner", value: menuShowPartner, setValue: setMenuShowPartner },
-              { href: "/admin/design/results", label: "Results", hasToggle: false },
-            ].map((row: any) => (
-              <div
-                key={row.href}
-                className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-white/10 px-4 py-3 text-sm text-white"
-              >
-                <div className="flex-1 min-w-0">
-                  <span className="font-medium">{row.label}</span>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  {row.hasToggle ? (
-                    <Switch
-                      checked={Boolean(row.value)}
-                      disabled={!user || !clubInfo?.id || savingKey === row.key}
-                      onCheckedChange={async (checked) => {
-                        const next = checked === true;
-                        row.setValue(next);
-                        setSavingKey(row.key);
-                        const ok = await save({
-                          displaySettings: {
-                            [row.key]: next,
-                          },
-                        });
-                        if (ok) toast.success("設定を保存しました");
-                        setSavingKey(null);
-                      }}
-                    />
-                  ) : (
-                    <span className="text-xs text-white/70">—</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
