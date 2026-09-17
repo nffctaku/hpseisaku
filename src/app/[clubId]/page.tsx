@@ -3,6 +3,7 @@ import ClubPageContent from "./ClubPageContent";
 import { headers } from "next/headers";
 import { db } from "@/lib/firebase/admin";
 import { getMatchDataForClub } from "@/lib/matches";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 import type { NewsArticle } from "@/types/news";
 
 export const revalidate = 60;
@@ -105,36 +106,17 @@ export default async function ClubPage({ params }: ClubPageProps) {
 
   const initialClubInfo = await (async () => {
     try {
-      const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
-      const profilesSnap = await profilesQuery.get();
+      const resolved = await resolvePublicClubProfile(clubId);
+      if (!resolved) return null;
 
-      const clubProfileDoc = !profilesSnap.empty ? profilesSnap.docs[0] : null;
-      const directSnap = clubProfileDoc ? null : await db.collection("club_profiles").doc(clubId).get();
+      // 共通ヘルパーがエイリアス→正規clubUid解決・メインチームの名称/ロゴ・clubs/配色補完済み
+      const profileData = resolved.profileData as any;
+      const clubUid = resolved.clubUid;
 
-      if (!clubProfileDoc && !directSnap?.exists) return null;
-
-      const profileData = (clubProfileDoc ? clubProfileDoc.data() : (directSnap!.data() as any))!;
-      const clubUid = (profileData as any).clubUid || (clubProfileDoc ? clubProfileDoc.id : directSnap!.id);
-      if (!clubUid) return null;
-
-      // Parallelize club data and main team fetch
-      const [clubDataSnap, mainTeamSnap] = await Promise.all([
-        db.collection("clubs").doc(clubUid).get(),
-        (profileData as any)?.mainTeamId
-          ? db.collection(`clubs/${clubUid}/teams`).doc((profileData as any).mainTeamId).get()
-          : Promise.resolve(null),
-      ]);
-
+      const clubDataSnap = await db.collection("clubs").doc(clubUid).get();
       const clubData = clubDataSnap.exists ? (clubDataSnap.data() as any) : { headerImageUrl: null };
-      const mainTeamData = mainTeamSnap?.exists ? mainTeamSnap.data() : null;
 
-      const resolvedProfile = {
-        ...profileData,
-        clubUid,
-        ownerUid: clubUid,
-        clubName: (mainTeamData as any)?.name || (profileData as any).clubName,
-        logoUrl: (mainTeamData as any)?.logoUrl || (profileData as any).logoUrl,
-      } as any;
+      const resolvedProfile = profileData;
 
       const heroLimitRaw = (clubData as any)?.heroNewsLimit;
       const heroLimit = typeof heroLimitRaw === "number" && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;

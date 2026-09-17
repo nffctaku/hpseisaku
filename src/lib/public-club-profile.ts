@@ -47,8 +47,39 @@ export async function resolvePublicClubProfile(clubId: string): Promise<Resolved
     const rawProfileData = snap.data() as Record<string, unknown>;
     const userUid = typeof rawProfileData?.ownerUid === 'string' ? rawProfileData.ownerUid : undefined;
     // Canonical data root: the stored clubUid field (alias docs point here). Fallback to doc id.
-    const clubUid = typeof rawProfileData?.clubUid === 'string' ? rawProfileData.clubUid : snap.id;
+    const storedClubUid = typeof rawProfileData?.clubUid === 'string' && rawProfileData.clubUid.trim()
+      ? rawProfileData.clubUid.trim()
+      : "";
+    let clubUid = storedClubUid || snap.id;
     if (!clubUid) return null;
+
+    // clubUid ごとの Career 状態を調べる（active があれば公開、全て deleted ならその領域は非公開）
+    const careersFor = async (candidate: string) => {
+      const snaps = await db.collection("careers").where("clubUid", "==", candidate).limit(10).get();
+      return {
+        total: snaps.docs.length,
+        hasActive: snaps.docs.some((c) => (c.data() as Record<string, unknown>).status !== "deleted"),
+      };
+    };
+
+    let primaryCareerState = await careersFor(clubUid);
+    if (primaryCareerState.total > 0 && !primaryCareerState.hasActive) {
+      // 旧URL互換: プロフィールdocの clubUid が削除済みCareerの領域を指す場合、
+      // doc ID または ownerUid がアクティブCareerのデータルートならそちらへ解決する。
+      const fallbacks = [snap.id, userUid].filter(
+        (v): v is string => typeof v === "string" && v.trim().length > 0 && v !== clubUid
+      );
+      for (const candidate of fallbacks) {
+        const state = await careersFor(candidate);
+        if (state.hasActive) {
+          clubUid = candidate;
+          primaryCareerState = state;
+          break;
+        }
+      }
+      // どの候補にもアクティブなCareerが無ければ非公開
+      if (!primaryCareerState.hasActive) return null;
+    }
 
     // Alias docs (clubId/slug) may only contain a pointer; load the canonical profile for full data.
     let profileData = rawProfileData;
@@ -57,13 +88,6 @@ export async function resolvePublicClubProfile(clubId: string): Promise<Resolved
       if (canonicalSnap.exists) {
         profileData = canonicalSnap.data() as Record<string, unknown>;
       }
-    }
-
-    // 削除済みの Career は非公開にする
-    const careerSnaps = await db.collection("careers").where("clubUid", "==", clubUid).limit(10).get();
-    const activeCareer = careerSnaps.docs.find((c) => (c.data() as Record<string, unknown>).status !== "deleted");
-    if (careerSnaps.docs.length > 0 && !activeCareer) {
-      return null;
     }
 
     // メインチームデータを取得してチーム名とロゴを最新に

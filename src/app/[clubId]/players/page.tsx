@@ -91,95 +91,19 @@ async function getPlayersData(
   let legalPages: any[] = [];
   let gameTeamUsage: boolean = false;
 
-  try {
-    const applyProfileData = (docId: string, data: any) => {
-      // データパスは clubUid フィールド（エイリアスdocは正規clubUidを指す）。なければdocID（旧形式）
-      const dataClubUid = typeof data?.clubUid === "string" && data.clubUid.trim() ? data.clubUid.trim() : null;
-      clubUid = dataClubUid || docId;
-      ownerUid = clubUid;
-      clubName = data?.clubName || clubName;
-      mainTeamId = typeof data?.mainTeamId === 'string' ? data.mainTeamId : mainTeamId;
-      logoUrl = data?.logoUrl || data?.emblemUrl || data?.photoURL || logoUrl;
-      homeBgColor = typeof data?.homeBgColor === 'string' ? data.homeBgColor : homeBgColor;
-      sponsors = Array.isArray(data?.sponsors) ? data.sponsors : sponsors;
-      snsLinks = data?.snsLinks || snsLinks;
-      legalPages = Array.isArray(data?.legalPages) ? data.legalPages : legalPages;
-      gameTeamUsage = Boolean(data?.gameTeamUsage);
-    };
-
-    // Prefer canonical doc id == clubId (slug) first.
-    const directSnap = await db.collection("club_profiles").doc(clubId).get();
-    if (directSnap.exists) {
-      applyProfileData(directSnap.id, directSnap.data() as any);
-    } else {
-      // Fall back to query by clubId field.
-      const profileSnap = await db
-        .collection("club_profiles")
-        .where("clubId", "==", clubId)
-        .limit(1)
-        .get();
-
-      if (!profileSnap.empty) {
-        const doc = profileSnap.docs[0];
-        applyProfileData(doc.id, doc.data() as any);
-      } else {
-        // Last resort: treat clubId as ownerUid.
-        const ownerSnap = await db.collection("club_profiles").where('ownerUid', '==', clubId).limit(1).get();
-        if (!ownerSnap.empty) {
-          const doc = ownerSnap.docs[0];
-          applyProfileData(doc.id, doc.data() as any);
-        }
-      }
-    }
-
-    // エイリアスdoc（club_profiles/{slug}）を引いた場合は正規プロフィールを読み直す
-    if (clubUid) {
-      try {
-        const canonicalSnap = await db.collection("club_profiles").doc(clubUid).get();
-        if (canonicalSnap.exists) {
-          applyProfileData(canonicalSnap.id, canonicalSnap.data() as any);
-        }
-      } catch {
-        // ignore
-      }
-    }
-    // If a main team is configured, prefer its display name/logo.
-    if (ownerUid && mainTeamId) {
-      try {
-        const mainTeamSnap = await db.doc(`clubs/${ownerUid}/teams/${mainTeamId}`).get();
-        if (mainTeamSnap.exists) {
-          const t = mainTeamSnap.data() as any;
-          clubName = (t?.name as string) || clubName;
-          logoUrl = (t?.logoUrl as string) || logoUrl;
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    // Fallback: clubs/{ownerUid} may contain logo/name/colors.
-    if (ownerUid) {
-      try {
-        const clubSnap = await db.collection('clubs').doc(ownerUid).get();
-        if (clubSnap.exists) {
-          const c = clubSnap.data() as any;
-          if (!clubName || clubName === clubId) {
-            clubName = (c?.clubName as string) || clubName;
-          }
-          if (!logoUrl) {
-            logoUrl = (c?.logoUrl as string) || logoUrl;
-          }
-          if (!homeBgColor) {
-            homeBgColor = typeof c?.homeBgColor === 'string' ? c.homeBgColor : homeBgColor;
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
-  } catch (e) {
-    console.error("Failed to load club profile for players page", e);
-  }
+  // プロフィール解決は resolvePublicClubProfile に一本化
+  // （エイリアスdoc→正規clubUid、削除済みCareer→旧データルートの互換解決を含む）
+  const profile = resolved.profileData as any;
+  clubUid = resolved.clubUid;
+  ownerUid = resolved.ownerUid;
+  clubName = typeof profile?.clubName === 'string' && profile.clubName ? profile.clubName : clubName;
+  mainTeamId = typeof profile?.mainTeamId === 'string' ? profile.mainTeamId : null;
+  logoUrl = (profile?.logoUrl as string) || (profile?.emblemUrl as string) || (profile?.photoURL as string) || null;
+  homeBgColor = typeof profile?.homeBgColor === 'string' ? profile.homeBgColor : null;
+  sponsors = Array.isArray(profile?.sponsors) ? profile.sponsors : [];
+  snsLinks = profile?.snsLinks || {};
+  legalPages = Array.isArray(profile?.legalPages) ? profile.legalPages : [];
+  gameTeamUsage = Boolean(profile?.gameTeamUsage);
 
   const baseClubDocId = clubUid || ownerUid || clubId;
 
