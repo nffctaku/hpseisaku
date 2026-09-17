@@ -343,24 +343,32 @@ export async function POST(request: Request) {
           throw new Error('この間にURLが更新されました。もう一度お試しください。');
         }
 
-        // clubId フィールドでの重複チェック（対象Careerの正規 doc / 対象 alias のみ許可）
-        const byField = await t.get(clubProfilesRef.where('clubId', '==', clubIdForUpdate));
-        for (const d of byField.docs) {
-          if (d.id === clubUid) continue; // 対象Careerの正規プロフィール
-          const dClubUid = d.data()?.clubUid;
-          const dOwnerUid = d.data()?.ownerUid;
-          if (d.id === clubIdForUpdate && dClubUid === clubUid && dOwnerUid === uid) continue; // 対象CareerのURL alias
-          throw new Error('このURLはすでに使用されています');
-        }
-
-        // 新 alias ドキュメントIDの重複チェック
+        // slug が実際に変更される場合のみ重複チェックを行う
+        // （slug 非変更の保存で、削除済みCareer等が同じ clubId を保持していても保存を妨げない）
+        const slugChanged = requestedClubId !== '' && requestedClubId !== currentMainClubId;
+        let byIdSnap: FirebaseFirestore.DocumentSnapshot | null = null;
         const aliasRef = clubProfilesRef.doc(clubIdForUpdate);
-        const byIdSnap = await t.get(aliasRef);
-        if (byIdSnap.exists) {
-          const aData = byIdSnap.data() as Record<string, unknown> | undefined;
-          if (aData?.ownerUid !== uid || aData?.clubUid !== clubUid) {
+        if (slugChanged) {
+          // clubId フィールドでの重複チェック（対象Careerの正規 doc / 対象 alias のみ許可）
+          const byField = await t.get(clubProfilesRef.where('clubId', '==', clubIdForUpdate));
+          for (const d of byField.docs) {
+            if (d.id === clubUid) continue; // 対象Careerの正規プロフィール
+            const dClubUid = d.data()?.clubUid;
+            const dOwnerUid = d.data()?.ownerUid;
+            if (d.id === clubIdForUpdate && dClubUid === clubUid && dOwnerUid === uid) continue; // 対象CareerのURL alias
             throw new Error('このURLはすでに使用されています');
           }
+
+          // 新 alias ドキュメントIDの重複チェック
+          byIdSnap = await t.get(aliasRef);
+          if (byIdSnap.exists) {
+            const aData = byIdSnap.data() as Record<string, unknown> | undefined;
+            if (aData?.ownerUid !== uid || aData?.clubUid !== clubUid) {
+              throw new Error('このURLはすでに使用されています');
+            }
+          }
+        } else {
+          byIdSnap = await t.get(aliasRef);
         }
 
         // 正規の club_profiles/{clubUid} のみを更新。clubUid フィールドが汚染された他ドキュメントは触らない
