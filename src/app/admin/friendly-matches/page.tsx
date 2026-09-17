@@ -87,7 +87,7 @@ export default function FriendlyMatchesPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const teamsSnap = await getDocs(collection(db, `clubs/${user.uid}/teams`));
+        const teamsSnap = await getDocs(collection(db, `clubs/${user.clubUid}/teams`));
         const t = teamsSnap.docs
           .map((d) => ({ id: d.id, ...(d.data() as any) } as Team))
           .sort((a, b) => a.name.localeCompare(b.name));
@@ -95,7 +95,7 @@ export default function FriendlyMatchesPage() {
 
         const matchesSnap = await getDocs(
           query(
-            collection(db, `clubs/${user.uid}/friendly_matches`),
+            collection(db, `clubs/${user.clubUid}/friendly_matches`),
             orderBy("matchDate", "desc")
           )
         );
@@ -124,7 +124,7 @@ export default function FriendlyMatchesPage() {
     if (!ok) return;
 
     try {
-      await deleteDoc(doc(db, `clubs/${user.uid}/friendly_matches/${matchId}`));
+      await deleteDoc(doc(db, `clubs/${user.clubUid}/friendly_matches/${matchId}`));
       setMatches((prev) => prev.filter((m) => m.id !== matchId));
       toast.success("試合を削除しました。");
     } catch (e: any) {
@@ -157,7 +157,7 @@ export default function FriendlyMatchesPage() {
     setCreating(true);
     try {
       const competitionName = matchType === 'practice' ? '練習試合' : '親善試合';
-      const payload: Omit<FriendlyMatch, "id"> & { createdAt?: any; updatedAt?: any } = {
+      const payload: Record<string, any> = {
         competitionId: matchType,
         roundId: "single",
         competitionName,
@@ -178,8 +178,8 @@ export default function FriendlyMatchesPage() {
       };
 
       await addDoc(
-        collection(db, `clubs/${user.uid}/friendly_matches`),
-        payload as any
+        collection(db, `clubs/${user.clubUid}/friendly_matches`),
+        payload
       );
       await touchUserActivity();
 
@@ -187,7 +187,7 @@ export default function FriendlyMatchesPage() {
 
       const matchesSnap = await getDocs(
         query(
-          collection(db, `clubs/${user.uid}/friendly_matches`),
+          collection(db, `clubs/${user.clubUid}/friendly_matches`),
           orderBy("matchDate", "desc")
         )
       );

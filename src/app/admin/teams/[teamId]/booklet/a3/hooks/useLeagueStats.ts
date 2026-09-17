@@ -24,10 +24,11 @@ export function useLeagueStats({
   const [leagueStats, setLeagueStats] = useState<LeagueStatRow[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
+    setLeagueStats([]);
     const run = async () => {
       const name = leagueCompetitionName;
       if (!clubUid || !teamId || !name || seasons.length === 0) {
-        setLeagueStats([]);
         return;
       }
 
@@ -56,14 +57,15 @@ export function useLeagueStats({
           const rank = typeof st?.rank === "number" ? String(st.rank) : "-";
           rows.push({ season: s, league: name, rank });
         }
-        setLeagueStats(rows);
+        if (!cancelled) setLeagueStats(rows);
       } catch (e) {
         console.warn("[useLeagueStats] failed to load league standings", e);
-        setLeagueStats([]);
+        if (!cancelled) setLeagueStats([]);
       }
     };
 
     void run();
+    return () => { cancelled = true; };
   }, [clubUid, teamId, leagueCompetitionName, seasons]);
 
   return { leagueStats };

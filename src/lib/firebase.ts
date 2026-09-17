@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore, setLogLevel } from "firebase/firestore";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
+import { getFirestore, setLogLevel, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -18,6 +18,7 @@ console.log('[Firebase] Config check', {
   hasAuthDomain: !!firebaseConfig.authDomain,
   hasProjectId: !!firebaseConfig.projectId,
   hasAppId: !!firebaseConfig.appId,
+  projectId: firebaseConfig.projectId,
   authDomain: firebaseConfig.authDomain,
   currentDomain,
   match: currentDomain === firebaseConfig.authDomain,
@@ -25,7 +26,7 @@ console.log('[Firebase] Config check', {
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-console.log('[Firebase] App initialized', { appName: app.name });
+console.log('[Firebase] App initialized', { appName: app.name, projectId: app.options.projectId });
 
 const auth = getAuth(app);
 console.log('[Firebase] Auth initialized');
@@ -36,5 +37,20 @@ console.log('[Firebase] Firestore initialized');
 
 const storage = getStorage(app);
 console.log('[Firebase] Storage initialized');
+
+if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === '1') {
+  console.log('[Firebase] Connecting to emulator', {
+    useEmulator: process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR,
+    authHost: process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST,
+    firestoreHost: process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST,
+    firestorePort: process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT,
+    projectId: app.options.projectId,
+  });
+  const authHost = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST || 'http://127.0.0.1:9099';
+  const firestoreHost = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST || '127.0.0.1';
+  const firestorePort = Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT || '8080');
+  connectAuthEmulator(auth, authHost, { disableWarnings: true });
+  connectFirestoreEmulator(db, firestoreHost, firestorePort);
+}
 
 export { app, auth, db, storage };

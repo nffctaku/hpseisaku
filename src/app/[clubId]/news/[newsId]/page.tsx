@@ -102,9 +102,9 @@ async function getOtherNews(clubId: string, currentNewsId: string, limit: number
 export async function generateMetadata({
   params,
 }: {
-  params: { clubId: string; newsId: string };
+  params: Promise<{ clubId: string; newsId: string }>;
 }): Promise<Metadata> {
-  const { clubId, newsId } = params;
+  const { clubId, newsId } = await params;
   const article = await getArticle(clubId, newsId);
   if (!article) {
     return {};
@@ -145,21 +145,22 @@ export async function generateMetadata({
   };
 }
 
-export default async function NewsArticlePage({ params }: { params: { clubId: string, newsId: string } }) {
-  const article = await getArticle(params.clubId, params.newsId);
+export default async function NewsArticlePage({ params }: { params: Promise<{ clubId: string, newsId: string }> }) {
+  const { clubId, newsId } = await params;
+  const article = await getArticle(clubId, newsId);
 
   if (!article) {
     notFound();
   }
 
   const publishedDate = article.publishedAt?.toDate ? article.publishedAt.toDate() : null;
-  const otherNews = await getOtherNews(params.clubId, params.newsId, 3);
+  const otherNews = await getOtherNews(clubId, newsId, 3);
 
   return (
     <div className="bg-gray-900 text-white min-h-screen">
       <div className="container mx-auto px-4 py-8 max-w-3xl">
         <div className="mb-4">
-          <Link href={`/${params.clubId}/news`} className="text-sm text-gray-300 hover:underline">
+          <Link href={`/${clubId}/news`} className="text-sm text-gray-300 hover:underline">
             ← NEWS一覧へ戻る
           </Link>
         </div>
@@ -183,8 +184,8 @@ export default async function NewsArticlePage({ params }: { params: { clubId: st
             {publishedDate ? format(publishedDate, 'yyyy年M月d日 HH:mm', { locale: ja }) : ''}
           </div>
           <NewsActions
-            clubId={params.clubId}
-            newsId={params.newsId}
+            clubId={clubId}
+            newsId={newsId}
             title={article.title}
             initialLikeCount={typeof article.likeCount === 'number' ? article.likeCount : 0}
           />
@@ -213,7 +214,7 @@ export default async function NewsArticlePage({ params }: { params: { clubId: st
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {otherNews.map((n) => (
-                <OtherNewsCard key={n.id} article={n} clubId={params.clubId} />
+                <OtherNewsCard key={n.id} article={n} clubId={clubId} />
               ))}
             </div>
           </div>

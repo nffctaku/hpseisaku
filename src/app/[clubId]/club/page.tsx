@@ -10,7 +10,7 @@ import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 interface ClubInfoPageProps {
-  params: { clubId: string };
+  params: Promise<{ clubId: string }>;
 }
 
 interface ClubTitleItem {
@@ -27,7 +27,7 @@ async function getClubInfo(clubId: string) {
 }
 
 export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
-  const clubId = params.clubId;
+  const { clubId } = await params;
 
   // Prevent this route from handling '/admin' paths
   if (clubId === 'admin') {

@@ -59,7 +59,7 @@ export default function CreateClubPage() {
       });
 
       // 2. Create team document in the user's teams subcollection
-      const teamRef = doc(collection(db, `clubs/${user.uid}/teams`));
+      const teamRef = doc(collection(db, `clubs/${clubId}/teams`));
       batch.set(teamRef, {
         name: clubName,
         ownerUid: user.uid,

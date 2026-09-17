@@ -3,6 +3,7 @@ import { auth, db, admin } from '@/lib/firebase/admin';
 import { getPlanLimit } from '@/lib/plan-limits';
 import { getEffectivePlanForUid } from '@/lib/server-plan';
 import { touchUserActivity } from '@/lib/server-activity';
+import { getActiveClubUid } from '@/lib/career-server';
 
 interface AttachPhotoRequest {
   teamId: string;
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
 
     const decoded = await auth.verifyIdToken(token);
     const uid = decoded.uid;
+    const clubUid = await getActiveClubUid(uid);
 
     const body = (await req.json()) as AttachPhotoRequest;
     const { teamId, season, playerId, photoUrl, seasons } = body;
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
     const { plan, tier } = await getEffectivePlanForUid(uid);
     const limit = getPlanLimit('player_photos_per_team', tier);
 
-    const playersSnap = await db.collection(`clubs/${uid}/teams/${teamId}/players`).get();
+    const playersSnap = await db.collection(`clubs/${clubUid}/teams/${teamId}/players`).get();
     let currentCount = 0;
     for (const d of playersSnap.docs) {
       if (d.id === playerId) continue;
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest) {
 
     const batch = db.batch();
 
-    const playerRef = db.collection(`clubs/${uid}/teams/${teamId}/players`).doc(playerId);
+    const playerRef = db.collection(`clubs/${clubUid}/teams/${teamId}/players`).doc(playerId);
     const playerUpdate: Record<string, unknown> = {
       photoUrl,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -99,7 +101,7 @@ export async function POST(req: NextRequest) {
     batch.update(playerRef, playerUpdate);
 
     for (const s of syncSeasons) {
-      const rosterRef = db.collection(`clubs/${uid}/seasons/${s}/roster`).doc(playerId);
+      const rosterRef = db.collection(`clubs/${clubUid}/seasons/${s}/roster`).doc(playerId);
       const rosterUpdate: Record<string, unknown> = {
         photoUrl,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),

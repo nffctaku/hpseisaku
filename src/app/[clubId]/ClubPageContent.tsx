@@ -120,7 +120,7 @@ export default function ClubPageContent({
     const videos = clubInfo.videos || [];
 
     const mainTeamId = clubInfo.profile?.mainTeamId || null;
-    const dataClubId = clubInfo.profile?.ownerUid || clubId;
+    const dataClubId = (clubInfo.profile?.clubUid as string | undefined) ?? (clubInfo.profile?.ownerUid as string | undefined) ?? clubId;
     const recentMatches = (clubInfo.recentMatches || []) as MatchDetails[];
     
     // Client-side fetch of all match data to avoid serialization issues

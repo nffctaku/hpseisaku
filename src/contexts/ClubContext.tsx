@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { useCareer } from './CareerContext';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface ClubInfo {
   id: string | null;
@@ -22,60 +23,73 @@ interface ClubContextType {
 const ClubContext = createContext<ClubContextType | undefined>(undefined);
 
 export function ClubProvider({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer, loading: careerLoading } = useCareer();
   const [clubInfo, setClubInfo] = useState<ClubInfo>({ id: null, clubProfileId: null, logoUrl: null, clubName: null });
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
   const [clubProfileId, setClubProfileId] = useState<string | null>(null);
+  const fetchGenRef = useRef(0);
+  const lastClubUidRef = useRef<string | null | undefined>(undefined);
 
   const fetchClubInfo = useCallback(async () => {
-    if (user && !loading) {
+    // activeCareer.clubUid が唯一のデータ取得先。ownerUid / user.uid へのフォールバックは行わない。
+    const clubUid = user && !careerLoading ? activeCareer?.clubUid ?? null : null;
+    const gen = ++fetchGenRef.current;
+    if (lastClubUidRef.current !== clubUid) {
+      lastClubUidRef.current = clubUid;
+      setClubInfo({ id: null, clubProfileId: null, logoUrl: null, clubName: null });
+      setMainTeamId(null);
+      setClubProfileId(null);
+    }
+    if (!clubUid) return;
+    {
       try {
-        // 1. Prefer club_profiles document where ownerUid == uid (existing schema)
-        const profilesColRef = collection(db, 'club_profiles');
-        const profilesQuery = query(profilesColRef, where('ownerUid', '==', user.uid));
-        const profilesSnap = await getDocs(profilesQuery);
+        // club_profiles の docId = clubUid のみ参照する（ownerUid 検索はしない）
+        const clubProfileRef = doc(db, 'club_profiles', clubUid);
+        const clubProfileSnap = await getDoc(clubProfileRef);
 
         let clubProfileData: any = {};
         let nextClubProfileId: string | null = null;
 
-        if (!profilesSnap.empty) {
-          const firstDoc = profilesSnap.docs[0];
-          clubProfileData = firstDoc.data();
-          nextClubProfileId = firstDoc.id;
-        } else {
-          // Fallback: document whose ID is the uid (newer schema)
-          const clubProfileRef = doc(db, 'club_profiles', user.uid);
-          const clubProfileSnap = await getDoc(clubProfileRef);
-          nextClubProfileId = clubProfileSnap.exists() ? clubProfileSnap.id : null;
-          clubProfileData = clubProfileSnap.exists() ? clubProfileSnap.data() : {};
+        if (clubProfileSnap.exists()) {
+          clubProfileData = clubProfileSnap.data();
+          nextClubProfileId = clubProfileSnap.id;
         }
 
         // 2. Fetch from clubs collection (fallback)
-        const clubDocRef = doc(db, "clubs", user.uid);
+        const clubDocRef = doc(db, "clubs", clubUid);
         const clubDocSnap = await getDoc(clubDocRef);
         const clubData = clubDocSnap.exists() ? clubDocSnap.data() : {};
 
         // 3. Fetch main team from teams subcollection (another fallback)
-        const mainTeamId = (clubProfileData as any)?.mainTeamId || null;
+        const resolvedMainTeamId = (clubProfileData as any)?.mainTeamId || null;
         let teamData: any = {};
-        if (mainTeamId) {
-          const teamDocRef = doc(db, `clubs/${user.uid}/teams`, mainTeamId);
+        if (resolvedMainTeamId) {
+          const teamDocRef = doc(db, `clubs/${clubUid}/teams`, resolvedMainTeamId);
           const teamDocSnap = await getDoc(teamDocRef);
           teamData = teamDocSnap.exists() ? teamDocSnap.data() : {};
+        }
+
+        // Guard against stale async overwrites when switching careers.
+        if (gen !== fetchGenRef.current || lastClubUidRef.current !== clubUid) {
+          console.warn('[ClubContext] stale fetch ignored', { requested: clubUid });
+          return;
         }
 
         // 4. Consolidate and set the club info
         const resolvedClubId =
           (clubProfileData as any).clubId ||
           (clubData as any).clubId ||
+          clubUid ||
           null;
 
         console.log('[ClubContext] resolved club info', {
+          clubUid,
           clubProfileData,
           clubData,
           teamData,
           resolvedClubId,
-          mainTeamId,
+          resolvedMainTeamId,
         });
 
         setClubInfo({
@@ -94,13 +108,13 @@ export function ClubProvider({ children }: { children: ReactNode }) {
             (clubProfileData as any).photoURL ||
             null,
         });
-        setMainTeamId(mainTeamId);
+        setMainTeamId(resolvedMainTeamId);
         setClubProfileId(nextClubProfileId);
       } catch (error) {
         console.error("Error fetching club info for context:", error);
       }
     }
-  }, [user, loading]);
+  }, [user, careerLoading, activeCareer?.clubUid, activeCareer?.id]);
 
   useEffect(() => {
     fetchClubInfo();

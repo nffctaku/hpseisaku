@@ -3,6 +3,20 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // clubId のデータ領域に対する書き込み権限:
+    // - 旧形式: clubId == 認証uid
+    // - Career形式: club_profiles/{clubId}.ownerUid == 認証uid
+    function isClubOwner(clubId) {
+      return request.auth != null
+        && (
+          request.auth.uid == clubId
+          || (
+            exists(/databases/$(database)/documents/club_profiles/$(clubId))
+            && get(/databases/$(database)/documents/club_profiles/$(clubId)).data.ownerUid == request.auth.uid
+          )
+        );
+    }
+
     // CLUB PROFILES - Allow read for authenticated users, write for owners
     match /club_profiles/{userId} {
       allow read: if request.auth != null;
@@ -38,50 +52,62 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // CAREERS - ownerのみ読み書き可能（旧形式 careers/{ownerId} も許可）
+    match /careers/{careerId} {
+      allow read: if request.auth != null
+        && (careerId == request.auth.uid || resource.data.ownerId == request.auth.uid);
+      allow write: if request.auth != null
+        && (
+          careerId == request.auth.uid
+          || resource.data.ownerId == request.auth.uid
+          || request.resource.data.ownerId == request.auth.uid
+        );
+    }
+
     // CLUB DATA - Allow read for authenticated users, write for club owners
     match /clubs/{clubId} {
       // Allow read access for authenticated users
       allow read: if request.auth != null;
       
       // Club metadata - write only for club owners
-      allow write: if request.auth != null && request.auth.uid == clubId;
+      allow write: if isClubOwner(clubId);
 
       // Team categories
       match /team_categories/{categoryId} {
         allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == clubId;
+        allow write: if isClubOwner(clubId);
       }
       
       // Competitions
       match /competitions/{competitionId} {
         allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == clubId;
+        allow write: if isClubOwner(clubId);
 
         // Competition settings (templates etc.)
         match /settings/{settingId} {
           allow read: if request.auth != null;
-          allow write: if request.auth != null && request.auth.uid == clubId;
+          allow write: if isClubOwner(clubId);
         }
 
         // Standings
         match /standings/{teamId} {
           allow read: if request.auth != null;
-          allow write: if request.auth != null && request.auth.uid == clubId;
+          allow write: if isClubOwner(clubId);
         }
         
         // Competition rounds and matches
         match /rounds/{roundId} {
           allow read: if request.auth != null;
-          allow write: if request.auth != null && request.auth.uid == clubId;
+          allow write: if isClubOwner(clubId);
           
           match /matches/{matchId} {
             allow read: if request.auth != null;
-            allow write: if request.auth != null && request.auth.uid == clubId;
+            allow write: if isClubOwner(clubId);
 
             // Match events
             match /events/{eventId} {
               allow read: if request.auth != null;
-              allow write: if request.auth != null && request.auth.uid == clubId;
+              allow write: if isClubOwner(clubId);
             }
           }
         }
@@ -90,81 +116,81 @@ service cloud.firestore {
       // Teams and players
       match /teams/{teamId} {
         allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == clubId;
+        allow write: if isClubOwner(clubId);
         
         match /players/{playerId} {
           allow read: if request.auth != null;
-          allow write: if request.auth != null && request.auth.uid == clubId;
+          allow write: if isClubOwner(clubId);
         }
 
         // Transfers
         match /transfers/{transferId} {
           allow read: if request.auth != null;
-          allow write: if request.auth != null && request.auth.uid == clubId;
+          allow write: if isClubOwner(clubId);
         }
 
         // Staff
         match /staff/{staffId} {
           allow read: if request.auth != null;
-          allow write: if request.auth != null && request.auth.uid == clubId;
+          allow write: if isClubOwner(clubId);
         }
       }
       
       // Seasons and roster
       match /seasons/{seasonId} {
         allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == clubId;
+        allow write: if isClubOwner(clubId);
         
         match /roster/{playerId} {
           allow read: if request.auth != null;
-          allow write: if request.auth != null && request.auth.uid == clubId;
+          allow write: if isClubOwner(clubId);
         }
       }
 
       // News
       match /news/{newsId} {
         allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == clubId;
+        allow write: if isClubOwner(clubId);
       }
 
       // Videos
       match /videos/{videoId} {
         allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == clubId;
+        allow write: if isClubOwner(clubId);
       }
       
       // Friendly matches
       match /friendly_matches/{matchId} {
         allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == clubId;
+        allow write: if isClubOwner(clubId);
       }
 
       // Public match index (for fast match listing/search)
       match /public_match_index/{indexId} {
         allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == clubId;
+        allow write: if isClubOwner(clubId);
       }
 
       // Legacy matches collection
       match /matches/{matchId} {
         allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == clubId;
+        allow write: if isClubOwner(clubId);
 
         match /events/{eventId} {
           allow read: if request.auth != null;
-          allow write: if request.auth != null && request.auth.uid == clubId;
+          allow write: if isClubOwner(clubId);
         }
       }
       
       // Public player stats cache
       match /public_player_stats_cache/{playerId} {
         allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == clubId;
+        allow write: if isClubOwner(clubId);
       }
 
       match /{document=**} {
         allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == clubId;
+        allow write: if isClubOwner(clubId);
       }
     }
 

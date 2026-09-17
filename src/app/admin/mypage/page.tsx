@@ -462,7 +462,7 @@ export default function AdminMyPage() {
               Xで投稿
             </Button>
           </div>
-          <canvas ref={(el) => (shareCanvasRef.current = el)} className="hidden" />
+          <canvas ref={(el) => { shareCanvasRef.current = el; }} className="hidden" />
         </div>
 
         <div id="ranking" className={theme === "default" ? "rounded-2xl bg-gray-800 border border-gray-700 overflow-hidden" : "rounded-2xl bg-white overflow-hidden"}>

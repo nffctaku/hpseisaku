@@ -6,6 +6,7 @@ import Image from "next/image";
 import { auth } from "@/lib/firebase";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import type { BookletResponse, ColorOption, PositionColors } from "./types";
 import { getPositionOrder } from "./lib/booklet-utils";
 import { BookletAdditionalPlayersTable } from "./components/BookletAdditionalPlayersTable";
@@ -15,12 +16,12 @@ import { BookletPlayerCard } from "./components/BookletPlayerCard";
 import { BookletToolbar } from "./components/BookletToolbar";
 import { ProPlanNotice } from "./components/ProPlanNotice";
 import { IndividualPlayerBooklet } from "./components/IndividualPlayerBooklet";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { toSlashSeason } from "@/lib/season";
 import { PrintPageLayout, type TransferRow as A3TransferRow } from "./a3/print/components/PrintPageLayout";
 import { createEmptyLayout, last5Seasons } from "./a3/lib/a3-layout";
 import { formations } from "@/lib/formations";
-import { A3Editor } from "./a3/page";
+import { A3Editor } from "./a3/A3Editor";
 
 export default function TeamBookletPage() {
   const params = useParams();
@@ -29,10 +30,12 @@ export default function TeamBookletPage() {
   const teamId = params.teamId as string;
   const season = (searchParams.get("season") || "").trim();
 
-  const { user, ownerUid } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer, loading: careerLoading } = useCareer();
   const isPro = user?.plan === "pro";
 
-  const clubUid = ownerUid || user?.uid || null;
+  // activeCareer.clubUid が唯一のデータ取得先
+  const clubUid = activeCareer?.clubUid || null;
 
   const [data, setData] = useState<BookletResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,10 +70,48 @@ export default function TeamBookletPage() {
     { name: "ピンク", value: "bg-pink-300" },
   ];
 
+  // メインチームIDを club_profiles/{clubUid}（docId = clubUid のみ）から解決し、
+  // URLのteamIdと照合する。不一致なら正しいメインチームのURLへ補正する。
+  const [resolvedMainTeamId, setResolvedMainTeamId] = useState<string | null>(null);
   useEffect(() => {
+    let cancelled = false;
+    setResolvedMainTeamId(null);
+    const run = async () => {
+      if (!clubUid) return;
+      try {
+        const snap = await getDoc(doc(db, "club_profiles", clubUid));
+        const data = snap.exists() ? (snap.data() as any) : null;
+        const id = typeof data?.mainTeamId === "string" ? data.mainTeamId.trim() : "";
+        if (!cancelled) setResolvedMainTeamId(id || null);
+      } catch (e) {
+        console.warn("[TeamBookletPage] failed to resolve mainTeamId", e);
+      }
+    };
+    void run();
+    return () => { cancelled = true; };
+  }, [clubUid]);
+
+  useEffect(() => {
+    if (careerLoading || !clubUid || !resolvedMainTeamId) return;
+    console.log("[TeamBookletPage] id check", {
+      clubUid,
+      mainTeamId: resolvedMainTeamId,
+      urlTeamId: teamId,
+      season,
+    });
+    if (teamId && teamId !== resolvedMainTeamId) {
+      const q = season ? `?season=${encodeURIComponent(season)}` : "";
+      const next = `/admin/teams/${encodeURIComponent(resolvedMainTeamId)}/booklet${q}`;
+      console.log("[TeamBookletPage] redirecting stale teamId", { from: teamId, to: next });
+      router.replace(next);
+    }
+  }, [careerLoading, clubUid, resolvedMainTeamId, teamId, season, router]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSeasonOptions([]);
     const run = async () => {
       if (!clubUid) {
-        setSeasonOptions([]);
         return;
       }
       try {
@@ -80,17 +121,19 @@ export default function TeamBookletPage() {
           .map((d) => toSlashSeason(d.id))
           .filter((s) => typeof s === "string" && s.trim().length > 0)
           .sort((a, b) => b.localeCompare(a));
-        setSeasonOptions(seasonsData);
+        if (!cancelled) setSeasonOptions(seasonsData);
       } catch (e) {
         console.warn("[TeamBookletPage] failed to load seasons", e);
-        setSeasonOptions([]);
+        if (!cancelled) setSeasonOptions([]);
       }
     };
 
     void run();
+    return () => { cancelled = true; };
   }, [clubUid]);
 
   useEffect(() => {
+    let cancelled = false;
     const run = async () => {
       if (!teamId) return;
       if (season) return;
@@ -104,6 +147,8 @@ export default function TeamBookletPage() {
           .filter((s) => typeof s === "string" && s.trim().length > 0)
           .sort((a, b) => b.localeCompare(a));
 
+        if (cancelled) return;
+
         if (seasonsData.length === 0) {
           setError("シーズンが未作成です。先にシーズンを作成してください。");
           return;
@@ -113,24 +158,32 @@ export default function TeamBookletPage() {
         router.replace(`/admin/teams/${encodeURIComponent(teamId)}/booklet?season=${encodeURIComponent(latest)}`);
       } catch (e) {
         console.error(e);
-        setError("シーズンの取得に失敗しました。");
+        if (!cancelled) setError("シーズンの取得に失敗しました。");
       }
     };
 
     void run();
+    return () => { cancelled = true; };
   }, [clubUid, router, season, teamId]);
 
   useEffect(() => {
+    let cancelled = false;
+    // Career/team/season が変わったら古い名鑑データを即時破棄する
+    setData(null);
+    setSelectedPlayerIds([]);
+    setAdditionalPlayerIds([]);
     const run = async () => {
-      if (!teamId || !season) return;
+      if (!teamId || !season || !clubUid) return;
       setLoading(true);
       setError(null);
 
       try {
         const token = await auth.currentUser?.getIdToken();
         if (!token) {
-          setError("ログインが必要です。");
-          setLoading(false);
+          if (!cancelled) {
+            setError("ログインが必要です。");
+            setLoading(false);
+          }
           return;
         }
 
@@ -139,6 +192,8 @@ export default function TeamBookletPage() {
             Authorization: `Bearer ${token}`,
           },
         });
+
+        if (cancelled) return;
 
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -181,14 +236,15 @@ export default function TeamBookletPage() {
         }
       } catch (e) {
         console.error(e);
-        setError("取得に失敗しました");
+        if (!cancelled) setError("取得に失敗しました");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     void run();
-  }, [teamId, season]);
+    return () => { cancelled = true; };
+  }, [teamId, season, clubUid]);
 
   useEffect(() => {
     if (isPro) return;

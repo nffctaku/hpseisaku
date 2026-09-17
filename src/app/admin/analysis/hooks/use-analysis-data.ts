@@ -4,8 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { collection, query, where, getDocs, orderBy, getDoc, doc, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { MainStats, SeasonRecord, PlayerStats, Competition } from "../types";
-import { useAuth } from "@/contexts/AuthContext";
-import { useClub } from "@/contexts/ClubContext";
+import { useCareer } from "@/contexts/CareerContext";
 
 const DEBUG = process.env.NODE_ENV === "development";
 const debugLog = (...args: any[]) => {
@@ -41,8 +40,8 @@ export function computePlayerStatsFromEvents(events: any[]): Array<{ playerId: s
 }
 
 export function useAnalysisData() {
-  const { ownerUid, user } = useAuth();
-  const { clubInfo } = useClub();
+  const { activeCareer } = useCareer();
+  const clubUid = activeCareer?.clubUid;
   const [matches, setMatches] = useState<any[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedSeason, setSelectedSeason] = useState("all");
@@ -54,12 +53,11 @@ export function useAnalysisData() {
   const [allPlayers, setAllPlayers] = useState<Array<{ playerId: string; playerName: string; number?: number; position?: string; nationality?: string; photoUrl?: string }>>([]);
 
   useEffect(() => {
-    if (!mainTeamId) return;
+    let cancelled = false;
+    setAllPlayers([]);
+    if (!mainTeamId || !clubUid) return;
     
-    const clubId = clubInfo.id;
-    const firestoreClubDocId = ownerUid || user?.uid || null;
-    
-    if (!firestoreClubDocId) return;
+    const firestoreClubDocId = clubUid;
     
     const fetchAllPlayers = async () => {
       try {
@@ -91,23 +89,29 @@ export function useAnalysisData() {
           });
         }
 
-        setAllPlayers(players);
+        if (!cancelled) setAllPlayers(players);
       } catch (err) {
         console.error('Error fetching players:', err);
       }
     };
     
     fetchAllPlayers();
-  }, [mainTeamId, ownerUid, user, clubInfo.id]);
+    return () => { cancelled = true; };
+  }, [mainTeamId, clubUid]);
 
   useEffect(() => {
-    // Try both clubId and ownerUid to find the data
-    const clubId = clubInfo.id;
-    const firestoreClubDocId = ownerUid || user?.uid || null;
-    debugLog(`[useAnalysisData] Hook called with clubId: ${clubId}, firestoreClubDocId: ${firestoreClubDocId}, ownerUid: ${ownerUid}, user:`, user);
+    let cancelled = false;
+    setMatches([]);
+    setCompetitions([]);
+    setMainTeamId(null);
+    setError(null);
+    setSelectedSeason("all");
+    setSelectedCompetitionId("all");
+    const firestoreClubDocId = clubUid;
+    debugLog(`[useAnalysisData] Hook called with clubUid: ${firestoreClubDocId}`);
     
     if (!firestoreClubDocId) {
-      debugLog('[useAnalysisData] No clubId or ownerUid, returning');
+      debugLog('[useAnalysisData] No clubUid, returning');
       setLoading(false);
       return;
     }
@@ -117,49 +121,31 @@ export function useAnalysisData() {
       try {
         const key = firestoreClubDocId;
         if (!key) {
-          setMainTeamId(ownerUid || user?.uid || null);
+          setMainTeamId(null);
           return;
         }
 
-        // 1) Prefer query by ownerUid field
-        const profilesQuery = query(collection(db, "club_profiles"), where("ownerUid", "==", key), limit(1));
-        const profilesSnapshot = await getDocs(profilesQuery);
+        const pickMainTeamId = (data: any): string | null => {
+          const teamId = typeof data?.mainTeamId === 'string' ? data.mainTeamId.trim() : '';
+          return teamId || null;
+        };
 
-        if (!profilesSnapshot.empty) {
-          const profileData = profilesSnapshot.docs[0].data() as any;
-          const teamId = profileData.mainTeamId as string | undefined;
-          debugLog(`[useAnalysisData] Found mainTeamId: ${teamId}`);
-          setMainTeamId(teamId || key || null);
-          return;
-        }
-
-        // 2) Fallback: treat key as docId
         const directSnap = await getDoc(doc(db, "club_profiles", key));
+        if (cancelled) return;
         if (directSnap.exists()) {
-          const profileData = directSnap.data() as any;
-          const teamId = profileData?.mainTeamId as string | undefined;
-          debugLog(`[useAnalysisData] Found mainTeamId (direct): ${teamId}`);
-          setMainTeamId(teamId || (profileData?.ownerUid as string | undefined) || key || null);
-          return;
-        }
-
-        // 3) Fallback: treat public slug as docId
-        if (clubId) {
-          const bySlugSnap = await getDoc(doc(db, "club_profiles", String(clubId)));
-          if (bySlugSnap.exists()) {
-            const profileData = bySlugSnap.data() as any;
-            const teamId = profileData?.mainTeamId as string | undefined;
-            debugLog(`[useAnalysisData] Found mainTeamId (slug): ${teamId}`);
-            setMainTeamId(teamId || (profileData?.ownerUid as string | undefined) || key || null);
+          const teamId = pickMainTeamId(directSnap.data());
+          if (teamId) {
+            debugLog(`[useAnalysisData] Found mainTeamId: ${teamId}`);
+            setMainTeamId(teamId);
             return;
           }
         }
 
-        debugLog(`[useAnalysisData] No club profile found, using key: ${key}`);
-        setMainTeamId(key || null);
+        debugLog(`[useAnalysisData] No mainTeamId found`);
+        setMainTeamId(null);
       } catch (err) {
         console.error('[useAnalysisData] Error fetching mainTeamId:', err);
-        setMainTeamId(firestoreClubDocId || null);
+        if (!cancelled) setMainTeamId(null);
       }
     };
 
@@ -169,10 +155,10 @@ export function useAnalysisData() {
       try {
         setLoading(true);
         
-        debugLog('[useAnalysisData] Starting data fetch with firestoreClubDocId:', firestoreClubDocId, 'ownerUid:', ownerUid);
+        debugLog('[useAnalysisData] Starting data fetch with clubUid:', firestoreClubDocId);
         
-        // Firestore上のclubs/{docId}は ownerUid / uid を使う（clubId(例:nffctaku)は公開URL用スラッグ）
-        const possibleIds = [firestoreClubDocId].filter((id): id is string => Boolean(id));
+        // 選択中CareerのclubUidのみをデータ取得に使用する
+        const possibleIds = [firestoreClubDocId as string];
         let competitionsData: Competition[] = [];
         let foundPath = '';
         
@@ -224,6 +210,7 @@ export function useAnalysisData() {
           }
         }
         
+        if (cancelled) return;
         if (competitionsData.length === 0) {
           debugLog('[useAnalysisData] No competitions found in any path');
           setCompetitions([]);
@@ -357,19 +344,21 @@ export function useAnalysisData() {
           }
         }
 
+        if (cancelled) return;
         setMatches(allMatches);
         debugLog('[useAnalysisData] Total matches fetched:', allMatches.length);
         
       } catch (err) {
         console.error("Error fetching data:", err);
-        setError("データの取得に失敗しました");
+        if (!cancelled) setError("データの取得に失敗しました");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+    return () => { cancelled = true; };
+  }, [clubUid]);
 
   const filteredMatches = useMemo(() => {
     let filtered = matches;
@@ -401,22 +390,7 @@ export function useAnalysisData() {
     })));
     
     if (!mainTeamId) {
-      debugLog('[useAnalysisData] No mainTeamId available, using all matches');
-      return filtered.map(match => ({
-        ...match,
-        isCompleted: match.isCompleted !== undefined ? match.isCompleted : (
-          match.scoreHome !== null && match.scoreAway !== null && 
-          typeof match.scoreHome === 'number' && typeof match.scoreAway === 'number'
-        ),
-        result: match.result || (
-          match.scoreHome !== null && match.scoreAway !== null ? 
-            (match.scoreHome > match.scoreAway ? 'win' : 
-             match.scoreHome < match.scoreAway ? 'loss' : 'draw') : undefined
-        ),
-        goalsFor: match.goalsFor || match.scoreHome,
-        goalsAgainst: match.goalsAgainst || match.scoreAway,
-        isHome: false
-      }));
+      return [];
     }
     
     const homeTeamMatches = filtered.filter(match => {

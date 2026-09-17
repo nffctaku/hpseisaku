@@ -2,12 +2,16 @@
 
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCareer } from '@/contexts/CareerContext';
 import { useClub } from '@/contexts/ClubContext';
 import { auth, db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { doc, getDocs, setDoc, collection, query, where, limit } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, collection, query, where } from 'firebase/firestore';
+import { normalizeSlug, validateSlug } from '@/lib/slug';
 import { SettingsTab } from './components/SettingsTab';
 import { SnsTab } from './components/SnsTab';
 
@@ -53,7 +57,9 @@ const generateSeasonOptions = (): string[] => {
 
 export default function ClubInfoPage() {
   const { user, refreshUserProfile } = useAuth();
+  const { activeCareer } = useCareer();
   const { fetchClubInfo } = useClub();
+  const activeClubUid = activeCareer?.clubUid || user?.clubUid || '';
   const [clubName, setClubName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [foundedYear, setFoundedYear] = useState<string>('');
@@ -74,9 +80,25 @@ export default function ClubInfoPage() {
   const [realTeamUsage, setRealTeamUsage] = useState<boolean>(false);
   const [gameTeamUsage, setGameTeamUsage] = useState<boolean>(false);
   const [transfersPublic, setTransfersPublic] = useState<boolean>(true);
+  const [clubId, setClubId] = useState('');
+  const [currentSlug, setCurrentSlug] = useState('');
+  const [clubIdError, setClubIdError] = useState('');
   const [autoSynced, setAutoSynced] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [publicBaseUrl, setPublicBaseUrl] = useState<string>(process.env.NEXT_PUBLIC_SITE_URL || '');
   const userHasSelectedTeam = useRef(false);
+
+  useEffect(() => {
+    // activeCareer 切り替え時に選択状態をリセット
+    userHasSelectedTeam.current = false;
+    setSelectedTeamId('');
+  }, [activeClubUid]);
+
+  useEffect(() => {
+    if (!publicBaseUrl && typeof window !== 'undefined') {
+      setPublicBaseUrl(window.location.origin);
+    }
+  }, [publicBaseUrl]);
 
   const handleTeamSelect = (teamId: string) => {
     setSelectedTeamId(teamId);
@@ -104,18 +126,8 @@ export default function ClubInfoPage() {
       if (nextClubName) payload.clubName = nextClubName;
       payload.logoUrl = nextLogoUrl ? nextLogoUrl : null;
 
-      // uid doc
-      await setDoc(doc(db, 'club_profiles', user.uid), payload, { merge: true });
-
-      // any legacy docs where ownerUid == uid
-      const profilesRef = collection(db, 'club_profiles');
-      const qProfiles = query(profilesRef, where('ownerUid', '==', user.uid), limit(10));
-      const snap = await getDocs(qProfiles);
-      await Promise.all(
-        snap.docs
-          .filter((d) => d.id !== user.uid)
-          .map((d) => setDoc(d.ref, payload, { merge: true }))
-      );
+      // active career doc
+      await setDoc(doc(db, 'club_profiles', activeClubUid), payload, { merge: true });
 
       if (refreshUserProfile) {
         await refreshUserProfile();
@@ -138,16 +150,20 @@ export default function ClubInfoPage() {
     }
   }, [user]);
 
+  useEffect(() => {
+    const forbiddenValues = [user?.uid, activeClubUid].filter(Boolean) as string[];
+    const result = validateSlug(clubId, { currentSlug, forbiddenValues });
+    setClubIdError(result.ok ? '' : (result.message || ''));
+  }, [clubId, currentSlug, user?.uid, activeClubUid]);
+
   // Load existing mainTeamId from club_profiles to lock selection after first set
   useEffect(() => {
     const loadMainTeam = async () => {
-      if (!user) return;
+      if (!activeClubUid) return;
       try {
-        const profilesRef = collection(db, 'club_profiles');
-        const qProfiles = query(profilesRef, where('ownerUid', '==', user.uid), limit(1));
-        const snap = await getDocs(qProfiles);
-        if (!snap.empty) {
-          const data = snap.docs[0].data() as any;
+        const profileDoc = await getDoc(doc(db, 'club_profiles', activeClubUid));
+        if (profileDoc.exists()) {
+          const data = profileDoc.data() as any;
           // ユーザーが選択していない場合のみ、FirestoreからmainTeamIdを設定
           if (data.mainTeamId && !userHasSelectedTeam.current) {
             setSelectedTeamId(data.mainTeamId as string);
@@ -174,6 +190,14 @@ export default function ClubInfoPage() {
               instagram: data.snsLinks.instagram || '',
             });
           }
+
+          // 公開URLの基準は clubId（なければ slug をフォールバック）
+          const savedClubId = typeof data.clubId === 'string' ? data.clubId : '';
+          const savedSlug = typeof data.slug === 'string' ? data.slug : '';
+          const displaySlug = savedClubId || savedSlug || '';
+
+          setClubId(displaySlug);
+          setCurrentSlug(displaySlug);
 
           if (Array.isArray(data.legalPages)) {
             setLegalPages(
@@ -230,14 +254,14 @@ export default function ClubInfoPage() {
     };
 
     loadMainTeam();
-  }, [user]);
+  }, [activeClubUid, user]);
 
   useEffect(() => {
     const fetchTeams = async () => {
-      if (!user) return;
+      if (!activeClubUid) return;
 
       try {
-        const teamsQueryRef = query(collection(db, `clubs/${user.uid}/teams`));
+        const teamsQueryRef = query(collection(db, `clubs/${activeClubUid}/teams`));
         const teamsSnap = await getDocs(teamsQueryRef);
         const teamsData: TeamOption[] = teamsSnap.docs.map(doc => ({
           id: doc.id,
@@ -255,7 +279,7 @@ export default function ClubInfoPage() {
     };
 
     fetchTeams();
-  }, [user]);
+  }, [activeClubUid, user]);
 
   const handleUpdate = async () => {
     if (!user || !auth.currentUser) {
@@ -272,6 +296,14 @@ export default function ClubInfoPage() {
       toast.error('利用形態を選択してください。');
       return;
     }
+
+    const forbiddenValues = [user?.uid, activeClubUid].filter(Boolean) as string[];
+    const slugValidation = validateSlug(clubId, { currentSlug, forbiddenValues });
+    if (!slugValidation.ok) {
+      toast.error(slugValidation.message || 'URLの形式が正しくありません');
+      return;
+    }
+    const effectiveClubId = slugValidation.slug;
 
     setLoading(true);
     try {
@@ -293,6 +325,7 @@ export default function ClubInfoPage() {
           'Authorization': `Bearer ${idToken}`,
         },
         body: JSON.stringify({
+          clubId: effectiveClubId,
           clubName: effectiveClubName,
           logoUrl: effectiveLogoUrl,
           layoutType,
@@ -362,6 +395,40 @@ export default function ClubInfoPage() {
         <div className="mb-5">
           <h1 className="text-[22px] font-bold leading-tight">クラブ情報編集</h1>
           <p className="mt-1 text-[13px] text-muted-foreground">基本設定、クラブ詳細、タイトル管理、SNSリンクを編集します。</p>
+        </div>
+
+        <div className="mb-5 rounded-[10px] border border-[#E2E4EA] bg-white p-[26px]">
+          <div className="mb-4 flex items-center gap-2 text-sm font-bold">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#3355FF14] text-[11px] font-bold text-[#3355FF]">0</span>
+            公開ページURL
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="clubId" className="text-[13px] font-semibold text-[#1B1F27]">
+              URL末尾の識別名
+            </Label>
+            <div className="flex items-stretch overflow-hidden rounded-lg border border-[#E2E4EA] bg-white">
+              <span className="flex items-center border-r border-[#E2E4EA] bg-[#F3F4F6] px-3 text-sm text-[#6B7280] whitespace-nowrap">
+                {publicBaseUrl ? `${publicBaseUrl}/` : 'https://.../'}
+              </span>
+              <Input
+                id="clubId"
+                type="text"
+                value={clubId}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setClubId(e.target.value)}
+                placeholder="garlic-fc"
+                className="h-10 flex-1 rounded-none border-0 bg-white text-[#1B1F27] focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+            </div>
+            {clubId && (
+              <p className="text-xs text-[#3355FF]">
+                公開URL: {publicBaseUrl}/{clubId}
+              </p>
+            )}
+            {clubIdError && <p className="text-sm text-red-600">{clubIdError}</p>}
+            <p className="text-xs text-[#9CA3AF]">
+              半角小文字英数字とハイフンのみ、3〜40文字。先頭/末尾のハイフン不可。
+            </p>
+          </div>
         </div>
 
         <Tabs defaultValue="settings" className="w-full">

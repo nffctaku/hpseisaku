@@ -9,30 +9,6 @@ function formatLastSeasonSummary(slashSeason: string, summary: any): string {
   return `${slashSeason} ${mText}${gText}`.trim();
 }
 
-async function resolveOwnerUidFromUid(uid: string): Promise<string | null> {
-  const direct = await db.collection("club_profiles").doc(uid).get();
-  if (direct.exists) {
-    const data = direct.data() as any;
-    return (data?.ownerUid as string) || uid;
-  }
-
-  const ownerQuery = await db.collection("club_profiles").where("ownerUid", "==", uid).limit(1).get();
-  if (!ownerQuery.empty) {
-    const doc = ownerQuery.docs[0];
-    const data = doc.data() as any;
-    return (data?.ownerUid as string) || doc.id;
-  }
-
-  const adminQuery = await db.collection("club_profiles").where("admins", "array-contains", uid).limit(1).get();
-  if (!adminQuery.empty) {
-    const doc = adminQuery.docs[0];
-    const data = doc.data() as any;
-    return (data?.ownerUid as string) || doc.id;
-  }
-
-  return null;
-}
-
 function getPreviousSeason(season: string): string {
   const s = String(season || "").trim();
   const m = s.match(/^(\d{4})[-/](\d{2}|\d{4})$/);
@@ -318,7 +294,6 @@ export {
   normalizeParams,
   pickMemo,
   pickPreferredFoot,
-  resolveOwnerUidFromUid,
   safeString,
   seasonEquals,
   toDashSeason,

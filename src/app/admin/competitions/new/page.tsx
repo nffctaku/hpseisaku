@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query } from "firebase/firestore";
 import { useForm, useFieldArray, type SubmitHandler, type Resolver } from "react-hook-form";
@@ -127,7 +128,8 @@ interface CompetitionTemplate {
 }
 
 export default function NewCompetitionPage() {
-  const { user, ownerUid } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -147,7 +149,7 @@ export default function NewCompetitionPage() {
   const [, setCompetitionCountBySeason] = useState<Record<string, number>>({});
   const [competitionUsage, setCompetitionUsage] = useState<{ current: number; limit: number; plan: string } | null>(null);
 
-  const clubUid = ownerUid || user?.uid;
+  const clubUid = activeCareer?.clubUid;
   const planTier = getPlanTier(user?.plan);
 
   const form = useForm<FormValues>({
@@ -229,15 +231,22 @@ export default function NewCompetitionPage() {
   }, [selectedFormat, form]);
 
   useEffect(() => {
-    if (!user) return;
-    if (!clubUid) return;
+    setAllTeams([]);
+    setCategories([]);
+    setCompetitionNameSuggestions([]);
+    setTemplateByName({});
+    setCompetitionCountBySeason({});
+    if (!user || !clubUid) return;
+    let cancelled = false;
     const fetchTeams = async () => {
       const snap = await getDocs(query(collection(db, `clubs/${clubUid}/teams`)));
+      if (cancelled) return;
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Team));
       setAllTeams(data);
     };
     const fetchCategories = async () => {
       const snap = await getDocs(query(collection(db, `clubs/${clubUid}/team_categories`)));
+      if (cancelled) return;
       const data = snap.docs
         .map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) } as TeamCategory))
         .filter((c) => typeof c.name === "string")
@@ -270,6 +279,7 @@ export default function NewCompetitionPage() {
         }
       }
       const list = Array.from(set).sort((a, b) => a.localeCompare(b, "ja"));
+      if (cancelled) return;
       setCompetitionNameSuggestions(list);
       setTemplateByName(best);
       setCompetitionCountBySeason(count);
@@ -277,6 +287,9 @@ export default function NewCompetitionPage() {
     fetchTeams();
     fetchCategories();
     fetchCompetitions();
+    return () => {
+      cancelled = true;
+    };
   }, [user, clubUid]);
 
   useEffect(() => {

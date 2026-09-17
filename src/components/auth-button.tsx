@@ -12,6 +12,8 @@ import {
 } from "@/lib/analytics";
 import { useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,12 +23,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useCareer } from "@/contexts/CareerContext";
+import { Shield, Plus, Settings, CreditCard, LogOut, ChevronRight, User } from 'lucide-react';
 
 export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const { user } = useAuth();
+  const { activeCareer, careers, switchCareer } = useCareer();
+  const pathname = usePathname();
+  const router = useRouter();
   const signingInRef = useRef(false);
+  const isAdmin = typeof pathname === "string" && pathname.startsWith("/admin");
   console.log('[AuthButton] render', { hasUser: !!user, user });
 
   const planLabel = user?.plan === 'pro' ? 'Pro' : 'Free';
@@ -103,27 +110,143 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
     if (isMobile) {
       return null; // Already in admin, no need for this link
     }
+
+    const otherCareers = careers.filter((c) => c.id !== activeCareer?.id);
+
     return (
       <div className="flex items-center gap-2">
         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${planClassName}`}>
           {planLabel}
         </span>
         <DropdownMenu>
-          <DropdownMenuTrigger>
-            <Avatar>
-              <AvatarFallback><User /></AvatarFallback>
-            </Avatar>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+            >
+              <Avatar>
+                {activeCareer?.clubLogo ? (
+                  <AvatarImage src={activeCareer.clubLogo} alt={activeCareer.clubName} />
+                ) : (
+                  <AvatarImage src={user.photoURL || undefined} alt={user.displayName || undefined} />
+                )}
+                <AvatarFallback><User /></AvatarFallback>
+              </Avatar>
+            </button>
           </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="bg-white text-gray-900">
-          <DropdownMenuLabel>{user.displayName}</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-                    <Link href="/admin/club">
-            <DropdownMenuItem onClick={() => setSignupSource("admin_dropdown")}>
-              管理ダッシュボード
+          <DropdownMenuContent
+            align="end"
+            className={isAdmin
+              ? "w-64 border-white/10 bg-[#111d2e] text-[#c8d4e8]"
+              : "w-64 bg-white text-gray-900"}
+          >
+            {activeCareer ? (
+              <div className={isAdmin ? "px-3 py-3" : "px-3 py-3 text-gray-900"}>
+                <div className="flex items-center gap-3">
+                  {activeCareer.clubLogo ? (
+                    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full">
+                      <Image src={activeCareer.clubLogo} alt={activeCareer.clubName} fill className="object-contain" sizes="36px" />
+                    </div>
+                  ) : (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-700">
+                      <Shield className="h-4 w-4 text-white" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-bold text-emerald-400">{activeCareer.gameTitle}</div>
+                    <div className="truncate text-xs text-slate-300">{activeCareer.clubName}</div>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  現在使用中
+                </div>
+              </div>
+            ) : (
+              <DropdownMenuLabel>{user.displayName}</DropdownMenuLabel>
+            )}
+
+            <DropdownMenuSeparator className={isAdmin ? "bg-white/10" : ""} />
+
+            {otherCareers.length > 0 && (
+              <>
+                <div className={`px-3 py-2 text-[10px] font-bold uppercase tracking-wider ${isAdmin ? "text-slate-500" : "text-slate-400"}`}>
+                  最近のCareer
+                </div>
+                {otherCareers.slice(0, 4).map((c) => (
+                  <DropdownMenuItem
+                    key={c.id}
+                    onClick={async () => {
+                      await switchCareer(c.id);
+                      router.refresh();
+                    }}
+                    className={isAdmin ? "cursor-pointer focus:bg-white/10 focus:text-white" : "cursor-pointer"}
+                  >
+                    <div className="flex w-full items-center gap-2">
+                      {c.clubLogo ? (
+                        <div className="relative h-5 w-5 shrink-0 overflow-hidden rounded-full">
+                          <Image src={c.clubLogo} alt={c.clubName} fill className="object-contain" sizes="20px" />
+                        </div>
+                      ) : (
+                        <Shield className="h-4 w-4 text-slate-400" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-sm">
+                        <span className="mr-1.5 text-xs text-slate-400">{c.gameTitle}</span>
+                        {c.clubName}
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                {otherCareers.length > 4 && (
+                  <DropdownMenuItem asChild className={isAdmin ? "focus:bg-white/10 focus:text-white" : ""}>
+                    <Link href="/admin/profile" className="flex items-center justify-between text-xs">
+                      すべてのCareerを見る
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator className={isAdmin ? "bg-white/10" : ""} />
+              </>
+            )}
+
+            <DropdownMenuItem asChild className={isAdmin ? "focus:bg-white/10 focus:text-white" : ""}>
+              <Link href="/admin/careers/new" className="flex items-center gap-2 cursor-pointer">
+                <Plus className="h-4 w-4" />
+                新しいCareer
+              </Link>
             </DropdownMenuItem>
-          </Link>
-          <DropdownMenuItem onClick={handleSignOut}>ログアウト</DropdownMenuItem>
-        </DropdownMenuContent>
+
+            <DropdownMenuItem asChild className={isAdmin ? "focus:bg-white/10 focus:text-white" : ""}>
+              <Link href="/admin/profile" className="flex items-center gap-2 cursor-pointer">
+                <Settings className="h-4 w-4" />
+                キャリア管理
+              </Link>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem asChild className={isAdmin ? "focus:bg-white/10 focus:text-white" : ""}>
+              <Link href="/admin/profile" className="flex items-center gap-2 cursor-pointer">
+                <User className="h-4 w-4" />
+                プロフィール
+              </Link>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem asChild className={isAdmin ? "focus:bg-white/10 focus:text-white" : ""}>
+              <Link href="/admin/plan" className="flex items-center gap-2 cursor-pointer">
+                <CreditCard className="h-4 w-4" />
+                プラン・契約
+              </Link>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator className={isAdmin ? "bg-white/10" : ""} />
+
+            <DropdownMenuItem
+              onClick={handleSignOut}
+              className={isAdmin ? "cursor-pointer focus:bg-white/10 focus:text-white" : "cursor-pointer"}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              ログアウト
+            </DropdownMenuItem>
+          </DropdownMenuContent>
         </DropdownMenu>
       </div>
     );

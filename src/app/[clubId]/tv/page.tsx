@@ -10,8 +10,8 @@ import { lightenColor } from "@/lib/utils";
 const VIDEOS_PER_PAGE = 9;
 
 interface TvPageProps {
-  params: { clubId: string };
-  searchParams: { [key: string]: string | string[] | undefined };
+  params: Promise<{ clubId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 interface Video {
@@ -52,8 +52,10 @@ async function getClubInfo(clubId: string) {
   return { ...(resolved.profileData as any), ownerUid: resolved.ownerUid };
 }
 
-export default async function TvPage({ params: { clubId }, searchParams }: TvPageProps) {
-  const page = typeof searchParams.page === 'string' ? Number(searchParams.page) : 1;
+export default async function TvPage({ params, searchParams }: TvPageProps) {
+  const { clubId } = await params;
+  const resolvedSearchParams = await searchParams;
+  const page = typeof resolvedSearchParams.page === 'string' ? Number(resolvedSearchParams.page) : 1;
 
   if (clubId === 'admin') {
     notFound();

@@ -110,7 +110,7 @@ export function ClubInfoForm({ userId }: { userId: string }) {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) return;
-    const ownerUid = user.uid; // Use the authenticated user's UID for writing
+    const ownerUid = user.clubUid; // Use the active career's clubUid for writing
     setLoading(true);
 
     const clubDocRef = doc(db, "clubs", ownerUid);

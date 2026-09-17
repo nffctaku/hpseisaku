@@ -115,8 +115,8 @@ const SECTION_GRID_CLASS_BY_COLS: Record<1 | 2 | 3 | 4 | 5, string> = {
   5: "grid-cols-5",
 };
 
-export default async function PartnerPage({ params }: { params: { clubId: string } }) {
-  const clubId = params.clubId;
+export default async function PartnerPage({ params }: { params: Promise<{ clubId: string }> }) {
+  const { clubId } = await params;
 
   if (clubId === "admin") {
     notFound();

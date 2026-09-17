@@ -5,6 +5,7 @@ import { Barlow_Condensed } from 'next/font/google';
 import { Sidebar } from '@/components/sidebar';
 import { Header } from '@/components/header';
 import { useAuth } from '@/contexts/AuthContext';
+import { CareerProvider } from '@/contexts/CareerContext';
 import { ClubProvider, useClub } from '@/contexts/ClubContext';
 import { AuthButton } from '@/components/auth-button';
 import { ProLockScreen } from '@/components/pro-lock-screen';
@@ -35,6 +36,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   const isPlainAdminPage = (pathname || '').startsWith('/admin/mypage');
+  const isPublicAdminPage = pathname === '/admin/test-login';
 
   const allowHorizontalScroll = pathname === '/admin/matches/calendar';
   const isClubHistoryPage = pathname === '/admin/club/history';
@@ -112,6 +114,10 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
       setTosLoading(false);
     }
   };
+
+  if (isPublicAdminPage) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (
@@ -273,9 +279,9 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
       <div className="flex flex-col flex-1 w-full min-w-0 relative z-10">
         <div className={isClubHistoryPage || isProLockedRecordsPage ? "absolute inset-x-0 top-0 z-30" : "relative z-20"}>
           <Header
-            logoUrl={isProLockedRecordsPage ? undefined : (clubInfo.logoUrl || user?.logoUrl)}
-            clubName={clubInfo.clubName || user?.clubName}
-            homePath={user ? `/admin/club/${user.uid}` : '/admin'}
+            logoUrl={isProLockedRecordsPage ? undefined : clubInfo.logoUrl}
+            clubName={clubInfo.clubName}
+            homePath={user ? `/admin/club/${user.clubUid}` : '/admin'}
             navLinks={null} // No nav links in admin header
             onMenuClick={toggleSidebar}
             isMenuOpen={isSidebarOpen}
@@ -325,8 +331,10 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <ClubProvider>
-      <AdminLayoutContent>{children}</AdminLayoutContent>
-    </ClubProvider>
+    <CareerProvider>
+      <ClubProvider>
+        <AdminLayoutContent>{children}</AdminLayoutContent>
+      </ClubProvider>
+    </CareerProvider>
   );
 }

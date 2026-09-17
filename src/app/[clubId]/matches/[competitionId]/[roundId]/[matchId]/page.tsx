@@ -1092,7 +1092,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                       if (ev.teamId === match.homeTeam) hScore += 1;
                       else if (ev.teamId === match.awayTeam) aScore += 1;
                     }
-                    if (ev.type === "og") {
+                    if ((ev as any).type === "og") {
                       if (ev.teamId === match.homeTeam) aScore += 1;
                       else if (ev.teamId === match.awayTeam) hScore += 1;
                     }

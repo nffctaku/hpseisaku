@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  distDir: process.env.FOOTCHRON_DEV_MODE === 'emulator' ? '.next-emulator' : process.env.FOOTCHRON_DEV_MODE === 'normal' ? '.next-normal' : '.next',
   typescript: {
     ignoreBuildErrors: true,
   },

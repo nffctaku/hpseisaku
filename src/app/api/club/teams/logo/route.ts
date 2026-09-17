@@ -3,6 +3,7 @@ import { auth, db, admin } from '@/lib/firebase/admin';
 import { getPlanLimit } from '@/lib/plan-limits';
 import { getEffectivePlanForUid } from '@/lib/server-plan';
 import { touchUserActivity } from '@/lib/server-activity';
+import { getActiveClubUid } from '@/lib/career-server';
 
 interface SaveTeamLogoRequest {
   teamId: string;
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
 
     const decoded = await auth.verifyIdToken(token);
     const uid = decoded.uid;
+    const clubUid = await getActiveClubUid(uid);
 
     const body = (await req.json()) as SaveTeamLogoRequest;
     const { teamId, logoUrl } = body;
@@ -38,10 +40,10 @@ export async function POST(req: NextRequest) {
     const { tier, plan } = await getEffectivePlanForUid(uid);
     const limit = getPlanLimit('team_images_per_account', tier);
 
-    const teamRef = db.collection(`clubs/${uid}/teams`).doc(teamId);
+    const teamRef = db.collection(`clubs/${clubUid}/teams`).doc(teamId);
     const [teamSnap, teamsSnap] = await Promise.all([
       teamRef.get(),
-      db.collection(`clubs/${uid}/teams`).get(),
+      db.collection(`clubs/${clubUid}/teams`).get(),
     ]);
 
     const teamData = teamSnap.exists ? (teamSnap.data() as Record<string, unknown> || {}) : {};

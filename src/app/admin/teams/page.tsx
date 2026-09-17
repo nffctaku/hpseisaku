@@ -40,9 +40,8 @@ interface TeamCategory {
 type TeamFormValues = z.infer<typeof teamSchema>;
 
 export default function TeamsPage() {
-  const { user, ownerUid, clubProfileId } = useAuth();
+  const { user, clubUid, clubProfileId } = useAuth();
   const router = useRouter();
-  const clubUid = ownerUid || user?.uid;
   const [teams, setTeams] = useState<Team[]>([]);
   const [categories, setCategories] = useState<TeamCategory[]>([]);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);

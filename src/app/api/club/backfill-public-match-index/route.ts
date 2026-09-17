@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase/admin";
 import { getAuth } from "firebase-admin/auth";
+import { getActiveClubUid } from "@/lib/career-server";
 
 export const runtime = "nodejs";
 
@@ -16,30 +17,6 @@ async function getUidFromRequest(request: Request): Promise<string | null> {
       return null;
     }
   }
-  return null;
-}
-
-async function resolveOwnerUidFromUid(uid: string): Promise<string | null> {
-  const direct = await db.collection("club_profiles").doc(uid).get();
-  if (direct.exists) {
-    const data = direct.data() as any;
-    return (data?.ownerUid as string) || uid;
-  }
-
-  const ownerQuery = await db.collection("club_profiles").where("ownerUid", "==", uid).limit(1).get();
-  if (!ownerQuery.empty) {
-    const doc = ownerQuery.docs[0];
-    const data = doc.data() as any;
-    return (data?.ownerUid as string) || doc.id;
-  }
-
-  const adminQuery = await db.collection("club_profiles").where("admins", "array-contains", uid).limit(1).get();
-  if (!adminQuery.empty) {
-    const doc = adminQuery.docs[0];
-    const data = doc.data() as any;
-    return (data?.ownerUid as string) || doc.id;
-  }
-
   return null;
 }
 
@@ -82,33 +59,33 @@ function normalizeMatchDate(v: any): string {
   return "";
 }
 
-async function hasPublicMatchIndexData(ownerUid: string): Promise<boolean> {
-  const ref = db.collection(`clubs/${ownerUid}/public_match_index`).limit(2);
+async function hasPublicMatchIndexData(clubUid: string): Promise<boolean> {
+  const ref = db.collection(`clubs/${clubUid}/public_match_index`).limit(2);
   const snap = await ref.get();
   if (snap.empty) return false;
   if (snap.size === 1 && snap.docs[0].id === "_meta") return false;
   return true;
 }
 
-async function backfillPublicMatchIndex(ownerUid: string): Promise<number> {
-  const indexRef = db.collection(`clubs/${ownerUid}/public_match_index`);
+async function backfillPublicMatchIndex(clubUid: string): Promise<number> {
+  const indexRef = db.collection(`clubs/${clubUid}/public_match_index`);
 
-  const teamsSnap = await db.collection(`clubs/${ownerUid}/teams`).get();
+  const teamsSnap = await db.collection(`clubs/${clubUid}/teams`).get();
   const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
   teamsSnap.forEach((d) => teamsMap.set(d.id, { name: (d.data() as any).name, logoUrl: (d.data() as any).logoUrl }));
 
-  const competitionsSnap = await db.collection(`clubs/${ownerUid}/competitions`).get();
+  const competitionsSnap = await db.collection(`clubs/${clubUid}/competitions`).get();
 
   const nestedMatches = await Promise.all(
     competitionsSnap.docs.map(async (compDoc) => {
       const compData = compDoc.data() as any;
-      const roundsSnap = await db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`).get();
+      const roundsSnap = await db.collection(`clubs/${clubUid}/competitions/${compDoc.id}/rounds`).get();
 
       const byRound = await Promise.all(
         roundsSnap.docs.map(async (roundDoc) => {
           const roundData = roundDoc.data() as any;
           const matchesSnap = await db
-            .collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`)
+            .collection(`clubs/${clubUid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`)
             .get();
 
           return matchesSnap.docs.map((matchDoc) => {
@@ -145,7 +122,7 @@ async function backfillPublicMatchIndex(ownerUid: string): Promise<number> {
     })
   );
 
-  const friendlySnap = await db.collection(`clubs/${ownerUid}/friendly_matches`).get();
+  const friendlySnap = await db.collection(`clubs/${clubUid}/friendly_matches`).get();
   const friendlyRows: MatchIndexRow[] = friendlySnap.docs.map((d) => {
     const m = d.data() as any;
     const compId = (m.competitionId as string) === "practice" ? "practice" : "friendly";
@@ -199,16 +176,13 @@ export async function POST(request: Request) {
       return new NextResponse(JSON.stringify({ message: "認証されていません。" }), { status: 401 });
     }
 
-    const ownerUid = await resolveOwnerUidFromUid(uid);
-    if (!ownerUid) {
-      return new NextResponse(JSON.stringify({ message: "クラブ情報が見つかりません。" }), { status: 404 });
-    }
+    const clubUid = await getActiveClubUid(uid);
 
-    if (await hasPublicMatchIndexData(ownerUid)) {
+    if (await hasPublicMatchIndexData(clubUid)) {
       return new NextResponse(JSON.stringify({ message: "already", count: 0 }), { status: 200 });
     }
 
-    const count = await backfillPublicMatchIndex(ownerUid);
+    const count = await backfillPublicMatchIndex(clubUid);
     return new NextResponse(JSON.stringify({ message: "ok", count }), { status: 200 });
   } catch (error) {
     console.error("backfill-public-match-index error:", error);

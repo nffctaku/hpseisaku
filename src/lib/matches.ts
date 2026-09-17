@@ -111,7 +111,7 @@ export function getSeasonFromMatchDate(matchDate: string): string | null {
 }
 
 export async function getMatchDataForClub(
-  ownerUid: string,
+  clubUid: string,
   opts?: { includeAllSeasons?: boolean }
 ): Promise<{
   latestResult: MatchDetails | null;
@@ -124,16 +124,13 @@ export async function getMatchDataForClub(
   allRecentMatches: MatchDetails[];
   allOwnPastMatches: MatchDetails[];
 }> {
-  if (!ownerUid) {
+  if (!clubUid) {
     return { latestResult: null, nextMatch: null, clubName: null, mainTeamId: null, mainSeason: null, recentMatches: [], upcomingMatches: [], allRecentMatches: [], allOwnPastMatches: [] };
   }
 
-  // 1. Get club name and main team id
-  // club_profiles のドキュメントIDは ownerUid とは限らないので、ownerUid で検索する
-  const clubProfilesRef = db.collection('club_profiles');
-  const profileQuery = clubProfilesRef.where('ownerUid', '==', ownerUid).limit(1);
-  const profileSnap = await profileQuery.get();
-  const clubProfileData = !profileSnap.empty ? profileSnap.docs[0].data() : null;
+  // 1. Get club name and main team id from the profile whose doc id is the data path (clubUid)
+  const profileSnap = await db.collection('club_profiles').doc(clubUid).get();
+  const clubProfileData = profileSnap.exists ? profileSnap.data() : null;
   const clubName = clubProfileData?.clubName ?? null;
   const mainTeamId = typeof (clubProfileData as any)?.mainTeamId === 'string' && (clubProfileData as any).mainTeamId.trim().length > 0
     ? (clubProfileData as any).mainTeamId
@@ -141,7 +138,7 @@ export async function getMatchDataForClub(
 
   // 2. Fetch all teams for the club
   const teamsMap = new Map<string, { id: string; name: string; logoUrl?: string }>();
-  const teamsQuery = db.collection(`clubs/${ownerUid}/teams`);
+  const teamsQuery = db.collection(`clubs/${clubUid}/teams`);
   const teamsSnap = await teamsQuery.get();
   teamsSnap.forEach(doc => teamsMap.set(doc.id, { id: doc.id, name: doc.data().name, logoUrl: doc.data().logoUrl }));
 
@@ -158,7 +155,7 @@ export async function getMatchDataForClub(
           data?.teamId === mainTeamId ||
           data?.teamUid === mainTeamId ||
           data?.uid === mainTeamId ||
-          data?.ownerUid === mainTeamId
+          data?.clubUid === mainTeamId
         ) {
           resolvedMainTeamId = doc.id;
         }
@@ -190,11 +187,7 @@ export async function getMatchDataForClub(
     }
   };
 
-  await loadSeasonsFrom(ownerUid);
-  const clubId = profileSnap.docs[0]?.id;
-  if (clubId && clubId !== ownerUid) {
-    await loadSeasonsFrom(clubId);
-  }
+  await loadSeasonsFrom(clubUid);
 
   const publicSeasons = Array.from(seasonVisibility.entries())
     .filter(([, isPublic]) => isPublic)
@@ -203,7 +196,7 @@ export async function getMatchDataForClub(
   
   // 3. Fetch all matches from all competitions/rounds
   const allMatches: MatchDetails[] = [];
-  const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
+  const competitionsQuery = db.collection(`clubs/${clubUid}/competitions`);
   const competitionsSnap = await competitionsQuery.get();
 
   const nestedMatches = await Promise.all(
@@ -213,13 +206,13 @@ export async function getMatchDataForClub(
       const compSeason = compSeasonRaw ? toSlashSeason(compSeasonRaw) : '';
       if (!opts?.includeAllSeasons && publicSeasonIdSet.size > 0 && (!compSeason || !publicSeasonIdSet.has(compSeason))) return [] as MatchDetails[];
 
-      const roundsQuery = db.collection(`clubs/${ownerUid}/competitions/${compDoc.id}/rounds`);
+      const roundsQuery = db.collection(`clubs/${clubUid}/competitions/${compDoc.id}/rounds`);
       const roundsSnap = await roundsQuery.get();
 
       const matchesByRound = await Promise.all(
         roundsSnap.docs.map(async (roundDoc) => {
           const matchesQuery = db.collection(
-            `clubs/${ownerUid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`
+            `clubs/${clubUid}/competitions/${compDoc.id}/rounds/${roundDoc.id}/matches`
           );
           const matchesSnap = await matchesQuery.get();
           return await Promise.all(matchesSnap.docs.map(async (matchDoc) => {
@@ -257,7 +250,7 @@ export async function getMatchDataForClub(
   allMatches.push(...nestedMatches.flat());
 
   const friendlyMatches = await Promise.all(
-    (await db.collection(`clubs/${ownerUid}/friendly_matches`).get()).docs.map(async (matchDoc) => {
+    (await db.collection(`clubs/${clubUid}/friendly_matches`).get()).docs.map(async (matchDoc) => {
       const matchData = matchDoc.data() as any;
       const sRaw = getSeasonFromMatchDate(toDateString(matchData.matchDate));
       const s = sRaw ? toSlashSeason(sRaw) : null;

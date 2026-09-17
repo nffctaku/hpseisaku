@@ -55,8 +55,9 @@ function getMatchSortMs(m: { matchDate?: string | Date | { toDate?: () => Date }
   const md = m?.matchDate;
   let base: Date | null = null;
 
-  if (md?.toDate && typeof md.toDate === 'function') {
-    base = md.toDate();
+  const mdAny = md as any;
+  if (mdAny?.toDate && typeof mdAny.toDate === 'function') {
+    base = mdAny.toDate();
   } else if (md instanceof Date) {
     base = md;
   } else if (typeof md === 'string') {

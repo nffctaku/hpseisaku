@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, collection, query, getDocs } from "firebase/firestore";
 import { useForm, useFieldArray, type SubmitHandler } from "react-hook-form";
@@ -73,12 +74,13 @@ interface Team {
 }
 
 export default function EditCompetitionPage() {
-  const { user, ownerUid } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const router = useRouter();
   const params = useParams();
   const competitionId = params.competitionId as string;
 
-  const clubUid = ownerUid || user?.uid;
+  const clubUid = activeCareer?.clubUid;
 
   const [loading, setLoading] = useState(true);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
@@ -105,20 +107,27 @@ export default function EditCompetitionPage() {
 
 
   useEffect(() => {
+    setAllTeams([]);
     if (!user || !competitionId) return;
-    if (!clubUid) return;
+    if (!clubUid) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
     const fetchData = async () => {
       setLoading(true);
       try {
         // Fetch all teams
         const teamsQuery = query(collection(db, `clubs/${clubUid}/teams`));
         const teamsSnapshot = await getDocs(teamsQuery);
+        if (cancelled) return;
         const teamsData = teamsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
         setAllTeams(teamsData);
 
         // Fetch the specific competition
         const docRef = doc(db, `clubs/${clubUid}/competitions`, competitionId);
         const docSnap = await getDoc(docRef);
+        if (cancelled) return;
         if (docSnap.exists()) {
           const data = docSnap.data();
           form.reset({
@@ -136,10 +145,13 @@ export default function EditCompetitionPage() {
         console.error("Error fetching data: ", error);
         toast.error("データの読み込みに失敗しました。");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchData();
+    return () => {
+      cancelled = true;
+    };
   }, [user, clubUid, competitionId, router, form]);
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {

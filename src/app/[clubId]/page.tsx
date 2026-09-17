@@ -62,9 +62,9 @@ interface ClubPageProps {
 export async function generateMetadata({
   params,
 }: {
-  params: { clubId: string };
+  params: Promise<{ clubId: string }>;
 }): Promise<Metadata> {
-  const clubId = params.clubId;
+  const { clubId } = await params;
 
   const title = "FootChronでチームHPを公開しました";
   const description = "FootChronでチームHPを公開しました";
@@ -114,14 +114,14 @@ export default async function ClubPage({ params }: ClubPageProps) {
       if (!clubProfileDoc && !directSnap?.exists) return null;
 
       const profileData = (clubProfileDoc ? clubProfileDoc.data() : (directSnap!.data() as any))!;
-      const ownerUid = (profileData as any).ownerUid || (clubProfileDoc ? clubProfileDoc.id : directSnap!.id);
-      if (!ownerUid) return null;
+      const clubUid = (profileData as any).clubUid || (clubProfileDoc ? clubProfileDoc.id : directSnap!.id);
+      if (!clubUid) return null;
 
       // Parallelize club data and main team fetch
       const [clubDataSnap, mainTeamSnap] = await Promise.all([
-        db.collection("clubs").doc(ownerUid).get(),
+        db.collection("clubs").doc(clubUid).get(),
         (profileData as any)?.mainTeamId
-          ? db.collection(`clubs/${ownerUid}/teams`).doc((profileData as any).mainTeamId).get()
+          ? db.collection(`clubs/${clubUid}/teams`).doc((profileData as any).mainTeamId).get()
           : Promise.resolve(null),
       ]);
 
@@ -130,7 +130,8 @@ export default async function ClubPage({ params }: ClubPageProps) {
 
       const resolvedProfile = {
         ...profileData,
-        ownerUid,
+        clubUid,
+        ownerUid: clubUid,
         clubName: (mainTeamData as any)?.name || (profileData as any).clubName,
         logoUrl: (mainTeamData as any)?.logoUrl || (profileData as any).logoUrl,
       } as any;
@@ -139,15 +140,15 @@ export default async function ClubPage({ params }: ClubPageProps) {
       const heroLimit = typeof heroLimitRaw === "number" && heroLimitRaw >= 1 && heroLimitRaw <= 5 ? heroLimitRaw : 3;
       const baseLimit = Math.max(heroLimit * 3, 6);
 
-      const newsQuery = db.collection(`clubs/${ownerUid}/news`).orderBy("publishedAt", "desc").limit(baseLimit * 2);
-      const videosQuery = db.collection(`clubs/${ownerUid}/videos`).orderBy("publishedAt", "desc").limit(4);
-      const competitionsQuery = db.collection(`clubs/${ownerUid}/competitions`);
+      const newsQuery = db.collection(`clubs/${clubUid}/news`).orderBy("publishedAt", "desc").limit(baseLimit * 2);
+      const videosQuery = db.collection(`clubs/${clubUid}/videos`).orderBy("publishedAt", "desc").limit(4);
+      const competitionsQuery = db.collection(`clubs/${clubUid}/competitions`);
       const playersQuery = (profileData as any)?.mainTeamId
-        ? db.collection(`clubs/${ownerUid}/teams/${(profileData as any).mainTeamId}/players`).orderBy("number", "asc").limit(8)
+        ? db.collection(`clubs/${clubUid}/teams/${(profileData as any).mainTeamId}/players`).orderBy("number", "asc").limit(8)
         : null;
 
       const [{ latestResult, nextMatch, recentMatches, upcomingMatches, allRecentMatches }, newsSnap, videosSnap, competitionsSnap, playersSnap] = await Promise.all([
-        getMatchDataForClub(ownerUid),
+        getMatchDataForClub(clubUid),
         newsQuery.get(),
         videosQuery.get(),
         competitionsQuery.get(),
@@ -199,7 +200,7 @@ export default async function ClubPage({ params }: ClubPageProps) {
 
       const competitions = competitionsSnap.docs.map((doc) => {
         const data = doc.data() as any;
-        return { id: doc.id, ownerUid, name: data.name || "Unnamed Competition", ...data };
+        return { id: doc.id, clubUid, name: data.name || "Unnamed Competition", ...data };
       });
 
       const videos = videosSnap.docs.map((doc) => {

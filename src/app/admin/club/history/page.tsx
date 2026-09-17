@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Crown, Shield, Trophy, Users, ArrowLeftRight, ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -12,7 +13,6 @@ import {
   getDoc,
   getDocs,
   query,
-  where,
 } from "firebase/firestore";
 
 const recordCards = [
@@ -64,16 +64,21 @@ const recordCards = [
 ];
 
 export default function ClubHistoryPage() {
-  const { user, ownerUid } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
+  const clubUid = activeCareer?.clubUid;
   const [seasonCount, setSeasonCount] = useState(0);
   const [matchCount, setMatchCount] = useState(0);
   const [titleCount, setTitleCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const clubUid = ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
 
   useEffect(() => {
+    let cancelled = false;
+    setSeasonCount(0);
+    setMatchCount(0);
+    setTitleCount(0);
     if (!clubUid) return;
     const run = async () => {
       setLoading(true);
@@ -85,14 +90,6 @@ export default function ClubHistoryPage() {
           if (profileSnap.exists()) {
             const data = profileSnap.data() as { mainTeamId?: string };
             if (typeof data?.mainTeamId === "string") mainTeamId = data.mainTeamId.trim();
-          }
-          if (!mainTeamId) {
-            const q = query(collection(db, "club_profiles"), where("ownerUid", "==", clubUid));
-            const fallbackSnap = await getDocs(q);
-            if (!fallbackSnap.empty) {
-              const data = fallbackSnap.docs[0].data() as { mainTeamId?: string };
-              if (typeof data?.mainTeamId === "string") mainTeamId = data.mainTeamId.trim();
-            }
           }
         } catch (e) {
           console.warn("[ClubHistoryPage] mainTeamId load failed", e);
@@ -127,16 +124,18 @@ export default function ClubHistoryPage() {
           return isOwnMatch(data) && typeof data.scoreHome === "number" && typeof data.scoreAway === "number";
         }).length;
 
+        if (cancelled) return;
         setSeasonCount(seasonsSet.size);
         setMatchCount(mainTeamId ? scoredPublicMatches + scoredFriendlyMatches : 0);
         setTitleCount(titlesSnap.size);
       } catch (e) {
         console.error("[ClubHistoryPage] fetch counts failed", e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     void run();
+    return () => { cancelled = true; };
   }, [clubUid]);
 
   const stats = [

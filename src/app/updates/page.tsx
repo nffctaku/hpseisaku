@@ -54,14 +54,13 @@ const updates = [
 const itemsPerPage = 3;
 
 type UpdatesPageProps = {
-  searchParams?: {
-    page?: string;
-  };
+  searchParams?: Promise<{ page?: string }>;
 };
 
-export default function UpdatesPage({ searchParams }: UpdatesPageProps) {
+export default async function UpdatesPage({ searchParams }: UpdatesPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : { page: undefined };
   const currentPage = Math.min(
-    Math.max(Number(searchParams?.page ?? "1") || 1, 1),
+    Math.max(Number(resolvedSearchParams?.page ?? "1") || 1, 1),
     Math.max(Math.ceil(updates.length / itemsPerPage), 1),
   );
   const totalPages = Math.max(Math.ceil(updates.length / itemsPerPage), 1);

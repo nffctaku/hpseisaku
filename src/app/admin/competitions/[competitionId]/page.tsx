@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, type ChangeEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, updateDoc, addDoc, setDoc, increment, deleteDoc } from "firebase/firestore";
 import { setActivationOnce, trackEvent } from "@/lib/analytics";
@@ -155,11 +156,13 @@ function isLeagueRoundName(name: string | undefined): boolean {
 }
 
 export default function CompetitionDetailPage() {
-  const { user, ownerUid, clubProfileId } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const params = useParams();
   const competitionId = params.competitionId as string;
 
-  const clubUid = ownerUid || user?.uid;
+  const clubUid = activeCareer?.clubUid;
+  const clubProfileId = clubUid;
 
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [rounds, setRounds] = useState<Round[]>([]);
@@ -185,8 +188,9 @@ export default function CompetitionDetailPage() {
   } | null>(null);
   const [tempDateValue, setTempDateValue] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fetchGenRef = useRef(0);
 
-  const fetchAllData = async () => {
+  const fetchAllData = async (gen: number) => {
     if (!user || !competitionId || !clubUid) return;
     setLoading(true);
     try {
@@ -196,6 +200,7 @@ export default function CompetitionDetailPage() {
         const allTeamsPath = `clubs/${clubUid}/teams`;
         const allTeamsQuery = query(collection(db, allTeamsPath));
         const allTeamsSnap = await getDocs(allTeamsQuery);
+        if (gen !== fetchGenRef.current) return;
         allTeamsSnap.forEach(doc => teamsMap.set(doc.id, { id: doc.id, ...doc.data() } as Team));
         setAllTeams(teamsMap);
       } catch (e) {
@@ -210,6 +215,7 @@ export default function CompetitionDetailPage() {
         const compPath = `clubs/${clubUid}/competitions/${competitionId}`;
         const compRef = doc(db, compPath);
         const compSnap = await getDoc(compRef);
+        if (gen !== fetchGenRef.current) return;
         if (compSnap.exists()) {
           fetchedCompetition = { id: compSnap.id, ...compSnap.data() } as Competition;
           setCompetition(fetchedCompetition);
@@ -227,6 +233,7 @@ export default function CompetitionDetailPage() {
         if (ownTeam && !compTeams.some(t => t.id === clubUid)) {
           compTeams.push(ownTeam);
         }
+        if (gen !== fetchGenRef.current) return;
         setCompetitionTeams(compTeams);
       }
 
@@ -258,10 +265,11 @@ export default function CompetitionDetailPage() {
         if (ka !== kb) return ka - kb;
         return a.name.localeCompare(b.name, undefined, { numeric: true });
       });
+      if (gen !== fetchGenRef.current) return;
       setRounds(roundsData);
       if (roundsData.length > 0) {
         const hasMissingScore = (m: Match) => (m as any)?.scoreHome == null || (m as any)?.scoreAway == null;
-        const isOwnMatch = (m: Match) => (m as any)?.homeTeam === user.uid || (m as any)?.awayTeam === user.uid;
+        const isOwnMatch = (m: Match) => (m as any)?.homeTeam === clubUid || (m as any)?.awayTeam === clubUid;
 
         const ownMissingIndex = roundsData.findIndex((r) => r.matches?.some((m) => isOwnMatch(m) && hasMissingScore(m)));
         const anyMissingIndex = roundsData.findIndex((r) => r.matches?.some((m) => hasMissingScore(m)));
@@ -272,12 +280,19 @@ export default function CompetitionDetailPage() {
       console.error("Error fetching data: ", error);
       toast.error("データの読み込みに失敗しました。");
     }
+    if (gen !== fetchGenRef.current) return;
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchAllData();
-  }, [user, competitionId]);
+    setCompetition(null);
+    setRounds([]);
+    setAllTeams(new Map());
+    setCompetitionTeams([]);
+    setCurrentRoundIndex(0);
+    const gen = ++fetchGenRef.current;
+    fetchAllData(gen);
+  }, [user, competitionId, clubUid]);
 
   const currentRound = useMemo(() => rounds[currentRoundIndex], [rounds, currentRoundIndex]);
 
@@ -705,12 +720,12 @@ export default function CompetitionDetailPage() {
 
       toast.success("すべてのスコアをリセットしました");
       // データを再読み込みして完全同期
-      await fetchAllData(); 
+      await fetchAllData(fetchGenRef.current);
     } catch (error) {
       console.error("スコアリセットエラー:", error);
       toast.error("スコアのリセットに失敗しました");
       // エラー時はデータを再読み込みして状態を修正
-      await fetchAllData();
+      await fetchAllData(fetchGenRef.current);
     }
   };
 
@@ -1119,7 +1134,7 @@ export default function CompetitionDetailPage() {
                   roundId={currentRound.id}
                   season={competition.season}
                   onUpdate={handleMatchUpdate}
-                  onDelete={fetchAllData}
+                  onDelete={() => fetchAllData(fetchGenRef.current)}
                 />
               ))}
             </div>

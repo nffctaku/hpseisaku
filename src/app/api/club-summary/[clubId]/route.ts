@@ -18,7 +18,7 @@ async function getClubSummary(clubId: string) {
   }
 
   const profileData = (clubProfileDoc ? clubProfileDoc.data() : (directSnap!.data() as any))!;
-  const ownerUid = (profileData as any).ownerUid || (clubProfileDoc ? clubProfileDoc.id : directSnap!.id);
+  const ownerUid = (profileData as any).clubUid || (clubProfileDoc ? clubProfileDoc.id : directSnap!.id);
 
   if (!ownerUid) {
     throw new Error('Club owner UID not found');
@@ -41,6 +41,8 @@ async function getClubSummary(clubId: string) {
 
   const resolvedProfile = {
     ...profileData,
+    clubUid: ownerUid,
+    ownerUid,
     clubName: (mainTeamData as any)?.name || (profileData as any).clubName,
     logoUrl: (mainTeamData as any)?.logoUrl || (profileData as any).logoUrl,
   } as any;

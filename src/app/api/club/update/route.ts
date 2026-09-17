@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase/admin';
 import { getAuth } from 'firebase-admin/auth';
+import { FieldValue } from 'firebase-admin/firestore';
 import { touchUserActivity } from '@/lib/server-activity';
+import { getActiveClubUid } from '@/lib/career-server';
+import { normalizeSlug, validateSlug } from '@/lib/slug';
 
 // この関数は、リクエストから認証トークンを取得し、ユーザーUIDを検証するために使用します。
 // 実際のアプリケーションでは、より堅牢な認証方法を検討してください。
@@ -23,7 +26,8 @@ async function getUidFromRequest(request: Request): Promise<string | null> {
 export async function POST(request: Request) {
   try {
     const uid = await getUidFromRequest(request);
-    if (!uid) {
+    const clubUid = uid ? await getActiveClubUid(uid) : null;
+    if (!uid || !clubUid) {
       return new NextResponse(JSON.stringify({ message: '認証されていません。' }), { status: 401 });
     }
 
@@ -57,25 +61,45 @@ export async function POST(request: Request) {
 
     const clubProfilesRef = db.collection('club_profiles');
 
-    // 既存の club_profiles ドキュメントから clubId を引き継ぐ
-    const existingUidDocSnap = await clubProfilesRef.doc(uid).get();
-    const existingOwnerQuerySnap = await clubProfilesRef.where('ownerUid', '==', uid).get();
+    // 正規の club_profiles/{clubUid} ドキュメントから clubId を取得する
+    const mainDocRef = clubProfilesRef.doc(clubUid);
+    const mainDocSnap = await mainDocRef.get();
+    const existingClubId = mainDocSnap.exists
+      ? (mainDocSnap.data() as any)?.clubId || null
+      : null;
 
-    let existingClubId: string | null = null;
-    if (existingUidDocSnap.exists) {
-      const uidData = existingUidDocSnap.data() as any;
-      if (uidData && typeof uidData.clubId === 'string') {
-        existingClubId = uidData.clubId as string;
+    const allCareersSnap = await db.collection('careers').where('ownerId', '==', uid).get();
+    const forbiddenValues = Array.from(
+      new Set(
+        [uid].concat(
+          allCareersSnap.docs
+            .map((d) => (d.data() as any)?.clubUid)
+            .filter((v): v is string => typeof v === 'string')
+        )
+      )
+    );
+
+    const rawRequestedClubId = typeof clubId === 'string' ? String(clubId).trim() : '';
+
+    // Validate requested slug on the server with raw input to preserve exact current URLs
+    let validationResult: { ok: true; slug: string } | { ok: false } | undefined;
+    if (Object.prototype.hasOwnProperty.call(body, 'clubId') && rawRequestedClubId) {
+      const validation = validateSlug(rawRequestedClubId, {
+        currentSlug: existingClubId || undefined,
+        forbiddenValues,
+      });
+      if (!validation.ok) {
+        return new NextResponse(JSON.stringify({ message: validation.message }), { status: 400 });
       }
-    } else if (!existingOwnerQuerySnap.empty) {
-      const firstOwnerDoc = existingOwnerQuerySnap.docs[0].data() as any;
-      if (typeof firstOwnerDoc.clubId === 'string') {
-        existingClubId = firstOwnerDoc.clubId;
-      }
+      validationResult = validation;
     }
 
-    const requestedClubId = typeof clubId === 'string' ? String(clubId).trim() : '';
-    const clubIdForUpdate = existingClubId || (requestedClubId ? requestedClubId : null);
+    const requestedClubId = validationResult?.ok ? validationResult.slug : '';
+    const clubIdForUpdate = requestedClubId || existingClubId;
+
+    if (Object.prototype.hasOwnProperty.call(body, 'clubId') && !clubIdForUpdate) {
+      return new NextResponse(JSON.stringify({ message: 'URL識別名の決定に失敗しました' }), { status: 400 });
+    }
 
     console.log('[club/update] resolved clubIdForUpdate', { uid, existingClubId, requestedClubId, clubIdForUpdate });
 
@@ -93,6 +117,7 @@ export async function POST(request: Request) {
 
     if (clubIdForUpdate) {
       updateData.clubId = clubIdForUpdate;
+      updateData.slug = clubIdForUpdate;
     }
 
     if (typeof layoutType === 'string' && layoutType.length > 0) {
@@ -270,6 +295,9 @@ export async function POST(request: Request) {
       updateData.clubId = requestedClubId;
     }
 
+    updateData.clubUid = clubUid;
+    updateData.updatedAt = FieldValue.serverTimestamp();
+
     if (typeof foundedYear === 'string') {
       updateData.foundedYear = foundedYear;
     }
@@ -298,57 +326,63 @@ export async function POST(request: Request) {
       updateData.clubTitles = clubTitles;
     }
 
-    // ID が uid の doc を更新
-    const clubDocRef = clubProfilesRef.doc(uid);
-
-    // 公開側が参照しやすい canonical doc: docId == clubId(slug)
-    const clubSlugDocRef = clubIdForUpdate ? clubProfilesRef.doc(clubIdForUpdate) : null;
-
-    // UI から指定された clubId(slug) も更新（参照元が複数パターンあるため）
-    const requestedSlugDocRef = requestedClubId ? clubProfilesRef.doc(requestedClubId) : null;
-
-    // 既存の ownerUid ベースの doc もあれば同じ内容で更新
-    const ownerQuerySnapshot = await clubProfilesRef.where('ownerUid', '==', uid).get();
-
-    // clubId(slug) でヒットする doc もあれば更新（公開側が clubId で参照するケースのため）
-    const clubIdQuerySnapshot = clubIdForUpdate
-      ? await clubProfilesRef.where('clubId', '==', clubIdForUpdate).get()
-      : null;
-
-    const writePromises: Promise<FirebaseFirestore.WriteResult>[] = [];
-    writePromises.push(clubDocRef.set(updateData, { merge: true }));
-
-    if (clubSlugDocRef && clubSlugDocRef.id !== uid) {
-      writePromises.push(clubSlugDocRef.set(updateData, { merge: true }));
+    if (!clubIdForUpdate) {
+      return new NextResponse(JSON.stringify({ message: 'URL識別名が決定できません' }), { status: 400 });
     }
 
-    if (requestedSlugDocRef && requestedSlugDocRef.id !== uid && (!clubSlugDocRef || requestedSlugDocRef.id !== clubSlugDocRef.id)) {
-      writePromises.push(requestedSlugDocRef.set(updateData, { merge: true }));
-    }
+    // 公開URL（slug）の更新を同一トランザクションで保証
+    try {
+      await db.runTransaction(async (t) => {
+        const mainRef = clubProfilesRef.doc(clubUid);
+        const mainSnap = await t.get(mainRef);
+        const mainData = mainSnap.data() as Record<string, unknown> | undefined;
+        const currentMainClubId = typeof mainData?.clubId === 'string' ? mainData.clubId : null;
 
-    console.log('[club/update] write targets', {
-      uid,
-      uidDocId: clubDocRef.id,
-      clubSlugDocId: clubSlugDocRef ? clubSlugDocRef.id : null,
-      requestedSlugDocId: requestedSlugDocRef ? requestedSlugDocRef.id : null,
-    });
+        // 既存URLを持つ場合、変更前の値が取得できていることを確認
+        if (existingClubId && currentMainClubId !== existingClubId) {
+          throw new Error('この間にURLが更新されました。もう一度お試しください。');
+        }
 
-    ownerQuerySnapshot.forEach((docSnap) => {
-      // uid docは上で更新済み
-      if (docSnap.id !== uid) {
-        writePromises.push(docSnap.ref.set(updateData, { merge: true }));
-      }
-    });
+        // clubId フィールドでの重複チェック（対象Careerの正規 doc / 対象 alias のみ許可）
+        const byField = await t.get(clubProfilesRef.where('clubId', '==', clubIdForUpdate));
+        for (const d of byField.docs) {
+          if (d.id === clubUid) continue; // 対象Careerの正規プロフィール
+          const dClubUid = d.data()?.clubUid;
+          const dOwnerUid = d.data()?.ownerUid;
+          if (d.id === clubIdForUpdate && dClubUid === clubUid && dOwnerUid === uid) continue; // 対象CareerのURL alias
+          throw new Error('このURLはすでに使用されています');
+        }
 
-    if (clubIdQuerySnapshot) {
-      clubIdQuerySnapshot.forEach((docSnap) => {
-        if (docSnap.id !== uid) {
-          writePromises.push(docSnap.ref.set(updateData, { merge: true }));
+        // 新 alias ドキュメントIDの重複チェック
+        const aliasRef = clubProfilesRef.doc(clubIdForUpdate);
+        const byIdSnap = await t.get(aliasRef);
+        if (byIdSnap.exists) {
+          const aData = byIdSnap.data() as Record<string, unknown> | undefined;
+          if (aData?.ownerUid !== uid || aData?.clubUid !== clubUid) {
+            throw new Error('このURLはすでに使用されています');
+          }
+        }
+
+        // 正規の club_profiles/{clubUid} のみを更新。clubUid フィールドが汚染された他ドキュメントは触らない
+        t.set(mainRef, updateData, { merge: true });
+
+        // 新 alias を作成または更新
+        if (clubIdForUpdate !== clubUid) {
+          if (byIdSnap.exists) {
+            t.set(aliasRef, updateData, { merge: true });
+          } else {
+            t.set(aliasRef, {
+              ...updateData,
+              createdAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+          }
         }
       });
+    } catch (error: any) {
+      console.error('[club/update] slug uniqueness check failed:', error);
+      return new NextResponse(JSON.stringify({ message: error.message || 'URLの更新に失敗しました' }), { status: 409 });
     }
-
-    await Promise.all(writePromises);
     await touchUserActivity(uid);
 
     return new NextResponse(
@@ -359,11 +393,6 @@ export async function POST(request: Request) {
           requestedClubId,
           clubIdForUpdate,
           displaySettingsKeys: dsKeys,
-          writeTargets: {
-            uidDocId: clubDocRef.id,
-            clubSlugDocId: clubSlugDocRef ? clubSlugDocRef.id : null,
-            requestedSlugDocId: requestedSlugDocRef ? requestedSlugDocRef.id : null,
-          },
         },
       }),
       { status: 200 }

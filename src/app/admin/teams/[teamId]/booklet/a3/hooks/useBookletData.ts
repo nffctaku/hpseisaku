@@ -2,21 +2,25 @@ import { useEffect, useState } from "react";
 import { auth } from "@/lib/firebase";
 import type { BookletResponse } from "../../types";
 
-export function useBookletData(teamId: string, season: string) {
+export function useBookletData(teamId: string, season: string, clubUid?: string | null) {
   const [data, setData] = useState<BookletResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setData(null);
     const run = async () => {
-      if (!teamId || !season) return;
+      if (!teamId || !season || !clubUid) return;
       setLoading(true);
       setError(null);
       try {
         const token = await auth.currentUser?.getIdToken();
         if (!token) {
-          setError("ログインが必要です。");
-          setLoading(false);
+          if (!cancelled) {
+            setError("ログインが必要です。");
+            setLoading(false);
+          }
           return;
         }
 
@@ -29,6 +33,8 @@ export function useBookletData(teamId: string, season: string) {
           }
         );
 
+        if (cancelled) return;
+
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           setError(body?.message || "取得に失敗しました");
@@ -40,14 +46,15 @@ export function useBookletData(teamId: string, season: string) {
         setData(json);
       } catch (e) {
         console.error(e);
-        setError("取得に失敗しました");
+        if (!cancelled) setError("取得に失敗しました");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     void run();
-  }, [teamId, season]);
+    return () => { cancelled = true; };
+  }, [teamId, season, clubUid]);
 
   return { data, loading, error, setData, setError };
 }

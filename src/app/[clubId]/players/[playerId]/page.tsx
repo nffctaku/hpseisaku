@@ -1200,7 +1200,10 @@ export default async function PlayerPage({
   if (!resolved || resolved.displaySettings.menuShowSquad === false) {
     notFound();
   }
-  const { season: urlSeason, legacy } = await searchParams;
+  const searchParamsResolved = searchParams ? await searchParams : {};
+  const { season: urlSeasonRaw, legacy: legacyRaw } = searchParamsResolved;
+  const urlSeason = Array.isArray(urlSeasonRaw) ? urlSeasonRaw[0] : urlSeasonRaw;
+  const legacy = Array.isArray(legacyRaw) ? legacyRaw[0] : legacyRaw;
   const result = await getPlayer(clubId, playerId);
   if (!result) return notFound();
 

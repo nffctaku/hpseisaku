@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged, getRedirectResult, getAdditionalUserInfo } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocFromServer, collection, query, where, getDocs, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { saveUserAcquisition, trackEvent, getAcquisitionSnapshot } from '@/lib/analytics';
 import { ADMIN_UID } from "@/lib/admin-config";
 
@@ -16,6 +16,8 @@ export interface UserProfile extends User {
   layoutType?: string;
   plan?: string;
   ownerUid?: string;
+  clubUid: string;
+  activeCareerId?: string;
   mainTeamId?: string;
   directoryListed?: boolean;
   displaySettings?: {
@@ -62,6 +64,8 @@ interface AuthContextType {
   clubProfileExists: boolean;
   ownerUid?: string;
   clubProfileId?: string;
+  clubUid?: string;
+  activeCareerId?: string;
   refreshUserProfile?: () => Promise<void>;
 }
 
@@ -78,6 +82,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [clubProfileExists, setClubProfileExists] = useState(false);
   const [ownerUid, setOwnerUid] = useState<string | undefined>(undefined);
   const [clubProfileId, setClubProfileId] = useState<string | undefined>(undefined);
+  const [clubUid, setClubUid] = useState<string | undefined>(undefined);
+  const [activeCareerId, setActiveCareerId] = useState<string | undefined>(undefined);
   const lastProcessedUidRef = useRef<string | null>(null);
   const lastUserProfileRef = useRef<UserProfile | null>(null);
   const userRef = useRef<UserProfile | null>(null);
@@ -85,17 +91,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const clubProfileExistsRef = useRef<boolean>(false);
   const ownerUidRef = useRef<string | undefined>(undefined);
   const clubProfileIdRef = useRef<string | undefined>(undefined);
+  const clubUidRef = useRef<string | undefined>(undefined);
+  const activeCareerIdRef = useRef<string | undefined>(undefined);
 
   const applyUserOverrides = (uid: string, profile: Partial<UserProfile>) => {
+    const base = {
+      ...profile,
+      ownerUid: profile.ownerUid ?? uid,
+      clubUid: profile.clubUid ?? uid,
+    } as UserProfile;
     if (uid === ADMIN_UID) {
       return {
-        ...profile,
+        ...base,
         ownerUid: ADMIN_UID,
+        clubUid: base.clubUid ?? ADMIN_UID,
         mainTeamId: "RlHXQOanXvp5ZMjNztWk",
         plan: "pro",
       };
     }
-    return profile;
+    return base;
   };
 
   const fetchUserProfile = async (authUser: User) => {
@@ -138,6 +152,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             ...profileData,
             ownerUid: resolvedOwnerUid,
             clubProfileId: resolvedClubProfileId,
+            clubUid: resolvedClubProfileId,
           }) as UserProfile;
           if (userRef.current !== userProfile) {
             userRef.current = userProfile;
@@ -154,6 +169,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (clubProfileIdRef.current !== resolvedClubProfileId) {
             clubProfileIdRef.current = resolvedClubProfileId;
             setClubProfileId(resolvedClubProfileId);
+          }
+          if (clubUidRef.current !== resolvedClubProfileId) {
+            clubUidRef.current = resolvedClubProfileId;
+            setClubUid(resolvedClubProfileId);
           }
           try {
             await updateDoc(profileDocRef, { lastLoginAt: serverTimestamp() } as any);
@@ -181,7 +200,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const docSnap = querySnapshot.docs[0];
         const profileData = docSnap.data();
         const nextClubProfileId = docSnap.id;
-        const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData, clubProfileId: nextClubProfileId }) as UserProfile;
+        const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData, clubProfileId: nextClubProfileId, clubUid: nextClubProfileId }) as UserProfile;
         if (userRef.current !== userProfile) {
           userRef.current = userProfile;
           setUser(userProfile);
@@ -198,6 +217,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (clubProfileIdRef.current !== nextClubProfileId) {
           clubProfileIdRef.current = nextClubProfileId;
           setClubProfileId(nextClubProfileId);
+        }
+        if (clubUidRef.current !== nextClubProfileId) {
+          clubUidRef.current = nextClubProfileId;
+          setClubUid(nextClubProfileId);
         }
         try {
           await updateDoc(docSnap.ref, { lastLoginAt: serverTimestamp() } as any);
@@ -225,7 +248,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const profileData = adminDoc.data() as any;
         const foundOwnerUid = (profileData?.ownerUid as string) || adminDoc.id;
         const foundClubProfileId = adminDoc.id;
-        const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData, ownerUid: foundOwnerUid, clubProfileId: foundClubProfileId }) as UserProfile;
+        const userProfile = applyUserOverrides(authUser.uid, { ...authUser, ...profileData, ownerUid: foundOwnerUid, clubProfileId: foundClubProfileId, clubUid: foundClubProfileId }) as UserProfile;
         if (userRef.current !== userProfile) {
           userRef.current = userProfile;
           setUser(userProfile);
@@ -241,6 +264,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (clubProfileIdRef.current !== foundClubProfileId) {
           clubProfileIdRef.current = foundClubProfileId;
           setClubProfileId(foundClubProfileId);
+        }
+        if (clubUidRef.current !== foundClubProfileId) {
+          clubUidRef.current = foundClubProfileId;
+          setClubUid(foundClubProfileId);
         }
         try {
           await updateDoc(adminDoc.ref, { lastLoginAt: serverTimestamp() } as any);
@@ -272,6 +299,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (clubProfileIdRef.current !== undefined) {
       clubProfileIdRef.current = undefined;
       setClubProfileId(undefined);
+    }
+    if (clubUidRef.current !== undefined) {
+      clubUidRef.current = undefined;
+      setClubUid(undefined);
+    }
+    if (activeCareerIdRef.current !== undefined) {
+      activeCareerIdRef.current = undefined;
+      setActiveCareerId(undefined);
     }
     console.log('[AuthContext] no profile, using authUser only', { uid: authUser.uid });
   };
@@ -345,7 +380,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 clubProfileExistsRef.current = true;
                 setClubProfileExists(true);
               }
-              const restoredOwnerUid = lastUserProfileRef.current.ownerUid;
+                  const restoredOwnerUid = lastUserProfileRef.current.ownerUid;
               if (ownerUidRef.current !== restoredOwnerUid) {
                 ownerUidRef.current = restoredOwnerUid;
                 setOwnerUid(restoredOwnerUid);
@@ -354,6 +389,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               if (restoredClubProfileId && clubProfileIdRef.current !== restoredClubProfileId) {
                 clubProfileIdRef.current = restoredClubProfileId;
                 setClubProfileId(restoredClubProfileId);
+              }
+              const restoredClubUid = lastUserProfileRef.current?.clubUid;
+              if (restoredClubUid && clubUidRef.current !== restoredClubUid) {
+                clubUidRef.current = restoredClubUid;
+                setClubUid(restoredClubUid);
+              }
+              const restoredActiveCareerId = lastUserProfileRef.current?.activeCareerId;
+              if (restoredActiveCareerId && activeCareerIdRef.current !== restoredActiveCareerId) {
+                activeCareerIdRef.current = restoredActiveCareerId;
+                setActiveCareerId(restoredActiveCareerId);
               }
               if (loadingRef.current) {
                 loadingRef.current = false;
@@ -421,6 +466,79 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  // Keep clubUid / activeCareerId in sync with the active Career
+  useEffect(() => {
+    if (!user?.uid) return;
+    const uid = user.uid;
+
+    const resolveFromServer = async () => {
+      try {
+        const userSnap = await getDocFromServer(doc(db, 'users', uid));
+        const data = userSnap.data() as Record<string, unknown> | undefined;
+        const nextActiveCareerId = typeof data?.activeCareerId === 'string' ? data.activeCareerId : null;
+        let nextClubUid = uid;
+        if (nextActiveCareerId) {
+          const careerSnap = await getDocFromServer(doc(db, 'careers', nextActiveCareerId));
+          const careerData = careerSnap.data() as Record<string, unknown> | undefined;
+          if (typeof careerData?.clubUid === 'string') {
+            nextClubUid = careerData.clubUid;
+          }
+        }
+        console.log('[AuthContext] users/career resolved from server', { uid, activeCareerId: nextActiveCareerId, nextClubUid });
+        if (activeCareerIdRef.current !== nextActiveCareerId) {
+          activeCareerIdRef.current = nextActiveCareerId ?? undefined;
+          setActiveCareerId(nextActiveCareerId ?? undefined);
+        }
+        if (clubUidRef.current !== nextClubUid) {
+          clubUidRef.current = nextClubUid;
+          setClubUid(nextClubUid);
+        }
+        if (userRef.current && (userRef.current.activeCareerId !== (nextActiveCareerId ?? undefined) || userRef.current.clubUid !== nextClubUid)) {
+          const updated = { ...userRef.current, activeCareerId: nextActiveCareerId ?? undefined, clubUid: nextClubUid };
+          userRef.current = updated;
+          setUser(updated);
+        }
+      } catch (e) {
+        console.warn('[AuthContext] resolve users/career from server failed', e);
+      }
+    };
+
+    void resolveFromServer();
+
+    const unsub = onSnapshot(doc(db, 'users', uid), async (snap) => {
+      if (snap.metadata.fromCache) return;
+      const data = snap.data() as Record<string, unknown> | undefined;
+      const nextActiveCareerId = typeof data?.activeCareerId === 'string' ? data.activeCareerId : null;
+      let nextClubUid = uid;
+      if (nextActiveCareerId) {
+        const careerSnap = await getDocFromServer(doc(db, 'careers', nextActiveCareerId));
+        const careerData = careerSnap.data() as Record<string, unknown> | undefined;
+        if (typeof careerData?.clubUid === 'string') {
+          nextClubUid = careerData.clubUid;
+        }
+      }
+      console.log('[AuthContext] users snapshot (server)', { uid, activeCareerId: nextActiveCareerId, nextClubUid, hasUser: !!userRef.current });
+      if (activeCareerIdRef.current !== nextActiveCareerId) {
+        activeCareerIdRef.current = nextActiveCareerId ?? undefined;
+        setActiveCareerId(nextActiveCareerId ?? undefined);
+      }
+      if (clubUidRef.current !== nextClubUid) {
+        clubUidRef.current = nextClubUid;
+        setClubUid(nextClubUid);
+      }
+      if (
+        userRef.current &&
+        (userRef.current.activeCareerId !== (nextActiveCareerId ?? undefined) ||
+          userRef.current.clubUid !== nextClubUid)
+      ) {
+        const updated = { ...userRef.current, activeCareerId: nextActiveCareerId ?? undefined, clubUid: nextClubUid };
+        userRef.current = updated;
+        setUser(updated);
+      }
+    });
+    return () => unsub();
+  }, [user?.uid]);
+
   const refreshUserProfile = async () => {
     const currentUser = auth.currentUser;
     if (currentUser) {
@@ -437,7 +555,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, clubProfileExists, ownerUid, clubProfileId, refreshUserProfile }}>
+    <AuthContext.Provider value={{ user, loading, clubProfileExists, ownerUid, clubProfileId, clubUid, activeCareerId, refreshUserProfile }}>
       {children}
     </AuthContext.Provider>
   );

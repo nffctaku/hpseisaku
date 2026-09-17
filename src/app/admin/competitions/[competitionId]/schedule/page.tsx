@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCareer } from '@/contexts/CareerContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, writeBatch, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { z } from 'zod';
@@ -110,31 +111,39 @@ function normalizeDate(raw: string): string | null {
 
 export default function SchedulePage() {
   const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const params = useParams();
   const competitionId = params.competitionId as string;
+  const clubUid = activeCareer?.clubUid;
 
   const [competition, setCompetition] = useState<Competition | null>(null);
   const [loading, setLoading] = useState(true);
 
   const form = useForm<ScheduleFormValues>({
-    resolver: zodResolver(scheduleSchema),
+    resolver: zodResolver(scheduleSchema) as any,
     defaultValues: {
       fixtures: [],
     }
   });
 
   const { fields, replace } = useFieldArray({
-    control: form.control,
+    control: form.control as any,
     name: 'fixtures',
   });
 
   // Fetch competition data
   useEffect(() => {
-    if (!user || !competitionId) return;
+    setCompetition(null);
+    if (!user || !competitionId || !clubUid) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
     setLoading(true);
     const fetchCompetitionDetails = async () => {
-      const compDocRef = doc(db, `clubs/${user.uid}/competitions`, competitionId);
+      const compDocRef = doc(db, `clubs/${clubUid}/competitions`, competitionId);
       const compSnap = await getDoc(compDocRef);
+      if (cancelled) return;
       if (compSnap.exists()) {
         const compData = compSnap.data();
         const teamNames = compData.teams || [];
@@ -154,7 +163,10 @@ export default function SchedulePage() {
       }
     };
     fetchCompetitionDetails();
-  }, [user, competitionId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user, competitionId, clubUid]);
 
   // Generate fixtures and initialize form
   useEffect(() => {
@@ -172,7 +184,7 @@ export default function SchedulePage() {
       return fixtures;
     })();
 
-    const matchesColRef = collection(db, `clubs/${user.uid}/matches`);
+    const matchesColRef = collection(db, `clubs/${clubUid}/matches`);
     const q = query(matchesColRef, where("competitionId", "==", competitionId));
     getDocs(q).then(matchesSnap => {
       const existingMatches = matchesSnap.docs.map(d => d.data());
@@ -327,7 +339,7 @@ export default function SchedulePage() {
     setLoading(true);
     try {
       const batch = writeBatch(db);
-      const matchesColRef = collection(db, `clubs/${user.uid}/matches`);
+      const matchesColRef = collection(db, `clubs/${clubUid}/matches`);
 
       for (const fixture of values.fixtures) {
         if (fixture.matchDate) { // Only save if date is set
@@ -388,9 +400,9 @@ export default function SchedulePage() {
                   <div key={field.id} className="p-4 grid grid-cols-12 gap-x-4 gap-y-2 items-center">
                     {/* Team Names */}
                     <div className="col-span-12 md:col-span-5 grid grid-cols-11 items-center">
-                      <div className="col-span-5 text-right font-medium">{field.homeTeam}</div>
+                      <div className="col-span-5 text-right font-medium">{(field as any).homeTeam}</div>
                       <div className="col-span-1 text-center text-muted-foreground text-sm">vs</div>
-                      <div className="col-span-5 text-left font-medium">{field.awayTeam}</div>
+                      <div className="col-span-5 text-left font-medium">{(field as any).awayTeam}</div>
                     </div>
 
                     {/* Score Inputs */}

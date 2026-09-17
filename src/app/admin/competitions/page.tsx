@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import { collection, query, onSnapshot, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
@@ -42,7 +43,8 @@ interface Competition {
 }
 
 export default function CompetitionsPage() {
-  const { user, ownerUid } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const router = useRouter();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>("all");
@@ -57,7 +59,7 @@ export default function CompetitionsPage() {
   const isPaid = planTier !== "free";
   const maxCompetitions = getPlanLimit("competitions_per_season", planTier);
 
-  const clubUid = ownerUid || user?.uid;
+  const clubUid = activeCareer?.clubUid;
 
   const seasonOptions = useMemo(() => {
     const set = new Set<string>();
@@ -80,8 +82,14 @@ export default function CompetitionsPage() {
   }, [competitions, selectedSeason]);
 
   useEffect(() => {
+    setCompetitions([]);
+    setSelectedSeason("all");
+    setError(null);
     if (!user) return;
-    if (!clubUid) return;
+    if (!clubUid) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const competitionsColRef = collection(db, `clubs/${clubUid}/competitions`);
     const q = query(competitionsColRef);

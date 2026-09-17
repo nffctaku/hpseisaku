@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { AnalysisHeader } from "./components";
 import { useAnalysisData } from "./hooks";
@@ -94,7 +95,8 @@ function calculateStandingsFromMatches(
 }
 
 export default function AnalysisPage() {
-  const { user, clubProfileExists, ownerUid } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const [activeView, setActiveView] = useState<"overall" | "tournament" | "headtohead">("overall");
   const [selectedTournamentType, setSelectedTournamentType] = useState("league-cup");
   const leagueCompareMetric: 'rank' = 'rank';
@@ -125,7 +127,7 @@ export default function AnalysisPage() {
 
   const LEAGUE_RANK_PLOT_PADDING_VB = 8;
 
-  const clubUid = ownerUid || user?.uid || null;
+  const clubUid = activeCareer?.clubUid || null;
 
   const [resolvedTeamId, setResolvedTeamId] = useState<string | null>(null);
   const [teamLogoById, setTeamLogoById] = useState<Record<string, string>>({});
@@ -184,8 +186,9 @@ export default function AnalysisPage() {
   }, [playerStatsList, sortColumn, sortDirection]);
 
   useEffect(() => {
+    let cancelled = false;
+    setTeamLogoById({});
     if (!clubUid) {
-      setTeamLogoById({});
       return;
     }
 
@@ -198,13 +201,14 @@ export default function AnalysisPage() {
           const logoUrl = typeof data?.logoUrl === 'string' ? data.logoUrl : typeof data?.logo === 'string' ? data.logo : '';
           if (logoUrl) logoMap[d.id] = logoUrl;
         });
-        setTeamLogoById(logoMap);
+        if (!cancelled) setTeamLogoById(logoMap);
       } catch {
-        setTeamLogoById({});
+        if (!cancelled) setTeamLogoById({});
       }
     };
 
     fetchTeamLogos();
+    return () => { cancelled = true; };
   }, [clubUid]);
 
   useEffect(() => {
@@ -214,13 +218,10 @@ export default function AnalysisPage() {
   }, [activeView, canViewTournament]);
 
   useEffect(() => {
+    let cancelled = false;
+    setResolvedTeamId(null);
     const resolve = async () => {
-      if (!clubUid) {
-        setResolvedTeamId(null);
-        return;
-      }
-      if (!mainTeamId) {
-        setResolvedTeamId(null);
+      if (!clubUid || !mainTeamId) {
         return;
       }
       try {
@@ -237,13 +238,14 @@ export default function AnalysisPage() {
             data?.ownerUid === mainTeamId;
           if (idMatch || fieldMatch) found = d.id;
         });
-        setResolvedTeamId(found || String(mainTeamId));
+        if (!cancelled) setResolvedTeamId(found || String(mainTeamId));
       } catch {
-        setResolvedTeamId(String(mainTeamId));
+        if (!cancelled) setResolvedTeamId(String(mainTeamId));
       }
     };
 
     resolve();
+    return () => { cancelled = true; };
   }, [clubUid, mainTeamId]);
 
   const leagueMatches = useMemo(() => {
@@ -638,7 +640,16 @@ export default function AnalysisPage() {
     }
   }, [leagueSeasonRows, leagueRanksBySeason, selectedSeason]);
 
+  // Career切替時に前Careerの順位・順位表情報が残らないよう初期化する
   useEffect(() => {
+    setLeagueRanksBySeason({});
+    setLeagueTeamsBySeason({});
+    setLeagueStandingsBySeason({});
+    setLeagueRanksLoading(false);
+  }, [clubUid]);
+
+  useEffect(() => {
+    let cancelled = false;
     const fetchRanks = async () => {
       if (selectedTournamentType !== 'league') return;
       if (!clubUid) return;
@@ -1004,10 +1015,12 @@ export default function AnalysisPage() {
           })
         );
       } finally {
-        setLeagueRanksBySeason(next);
-        setLeagueTeamsBySeason(teamCounts);
-        setLeagueStandingsBySeason(standingsBySeason);
-        setLeagueRanksLoading(false);
+        if (!cancelled) {
+          setLeagueRanksBySeason(next);
+          setLeagueTeamsBySeason(teamCounts);
+          setLeagueStandingsBySeason(standingsBySeason);
+          setLeagueRanksLoading(false);
+        }
         if (process.env.NODE_ENV === 'development') {
           // eslint-disable-next-line no-console
           console.log('[analysis] fetchRanks completed', {
@@ -1020,6 +1033,7 @@ export default function AnalysisPage() {
     };
 
     fetchRanks();
+    return () => { cancelled = true; };
   }, [selectedTournamentType, selectedSeason, selectedCompetitionId, clubUid, mainTeamId, competitions, resolvedTeamId, matches]);
 
   if (!user) {
@@ -1052,7 +1066,7 @@ export default function AnalysisPage() {
     );
   }
 
-  if (!clubProfileExists) {
+  if (!clubUid) {
     return (
       <div className="min-h-screen bg-slate-900 p-4 md:p-6">
         <div className="max-w-7xl mx-auto">

@@ -16,7 +16,30 @@ node_modules_old/
 
 # next.js
 /.next/
+/.next-*/
 /out/
+
+# local verification / diagnostics (not for commit)
+/.tmp/
+/.tmp-verify-build/
+/screenshots/
+/tsc_errors.txt
+/tsconfig.verify.json
+/repair-proposal.md
+/PHASE2_REPORT.md
+
+# emulator & debug artifacts
+*.log
+.firebase/
+/emulator-data/
+/nul
+
+# local-only scripts (diagnostics, one-off verify, prod-data repair)
+/scripts/*
+!/scripts/start-dev.cjs
+
+# emulator-only test login page (not for production repo)
+/src/app/admin/test-login/
 
 # production
 /build

@@ -41,7 +41,7 @@ export default function PlayerStatsPage() {
     if (!playerId || !user) return;
 
     setLoading(true);
-    const ownerUid = user.uid;
+    const ownerUid = user.clubUid;
 
     const seasonsRef = collection(db, `clubs/${ownerUid}/seasons`);
     const seasonsSnap = await getDocs(seasonsRef);

@@ -14,9 +14,10 @@ export function useLeagueCompetitions(
   const [competitionNames, setCompetitionNames] = useState<string[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
+    setCompetitionNames([]);
     const run = async () => {
       if (!clubUid) {
-        setCompetitionNames([]);
         return;
       }
       try {
@@ -92,7 +93,7 @@ export function useLeagueCompetitions(
 
         const list = Array.from(set);
         list.sort((a, b) => a.localeCompare(b, "ja"));
-        setCompetitionNames(list);
+        if (!cancelled) setCompetitionNames(list);
       } catch (e) {
         console.warn("[useLeagueCompetitions] failed to load competitions", {
           clubUid,
@@ -100,11 +101,12 @@ export function useLeagueCompetitions(
           formats: opts?.formats ?? null,
           error: e,
         });
-        setCompetitionNames([]);
+        if (!cancelled) setCompetitionNames([]);
       }
     };
 
     void run();
+    return () => { cancelled = true; };
   }, [clubUid, JSON.stringify(opts?.season ?? null), JSON.stringify(opts?.formats ?? null)]);
 
   return { competitionNames };

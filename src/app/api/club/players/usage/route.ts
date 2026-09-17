@@ -3,6 +3,7 @@ import { auth, db } from '@/lib/firebase/admin';
 import { getPlanLimit } from '@/lib/plan-limits';
 import { getEffectivePlanForUid } from '@/lib/server-plan';
 import { toDashSeason } from '@/lib/season';
+import { getActiveClubUid } from '@/lib/career-server';
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,6 +14,7 @@ export async function GET(req: NextRequest) {
     }
     const decoded = await auth.verifyIdToken(token);
     const uid = decoded.uid;
+    const clubUid = await getActiveClubUid(uid);
 
     const { searchParams } = new URL(req.url);
     const season = searchParams.get('season') || '';
@@ -25,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     const seasonDash = toDashSeason(season);
     const countSnap = await db
-      .collection(`clubs/${uid}/seasons/${seasonDash}/roster`)
+      .collection(`clubs/${clubUid}/seasons/${seasonDash}/roster`)
       .count()
       .get();
 

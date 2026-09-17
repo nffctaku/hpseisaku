@@ -9,8 +9,8 @@ import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 import { lightenColor } from "@/lib/utils";
 
 interface TablePageProps {
-  params: { clubId: string };
-  searchParams: { [key: string]: string | string[] | undefined };
+  params: Promise<{ clubId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 async function getCompetitionsForClub(clubId: string) {
@@ -43,7 +43,9 @@ async function getCompetitionsForClub(clubId: string) {
   return { clubName, competitions, logoUrl, homeBgColor, sponsors, snsLinks, legalPages, gameTeamUsage };
 }
 
-export default async function TablePage({ params: { clubId }, searchParams }: TablePageProps) {
+export default async function TablePage({ params, searchParams }: TablePageProps) {
+  const { clubId } = await params;
+  const resolvedSearchParams = await searchParams;
   const data = await getCompetitionsForClub(clubId);
 
   if (!data) {
@@ -74,7 +76,7 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
     )
   ).sort((a, b) => String(b).localeCompare(String(a)));
 
-  const requestedSeason = typeof searchParams.season === 'string' ? searchParams.season : undefined;
+  const requestedSeason = typeof resolvedSearchParams.season === 'string' ? resolvedSearchParams.season : undefined;
   const activeSeason = requestedSeason && seasons.includes(requestedSeason)
     ? requestedSeason
     : (seasons[0] || '');
@@ -83,7 +85,7 @@ export default async function TablePage({ params: { clubId }, searchParams }: Ta
     ? competitionsToRender.filter((c: any) => c.season === activeSeason)
     : competitionsToRender;
 
-  const requestedCompetition = typeof searchParams.competition === 'string' ? searchParams.competition : 'all';
+  const requestedCompetition = typeof resolvedSearchParams.competition === 'string' ? resolvedSearchParams.competition : 'all';
   const activeCompetitionId = requestedCompetition && seasonCompetitions.some((c: any) => c.id === requestedCompetition)
     ? requestedCompetition
     : 'all';

@@ -40,6 +40,7 @@ interface MatchListV2Props {
 
 const getFormattedDateGroup = (dateString: string) => {
   const date = parseISO(dateString);
+  if (Number.isNaN(date.getTime())) return "日付未定";
   if (isToday(date)) return "今日";
   if (isYesterday(date)) return "昨日";
   if (isTomorrow(date)) return "明日";
@@ -47,6 +48,7 @@ const getFormattedDateGroup = (dateString: string) => {
 };
 
 const getSeason = (date: Date): string => {
+  if (Number.isNaN(date.getTime())) return "日付未定";
   const year = date.getFullYear();
   const month = date.getMonth();
   return month >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;

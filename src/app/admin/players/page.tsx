@@ -3,37 +3,34 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCareer } from '@/contexts/CareerContext';
 import { db } from '@/lib/firebase';
-import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { toSlashSeason } from '@/lib/season';
 
 export default function PlayersAdminPage() {
-  const { user, ownerUid, loading } = useAuth();
+  const { user, loading } = useAuth();
+  const { activeCareer, loading: careersLoading } = useCareer();
   const router = useRouter();
 
   useEffect(() => {
     const redirectToLatestSeason = async () => {
-      if (!user) return;
-      const clubUid = ownerUid || user.uid;
+      if (!user || careersLoading) return;
+      const clubUid = activeCareer?.clubUid || null;
+      if (!clubUid) {
+        router.push('/admin/teams');
+        return;
+      }
 
       try {
-        // Get main team ID
+        // Get main team ID（club_profiles の docId = clubUid のみ参照。ownerUid検索はしない）
         let mainTeamId: string | null = null;
 
         const byId = await getDoc(doc(db, 'club_profiles', clubUid));
         if (byId.exists()) {
           const data = byId.data() as any;
           if (typeof data?.mainTeamId === 'string') mainTeamId = String(data.mainTeamId).trim();
-        }
-
-        if (!mainTeamId) {
-          const q = query(collection(db, 'club_profiles'), where('ownerUid', '==', clubUid), limit(1));
-          const s = await getDocs(q);
-          if (!s.empty) {
-            const data = s.docs[0].data() as any;
-            if (typeof data?.mainTeamId === 'string') mainTeamId = String(data.mainTeamId).trim();
-          }
         }
 
         // Fallback to first team if no mainTeamId
@@ -70,7 +67,7 @@ export default function PlayersAdminPage() {
     };
 
     redirectToLatestSeason();
-  }, [user, ownerUid, router]);
+  }, [user, router, activeCareer, careersLoading]);
 
   if (loading) {
     return (

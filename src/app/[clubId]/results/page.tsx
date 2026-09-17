@@ -174,9 +174,6 @@ async function getMatchesForClub(clubId: string) {
     };
 
     await loadSeasonsFrom(ownerUid);
-    if (ownerUid !== clubId) {
-      await loadSeasonsFrom(clubId);
-    }
 
     const publicSeasons = Array.from(seasonVisibility.entries())
       .filter(([, isPublic]) => isPublic)
@@ -307,9 +304,9 @@ async function getMatchesForClub(clubId: string) {
 export default async function ResultsPage({
   params,
 }: {
-  params: { clubId: string };
+  params: Promise<{ clubId: string }>;
 }) {
-    const { clubId } = params; // public slug
+    const { clubId } = await params; // public slug
 
     if (clubId === 'admin') {
         notFound();

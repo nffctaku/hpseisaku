@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, db } from '@/lib/firebase/admin';
 import { getPlanLimit } from '@/lib/plan-limits';
 import { getEffectivePlanForUid } from '@/lib/server-plan';
+import { getActiveClubUid } from '@/lib/career-server';
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,11 +13,12 @@ export async function GET(req: NextRequest) {
     }
     const decoded = await auth.verifyIdToken(token);
     const uid = decoded.uid;
+    const clubUid = await getActiveClubUid(uid);
 
     const { plan, tier } = await getEffectivePlanForUid(uid);
     const limit = getPlanLimit('team_images_per_account', tier);
 
-    const teamsSnap = await db.collection(`clubs/${uid}/teams`).get();
+    const teamsSnap = await db.collection(`clubs/${clubUid}/teams`).get();
     let currentCount = 0;
     for (const d of teamsSnap.docs) {
       const data = d.data() as Record<string, unknown>;

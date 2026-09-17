@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase/admin";
 import { getAuth } from "firebase-admin/auth";
+import { getActiveClubUid } from "@/lib/career-server";
 
 async function getUidFromRequest(request: Request): Promise<string | null> {
   const authHeader = request.headers.get("Authorization");
@@ -17,30 +18,6 @@ async function getUidFromRequest(request: Request): Promise<string | null> {
   return null;
 }
 
-async function resolveOwnerUidFromUid(uid: string): Promise<string | null> {
-  const direct = await db.collection("club_profiles").doc(uid).get();
-  if (direct.exists) {
-    const data = direct.data() as any;
-    return (data?.ownerUid as string) || uid;
-  }
-
-  const ownerQuery = await db.collection("club_profiles").where("ownerUid", "==", uid).limit(1).get();
-  if (!ownerQuery.empty) {
-    const doc = ownerQuery.docs[0];
-    const data = doc.data() as any;
-    return (data?.ownerUid as string) || doc.id;
-  }
-
-  const adminQuery = await db.collection("club_profiles").where("admins", "array-contains", uid).limit(1).get();
-  if (!adminQuery.empty) {
-    const doc = adminQuery.docs[0];
-    const data = doc.data() as any;
-    return (data?.ownerUid as string) || doc.id;
-  }
-
-  return null;
-}
-
 export async function POST(request: Request) {
   try {
     const uid = await getUidFromRequest(request);
@@ -54,15 +31,12 @@ export async function POST(request: Request) {
       return new NextResponse(JSON.stringify({ message: "playerId が不正です。" }), { status: 400 });
     }
 
-    const ownerUid = await resolveOwnerUidFromUid(uid);
-    if (!ownerUid) {
-      return new NextResponse(JSON.stringify({ message: "クラブ情報が見つかりません。" }), { status: 404 });
-    }
+    const clubUid = await getActiveClubUid(uid);
 
-    await db.doc(`clubs/${ownerUid}/public_player_stats_cache/${playerId}`).delete();
+    await db.doc(`clubs/${clubUid}/public_player_stats_cache/${playerId}`).delete();
     
     // public_stats_index キャッシュも削除
-    const statsIndexRef = db.collection(`clubs/${ownerUid}/public_stats_index`);
+    const statsIndexRef = db.collection(`clubs/${clubUid}/public_stats_index`);
     const snapshot = await statsIndexRef.get();
     for (const doc of snapshot.docs) {
       await doc.ref.delete();

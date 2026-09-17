@@ -79,7 +79,7 @@ export default function MatchStatsPage() {
       setLoading(true);
       try {
         // Fetch match details
-        const matchDocRef = doc(db, `clubs/${user.uid}/matches`, matchId);
+        const matchDocRef = doc(db, `clubs/${user.clubUid}/matches`, matchId);
         const matchSnap = await getDoc(matchDocRef);
         if (matchSnap.exists()) {
           const data = matchSnap.data() as any;
@@ -102,7 +102,7 @@ export default function MatchStatsPage() {
         }
 
         // Fetch players
-        const playersColRef = collection(db, `clubs/${user.uid}/players`);
+        const playersColRef = collection(db, `clubs/${user.clubUid}/players`);
         const playersSnap = await getDocs(playersColRef);
         const playersData = playersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
         setPlayers(playersData);
@@ -127,7 +127,7 @@ export default function MatchStatsPage() {
     if (!user || !matchId) return;
     setSaving(true);
     try {
-      const matchDocRef = doc(db, `clubs/${user.uid}/matches`, matchId);
+      const matchDocRef = doc(db, `clubs/${user.clubUid}/matches`, matchId);
       const payload = {
         playerStats: values.playerStats.map((ps) => ({
           playerId: ps.playerId,

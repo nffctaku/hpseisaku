@@ -19,8 +19,8 @@ export const metadata = {
 };
 
 interface TransfersPageProps {
-  params: { clubId: string };
-  searchParams?: { [key: string]: string | string[] | undefined };
+  params: Promise<{ clubId: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 const sumFeesByCurrency = (rows: TransferLog[]): Record<string, number> => {
@@ -71,7 +71,8 @@ async function fetchTransfers(ownerUid: string, teamId: string): Promise<Transfe
 }
 
 export default async function TransfersPage({ params, searchParams }: TransfersPageProps) {
-  const { clubId } = params;
+  const { clubId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
 
   if (clubId === "admin") {
     notFound();
@@ -126,7 +127,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
     )
   ).sort((a, b) => b.localeCompare(a));
 
-  const requestedSeason = typeof searchParams?.season === "string" ? searchParams.season : undefined;
+  const requestedSeason = typeof resolvedSearchParams?.season === "string" ? resolvedSearchParams.season : undefined;
   const activeSeason = requestedSeason && seasons.includes(requestedSeason) ? requestedSeason : seasons[0] || "";
 
   const seasonTransfers = activeSeason ? transfers.filter((t) => t.season === activeSeason) : transfers;

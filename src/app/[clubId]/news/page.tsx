@@ -16,8 +16,8 @@ import { lightenColor } from "@/lib/utils";
 const NEWS_PER_PAGE = 9;
 
 interface NewsPageProps {
-  params: { clubId: string };
-  searchParams: { [key: string]: string | string[] | undefined };
+  params: Promise<{ clubId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 async function getNewsData(clubId: string, page: number) {
@@ -102,8 +102,9 @@ function NewsCard({ article, clubId }: { article: NewsArticle, clubId: string })
 }
 
 export default async function NewsPage({ params, searchParams }: NewsPageProps) {
-  const clubId = params.clubId;
-  const page = typeof searchParams.page === 'string' ? Number(searchParams.page) : 1;
+  const { clubId } = await params;
+  const resolvedSearchParams = await searchParams;
+  const page = typeof resolvedSearchParams.page === 'string' ? Number(resolvedSearchParams.page) : 1;
 
   if (clubId === 'admin') {
     notFound();

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCareer } from '@/contexts/CareerContext';
 import { db } from '@/lib/firebase';
 import { collection, doc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -61,22 +62,26 @@ function computeAndRankStandings(input: Standing[]): Standing[] {
 export default function StandingsPage() {
   const params = useParams();
   const competitionId = params.competitionId as string;
-  const { user, ownerUid } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const [standings, setStandings] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const [competitionName, setCompetitionName] = useState('');
   const [competitionFormat, setCompetitionFormat] = useState<'league' | 'cup' | 'league_cup' | ''>('');
+  const fetchGenRef = useRef(0);
 
-  const clubUid = ownerUid || user?.uid || null;
-  const canEdit = Boolean(user?.uid && clubUid && user.uid === clubUid);
+  const clubUid = activeCareer?.clubUid || null;
+  const canEdit = Boolean(user?.uid && clubUid);
 
   const fetchStandingsAndTeams = async () => {
     if (!user || !competitionId) return;
     if (!clubUid) return;
+    const gen = ++fetchGenRef.current;
     setLoading(true);
     try {
       const competitionDocRef = doc(db, `clubs/${clubUid}/competitions`, competitionId);
       const competitionSnap = await getDoc(competitionDocRef);
+      if (gen !== fetchGenRef.current) return;
       const competitionData = competitionSnap.data();
       if (competitionSnap.exists()) {
         setCompetitionName(competitionData?.name || '');
@@ -85,11 +90,13 @@ export default function StandingsPage() {
 
       const teamsMap = new Map<string, { name: string; logoUrl?: string }>();
       const teamsSnap = await getDocs(collection(db, `clubs/${clubUid}/teams`));
+      if (gen !== fetchGenRef.current) return;
       teamsSnap.forEach(doc => {
           teamsMap.set(doc.id, { name: doc.data().name, logoUrl: doc.data().logoUrl });
       });
 
       const standingsSnap = await getDocs(collection(db, `clubs/${clubUid}/competitions/${competitionId}/standings`));
+      if (gen !== fetchGenRef.current) return;
       const fetchedStandings = standingsSnap.docs.map(doc => {
         const data = doc.data();
         const teamInfo = teamsMap.get(doc.id);
@@ -134,14 +141,21 @@ export default function StandingsPage() {
       console.error("Error fetching data: ", error);
       toast.error("データの取得に失敗しました。");
     } finally {
-      setLoading(false);
+      if (gen === fetchGenRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    console.log('[StandingsPage] auth debug', { userUid: user?.uid || null, ownerUid: ownerUid || null, clubUid, canEdit });
+    setStandings([]);
+    setCompetitionName('');
+    setCompetitionFormat('');
+    ++fetchGenRef.current;
+    if (!clubUid) {
+      setLoading(false);
+      return;
+    }
     fetchStandingsAndTeams();
-  }, [user?.uid, ownerUid, competitionId]);
+  }, [user?.uid, clubUid, competitionId]);
 
   const handleInputChange = (teamId: string, field: keyof Standing, value: string) => {
     const numericValue = parseInt(value, 10);

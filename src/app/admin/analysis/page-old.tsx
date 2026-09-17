@@ -165,12 +165,12 @@ export default function AnalysisPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const ownerUid = (user as any).ownerUid || user.uid;
+        const ownerUid = (user as any).clubUid || (user as any).ownerUid || user.uid;
 
         let resolvedMainTeamId = "";
         try {
           const profilesRef = collection(db, "club_profiles");
-          const qProfiles = query(profilesRef, where("ownerUid", "==", ownerUid), limit(1));
+          const qProfiles = query(profilesRef, where("ownerUid", "==", user.uid), limit(1));
           const snap = await getDocs(qProfiles);
           if (!snap.empty) {
             const data = snap.docs[0].data() as any;

@@ -193,7 +193,7 @@ function computeAggregatedStats(params: {
   return result;
 }
 
-export async function GET(request: NextRequest, context: { params: { clubId: string } }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ clubId: string }> }) {
   try {
     const { clubId } = await context.params;
     const seasonParam = request.nextUrl.searchParams.get('season');

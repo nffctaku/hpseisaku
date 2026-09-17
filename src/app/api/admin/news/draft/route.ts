@@ -4,6 +4,7 @@ import { getMatchDataForClub } from "@/lib/matches";
 import { getMatchForAdmin } from "@/lib/match-admin";
 import { getMatchContextForAi, MatchContext, StreakContext } from "@/lib/match-context";
 import { getGoalEvents, isOwnGoalEvent, isPenaltyEvent } from "@/lib/match-scorers";
+import { getActiveClubUid } from "@/lib/career-server";
 import { MatchDetails, TeamStat } from "@/types/match";
 
 function normalizeMatchDate(value: unknown): string {
@@ -514,14 +515,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "認証されていません。" }, { status: 401 });
     }
 
-    const clubUid = request.nextUrl.searchParams.get("clubUid");
-    if (!clubUid) {
-      return NextResponse.json({ error: "クラブIDが必要です。" }, { status: 400 });
-    }
-
-    if (uid !== clubUid) {
-      return NextResponse.json({ error: "権限がありません。" }, { status: 403 });
-    }
+    const clubUid = await getActiveClubUid(uid);
 
     const matchData = await getMatchDataForClub(clubUid, { includeAllSeasons: true });
     const matches = matchData.allOwnPastMatches.map((m) => ({
@@ -546,8 +540,6 @@ export async function POST(request: NextRequest) {
     const rawBody: unknown = await request.json().catch(() => ({}));
     const body =
       typeof rawBody === "object" && rawBody !== null ? (rawBody as Record<string, unknown>) : {};
-    const clubUid =
-      typeof body.clubUid === "string" ? body.clubUid : typeof body.clubUid === "number" ? String(body.clubUid) : "";
     const competitionId =
       typeof body.competitionId === "string" ? body.competitionId : typeof body.competitionId === "number" ? String(body.competitionId) : "";
     const roundId =
@@ -556,12 +548,10 @@ export async function POST(request: NextRequest) {
       typeof body.matchId === "string" ? body.matchId : typeof body.matchId === "number" ? String(body.matchId) : "";
     const memo = typeof body.memo === "string" ? body.memo : "";
 
-    if (!clubUid || !competitionId || !roundId || !matchId) {
-      return NextResponse.json({ error: "試合の指定が必要です。" }, { status: 400 });
-    }
+    const clubUid = await getActiveClubUid(uid);
 
-    if (uid !== clubUid) {
-      return NextResponse.json({ error: "権限がありません。" }, { status: 403 });
+    if (!competitionId || !roundId || !matchId) {
+      return NextResponse.json({ error: "試合の指定が必要です。" }, { status: 400 });
     }
 
     const match = await getMatchForAdmin(clubUid, competitionId, roundId, matchId);

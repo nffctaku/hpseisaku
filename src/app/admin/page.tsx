@@ -5,11 +5,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClub } from "@/contexts/ClubContext";
+import { useCareer } from "@/contexts/CareerContext";
+import { MAX_CAREERS } from "@/lib/career-constants";
 import { db } from "@/lib/firebase";
 import {
   ArrowLeftRight, BookOpen, Calendar, ChevronLeft, ChevronRight, X,
   CreditCard, Home, LineChart, Mail, Newspaper, Shield, Tv, Trophy,
-  Users, LayoutGrid, Eye, Share2, History, Copy, type LucideIcon,
+  Users, LayoutGrid, Eye, Share2, History, Copy, FolderPlus, type LucideIcon,
 } from "lucide-react";
 import { collection, doc, getDoc, getDocs, limit, query, setDoc, where } from "firebase/firestore";
 import { toast } from "sonner";
@@ -213,6 +215,8 @@ export default function AdminHomePage() {
 
         <FirstStepsCard />
 
+        <NewCareerCard />
+
         <nav aria-label="管理メニュー" className="space-y-5">
           {sections.map((section) => <Section key={section.title} {...section} />)}
         </nav>
@@ -247,6 +251,44 @@ function FirstStepsCard() {
       </button>
       {isOpen && <TutorialModal onClose={() => setIsOpen(false)} />}
     </>
+  );
+}
+
+function NewCareerCard() {
+  const { careers, loading } = useCareer();
+  const activeCount = careers.filter((c) => c.status !== "deleted").length;
+  const isFull = !loading && activeCount >= MAX_CAREERS;
+
+  const body = (
+    <>
+      <span className="flex min-w-0 items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-400/30 bg-emerald-400/10" aria-hidden="true">
+          <FolderPlus className="h-4 w-4 text-emerald-400" />
+        </span>
+        <span className="flex min-w-0 flex-col items-start leading-tight">
+          <span className="text-xs font-semibold text-white">新しいCareerを作成</span>
+          <span className="text-[10px] font-normal text-slate-400">新作開始や別チーム用に、新しい記録を追加できます。</span>
+          <span className="text-[10px] font-normal text-emerald-300/80">最大3件まで。選手の基本情報は作成時に引き継げます。</span>
+        </span>
+      </span>
+      {isFull ? (
+        <span className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold text-slate-400">作成上限（3件）</span>
+      ) : (
+        <span className={`flex shrink-0 items-center gap-1 rounded-lg bg-[#1fd760] px-3 py-1.5 text-[10px] font-bold text-[#080c14] transition group-hover:bg-[#17c054]`}>
+          作成する<ChevronRight className="h-3 w-3" aria-hidden="true" />
+        </span>
+      )}
+    </>
+  );
+
+  const baseClass = `group mb-5 flex w-full items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-[#111d2e] px-4 py-3 ${FOCUS}`;
+  if (isFull) {
+    return <div aria-disabled="true" className={`${baseClass} opacity-80`}>{body}</div>;
+  }
+  return (
+    <Link href="/admin/careers/new" className={`${baseClass} transition hover:bg-white/5`}>
+      {body}
+    </Link>
   );
 }
 
@@ -456,8 +498,8 @@ function TutorialModal({ onClose }: { onClose: () => void }) {
               次へ<ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
-          {step.href ? (
-            <Link href={step.href} className={`flex min-h-12 items-center justify-center rounded-xl bg-[#1fd760] px-4 py-3 text-sm font-black text-[#080c14] transition hover:bg-[#17c054] ${FOCUS}`}>
+          {(step as any).href ? (
+            <Link href={(step as any).href} className={`flex min-h-12 items-center justify-center rounded-xl bg-[#1fd760] px-4 py-3 text-sm font-black text-[#080c14] transition hover:bg-[#17c054] ${FOCUS}`}>
               {step.label}
             </Link>
           ) : (

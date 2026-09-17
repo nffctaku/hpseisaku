@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCareer } from '@/contexts/CareerContext';
 import { db } from '@/lib/firebase';
 import { doc, collection, getDocs, updateDoc, limit, query } from 'firebase/firestore';
 import { toDashSeason, toSlashSeason } from '@/lib/season';
@@ -33,12 +34,13 @@ interface Team {
 }
 
 export default function TeamPlayersPage() {
-  const { user, ownerUid } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const teamId = params.teamId as string;
-  const clubUid = ownerUid || user?.uid;
+  const clubUid = activeCareer?.clubUid || null;
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const seasonFromQuery = (searchParams.get('season') || '').trim();

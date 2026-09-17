@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAnalysisData } from "@/app/admin/analysis/hooks/use-analysis-data";
-import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import {
   buildAllPlayersMap,
   ClubTitleItem,
@@ -28,14 +28,15 @@ export interface UseSeasonRecordsDataReturn {
 }
 
 export function useSeasonRecordsData(): UseSeasonRecordsDataReturn {
-  const { user, ownerUid } = useAuth();
+  const { activeCareer } = useCareer();
+  const clubUid = activeCareer?.clubUid;
   const { filteredMatches: matches, competitions, allPlayers, mainTeamId, loading: analysisLoading, error: analysisError } = useAnalysisData();
   const [clubTitles, setClubTitles] = useState<ClubTitleItem[]>([]);
   const [titlesLoading, setTitlesLoading] = useState(true);
 
-  const clubUid = ownerUid || user?.uid;
-
   useEffect(() => {
+    let cancelled = false;
+    setClubTitles([]);
     if (!clubUid) {
       setTitlesLoading(false);
       return;
@@ -67,15 +68,16 @@ export function useSeasonRecordsData(): UseSeasonRecordsDataReturn {
           }))
           .filter((t: ClubTitleItem) => t.competitionName && (t.seasons || []).length > 0);
 
-        setClubTitles(titles);
+        if (!cancelled) setClubTitles(titles);
       } catch (e) {
         console.error("[useSeasonRecordsData] fetch club titles failed", e);
       } finally {
-        setTitlesLoading(false);
+        if (!cancelled) setTitlesLoading(false);
       }
     };
 
     void run();
+    return () => { cancelled = true; };
   }, [clubUid]);
 
   const allPlayersMap = useMemo(() => buildAllPlayersMap(allPlayers), [allPlayers]);

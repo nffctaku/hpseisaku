@@ -65,10 +65,10 @@ export default function FriendlyMatchAdminPage() {
 
     setLoading(true);
 
-    const matchDocRef = doc(db, `clubs/${user.uid}/friendly_matches/${matchId}`);
+    const matchDocRef = doc(db, `clubs/${user.clubUid}/friendly_matches/${matchId}`);
     const fetchPlayers = async (teamId: string): Promise<Player[]> => {
       if (!teamId) return [];
-      const playersRef = collection(db, `clubs/${user.uid}/teams/${teamId}/players`);
+      const playersRef = collection(db, `clubs/${user.clubUid}/teams/${teamId}/players`);
       const ps = await getDocs(playersRef);
       return ps.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as Player));
     };
@@ -145,7 +145,7 @@ export default function FriendlyMatchAdminPage() {
     return <div className="flex h-screen items-center justify-center">試合が見つかりませんでした。</div>;
   }
 
-  const matchDocPath = `clubs/${user.uid}/friendly_matches/${match.id}`;
+  const matchDocPath = `clubs/${user.clubUid}/friendly_matches/${match.id}`;
 
   const handleDeleteMatch = async () => {
     if (!user || !match) return;

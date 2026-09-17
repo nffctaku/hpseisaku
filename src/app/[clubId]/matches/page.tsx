@@ -37,7 +37,7 @@ function getMatchSortMs(m: { matchDate?: string; matchTime?: string } | null | u
 }
 
 interface PageProps {
-  params: { clubId: string };
+  params: Promise<{ clubId: string }>;
 }
 
 async function getPageProfile(clubId: string) {
@@ -372,7 +372,7 @@ const MatchItem = ({ clubId, match }: { clubId: string; match: MatchDetails }) =
 
 
 export default async function ClubMatchesPage({ params }: PageProps) {
-  const { clubId } = params;
+  const { clubId } = await params;
   if (clubId === 'admin') {
     notFound();
   }

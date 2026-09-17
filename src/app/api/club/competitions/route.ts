@@ -4,6 +4,7 @@ import { getPlanLimit } from "@/lib/plan-limits";
 import { getEffectivePlanForUid } from "@/lib/server-plan";
 import { toDashSeason } from "@/lib/season";
 import { touchUserActivity } from "@/lib/server-activity";
+import { getActiveClubUid } from "@/lib/career-server";
 
 interface CompetitionRound {
   name: string;
@@ -51,7 +52,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
     const decoded = await auth.verifyIdToken(token);
-    const clubUid = decoded.uid;
+    const uid = decoded.uid;
+    const clubUid = await getActiveClubUid(uid);
 
     const body: CreateCompetitionBody = await req.json();
     const {
@@ -72,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
 
     const [effectivePlan, countSnap] = await Promise.all([
-      getEffectivePlanForUid(clubUid),
+      getEffectivePlanForUid(uid),
       db.collection(`clubs/${clubUid}/competitions`).where("season", "==", season).count().get(),
     ]);
 
@@ -83,10 +85,10 @@ export async function POST(req: NextRequest) {
     if (Number.isFinite(limit) && currentCount >= limit) {
       await db.collection("analyticsEvents").add({
         eventName: "plan_limit_reached",
-        userId: clubUid,
+        userId: uid,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         properties: {
-          uid: clubUid,
+          uid: uid,
           limitType: "competition",
           currentCount,
           limit,
@@ -111,7 +113,7 @@ export async function POST(req: NextRequest) {
       showOnHome: !!showOnHome,
       showOnTable: format === "cup" ? false : !!showOnTable,
       rankLabels: format === "cup" ? [] : Array.isArray(rankLabels) ? rankLabels : [],
-      ownerUid: clubUid,
+      ownerUid: uid,
       clubProfileId: clubUid,
     };
 

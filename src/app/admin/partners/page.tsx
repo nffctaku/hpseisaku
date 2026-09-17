@@ -70,7 +70,7 @@ type Partner = {
 
 export default function PartnersAdminPage() {
   const { user, ownerUid } = useAuth();
-  const clubUid = ownerUid || user?.uid;
+  const clubUid = user?.clubUid || null;
 
   const canManagePartners =
     user?.uid === 'gNDzHTPlzVZK8cOl7ogxQBRvugH2' ||
@@ -121,12 +121,18 @@ export default function PartnersAdminPage() {
 
   const resolveClubProfileRef = async () => {
     if (!clubUid) return null;
-    const qRef = query(collection(db, "club_profiles"), where("ownerUid", "==", clubUid), limit(1));
+    const byIdRef = doc(db, "club_profiles", clubUid);
+    const byIdSnap = await getDoc(byIdRef);
+    if (byIdSnap.exists()) {
+      return byIdRef;
+    }
+    if (!user) return null;
+    const qRef = query(collection(db, "club_profiles"), where("ownerUid", "==", user.uid), limit(1));
     const qSnap = await getDocs(qRef);
     if (!qSnap.empty) {
       return doc(db, "club_profiles", qSnap.docs[0].id);
     }
-    return doc(db, "club_profiles", clubUid);
+    return null;
   };
 
   useEffect(() => {
@@ -242,7 +248,7 @@ export default function PartnersAdminPage() {
         await setDoc(
           profileRef,
           {
-            ownerUid: clubUid,
+            ownerUid: user?.uid,
             ...payload,
           } as any,
           { merge: true }

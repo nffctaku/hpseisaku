@@ -83,6 +83,7 @@ async function getPlayersData(
   let clubName = clubId;
   let logoUrl: string | null = null;
   let ownerUid: string | null = null;
+  let clubUid: string | null = null;
   let mainTeamId: string | null = null;
   let homeBgColor: string | null = null;
   let sponsors: any[] = [];
@@ -92,14 +93,17 @@ async function getPlayersData(
 
   try {
     const applyProfileData = (docId: string, data: any) => {
-      ownerUid = (data?.ownerUid as string) || docId;
+      // データパスは clubUid フィールド（エイリアスdocは正規clubUidを指す）。なければdocID（旧形式）
+      const dataClubUid = typeof data?.clubUid === "string" && data.clubUid.trim() ? data.clubUid.trim() : null;
+      clubUid = dataClubUid || docId;
+      ownerUid = clubUid;
       clubName = data?.clubName || clubName;
-      mainTeamId = typeof data?.mainTeamId === 'string' ? data.mainTeamId : null;
-      logoUrl = data?.logoUrl || data?.emblemUrl || data?.photoURL || null;
-      homeBgColor = typeof data?.homeBgColor === 'string' ? data.homeBgColor : null;
-      sponsors = Array.isArray(data?.sponsors) ? data.sponsors : [];
-      snsLinks = data?.snsLinks || {};
-      legalPages = Array.isArray(data?.legalPages) ? data.legalPages : [];
+      mainTeamId = typeof data?.mainTeamId === 'string' ? data.mainTeamId : mainTeamId;
+      logoUrl = data?.logoUrl || data?.emblemUrl || data?.photoURL || logoUrl;
+      homeBgColor = typeof data?.homeBgColor === 'string' ? data.homeBgColor : homeBgColor;
+      sponsors = Array.isArray(data?.sponsors) ? data.sponsors : sponsors;
+      snsLinks = data?.snsLinks || snsLinks;
+      legalPages = Array.isArray(data?.legalPages) ? data.legalPages : legalPages;
       gameTeamUsage = Boolean(data?.gameTeamUsage);
     };
 
@@ -125,6 +129,18 @@ async function getPlayersData(
           const doc = ownerSnap.docs[0];
           applyProfileData(doc.id, doc.data() as any);
         }
+      }
+    }
+
+    // エイリアスdoc（club_profiles/{slug}）を引いた場合は正規プロフィールを読み直す
+    if (clubUid) {
+      try {
+        const canonicalSnap = await db.collection("club_profiles").doc(clubUid).get();
+        if (canonicalSnap.exists) {
+          applyProfileData(canonicalSnap.id, canonicalSnap.data() as any);
+        }
+      } catch {
+        // ignore
       }
     }
     // If a main team is configured, prefer its display name/logo.
@@ -165,7 +181,7 @@ async function getPlayersData(
     console.error("Failed to load club profile for players page", e);
   }
 
-  const baseClubDocId = ownerUid || clubId;
+  const baseClubDocId = clubUid || ownerUid || clubId;
 
   // シーズン一覧は clubs/{ownerUid}/seasons と clubs/{clubId}/seasons の両方を見てマージする
   // (ownerUid 側に1件でも存在すると fallback しない仕様だと、シーズンが分散している場合に1つしか表示されない)
@@ -312,7 +328,7 @@ async function getPlayersData(
           teamId: teamDoc.id,
           hasSeasonData: !!data?.seasonData,
           seasonDataKeys: data?.seasonData ? Object.keys(data.seasonData) : [],
-          seasonDataSample: data?.seasonData ? Object.entries(data.seasonData).slice(0, 1).reduce((acc, [k, v]) => ({ ...acc, [k]: typeof v === 'object' ? Object.keys(v) : typeof v }), {}) : {},
+          seasonDataSample: data?.seasonData ? (Object.entries(data.seasonData as any).slice(0, 1).reduce((acc: any, [k, v]) => ({ ...acc, [k]: typeof v === 'object' ? Object.keys(v as any) : typeof v }), {}) as any) : {},
           hasParams: !!data?.params,
           photoUrl: data?.photoUrl,
           name: data?.name
@@ -335,6 +351,14 @@ async function getPlayersData(
   );
 
   perTeamData.forEach(({ players: p, staff: s }) => {
+    for (const item of p) {
+      delete (item as any).createdAt;
+      delete (item as any).updatedAt;
+    }
+    for (const item of s) {
+      delete (item as any).createdAt;
+      delete (item as any).updatedAt;
+    }
     players.push(...p);
     staff.push(...s);
   });

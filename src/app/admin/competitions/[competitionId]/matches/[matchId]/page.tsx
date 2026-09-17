@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCareer } from '@/contexts/CareerContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy, deleteDoc, collectionGroup } from "firebase/firestore";
 import { Loader2, LifeBuoy, Square, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
@@ -20,11 +21,12 @@ interface LocalMatchEvent extends MatchEvent {
 }
 
 export default function MatchAdminPage() {
-  const { user, ownerUid: ownerUidFromContext } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const params = useParams();
   const { competitionId, matchId } = params;
 
-  const ownerUid = ownerUidFromContext || user?.uid;
+  const ownerUid = activeCareer?.clubUid;
 
   const [match, setMatch] = useState<MatchDetails | null>(null);
   const [events, setEvents] = useState<LocalMatchEvent[]>([]);
@@ -61,6 +63,13 @@ export default function MatchAdminPage() {
     }
 
     let unsubscribeEvents: () => void = () => {};
+    let cancelled = false;
+    setMatch(null);
+    setEvents([]);
+    setHomePlayers([]);
+    setAwayPlayers([]);
+    setResolvedMatchDocPath(null);
+    setSeasonId(null);
 
     const fetchData = async () => {
       setLoading(true);
@@ -68,15 +77,16 @@ export default function MatchAdminPage() {
         const matchesGroupRef = collectionGroup(db, 'matches');
         const q = query(matchesGroupRef, where("id", "==", matchId));
         const querySnapshot = await getDocs(q);
+        if (cancelled) return;
 
-        if (querySnapshot.empty) {
-          console.log("No such document in collection group!");
+        const matchDoc = querySnapshot.docs.find((d) => d.ref.path.startsWith(`clubs/${ownerUid}/`));
+        if (!matchDoc) {
+          console.log("No such document in this career's scope!");
           setMatch(null);
           setLoading(false);
           return;
         }
-        
-        const matchDoc = querySnapshot.docs[0];
+
         const matchPath = matchDoc.ref.path;
         const pathSegments = matchPath.split('/');
         const roundId = pathSegments[pathSegments.length - 3];
@@ -97,21 +107,14 @@ export default function MatchAdminPage() {
             if (!teamId || !user || !ownerUid) return [];
             const primaryRef = collection(db, `clubs/${ownerUid}/teams/${teamId}/players`);
             const primarySnap = await getDocs(primaryRef);
-            if (!primarySnap.empty) {
-              return primarySnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
-            }
-
-            const legacyUid = user.uid;
-            if (!legacyUid || legacyUid === ownerUid) return [];
-            const fallbackRef = collection(db, `clubs/${legacyUid}/teams/${teamId}/players`);
-            const fallbackSnap = await getDocs(fallbackRef);
-            return fallbackSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
+            return primarySnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
           };
 
           const [homePlayers, awayPlayers] = await Promise.all([
             fetchPlayers(matchData.homeTeam),
             fetchPlayers(matchData.awayTeam),
           ]);
+          if (cancelled) return;
 
           setHomePlayers(homePlayers);
           setAwayPlayers(awayPlayers);
@@ -120,22 +123,26 @@ export default function MatchAdminPage() {
         // Subscribe to events
         const eventsRef = collection(db, matchDoc.ref.path, 'events');
         const eventsQuery = query(eventsRef, orderBy("minute"));
+        if (cancelled) return;
         unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
+          if (cancelled) return;
           setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LocalMatchEvent)));
         });
 
       } catch (error) {
         console.error("Error fetching data: ", error);
+        if (cancelled) return;
         setMatch(null);
         setResolvedMatchDocPath(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchData();
 
     return () => {
+      cancelled = true;
       unsubscribeEvents();
     };
   }, [user, ownerUid, competitionId, matchId]);
@@ -332,14 +339,14 @@ function EventIcon({ type }: { type: MatchEvent['type'] }) {
   switch (type) {
     case 'goal':
       return <FaFutbol className="h-5 w-5 text-green-500" />;
-    case 'og':
+    case 'og' as any:
       return <FaFutbol className="h-5 w-5 text-green-500" />;
-    case 'yellow':
+    case 'yellow' as any:
       return <Square className="h-5 w-5 text-yellow-500 fill-current" />;
-    case 'red':
+    case 'red' as any:
       return <Square className="h-5 w-5 text-red-500 fill-current" />;
-    case 'sub_in':
-    case 'sub_out':
+    case 'sub_in' as any:
+    case 'sub_out' as any:
       return <ArrowDown className="h-5 w-5 text-red-500" />;
     default:
       return <LifeBuoy className="h-5 w-5 text-muted-foreground" />;

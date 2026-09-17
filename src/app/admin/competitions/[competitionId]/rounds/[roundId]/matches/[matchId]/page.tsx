@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClub } from '@/contexts/ClubContext';
+import { useCareer } from '@/contexts/CareerContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
@@ -18,10 +19,11 @@ import { MatchEventsPreview } from '@/components/match-events-preview';
 import { formatMinute } from '@/lib/formatMinute';
 
 export default function MatchAdminPage() {
-  const { user, ownerUid: ownerUidFromContext } = useAuth();
+  const { user } = useAuth();
   const { mainTeamId } = useClub();
+  const { activeCareer } = useCareer();
 
-  const ownerUid = ownerUidFromContext || user?.uid;
+  const ownerUid = activeCareer?.clubUid;
   const myTeamId = mainTeamId;
 
   const searchParams = useSearchParams();
@@ -83,6 +85,7 @@ export default function MatchAdminPage() {
 
   useEffect(() => {
     console.log('Competition matches useEffect called:', { user, ownerUid, competitionId, roundId, matchId, myTeamId });
+    setRoundMatches([]);
     if (!user || !ownerUid || typeof competitionId !== 'string' || typeof roundId !== 'string' || typeof matchId !== 'string' || !myTeamId) {
       console.log('Early return from useEffect: missing required values', { myTeamId });
       return;
@@ -137,6 +140,10 @@ export default function MatchAdminPage() {
   }, [user, ownerUid, competitionId, roundId, matchId, myTeamId]);
 
   useEffect(() => {
+    setMatch(null);
+    setHomePlayers([]);
+    setAwayPlayers([]);
+    setResolvedMatchDocPath(null);
     if (!user || !ownerUid || typeof matchId !== 'string' || typeof competitionId !== 'string' || typeof roundId !== 'string') {
       setLoading(false);
       return;
@@ -191,19 +198,7 @@ export default function MatchAdminPage() {
             });
             return primarySnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
           }
-
-          const legacyUid = user.uid;
-          if (!legacyUid || legacyUid === ownerUid) return [];
-          const fallbackRef = collection(db, `clubs/${legacyUid}/teams/${teamId}/players`);
-          const fallbackSnap = await getDocs(fallbackRef);
-          console.warn('[MatchAdminPage] fetchPlayers fallback result', {
-            ownerUid,
-            legacyUid,
-            teamId,
-            count: fallbackSnap.size,
-            path: `clubs/${legacyUid}/teams/${teamId}/players`,
-          });
-          return fallbackSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Player));
+          return [];
         };
 
         const filterTeamPlayersBySeason = (players: Player[], rawSeason: string | null): Player[] => {

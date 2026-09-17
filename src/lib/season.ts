@@ -33,3 +33,25 @@ export function toDashSeason(season: string): string {
   if (m4) return `${m4[1]}-${m4[2].slice(-2)}`;
   return season;
 }
+
+export function generateSeasonOptions(): string[] {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const start = month >= 7 ? year : year - 1;
+  const maxStartYear = 2059;
+  const out: string[] = [];
+
+  // Future seasons up to 2059/60
+  for (let y = Math.min(start, maxStartYear); y <= maxStartYear; y += 1) {
+    out.push(`${y}/${String((y + 1) % 100).padStart(2, "0")}`);
+  }
+
+  // Past seasons (keep existing behavior: last 20 seasons)
+  for (let y = start - 1; y >= start - 20; y -= 1) {
+    out.push(`${y}/${String((y + 1) % 100).padStart(2, "0")}`);
+  }
+
+  out.sort((a, b) => b.localeCompare(a));
+  return out;
+}

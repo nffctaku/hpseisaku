@@ -13,7 +13,9 @@ export type PublicDisplaySettings = {
 };
 
 export type ResolvedPublicClubProfile = {
-  ownerUid: string;
+  ownerUid: string; // data path = clubUid for backwards compat
+  clubUid: string;
+  userUid?: string;
   clubId: string;
   profileDocId: string;
   profileData: Record<string, unknown>;
@@ -42,16 +44,34 @@ export async function resolvePublicClubProfile(clubId: string): Promise<Resolved
     const snap = await resolveSnap();
     if (!snap || !snap.exists) return null;
 
-    const profileData = snap.data() as Record<string, unknown>;
-    const ownerUid = typeof profileData?.ownerUid === 'string' ? profileData.ownerUid : snap.id;
-    if (!ownerUid) return null;
+    const rawProfileData = snap.data() as Record<string, unknown>;
+    const userUid = typeof rawProfileData?.ownerUid === 'string' ? rawProfileData.ownerUid : undefined;
+    // Canonical data root: the stored clubUid field (alias docs point here). Fallback to doc id.
+    const clubUid = typeof rawProfileData?.clubUid === 'string' ? rawProfileData.clubUid : snap.id;
+    if (!clubUid) return null;
+
+    // Alias docs (clubId/slug) may only contain a pointer; load the canonical profile for full data.
+    let profileData = rawProfileData;
+    if (snap.id !== clubUid) {
+      const canonicalSnap = await db.collection("club_profiles").doc(clubUid).get();
+      if (canonicalSnap.exists) {
+        profileData = canonicalSnap.data() as Record<string, unknown>;
+      }
+    }
+
+    // 削除済みの Career は非公開にする
+    const careerSnaps = await db.collection("careers").where("clubUid", "==", clubUid).limit(10).get();
+    const activeCareer = careerSnaps.docs.find((c) => (c.data() as Record<string, unknown>).status !== "deleted");
+    if (careerSnaps.docs.length > 0 && !activeCareer) {
+      return null;
+    }
 
     // メインチームデータを取得してチーム名とロゴを最新に
     const mainTeamId = typeof profileData?.mainTeamId === 'string' ? profileData.mainTeamId : undefined;
     let resolvedProfileData: Record<string, unknown> = { ...profileData };
     if (mainTeamId) {
       try {
-        const mainTeamSnap = await db.collection(`clubs/${ownerUid}/teams`).doc(mainTeamId).get();
+        const mainTeamSnap = await db.collection(`clubs/${clubUid}/teams`).doc(mainTeamId).get();
         if (mainTeamSnap.exists) {
           const mainTeamData = mainTeamSnap.data() as Record<string, unknown> | undefined;
           resolvedProfileData = {
@@ -65,9 +85,14 @@ export async function resolvePublicClubProfile(clubId: string): Promise<Resolved
       }
     }
 
-    // club_profiles に homeBgColor 等が無い場合、clubs/{ownerUid} から補完
+    // 公開プロフィールのデータルートを統一：ownerUid は clubUid と同じデータパスを指す。
+    // これによりクライアント側が Firebase ユーザ uid（元Careerと共有する可能性）を誤参照するのを防ぐ。
+    resolvedProfileData.clubUid = clubUid;
+    resolvedProfileData.ownerUid = clubUid;
+
+    // club_profiles に homeBgColor 等が無い場合、clubs/{clubUid} から補完
     try {
-      const clubDataSnap = await db.collection('clubs').doc(ownerUid).get();
+      const clubDataSnap = await db.collection('clubs').doc(clubUid).get();
       if (clubDataSnap.exists) {
         const clubData = clubDataSnap.data() as Record<string, unknown>;
         if (!resolvedProfileData.homeBgColor && typeof clubData?.homeBgColor === 'string') {
@@ -101,7 +126,9 @@ export async function resolvePublicClubProfile(clubId: string): Promise<Resolved
     };
 
     return {
-      ownerUid,
+      ownerUid: clubUid,
+      clubUid,
+      userUid,
       clubId: id,
       profileDocId: snap.id,
       profileData: resolvedProfileData,

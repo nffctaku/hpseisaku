@@ -69,9 +69,9 @@ function normalizeSeasonKey(season: string): string {
 }
 
 export function RecordManagement() {
-  const { user, ownerUid } = useAuth();
-  const clubUid = ownerUid || user?.uid || null;
-  const canEdit = Boolean(user?.uid && clubUid && user.uid === clubUid);
+  const { user } = useAuth();
+  const clubUid = user?.clubUid || null;
+  const canEdit = Boolean(user?.clubUid);
   const [seasons, setSeasons] = useState<string[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>('');
   const [competitions, setCompetitions] = useState<CompetitionDoc[]>([]);

@@ -10,7 +10,6 @@ import {
   normalizeParams,
   pickMemo,
   pickPreferredFoot,
-  resolveOwnerUidFromUid,
   safeString,
   seasonEquals,
   toDashSeason,
@@ -18,6 +17,7 @@ import {
   toMillis,
   toSlashSeason,
 } from "./lib";
+import { getActiveClubUid } from "@/lib/career-server";
 
 export const runtime = "nodejs";
 
@@ -41,16 +41,27 @@ export async function GET(request: Request) {
       return new NextResponse(JSON.stringify({ message: "認証されていません。" }), { status: 401 });
     }
 
-    // admin デザインページと同様に、ユーザーの UID を直接 ownerUid として使用
-    const ownerUid = uid;
-    const clubId = uid; // 公開ページと同じ API を使用するために clubId を設定
+    const clubUid = await getActiveClubUid(uid);
+    const ownerUid = clubUid;
+    const clubId = clubUid; // 公開ページと同じ API を使用するために clubId を設定
 
     const url = new URL(request.url);
-    const teamId = (url.searchParams.get("teamId") || "").trim();
+    const urlTeamId = (url.searchParams.get("teamId") || "").trim();
     const seasonId = (url.searchParams.get("season") || "").trim();
-    if (!teamId || !seasonId) {
+    if (!urlTeamId || !seasonId) {
       return new NextResponse(JSON.stringify({ message: "teamId/season が不正です。" }), { status: 400 });
     }
+
+    // メインチームIDを club_profiles/{clubUid}（docId = clubUid のみ）から解決し、
+    // URLのteamIdと照合する。不一致・未指定時はメインチームへ補正する。
+    let profileMainTeamId: string | null = null;
+    try {
+      const pSnap = await db.collection("club_profiles").doc(clubUid).get();
+      const v = pSnap.exists ? (pSnap.data() as any)?.mainTeamId : null;
+      if (typeof v === "string" && v.trim()) profileMainTeamId = v.trim();
+    } catch {}
+    const teamId = profileMainTeamId || urlTeamId;
+    console.log("[booklet api] id check", { uid, clubUid, mainTeamId: profileMainTeamId, urlTeamId, teamId, seasonId });
 
     const teamSnap = await db.doc(`clubs/${ownerUid}/teams/${teamId}`).get();
     const teamName = teamSnap.exists ? safeString((teamSnap.data() as any)?.name) : "";

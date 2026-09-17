@@ -124,7 +124,7 @@ export default function AdminDesignPage() {
           Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({
-          ...(user?.uid ? { clubId: user.uid } : {}),
+          ...(user?.clubUid ? { clubId: user.clubUid } : {}),
           ...payload,
         }),
       });

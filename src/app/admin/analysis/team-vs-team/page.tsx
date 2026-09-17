@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { useAnalysisData } from "../hooks/use-analysis-data";
 import { collection, query, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -9,10 +10,11 @@ import { useRouter } from "next/navigation";
 
 function TeamVsTeamPage() {
   const router = useRouter();
-  const { user, ownerUid } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const { filteredMatches, loading: loadingAnalysis, mainTeamId } = useAnalysisData();
   
-  const actualUid = ownerUid || user?.uid; // ownerUidを優先
+  const actualUid = activeCareer?.clubUid || null; // 選択中CareerのclubUidのみを参照
   const [resolvedTeamId, setResolvedTeamId] = useState<string | null>(null);
   
   const [teamNames, setTeamNames] = useState<Map<string, string>>(new Map());
@@ -23,13 +25,10 @@ function TeamVsTeamPage() {
 
   // 自チームIDを teams コレクションから解決（mainTeamId が docId と違うケースに対応）
   useEffect(() => {
+    let cancelled = false;
+    setResolvedTeamId(null);
     const resolve = async () => {
-      if (!actualUid) {
-        setResolvedTeamId(null);
-        return;
-      }
-      if (!mainTeamId) {
-        setResolvedTeamId(null);
+      if (!actualUid || !mainTeamId) {
         return;
       }
       try {
@@ -46,17 +45,23 @@ function TeamVsTeamPage() {
             data?.ownerUid === mainTeamId;
           if (idMatch || fieldMatch) found = d.id;
         });
-        setResolvedTeamId(found || String(mainTeamId));
+        if (!cancelled) setResolvedTeamId(found || String(mainTeamId));
       } catch {
-        setResolvedTeamId(String(mainTeamId));
+        if (!cancelled) setResolvedTeamId(String(mainTeamId));
       }
     };
 
     resolve();
+    return () => { cancelled = true; };
   }, [actualUid, mainTeamId]);
 
   // チーム情報を取得
   useEffect(() => {
+    let cancelled = false;
+    setTeamNames(new Map());
+    setTeamLogos(new Map());
+    setSelectedOpponent(null);
+    setOpponentMatches([]);
     const fetchTeams = async () => {
       if (!actualUid) {
         setLoadingTeams(false);
@@ -80,16 +85,19 @@ function TeamVsTeamPage() {
           if (logoUrl) logoMap.set(teamId, logoUrl);
         });
         
-        setTeamNames(nameMap);
-        setTeamLogos(logoMap);
+        if (!cancelled) {
+          setTeamNames(nameMap);
+          setTeamLogos(logoMap);
+        }
       } catch (error) {
         console.error('Error fetching teams:', error);
       } finally {
-        setLoadingTeams(false);
+        if (!cancelled) setLoadingTeams(false);
       }
     };
 
     fetchTeams();
+    return () => { cancelled = true; };
   }, [actualUid]);
 
   // 対戦相手との過去対戦成績を取得

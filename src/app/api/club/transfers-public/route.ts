@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase/admin";
 import { getAuth } from "firebase-admin/auth";
 import { touchUserActivity } from "@/lib/server-activity";
+import { getActiveClubUid } from "@/lib/career-server";
 
 async function getUidFromRequest(request: Request): Promise<string | null> {
   const authHeader = request.headers.get("Authorization");
@@ -43,18 +44,12 @@ export async function GET(request: Request) {
     if (!uid) {
       return new NextResponse(JSON.stringify({ message: "認証されていません。" }), { status: 401 });
     }
+    const clubUid = await getActiveClubUid(uid);
 
     const clubProfilesRef = db.collection("club_profiles");
-
-    const uidSnap = await clubProfilesRef.doc(uid).get();
-    if (uidSnap.exists) {
-      const data = uidSnap.data() as any;
-      return NextResponse.json({ transfersPublic: typeof data?.transfersPublic === "boolean" ? data.transfersPublic : true });
-    }
-
-    const ownerSnap = await clubProfilesRef.where("ownerUid", "==", uid).limit(1).get();
-    if (!ownerSnap.empty) {
-      const data = ownerSnap.docs[0].data() as any;
+    const activeSnap = await clubProfilesRef.doc(clubUid).get();
+    if (activeSnap.exists) {
+      const data = activeSnap.data() as any;
       return NextResponse.json({ transfersPublic: typeof data?.transfersPublic === "boolean" ? data.transfersPublic : true });
     }
 
@@ -79,10 +74,9 @@ export async function POST(request: Request) {
       return new NextResponse(JSON.stringify({ message: "transfersPublic が不正です。" }), { status: 400 });
     }
 
+    const clubUid = await getActiveClubUid(uid);
     const clubProfilesRef = db.collection("club_profiles");
-    const docIds = await resolveProfileDocIdsForOwnerUid(uid);
-
-    await Promise.all(docIds.map((id) => clubProfilesRef.doc(id).set({ ownerUid: uid, transfersPublic }, { merge: true })));
+    await clubProfilesRef.doc(clubUid).set({ ownerUid: uid, transfersPublic }, { merge: true });
     await touchUserActivity(uid);
 
     return NextResponse.json({ transfersPublic });

@@ -2,6 +2,8 @@
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
+import { useClub } from "@/contexts/ClubContext";
 import { auth, db } from "@/lib/firebase";
 import { setActivationOnce, trackEvent } from "@/lib/analytics";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
@@ -70,8 +72,11 @@ interface PlayerManagementProps {
 }
 
 export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementProps) {
-  const { user, ownerUid, clubProfileId } = useAuth();
-  const clubUid = ownerUid || user?.uid;
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
+  const { clubProfileId } = useClub();
+  const clubUid = activeCareer?.clubUid || user?.clubUid || user?.uid;
+  console.log("[PlayerManagement] render", { activeCareerId: activeCareer?.id, activeClubUid: activeCareer?.clubUid, userClubUid: user?.clubUid, userUid: user?.uid, computedClubUid: clubUid, teamId });
   const isPro = user?.plan === "pro";
   const [players, setPlayers] = useState<Player[]>([]);
   const [legacyPlayers, setLegacyPlayers] = useState<Player[]>([]);
@@ -284,7 +289,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
     const hasSelectedSeason = (p: any): boolean => {
       const seasons = Array.isArray(p?.seasons) ? (p.seasons as string[]) : null;
-      if (seasons && seasons.includes(selectedSeason)) return true;
+      if (seasons && seasons.some((season) => toDashSeason(season) === selectedSeasonDash)) return true;
 
       const seasonData = p?.seasonData && typeof p.seasonData === "object" ? p.seasonData : null;
       if (seasonData && (seasonData[selectedSeason] || seasonData[selectedSeasonDash])) return true;
@@ -397,12 +402,14 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
   useEffect(() => {
     if (!clubUid || !teamId) return;
+    console.log("[PlayerManagement] attaching player snapshot", { clubUid, teamId });
     const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
     const q = query(playersColRef);
 
     const unsubscribe = onSnapshot(
       q,
       (querySnapshot) => {
+        console.log("[PlayerManagement] player snapshot received", { clubUid, teamId, count: querySnapshot.size });
         const playersData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Player));
         setPlayers(playersData);
       },
@@ -423,35 +430,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     return () => unsubscribe();
   }, [clubUid, teamId]);
 
+  // Legacy fallback disabled: always fetch only the active career's players to avoid mixing source/target data.
   useEffect(() => {
-    const legacyClubUid = user?.uid;
-    if (!legacyClubUid || !clubUid || legacyClubUid === clubUid) {
-      setLegacyPlayers([]);
-      return;
-    }
-    if (!teamId) return;
-
-    const playersColRef = collection(db, `clubs/${legacyClubUid}/teams/${teamId}/players`);
-    const q = query(playersColRef);
-
-    const unsubscribe = onSnapshot(
-      q,
-      (querySnapshot) => {
-        const playersData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Player));
-        setLegacyPlayers(playersData);
-      },
-      (error) => {
-        console.error("[PlayerManagement] legacy players onSnapshot error", {
-          code: (error as any)?.code,
-          message: (error as any)?.message,
-          path: `clubs/${legacyClubUid}/teams/${teamId}/players`,
-          uid: legacyClubUid,
-          teamId,
-        });
-      }
-    );
-
-    return () => unsubscribe();
+    setLegacyPlayers([]);
   }, [clubUid, teamId, user?.uid]);
 
   const getPositionColor = (position: string): string => {
