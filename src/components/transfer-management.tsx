@@ -36,7 +36,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2 } from "lucide-react";
+import Image from "next/image";
+import { Trash2, Users } from "lucide-react";
 
 import type { Player } from "@/types/player";
 import type { TransferDirection, TransferLog } from "@/types/transfer";
@@ -46,6 +47,8 @@ import { PlayersDataTable } from "@/components/players-data-table";
 import { transferColumns } from "@/components/transfers-columns";
 import { toSlashSeason, toDashSeason } from "@/lib/season";
 import { formatMoneyWithSymbol } from "@/lib/money";
+import { pickPlayerPhotoUrl } from "@/lib/player-photo";
+import { tryCalculateAge } from "@/lib/player-calculations";
 
 interface TransferManagementProps {
   teamId: string;
@@ -192,6 +195,22 @@ export function TransferManagement({
 
     return out;
   }, [players, selectedSeason, normalizedSelectedSeason, direction]);
+
+  // playerId → 選択シーズンの画像URL・生年月日（選手管理と同じ解決順）
+  const playerInfoById = useMemo(() => {
+    const m = new Map<string, { photoUrl?: string; dateOfBirth?: string }>();
+    for (const p of players) {
+      const url = pickPlayerPhotoUrl(p as any, normalizedSelectedSeason);
+      const sd = (p.seasonData || {}) as any;
+      const sdSeason = sd[normalizedSelectedSeason] || sd[toDashSeason(normalizedSelectedSeason)] || {};
+      const dob = sdSeason?.dateOfBirth ?? (p as any).dateOfBirth;
+      m.set(p.id, {
+        photoUrl: url || undefined,
+        dateOfBirth: typeof dob === "string" && dob.trim() ? dob : undefined,
+      });
+    }
+    return m;
+  }, [players, normalizedSelectedSeason]);
 
   const filteredItems = useMemo(() => {
     const target = normalizedSelectedSeason;
@@ -391,18 +410,34 @@ export function TransferManagement({
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredItems.map((item) => (
+            {filteredItems.map((item) => {
+              const info = item.playerId ? playerInfoById.get(item.playerId) : undefined;
+              // 年齢は記録のage → 記録のdateOfBirth → 選手プロフィールのdateOfBirth の順で導出
+              const displayAge =
+                item.age ??
+                tryCalculateAge((item as any).dateOfBirth, normalizedSelectedSeason) ??
+                tryCalculateAge(info?.dateOfBirth, normalizedSelectedSeason);
+              return (
               <div
                 key={item.id}
                 onClick={() => openEditDialog(item)}
                 className="rounded-xl border border-[#263149] bg-[#141d2e] p-4 cursor-pointer hover:border-[#60a5fa] transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  {/* Avatar */}
-                  <div className="w-[34px] h-[34px] rounded-full bg-[#101827] flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-medium text-[#8b93a7]">
-                      {(item.playerName || "").charAt(0) || "?"}
-                    </span>
+                  {/* Avatar: 選手管理と同じ h-16 w-16 角丸四角、画像→人型アイコン */}
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded bg-white/10 -ml-4 -mt-4 -mb-4">
+                    {info?.photoUrl ? (
+                      <Image
+                        src={info.photoUrl}
+                        alt={item.playerName || ""}
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-white/25">
+                        <Users className="h-8 w-8" />
+                      </div>
+                    )}
                   </div>
 
                   {/* Player Info */}
@@ -420,7 +455,7 @@ export function TransferManagement({
                       {/* Metadata */}
                       <span className="text-xs text-[#8b93a7] truncate">
                         {item.counterparty || "-"}
-                        {item.age != null && ` · ${item.age}歳`}
+                        {displayAge != null && ` · ${displayAge}歳`}
                       </span>
                     </div>
                   </div>
@@ -453,7 +488,8 @@ export function TransferManagement({
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

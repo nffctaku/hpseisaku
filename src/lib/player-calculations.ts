@@ -36,6 +36,22 @@ export function calculateAge(dateOfBirth: Date | string, season: string): number
 }
 
 /**
+ * dateOfBirth から年齢を安全に計算（不正値は null）
+ * @param dateOfBirth 生年月日（文字列想定）
+ * @param season シーズン形式（例: 2025/26）
+ * @returns 年齢または null
+ */
+export function tryCalculateAge(dateOfBirth: unknown, season: string): number | null {
+  if (typeof dateOfBirth !== 'string' || !dateOfBirth.trim()) return null;
+  try {
+    const age = calculateAge(dateOfBirth, season);
+    return Number.isFinite(age) && age > 0 && age < 100 ? age : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 加入シーズンから表示シーズン時点での在籍年数を計算
  * @param joinedSeason 加入シーズン（例: 2023/24）
  * @param displaySeason 表示シーズン（例: 2025/26）

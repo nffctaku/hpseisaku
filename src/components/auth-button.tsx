@@ -23,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useCareer } from "@/contexts/CareerContext";
 import { Shield, Plus, Settings, CreditCard, LogOut, ChevronRight, User } from 'lucide-react';
 
@@ -125,11 +125,6 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
               className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
             >
               <Avatar>
-                {activeCareer?.clubLogo ? (
-                  <AvatarImage src={activeCareer.clubLogo} alt={activeCareer.clubName} />
-                ) : (
-                  <AvatarImage src={user.photoURL || undefined} alt={user.displayName || undefined} />
-                )}
                 <AvatarFallback><User /></AvatarFallback>
               </Avatar>
             </button>

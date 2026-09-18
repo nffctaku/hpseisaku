@@ -1,11 +1,14 @@
 import { db } from "@/lib/firebase/admin";
 import { notFound } from "next/navigation";
+import Image from "next/image";
 
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { SeasonDropdown } from "@/components/season-dropdown";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 import { lightenColor } from "@/lib/utils";
+import { pickPlayerPhotoUrl } from "@/lib/player-photo";
+import { tryCalculateAge } from "@/lib/player-calculations";
 import { User } from "lucide-react";
 
 import type { TransferLog } from "@/types/transfer";
@@ -70,6 +73,29 @@ async function fetchTransfers(ownerUid: string, teamId: string): Promise<Transfe
   }
 }
 
+// playerId → 表示シーズンの画像URL・生年月日（選手管理・公開SQUADと同じ解決順）
+async function fetchPlayerInfo(ownerUid: string, teamId: string, season: string): Promise<Map<string, { photoUrl?: string; dateOfBirth?: string }>> {
+  const map = new Map<string, { photoUrl?: string; dateOfBirth?: string }>();
+  try {
+    const snap = await db.collection(`clubs/${ownerUid}/teams/${teamId}/players`).get();
+    const seasonDash = season.replace(/\//g, "-");
+    for (const d of snap.docs) {
+      const data = d.data() as any;
+      const url = pickPlayerPhotoUrl(data, season);
+      const sd = data?.seasonData && typeof data.seasonData === "object" ? data.seasonData : {};
+      const sdSeason = sd[season] || sd[seasonDash] || {};
+      const dob = sdSeason?.dateOfBirth ?? data?.dateOfBirth;
+      map.set(d.id, {
+        photoUrl: url || undefined,
+        dateOfBirth: typeof dob === "string" && dob.trim() ? dob : undefined,
+      });
+    }
+  } catch (e) {
+    console.error("Failed to fetch player info", e);
+  }
+  return map;
+}
+
 export default async function TransfersPage({ params, searchParams }: TransfersPageProps) {
   const { clubId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : {};
@@ -131,6 +157,12 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
   const activeSeason = requestedSeason && seasons.includes(requestedSeason) ? requestedSeason : seasons[0] || "";
 
   const seasonTransfers = activeSeason ? transfers.filter((t) => t.season === activeSeason) : transfers;
+  const playerInfoMap = activeSeason ? await fetchPlayerInfo(ownerUid, teamId, activeSeason) : new Map<string, { photoUrl?: string; dateOfBirth?: string }>();
+  // 年齢は記録のage → 記録のdateOfBirth → 選手プロフィールのdateOfBirth の順で導出
+  const displayAgeOf = (t: TransferLog): number | null =>
+    t.age ??
+    tryCalculateAge((t as any).dateOfBirth, activeSeason) ??
+    (t.playerId ? tryCalculateAge(playerInfoMap.get(t.playerId)?.dateOfBirth, activeSeason) : null);
 
   const inTransfers = seasonTransfers
     .filter((t) => t.direction === "in")
@@ -207,12 +239,20 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
                     const kind = (t as any).kind as string | undefined;
                     const playerName = typeof (t as any).playerName === "string" ? (t as any).playerName : "";
                     const counterparty = typeof (t as any).counterparty === "string" ? (t as any).counterparty : "";
+                    const displayAge = displayAgeOf(t);
+                    const photoUrl = t.playerId ? playerInfoMap.get(t.playerId)?.photoUrl : undefined;
 
                     return (
                       <tr key={t.id} className="h-[76px] transition-colors hover:bg-[#0B1410]/[0.025]">
                         <td className="px-5 py-3">
                           <div className="flex min-w-0 items-center gap-3">
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-[#0B1410]/10 text-[#0B1410]/70">{playerPlaceholder}</div>
+                            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded bg-[#0B1410]/10 text-[#0B1410]/70">
+                              {photoUrl ? (
+                                <Image src={photoUrl} alt={playerName || ""} fill className="object-cover" />
+                              ) : (
+                                playerPlaceholder
+                              )}
+                            </div>
                             <div className="min-w-0">
                               <div className="truncate text-sm font-black text-[#0B1410]" title={playerName}>{playerName || "-"}</div>
                               <div className="mt-0.5 text-[11px] text-[#0B1410]/55">{kind || "完全"}移籍</div>
@@ -222,7 +262,7 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
                         <td className="px-4 py-3 text-center">
                           <span className="inline-flex min-w-9 items-center justify-center rounded border px-2 py-1 text-[11px] font-black" style={{ borderColor: `${accentColor}66`, color: accentColor }}>{t.position || "-"}</span>
                         </td>
-                        <td className="px-4 py-3 text-center text-sm font-semibold text-[#0B1410]">{t.age != null ? t.age : "-"}</td>
+                        <td className="px-4 py-3 text-center text-sm font-semibold text-[#0B1410]">{displayAge != null ? displayAge : "-"}</td>
                         <td className="px-4 py-3">
                           <div className="flex min-w-0 items-center gap-3">
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0B1410]/10 text-xs font-black text-[#0B1410]">{getInitial(counterparty)}</div>
@@ -248,15 +288,23 @@ export default async function TransfersPage({ params, searchParams }: TransfersP
                 const kind = (t as any).kind as string | undefined;
                 const playerName = typeof (t as any).playerName === "string" ? (t as any).playerName : "";
                 const counterparty = typeof (t as any).counterparty === "string" ? (t as any).counterparty : "";
+                const displayAge = displayAgeOf(t);
+                const photoUrl = t.playerId ? playerInfoMap.get(t.playerId)?.photoUrl : undefined;
 
                 return (
                   <div key={t.id} className="rounded-md border border-[#0B1410]/10 bg-white p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-[#0B1410]/10 text-[#0B1410]/70">{playerPlaceholder}</div>
+                        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded bg-[#0B1410]/10 text-[#0B1410]/70">
+                          {photoUrl ? (
+                            <Image src={photoUrl} alt={playerName || ""} fill className="object-cover" />
+                          ) : (
+                            playerPlaceholder
+                          )}
+                        </div>
                         <div className="min-w-0">
                           <div className="truncate text-sm font-black text-[#0B1410]">{playerName || "-"}</div>
-                          <div className="mt-1 text-xs text-[#0B1410]/55">{t.position || "-"} / {t.age != null ? `${t.age}歳` : "年齢不明"} / {kind || "完全"}</div>
+                          <div className="mt-1 text-xs text-[#0B1410]/55">{t.position || "-"} / {displayAge != null ? `${displayAge}歳` : "年齢不明"} / {kind || "完全"}</div>
                         </div>
                       </div>
                       <div className="shrink-0 text-right text-base font-black" style={{ color: accentColor }}>
