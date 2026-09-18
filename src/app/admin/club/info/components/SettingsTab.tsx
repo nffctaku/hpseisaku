@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -76,9 +77,6 @@ export function SettingsTab(props: {
     clubDescription,
     setClubDescription,
     clubTitles,
-    setClubTitles,
-    seasonOptions,
-    toSlashSeason,
   } = props;
 
   const [activeSection, setActiveSection] = useState<'basic' | 'detail'>('basic');
@@ -281,121 +279,18 @@ export function SettingsTab(props: {
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#3355FF14] text-[11px] font-bold text-[#3355FF]">2</span>
               獲得タイトル管理
             </div>
-          <p className="mb-4 text-xs text-[#6B7280]">大会名と獲得シーズンを登録できます。</p>
-          <div className="space-y-3">
-            {clubTitles.map((item, index) => (
-            <div key={index} className="grid grid-cols-1 gap-3 rounded-lg border border-[#E2E4EA] bg-[#F8F9FB] p-4">
-              <div className="space-y-1">
-                <Label className={labelClass}>大会名</Label>
-                <Input
-                  placeholder="例: ○○リーグ"
-                  className={inputClass}
-                  value={item.competitionName}
-                  onChange={(e) => {
-                    const next = [...clubTitles];
-                    next[index] = { ...next[index], competitionName: e.target.value };
-                    setClubTitles(next);
-                  }}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[1fr_auto]">
-                <div className="space-y-1">
-                  <Label className={labelClass}>獲得シーズン（追加）</Label>
-                  <Select
-                    value={item.pendingSeason || ''}
-                    onValueChange={(value) => {
-                      const next = [...clubTitles];
-                      next[index] = { ...next[index], pendingSeason: value };
-                      setClubTitles(next);
-                    }}
-                  >
-                    <SelectTrigger className={inputClass}>
-                      <SelectValue placeholder="シーズン" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {seasonOptions.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 rounded-lg border-[#E2E4EA] bg-white text-[#1B1F27] disabled:opacity-60"
-                    disabled={!item.pendingSeason}
-                    onClick={() => {
-                      const pending = (item.pendingSeason || '').trim();
-                      if (!pending) return;
-                      const next = [...clubTitles];
-                      const seasons = Array.isArray(next[index].seasons) ? next[index].seasons : [];
-                      const normalized = toSlashSeason(pending);
-                      next[index] = {
-                        ...next[index],
-                        seasons: seasons.includes(normalized) ? seasons : [...seasons, normalized].sort((a, b) => b.localeCompare(a)),
-                        pendingSeason: '',
-                      };
-                      setClubTitles(next);
-                    }}
-                  >
-                    追加
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className={labelClass}>登録済みシーズン</Label>
-                {Array.isArray(item.seasons) && item.seasons.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {item.seasons
-                      .slice()
-                      .sort((a, b) => String(b).localeCompare(String(a)))
-                      .map((s) => (
-                        <div key={s} className="inline-flex items-center gap-2 rounded-full border border-[#E2E4EA] bg-white px-2 py-1 font-mono text-xs text-[#1B1F27]">
-                          <span>{s}</span>
-                          <button
-                            type="button"
-                            className="flex h-5 w-5 items-center justify-center rounded-full bg-[#D9302510] text-[#D93025]"
-                            onClick={() => {
-                              const next = [...clubTitles];
-                              next[index] = { ...next[index], seasons: (next[index].seasons || []).filter((x) => x !== s) };
-                              setClubTitles(next);
-                            }}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <div className="text-xs italic text-[#9CA3AF]">未登録</div>
-                )}
-              </div>
-
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-[#D93025]/30 text-[#D93025] hover:bg-[#D9302510]"
-                  onClick={() => setClubTitles(clubTitles.filter((_, i) => i !== index))}
-                >
-                  削除
-                </Button>
-              </div>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full border-dashed border-[#E2E4EA] bg-white text-[#1B1F27] disabled:opacity-60"
-            onClick={() => setClubTitles([...clubTitles, { competitionName: '', seasons: [], pendingSeason: '' }])}
-          >
-            ＋ タイトルを追加
-          </Button>
+          <p className="mb-4 text-xs text-[#6B7280]">
+            獲得タイトルと優勝シーズンはトロフィールームで管理します。
+          </p>
+          <div className="rounded-lg border border-[#E2E4EA] bg-[#F8F9FB] p-4">
+            {titleCount > 0 ? (
+              <p className="mb-3 text-xs text-[#6B7280]">
+                登録済みのタイトルデータ {titleCount} 件は、トロフィールームで移行・管理できます。
+              </p>
+            ) : null}
+            <Button asChild variant="outline" className="w-full border-[#E2E4EA] bg-white text-[#1B1F27]">
+              <Link href="/admin/club/history/trophies">トロフィールームで管理</Link>
+            </Button>
           </div>
         </div>
         </div>

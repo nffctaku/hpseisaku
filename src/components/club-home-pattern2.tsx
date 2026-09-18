@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, List, Play, Users } from "lucide-react";
+import { BookOpen, List, Play, Trophy, Users } from "lucide-react";
 import type { MatchDetails } from "@/types/match";
 import type { NewsArticle } from "@/types/news";
 
@@ -413,6 +413,7 @@ export function ClubHomePattern2(props: ClubHomePattern2Props) {
             <div className="mt-5 flex flex-wrap gap-3">
               <Link href={`/${props.clubId}/stats`} className="flex min-h-11 items-center gap-2 rounded-lg bg-white/12 px-4 text-sm font-bold"><BookOpen className="h-4 w-4" /> 選手記録</Link>
               <Link href={`/${props.clubId}/table`} className="flex min-h-11 items-center gap-2 rounded-lg bg-white/12 px-4 text-sm font-bold"><List className="h-4 w-4" /> シーズン記録</Link>
+              <Link href={`/${props.clubId}/trophies`} className="flex min-h-11 items-center gap-2 rounded-lg bg-white/12 px-4 text-sm font-bold"><Trophy className="h-4 w-4" /> トロフィールーム</Link>
             </div>
           </div>
         </section>

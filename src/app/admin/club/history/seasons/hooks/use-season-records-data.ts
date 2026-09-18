@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAnalysisData } from "@/app/admin/analysis/hooks/use-analysis-data";
 import { useCareer } from "@/contexts/CareerContext";
@@ -30,6 +30,7 @@ export interface UseSeasonRecordsDataReturn {
 export function useSeasonRecordsData(): UseSeasonRecordsDataReturn {
   const { activeCareer } = useCareer();
   const clubUid = activeCareer?.clubUid;
+  const careerId = activeCareer?.id;
   const { filteredMatches: matches, competitions, allPlayers, mainTeamId, loading: analysisLoading, error: analysisError } = useAnalysisData();
   const [clubTitles, setClubTitles] = useState<ClubTitleItem[]>([]);
   const [titlesLoading, setTitlesLoading] = useState(true);
@@ -37,7 +38,7 @@ export function useSeasonRecordsData(): UseSeasonRecordsDataReturn {
   useEffect(() => {
     let cancelled = false;
     setClubTitles([]);
-    if (!clubUid) {
+    if (!clubUid || !careerId) {
       setTitlesLoading(false);
       return;
     }
@@ -45,6 +46,26 @@ export function useSeasonRecordsData(): UseSeasonRecordsDataReturn {
     const run = async () => {
       setTitlesLoading(true);
       try {
+        // 新Trophyデータ優先。未移行ユーザー（このCareerのtrophiesが空）のみ legacy clubTitles へフォールバック。
+        const trophySnap = await getDocs(collection(db, `clubs/${clubUid}/trophies`));
+        const trophyTitles = trophySnap.docs
+          .map((d) => d.data() as Record<string, unknown>)
+          .filter((t) => t.careerId === careerId)
+          .map((t) => ({
+            competitionName: typeof t.titleName === "string" ? t.titleName : "",
+            seasons: Array.isArray(t.winningSeasons)
+              ? (t.winningSeasons as unknown[])
+                  .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+                  .map((s) => toSlashSeason(s))
+              : [],
+          }))
+          .filter((t: ClubTitleItem) => t.competitionName && (t.seasons || []).length > 0);
+
+        if (trophyTitles.length > 0) {
+          if (!cancelled) setClubTitles(trophyTitles);
+          return;
+        }
+
         const clubSnap = await getDoc(doc(db, "clubs", clubUid));
         const data = clubSnap.exists() ? (clubSnap.data() as any) : {};
         const clubProfileTitles = Array.isArray(data?.clubTitles) ? data.clubTitles : [];
@@ -78,7 +99,7 @@ export function useSeasonRecordsData(): UseSeasonRecordsDataReturn {
 
     void run();
     return () => { cancelled = true; };
-  }, [clubUid]);
+  }, [clubUid, careerId]);
 
   const allPlayersMap = useMemo(() => buildAllPlayersMap(allPlayers), [allPlayers]);
 

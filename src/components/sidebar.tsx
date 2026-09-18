@@ -93,6 +93,7 @@ export function Sidebar() {
         { href: bookletHref, label: '選手名鑑', icon: BookOpen },
         { href: `/admin/analysis`, label: '分析管理', icon: LineChart },
         { href: `/admin/club/history`, label: 'クラブ史', icon: History },
+        { href: `/admin/club/history/trophies`, label: 'トロフィールーム', icon: Trophy },
         { href: transfersHref, label: '移籍管理', icon: TransfersIcon },
       ],
     },

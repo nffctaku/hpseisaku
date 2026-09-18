@@ -6,6 +6,8 @@ import Link from "next/link";
 import { Crown, Shield, Trophy, Users, ArrowLeftRight, ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCareer } from "@/contexts/CareerContext";
+import { useClub } from "@/contexts/ClubContext";
+import { fetchLegacyClubTitles } from "@/lib/trophy-migration";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -53,10 +55,23 @@ const recordCards = [
     accent: "from-red-500/45 to-red-950/30",
   },
   {
+    href: "/admin/club/history/trophies",
+    title: "トロフィールーム",
+    description: "クラブが獲得した栄光の記録",
+    label: "TROPHY ROOM",
+    bigLabel: "TROPHY ROOM",
+    cta: "トロフィーを見る",
+    icon: Trophy,
+    bgImage: "/trophies/room-bg.webp",
+    accent: "from-amber-400/45 to-red-950/25",
+  },
+  {
     href: "/admin/club/history/eleven",
     title: "歴代ベストイレブン",
     description: "クラブ史に残る11人",
     label: "ALL-TIME XI",
+    bigLabel: "ALL-TIME XI",
+    cta: "ベストイレブンを見る",
     icon: Crown,
     bgImage: "/ベストイレブン背景.jpg",
     accent: "from-rose-500/45 to-red-950/30",
@@ -66,7 +81,10 @@ const recordCards = [
 export default function ClubHistoryPage() {
   const { user } = useAuth();
   const { activeCareer } = useCareer();
+  const { clubInfo } = useClub();
   const clubUid = activeCareer?.clubUid;
+  const careerId = activeCareer?.id;
+  const publicClubId = clubInfo.id || user?.clubId || activeCareer?.clubId || null;
   const [seasonCount, setSeasonCount] = useState(0);
   const [matchCount, setMatchCount] = useState(0);
   const [titleCount, setTitleCount] = useState(0);
@@ -79,7 +97,7 @@ export default function ClubHistoryPage() {
     setSeasonCount(0);
     setMatchCount(0);
     setTitleCount(0);
-    if (!clubUid) return;
+    if (!clubUid || !careerId) return;
     const run = async () => {
       setLoading(true);
       try {
@@ -95,11 +113,12 @@ export default function ClubHistoryPage() {
           console.warn("[ClubHistoryPage] mainTeamId load failed", e);
         }
 
-        const [competitionsSnap, friendlySnap, publicSnap, titlesSnap] = await Promise.all([
+        const [competitionsSnap, friendlySnap, publicSnap, titlesSnap, legacyTitles] = await Promise.all([
           getDocs(query(collection(db, `clubs/${clubUid}/competitions`))),
           getDocs(query(collection(db, `clubs/${clubUid}/friendly_matches`))),
           getDocs(query(collection(db, `clubs/${clubUid}/public_match_index`))),
-          getDocs(query(collection(db, `clubs/${clubUid}/titles`))),
+          getDocs(query(collection(db, `clubs/${clubUid}/trophies`))),
+          fetchLegacyClubTitles(clubUid).catch(() => [] as Awaited<ReturnType<typeof fetchLegacyClubTitles>>),
         ]);
 
         const seasonsSet = new Set<string>();
@@ -124,10 +143,27 @@ export default function ClubHistoryPage() {
           return isOwnMatch(data) && typeof data.scoreHome === "number" && typeof data.scoreAway === "number";
         }).length;
 
+        // タイトル数: 新Trophyの獲得回数合計。未移行（このCareerのtrophiesが空）なら
+        // legacy clubTitles の seasons 合計へフォールバック（同名タイトルは統合して数える）。
+        const careerTrophies = titlesSnap.docs
+          .map((d) => d.data() as { careerId?: unknown; winningSeasons?: unknown })
+          .filter((t) => t.careerId === careerId);
+        const trophyWins = careerTrophies.reduce(
+          (sum, t) => sum + (Array.isArray(t.winningSeasons) ? t.winningSeasons.length : 0), 0
+        );
+        const legacyWins = new Map<string, Set<string>>();
+        for (const item of legacyTitles) {
+          const key = item.competitionName.trim().replace(/\s+/g, " ").toLowerCase();
+          const cur = legacyWins.get(key) || new Set<string>();
+          for (const s of item.seasons) cur.add(s);
+          legacyWins.set(key, cur);
+        }
+        const legacyTotal = [...legacyWins.values()].reduce((sum, s) => sum + s.size, 0);
+
         if (cancelled) return;
         setSeasonCount(seasonsSet.size);
         setMatchCount(mainTeamId ? scoredPublicMatches + scoredFriendlyMatches : 0);
-        setTitleCount(titlesSnap.size);
+        setTitleCount(careerTrophies.length > 0 ? trophyWins : legacyTotal);
       } catch (e) {
         console.error("[ClubHistoryPage] fetch counts failed", e);
       } finally {
@@ -136,12 +172,12 @@ export default function ClubHistoryPage() {
     };
     void run();
     return () => { cancelled = true; };
-  }, [clubUid]);
+  }, [clubUid, careerId]);
 
   const stats = [
-    { label: "シーズン", value: loading ? "-" : String(seasonCount) },
-    { label: "試合", value: loading ? "-" : String(matchCount) },
-    { label: "タイトル", value: loading ? "-" : String(titleCount) },
+    { label: "シーズン", value: loading ? "-" : String(seasonCount), href: null as string | null },
+    { label: "試合", value: loading ? "-" : String(matchCount), href: null as string | null },
+    { label: "タイトル", value: loading ? "-" : String(titleCount), href: publicClubId ? `/${publicClubId}/trophies` : null },
   ];
 
   return (
@@ -168,12 +204,21 @@ export default function ClubHistoryPage() {
             <div className="flex items-end justify-center gap-1 lg:justify-start">
               {stats.map((stat, index) => {
                 const isLast = index === stats.length - 1;
+                const inner = (
+                  <div className="px-2 text-center sm:px-3">
+                    <div className="text-2xl font-black leading-none text-white sm:text-3xl">{stat.value}</div>
+                    <div className="mt-1 text-[10px] font-bold text-slate-300 sm:text-xs">{stat.label}</div>
+                  </div>
+                );
                 return (
                   <div key={stat.label} className="flex items-center">
-                    <div className="px-2 text-center sm:px-3">
-                      <div className="text-2xl font-black leading-none text-white sm:text-3xl">{stat.value}</div>
-                      <div className="mt-1 text-[10px] font-bold text-slate-300 sm:text-xs">{stat.label}</div>
-                    </div>
+                    {stat.href ? (
+                      <Link href={stat.href} className="rounded transition hover:opacity-70" title="トロフィールームを見る">
+                        {inner}
+                      </Link>
+                    ) : (
+                      inner
+                    )}
                     {!isLast && <span className="mx-2 text-lg text-slate-500 sm:mx-3">|</span>}
                   </div>
                 );
@@ -235,11 +280,11 @@ export default function ClubHistoryPage() {
                 </div>
                 <div className="relative z-10 max-w-[60%]">
                   <p className="text-[11px] font-bold tracking-[0.08em] text-slate-200">{card.label}</p>
-                  <h2 className="mt-1 text-3xl font-black leading-none tracking-[-0.08em] text-white sm:text-5xl">ALL-TIME XI</h2>
+                  <h2 className="mt-1 text-3xl font-black leading-none tracking-[-0.08em] text-white sm:text-5xl">{card.bigLabel}</h2>
                   <p className="mt-3 text-[11px] font-bold text-slate-200">{card.description}</p>
                 </div>
                 <div className="relative z-10 mt-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/55 bg-black/25 px-4 py-2 text-[10px] font-bold text-white">
-                  ベストイレブンを見る
+                  {card.cta}
                   <ArrowRight className="h-3 w-3" />
                 </div>
                 {!isPro && (

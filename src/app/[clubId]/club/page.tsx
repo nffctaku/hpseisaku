@@ -8,22 +8,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { FaXTwitter, FaYoutube, FaTiktok, FaInstagram } from "react-icons/fa6";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
+import { fetchDisplayTrophies } from "@/lib/trophies-server";
+import { sortSeasonsAsc } from "@/lib/trophies";
 
 interface ClubInfoPageProps {
   params: Promise<{ clubId: string }>;
-}
-
-interface ClubTitleItem {
-  competitionName?: string;
-  season?: string;
-  seasons?: string[];
 }
 
 async function getClubInfo(clubId: string) {
   const resolved = await resolvePublicClubProfile(clubId);
   if (!resolved) return null;
   if (resolved.displaySettings.menuShowClub === false) return null;
-  return { ...(resolved.profileData as any), ownerUid: resolved.ownerUid };
+  return { ...(resolved.profileData as any), ownerUid: resolved.ownerUid, clubUid: resolved.clubUid };
 }
 
 export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
@@ -40,32 +36,11 @@ export default async function ClubInfoPage({ params }: ClubInfoPageProps) {
     notFound();
   }
 
-  const parseSeasonStart = (season: string) => {
-    const match = String(season).match(/^(\d{4})/);
-    return match ? Number(match[1]) : 9999;
-  };
-
-  const groupedTitles = Array.from(
-    (Array.isArray((clubInfo as any).clubTitles) ? ((clubInfo as any).clubTitles as ClubTitleItem[]) : [])
-      .reduce((acc, t) => {
-        const competitionName = typeof t?.competitionName === 'string' ? t.competitionName : '';
-        const seasons = Array.isArray((t as any)?.seasons)
-          ? ((t as any).seasons as any[]).map((s) => (typeof s === 'string' ? s : '')).filter((s) => s.length > 0)
-          : typeof t?.season === 'string'
-            ? [t.season]
-            : [];
-        if (competitionName.length === 0 && seasons.length === 0) return acc;
-        const current = acc.get(competitionName) || { competitionName, seasons: [] as string[] };
-        for (const season of seasons) {
-          if (!current.seasons.includes(season)) current.seasons.push(season);
-        }
-        acc.set(competitionName, current);
-        return acc;
-      }, new Map<string, { competitionName: string; seasons: string[] }>())
-      .values()
-  ).map((g) => ({
-    ...g,
-    seasons: g.seasons.sort((a, b) => parseSeasonStart(a) - parseSeasonStart(b) || String(a).localeCompare(String(b))),
+  // Honours: 新Trophyデータ優先。未移行ユーザー（trophies空）のみ legacy clubTitles へフォールバック。
+  const publicTrophies = await fetchDisplayTrophies((clubInfo as any).clubUid as string);
+  const groupedTitles = publicTrophies.map((t) => ({
+    competitionName: t.titleName,
+    seasons: sortSeasonsAsc(t.winningSeasons),
   }));
 
   const foundedYear = (clubInfo as any).foundedYear as string | undefined;
