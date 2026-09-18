@@ -145,26 +145,28 @@ export async function POST(req: NextRequest) {
 
     await batch.commit();
 
-    // 旧画像の Cloudinary 削除（best-effort）。
-    // Firestore の参照は既に新URLへ切り替わっているため、失敗しても
-    // 参照側に不整合は残らない（孤立ファイルが残るのみ）。
+    // 旧画像の Cloudinary 削除（best-effort）。失敗分は pendingPhotoDeletes
+    // キューに退避し、次回の POST/DELETE で自動再試行する。
     const prevUrl = typeof prevPhotoUrl === 'string' ? prevPhotoUrl.trim() : '';
+    const prevPending = Array.isArray(playerDocData?.pendingPhotoDeletes)
+      ? playerDocData.pendingPhotoDeletes.filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      : [];
+    const prevFailed = prevPending.length
+      ? await drainPhotoDestroyQueue(prevPending, uid, clubUid, playerId)
+      : [];
+
+    const prevPublicIds: string[] = [];
     if (prevUrl && prevUrl !== photoUrl.trim()) {
       const cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
       const prevPublicId = extractCloudinaryPublicId(prevUrl, cloudName);
-      if (prevPublicId) {
-        // Careerコピー等でURLを共有している場合は実ファイルを消さない
-        const shared = await isPhotoUrlReferencedElsewhere(prevUrl, uid, clubUid, playerId);
-        if (shared) {
-          console.info('[player-photos] prev image still referenced elsewhere, skip destroy', { prevPublicId });
-        } else {
-          const ok = await destroyCloudinaryImage(prevPublicId);
-          if (!ok) {
-            console.warn('[player-photos] prev image destroy failed', { prevPublicId });
-          }
-        }
-      }
+      if (prevPublicId) prevPublicIds.push(prevPublicId);
     }
+    const curFailed = prevPublicIds.length
+      ? await drainPhotoDestroyQueue(prevPublicIds, uid, clubUid, playerId)
+      : [];
+
+    const remainingPending = [...new Set([...prevFailed, ...curFailed])];
+    await savePendingPhotoDeletes(playerRef, remainingPending);
 
     await touchUserActivity(uid);
 
@@ -184,25 +186,35 @@ interface DeletePhotoRequest {
   seasons?: string[];
 }
 
-// doc が対象URLを参照しているか（トップレベル + 全 seasonData）
-function docReferencesPhotoUrl(data: Record<string, any>, url: string): boolean {
-  if (typeof data?.photoUrl === 'string' && data.photoUrl.trim() === url) return true;
+// doc が対象 public_id の画像を参照しているか（トップレベル + 全 seasonData）。
+// URL文字列ではなく public_id で比較する（バージョン/拡張子の揺れを同一アセットとして扱う）。
+function docReferencesPublicId(
+  data: Record<string, any>,
+  cloudName: string,
+  targetPublicId: string
+): boolean {
+  const urls: string[] = [];
+  if (typeof data?.photoUrl === 'string' && data.photoUrl.trim()) urls.push(data.photoUrl.trim());
   const sd = data?.seasonData && typeof data.seasonData === 'object' ? data.seasonData : {};
-  return Object.values(sd).some(
-    (s: any) => typeof s?.photoUrl === 'string' && s.photoUrl.trim() === url
-  );
+  for (const s of Object.values(sd)) {
+    if (typeof (s as any)?.photoUrl === 'string' && (s as any).photoUrl.trim()) {
+      urls.push((s as any).photoUrl.trim());
+    }
+  }
+  return urls.some((u) => extractCloudinaryPublicId(u, cloudName) === targetPublicId);
 }
 
 // 同一オーナーの全Career(clubUid)＋uid直下を走査し、対象選手以外に
-// このURLを参照する doc が残っているかを返す。
-// Careerコピー等で画像URLを共有している場合、他方の参照が残る限り
+// この public_id を参照する doc が残っているかを返す。
+// Careerコピー等で画像を共有している場合、他方の参照が残る限り
 // Cloudinary の実ファイルを物理削除してはいけない。
-async function isPhotoUrlReferencedElsewhere(
-  url: string,
+async function isPublicIdReferencedElsewhere(
+  targetPublicId: string,
   ownerUid: string,
   currentClubUid: string,
   currentPlayerId: string
 ): Promise<boolean> {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
   const careersSnap = await db.collection('careers').where('ownerId', '==', ownerUid).get();
   const clubUids = new Set<string>([
     ownerUid,
@@ -216,7 +228,7 @@ async function isPhotoUrlReferencedElsewhere(
       const playersSnap = await t.ref.collection('players').get();
       for (const p of playersSnap.docs) {
         if (cu === currentClubUid && p.id === currentPlayerId) continue;
-        if (docReferencesPhotoUrl(p.data() as Record<string, any>, url)) return true;
+        if (docReferencesPublicId(p.data() as Record<string, any>, cloudName, targetPublicId)) return true;
       }
     }
     const seasonsSnap = await db.collection(`clubs/${cu}/seasons`).get();
@@ -224,7 +236,7 @@ async function isPhotoUrlReferencedElsewhere(
       const rosterSnap = await s.ref.collection('roster').get();
       for (const r of rosterSnap.docs) {
         if (cu === currentClubUid && r.id === currentPlayerId) continue;
-        if (docReferencesPhotoUrl(r.data() as Record<string, any>, url)) return true;
+        if (docReferencesPublicId(r.data() as Record<string, any>, cloudName, targetPublicId)) return true;
       }
     }
   }
@@ -269,11 +281,55 @@ async function destroyCloudinaryImage(publicId: string): Promise<boolean> {
   }
 }
 
+// 削除失敗した public_id を保持する選手docのフィールド名。
+// 次回 POST/DELETE 時に drainPhotoDestroyQueue で再試行する。
+const PENDING_DELETES_FIELD = 'pendingPhotoDeletes';
+
+// public_id 群の Cloudinary 削除を試行し、失敗したものだけ返す。
+// 共有参照が残っている（あるいは再び付いた）ものは削除せずキューからも外す。
+async function drainPhotoDestroyQueue(
+  publicIds: string[],
+  ownerUid: string,
+  clubUid: string,
+  playerId: string
+): Promise<string[]> {
+  const failed: string[] = [];
+  for (const publicId of publicIds) {
+    if (await isPublicIdReferencedElsewhere(publicId, ownerUid, clubUid, playerId)) {
+      console.info('[player-photos] image referenced elsewhere, keep file', { publicId });
+      continue;
+    }
+    const ok = await destroyCloudinaryImage(publicId);
+    if (!ok) {
+      console.warn('[player-photos] cloudinary destroy failed, queued for retry', { publicId });
+      failed.push(publicId);
+    }
+  }
+  return failed;
+}
+
+// 失敗分を選手docの pendingPhotoDeletes に退避（空ならフィールド削除）。
+// ここでの書き込み失敗は致命ではないので warn のみ。
+async function savePendingPhotoDeletes(
+  playerRef: FirebaseFirestore.DocumentReference,
+  publicIds: string[]
+): Promise<void> {
+  try {
+    if (publicIds.length) {
+      await playerRef.update({ [PENDING_DELETES_FIELD]: publicIds });
+    } else {
+      await playerRef.update({ [PENDING_DELETES_FIELD]: FieldValue.delete() });
+    }
+  } catch (e) {
+    console.warn('[player-photos] pendingPhotoDeletes save failed', e);
+  }
+}
+
 // 選手画像URLの削除。
-// Cloudinary の旧画像を先に削除し、成功した場合のみ Firestore の参照を消す。
-// → Storage 削除が失敗した時点で Firestore を触らずにエラーを返すことで、
-//    「参照だけ消えて実ファイルが残る」不整合を防ぐ。
-//    （既に実ファイルが無い場合は not found=成功扱いで冪等に進行する）
+// 1) Firestore の画像参照を先に確定（batch は不可分 → 失敗時は何も消えず画像も残る）
+// 2) その後、共有参照がない旧画像だけ Cloudinary から削除
+// 3) 削除失敗分は pendingPhotoDeletes キューに退避し、次回 POST/DELETE で再試行
+// → 「表示用の参照だけ消えて実ファイルが残る/消える」不整合を防ぐ。
 export async function DELETE(req: NextRequest) {
   try {
     const authHeader = req.headers.get('Authorization') || '';
@@ -308,38 +364,33 @@ export async function DELETE(req: NextRequest) {
       ...Object.keys(seasonData).map(toDashSeasonKey),
     ])).filter(Boolean);
 
-    // 削除対象の旧URLを収集（Cloudinary 削除用）
+    // 削除対象の旧URLを収集（Cloudinary 削除用）。player + seasonData + roster を見る。
     const oldUrls = new Set<string>();
     if (typeof playerData?.photoUrl === 'string' && playerData.photoUrl.trim()) oldUrls.add(playerData.photoUrl.trim());
     for (const sd of Object.values(seasonData)) {
       if (typeof sd?.photoUrl === 'string' && sd.photoUrl.trim()) oldUrls.add(sd.photoUrl.trim());
     }
 
-    // 1. Cloudinary の旧画像を先に削除。失敗時は Firestore を変更せず終了。
-    //    ただし他Career/他選手が同じURLを参照している場合は実ファイルを保持し、
-    //    参照の削除（Firestore側）だけを行う。
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
-    for (const url of oldUrls) {
-      const publicId = extractCloudinaryPublicId(url, cloudName);
-      if (!publicId) continue;
-      const shared = await isPhotoUrlReferencedElsewhere(url, uid, clubUid, playerId);
-      if (shared) {
-        console.info('[player-photos] image referenced elsewhere, skip destroy', { publicId });
-        continue;
-      }
-      const ok = await destroyCloudinaryImage(publicId);
-      if (!ok) {
-        console.error('[player-photos] cloudinary destroy failed', { publicId });
-        return NextResponse.json(
-          { ok: false, error: '画像ストレージの削除に失敗しました。時間をおいて再度お試しください。' },
-          { status: 502 }
-        );
+    // 存在する roster doc だけを対象にする（無い doc への update は失敗するため）
+    const rosterRefs = allSeasons.map((s) => ({
+      season: s,
+      ref: db.doc(`clubs/${clubUid}/seasons/${s}/roster/${playerId}`),
+    }));
+    const rosterSnaps = await Promise.all(rosterRefs.map((r) => r.ref.get()));
+    for (let i = 0; i < rosterRefs.length; i++) {
+      if (!rosterSnaps[i].exists) continue;
+      const rd = rosterSnaps[i].data() as Record<string, any>;
+      if (typeof rd?.photoUrl === 'string' && rd.photoUrl.trim()) oldUrls.add(rd.photoUrl.trim());
+      const rsd = rd?.seasonData && typeof rd.seasonData === 'object' ? rd.seasonData : {};
+      for (const sd of Object.values(rsd)) {
+        if (typeof (sd as any)?.photoUrl === 'string' && (sd as any).photoUrl.trim()) {
+          oldUrls.add((sd as any).photoUrl.trim());
+        }
       }
     }
 
-    // 2. Firestore の参照を削除（player + 全シーズンの roster）
-    // ネストしたフィールドの削除は update() のフィールドパス指定が必要なため、
-    // 存在する roster doc のみ update する。
+    // 1. Firestore の参照を削除（player + 存在する roster）。batch は不可分なので、
+    //    失敗時は参照も実ファイルもそのまま残り、表示中の画像を失わない。
     const batch = db.batch();
     const playerUpdate: Record<string, unknown> = {
       photoUrl: FieldValue.delete(),
@@ -350,11 +401,6 @@ export async function DELETE(req: NextRequest) {
     }
     batch.update(playerRef, playerUpdate);
 
-    const rosterRefs = allSeasons.map((s) => ({
-      season: s,
-      ref: db.doc(`clubs/${clubUid}/seasons/${s}/roster/${playerId}`),
-    }));
-    const rosterSnaps = await Promise.all(rosterRefs.map((r) => r.ref.get()));
     for (let i = 0; i < rosterRefs.length; i++) {
       if (!rosterSnaps[i].exists) continue;
       const s = rosterRefs[i].season;
@@ -366,8 +412,38 @@ export async function DELETE(req: NextRequest) {
     }
     await batch.commit();
 
+    // 2. 共有参照がない旧画像を Cloudinary から削除。
+    //    失敗分は pendingPhotoDeletes に退避し、次回 POST/DELETE で再試行する。
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
+    const publicIds = [...oldUrls]
+      .map((u) => extractCloudinaryPublicId(u, cloudName))
+      .filter((v): v is string => Boolean(v));
+    const curFailed = publicIds.length
+      ? await drainPhotoDestroyQueue(publicIds, uid, clubUid, playerId)
+      : [];
+
+    // 3. 以前の削除失敗分も再試行する
+    const prevPending = Array.isArray(playerData?.[PENDING_DELETES_FIELD])
+      ? (playerData[PENDING_DELETES_FIELD] as unknown[]).filter(
+          (v): v is string => typeof v === 'string' && v.trim().length > 0
+        )
+      : [];
+    const prevFailed = prevPending.length
+      ? await drainPhotoDestroyQueue(prevPending, uid, clubUid, playerId)
+      : [];
+
+    const remainingPending = [...new Set([...prevFailed, ...curFailed])];
+    await savePendingPhotoDeletes(playerRef, remainingPending);
+
     await touchUserActivity(uid);
-    return NextResponse.json({ ok: true, storageDeleted: true });
+    return NextResponse.json({
+      ok: true,
+      storageDeleted: true,
+      pendingDeletes: remainingPending.length,
+      ...(remainingPending.length
+        ? { warning: '一部の旧画像ファイルの削除に失敗しました。次回の画像操作時に自動で再試行します。' }
+        : {}),
+    });
   } catch (error) {
     console.error('[player-photos] delete failed', error);
     return NextResponse.json(
