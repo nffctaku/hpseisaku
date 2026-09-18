@@ -6,6 +6,7 @@ import { collection, getDocs } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { toSlashSeason } from "@/lib/season";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,13 +21,14 @@ interface Season {
 }
 
 export default function TeamTransfersPage() {
-  const { user, ownerUid } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const teamId = params.teamId as string;
-  const clubUid = ownerUid || user?.uid;
+  const clubUid = activeCareer?.clubUid || user?.clubUid || user?.uid;
 
   const seasonFromQuery = (searchParams.get("season") || "").trim();
   const [seasons, setSeasons] = useState<Season[]>([]);

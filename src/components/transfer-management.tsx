@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { db } from "@/lib/firebase";
+import { useCareer } from "@/contexts/CareerContext";
+import { auth, db } from "@/lib/firebase";
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   query,
   updateDoc,
@@ -35,6 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Trash2 } from "lucide-react";
 
 import type { Player } from "@/types/player";
 import type { TransferDirection, TransferLog } from "@/types/transfer";
@@ -42,7 +44,7 @@ import type { TransferDirection, TransferLog } from "@/types/transfer";
 import { TransferForm, TransferFormValues } from "@/components/transfer-form";
 import { PlayersDataTable } from "@/components/players-data-table";
 import { transferColumns } from "@/components/transfers-columns";
-import { toSlashSeason } from "@/lib/season";
+import { toSlashSeason, toDashSeason } from "@/lib/season";
 import { formatMoneyWithSymbol } from "@/lib/money";
 
 interface TransferManagementProps {
@@ -57,9 +59,17 @@ interface TransferManagementProps {
   hideCurrencySelect?: boolean;
 }
 
-export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSeason }: TransferManagementProps) {
-  const { user, ownerUid, clubProfileId } = useAuth();
-  const clubUid = ownerUid || user?.uid;
+export function TransferManagement({
+  teamId,
+  seasons,
+  selectedSeason,
+  onChangeSeason,
+  currency: currencyProp,
+  onChangeCurrency,
+}: TransferManagementProps) {
+  const { user, clubProfileId } = useAuth();
+  const { activeCareer } = useCareer();
+  const clubUid = activeCareer?.clubUid || user?.clubUid || user?.uid;
 
   const normalizedSelectedSeason = useMemo(() => toSlashSeason(selectedSeason), [selectedSeason]);
 
@@ -73,10 +83,7 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
   const [editing, setEditing] = useState<TransferLog | null>(null);
   const [deleting, setDeleting] = useState<TransferLog | null>(null);
 
-  const currency = (arguments[0] as any)?.currency ?? internalCurrency;
-  const setCurrency = ((arguments[0] as any)?.onChangeCurrency ?? setInternalCurrency) as (c: "JPY" | "EUR" | "GBP") => void;
-  const hideSeasonSelect = Boolean((arguments[0] as any)?.hideSeasonSelect);
-  const hideCurrencySelect = Boolean((arguments[0] as any)?.hideCurrencySelect);
+  const currency = currencyProp ?? internalCurrency;
 
   const transferFormKey = editing ? `${editing.id}-${currency}` : `new-${selectedSeason}-${direction}-${currency}`;
 
@@ -147,12 +154,19 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
 
     const targetSeasons = direction === "out" && prevSeason ? [target, prevSeason] : [target];
 
+    // 選手管理の hasSelectedSeason と同一の所属判定：
+    // - seasons 配列に対象シーズンを含む（slash/dash 両表記を正規化して比較）
+    // - seasonData に対象シーズンのキーがある（slash/dash 両対応）
+    // - seasons 未設定のレガシー選手は全シーズン所属とみなす
     const pickSeasonForPlayer = (p: Player): string | null => {
-      const ps = Array.isArray(p.seasons) ? p.seasons : [];
-      const normalized = ps.map((s) => toSlashSeason(s));
+      const ps = Array.isArray(p.seasons) ? (p.seasons as string[]) : null;
+      const sd = p.seasonData && typeof p.seasonData === "object" ? (p.seasonData as any) : null;
       for (const s of targetSeasons) {
-        if (normalized.includes(s)) return s;
+        const dash = toDashSeason(s);
+        if (ps && ps.some((x) => toDashSeason(x) === dash)) return s;
+        if (sd && (sd[s] || sd[dash])) return s;
       }
+      if (!ps || ps.length === 0) return target;
       return null;
     };
 
@@ -160,44 +174,20 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
     const out: Player[] = [];
 
     // Prefer players belonging to the current season first, then previous season (OUT only).
-    const orderedCandidates = targetSeasons
-      .map((s) =>
-        players
-          .filter((p) => (Array.isArray(p.seasons) ? p.seasons : []).some((ps) => toSlashSeason(ps) === s))
-          .map((p) => ({ p, season: s }))
-      )
-      .flat();
+    for (const season of targetSeasons) {
+      for (const p of players) {
+        if (seen.has(p.id)) continue;
+        if (pickSeasonForPlayer(p) !== season) continue;
+        seen.add(p.id);
 
-    for (const { p, season } of orderedCandidates) {
-      const key = (p.name || "").trim();
-      if (!key) continue;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const seasonData = (p.seasonData || {})[season] as any;
-      out.push({
-        ...p,
-        dateOfBirth: seasonData?.dateOfBirth ?? (p as any).dateOfBirth,
-        position: seasonData?.position ?? (p as any).position,
-      } as Player);
-    }
-
-    // Fallback: if nothing matched, keep current behavior
-    if (out.length === 0) {
-      return players
-        .filter((p) => {
-          const s = pickSeasonForPlayer(p);
-          return Boolean(s);
-        })
-        .map((p) => {
-          const s = pickSeasonForPlayer(p);
-          const seasonData = s ? ((p.seasonData || {})[s] as any) : undefined;
-          return {
-            ...p,
-            dateOfBirth: seasonData?.dateOfBirth ?? (p as any).dateOfBirth,
-            position: seasonData?.position ?? (p as any).position,
-          } as Player;
-        });
+        const sd = (p.seasonData || {}) as any;
+        const seasonData = sd[season] || sd[toDashSeason(season)];
+        out.push({
+          ...p,
+          dateOfBirth: seasonData?.dateOfBirth ?? (p as any).dateOfBirth,
+          position: seasonData?.position ?? (p as any).position,
+        } as Player);
+      }
     }
 
     return out;
@@ -279,13 +269,39 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
 
   const handleDelete = async () => {
     if (!clubUid || !teamId || !deleting) return;
+    const target = deleting;
     try {
-      const ref = doc(db, `clubs/${clubUid}/teams/${teamId}/transfers`, deleting.id);
-      await deleteDoc(ref);
-      toast.success("移籍ログを削除しました。");
+      // 一覧から即時に消す（失敗時はonSnapshotが元に戻す）
+      setItems((prev) => prev.filter((t) => t.id !== target.id));
       setDeleting(null);
+      setIsDialogOpen(false);
+      setEditing(null);
+
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error("missing auth");
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch("/api/club/transfers/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ teamId, transferId: target.id }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as any)?.error || "failed");
+      }
+      toast.success("移籍ログを削除しました。");
     } catch (error) {
       console.error("Error deleting transfer: ", error);
+      // 失敗時は再取得して一覧を復元
+      try {
+        const snap = await getDocs(collection(db, `clubs/${clubUid}/teams/${teamId}/transfers`));
+        setItems(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as TransferLog)));
+      } catch {
+        // ignore
+      }
       toast.error("移籍ログの削除に失敗しました。");
     }
   };
@@ -354,6 +370,16 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
               direction={direction}
               players={filteredPlayers}
             />
+            {editing ? (
+              <button
+                type="button"
+                onClick={() => setDeleting(editing)}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#f87171]/40 bg-[#f87171]/10 px-4 py-2.5 text-sm font-medium text-[#f87171] transition-colors hover:bg-[#f87171]/20"
+              >
+                <Trash2 className="h-4 w-4" />
+                この移籍記録を削除
+              </button>
+            ) : null}
           </DialogContent>
         </Dialog>
 
@@ -412,6 +438,19 @@ export function TransferManagement({ teamId, seasons, selectedSeason, onChangeSe
                       </p>
                     )}
                   </div>
+
+                  {/* Delete Button */}
+                  <button
+                    type="button"
+                    aria-label={`${item.playerName || "この選手"}を移籍記録から削除`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleting(item);
+                    }}
+                    className="ml-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[#8b93a7] transition-colors hover:bg-[#f87171]/15 hover:text-[#f87171]"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             ))}
