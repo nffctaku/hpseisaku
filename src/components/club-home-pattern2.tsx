@@ -138,7 +138,11 @@ function LatestMatches({ clubId, matches, upcomingMatch, mainTeamId, accentColor
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">
             <span>{formatDate(match.matchDate, "/")}</span>
-            <span>{match.roundName || match.competitionName || "MATCH"}</span>
+            <span>
+              {match.roundId === 'single' || (match.roundName || '').trim() === '単発'
+                ? (match.competitionName || 'MATCH')
+                : (match.roundName || match.competitionName || 'MATCH')}
+            </span>
             <span>{side}</span>
           </div>
           <div className="grid grid-cols-[1fr_6rem_1fr] items-center gap-2">

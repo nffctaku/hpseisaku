@@ -260,7 +260,10 @@ function RecentMatchesStrip({
       ha: isHome ? '(H)' : '(A)',
       scoreText: `${m.scoreHome ?? '-'}-${m.scoreAway ?? '-'}`,
       outcome: resolveOutcome(m),
-      roundLabel: getRoundLabel(m.roundName),
+      roundLabel:
+        m.roundId === 'single' || (m.roundName || '').trim() === '単発'
+          ? (m.competitionName || '')
+          : getRoundLabel(m.roundName),
     };
   };
 
@@ -409,7 +412,9 @@ export function MatchResultsList({
           </svg>
         </button>
         <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          {currentRound.roundName || '節'}
+          {currentRound.roundName === '単発'
+            ? (competitionName || '練習試合')
+            : (currentRound.roundName || '節')}
         </div>
         <button
           type="button"
@@ -525,6 +530,9 @@ export function MatchSection({
 }: MatchSectionProps) {
   const isDark = colorTheme === 'dark';
   const upcoming = (Array.isArray(upcomingMatches) ? upcomingMatches : []).slice(0, 3);
+  const hasRecentResults = (Array.isArray(recentMatches) ? recentMatches : []).some(
+    (m) => m && typeof m.scoreHome === 'number' && typeof m.scoreAway === 'number'
+  );
   return (
     <section className="pt-0 pb-8 md:pb-12">
       <div className={`rounded-2xl shadow-sm p-4 md:p-6 w-full lg:min-h-[520px] flex flex-col border ${isDark ? 'bg-[#101116] border-white/10 text-slate-100' : 'bg-gray-100 border-black/5 text-gray-900'}`}>
@@ -533,9 +541,9 @@ export function MatchSection({
         <div className="mt-4">
           {upcoming.length > 0 ? (
             <UpcomingMatchesCarousel matches={upcoming} mainTeamId={mainTeamId} backgroundColor={backgroundColor} colorTheme={colorTheme} />
-          ) : (
+          ) : nextMatch || !hasRecentResults ? (
             <NextMatch match={nextMatch} colorTheme={colorTheme} />
-          )}
+          ) : null}
         </div>
       </div>
     </section>

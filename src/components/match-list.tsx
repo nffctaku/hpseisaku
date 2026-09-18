@@ -113,7 +113,13 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
   const rounds = Array.from(
     new Map(
       filteredMatches
-        .map(m => ({ id: m.roundId, name: m.roundName || m.roundId }))
+        .map(m => ({
+          id: m.roundId,
+          name:
+            m.roundId === 'single' || (m.roundName || '').trim() === '単発'
+              ? (m.competitionName || m.roundName || m.roundId)
+              : (m.roundName || m.roundId),
+        }))
         .map(r => [r.id, r])
     ).values()
   );
