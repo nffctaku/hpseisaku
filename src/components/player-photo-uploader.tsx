@@ -15,9 +15,11 @@ interface PlayerPhotoUploaderProps {
   teamId?: string;
   season?: string;
   uid?: string;
+  clubUid?: string;
+  playerId?: string;
 }
 
-export function PlayerPhotoUploader({ value, onChange, teamId, season, uid }: PlayerPhotoUploaderProps) {
+export function PlayerPhotoUploader({ value, onChange, teamId, season, uid, clubUid, playerId }: PlayerPhotoUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -108,6 +110,12 @@ export function PlayerPhotoUploader({ value, onChange, teamId, season, uid }: Pl
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", uploadPreset);
+    // 同名上書きを防ぎ、Career(clubUid)・チーム・選手・更新時刻を含む一意パスにする。
+    const uniquePart = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    const pathBase = clubUid && teamId
+      ? `footchron/player-photos/${clubUid}/${teamId}/${playerId || "unassigned"}`
+      : `footchron/player-photos/misc`;
+    formData.append("public_id", `${pathBase}-${uniquePart}`);
 
     try {
       const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {

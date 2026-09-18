@@ -5,6 +5,7 @@ import { getMatchStatsForPlayers, MatchRecord } from "./lib/get-match-stats";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
+import { pickPlayerPhotoUrl } from "@/lib/player-photo";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 import { lightenColor } from "@/lib/utils";
 
@@ -154,6 +155,7 @@ async function getPlayersData(
   const activeSeasonDashForRoster = activeSeason ? toDashSeason(activeSeason) : "";
   let rosterPlayerIdSet: Set<string> | null = null;
   let rosterTeamIdByPlayerId: Map<string, string> | null = null;
+  let rosterPhotoByPlayerId: Map<string, string> | null = null;
   if (activeSeasonDashForRoster) {
     try {
       const rosterSnap = await db.collection(`clubs/${baseClubDocId}/seasons/${activeSeasonDashForRoster}/roster`).get();
@@ -184,6 +186,15 @@ async function getPlayersData(
         const effectiveDocs = strictlyMatchedDocs.length > 0 ? strictlyMatchedDocs : docs;
 
         rosterPlayerIdSet = new Set(effectiveDocs.map((d) => d.id));
+        rosterPhotoByPlayerId = new Map(
+          effectiveDocs
+            .map((d) => {
+              const data = d.data() as any;
+              const url = pickPlayerPhotoUrl(data, activeSeasonDashForRoster);
+              return url ? ([d.id, url] as const) : null;
+            })
+            .filter((x): x is readonly [string, string] => Boolean(x))
+        );
         rosterTeamIdByPlayerId = new Map(
           effectiveDocs
             .map((d) => {
@@ -434,7 +445,14 @@ async function getPlayersData(
 
   // Firestore からのオブジェクトが freeze されているケースがあるため、
   // 以降の書き換え可能な shallow copy を作成しておく
-  filteredPlayers = filteredPlayers.map((p) => ({ ...p }));
+  // 画像は seasonData(現シーズン) → トップレベル → 他シーズン → roster の順で解決する
+  filteredPlayers = filteredPlayers.map((p) => ({
+    ...p,
+    photoUrl:
+      pickPlayerPhotoUrl(p, activeSeason || undefined) ||
+      rosterPhotoByPlayerId?.get(String(p?.id || "")) ||
+      "",
+  }));
 
   const filterStaffBySeasonMembership = (s: any) => {
     const seasons = Array.isArray(s?.seasons) ? (s.seasons as string[]) : [];

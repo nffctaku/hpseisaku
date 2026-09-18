@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, db, admin } from "@/lib/firebase/admin";
 import { getPlanLimit } from "@/lib/plan-limits";
 import { getEffectivePlanForUid } from "@/lib/server-plan";
+import { getActiveClubUid } from "@/lib/career-server";
 
 interface CheckResponse {
   allowed: boolean;
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ allowed: false, error: "Unauthorized" }, { status: 401 });
     }
     const decoded = await auth.verifyIdToken(token);
-    const clubUid = decoded.uid;
+    const clubUid = await getActiveClubUid(decoded.uid);
 
     const { searchParams } = new URL(req.url);
     const teamId = searchParams.get("teamId") || "";

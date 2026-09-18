@@ -50,6 +50,8 @@ interface PlayerFormProps {
   defaultValues?: Partial<PlayerFormValues>;
   defaultSeason?: string;
   ownerUid?: string | null;
+  clubUid?: string | null;
+  playerId?: string | null;
   teamId?: string;
   isEdit?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
@@ -61,6 +63,8 @@ export function PlayerForm({
   defaultValues,
   defaultSeason,
   ownerUid,
+  clubUid,
+  playerId,
   teamId,
   isEdit = false,
   onDirtyChange,
@@ -199,9 +203,9 @@ export function PlayerForm({
   }, [form.formState.isDirty, onDirtyChange]);
 
   useEffect(() => {
-    if (!ownerUid) return;
+    if (!clubUid) return;
     const fetchCompetitions = async () => {
-      const snap = await getDocs(collection(db, `clubs/${ownerUid}/competitions`));
+      const snap = await getDocs(collection(db, `clubs/${clubUid}/competitions`));
       const comps = snap.docs
         .map((d) => {
           const data = d.data() as any;
@@ -215,7 +219,7 @@ export function PlayerForm({
       setCompetitions(comps);
     };
     fetchCompetitions();
-  }, [ownerUid]);
+  }, [clubUid]);
 
   const seasonsList = useMemo(() => {
     const seasonSet = new Set<string>();
@@ -528,7 +532,7 @@ export function PlayerForm({
                   <FormItem>
                     <FormLabel className="text-[#F1F5F9]">選手写真</FormLabel>
                     <FormControl>
-                      <PlayerPhotoUploader value={field.value || ""} onChange={field.onChange} teamId={teamId} season={defaultSeason} uid={ownerUid || undefined} />
+                      <PlayerPhotoUploader value={field.value || ""} onChange={field.onChange} teamId={teamId} season={defaultSeason} uid={ownerUid || undefined} clubUid={clubUid || undefined} playerId={playerId || undefined} />
                     </FormControl>
                     <FormMessage className="text-[#FCA5A5]" />
                   </FormItem>

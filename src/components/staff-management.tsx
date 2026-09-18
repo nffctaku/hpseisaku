@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Users } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -226,7 +226,9 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
                     {photoUrl ? (
                       <Image src={photoUrl} alt={s.name || ""} fill className="object-cover" />
                     ) : (
-                      <div className="h-full w-full" />
+                      <div className="flex h-full w-full items-center justify-center text-white/25">
+                        <Users className="h-8 w-8" />
+                      </div>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">

@@ -7,12 +7,13 @@ import { useClub } from "@/contexts/ClubContext";
 import { auth, db } from "@/lib/firebase";
 import { setActivationOnce, trackEvent } from "@/lib/analytics";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
+import { pickPlayerPhotoUrl } from "@/lib/player-photo";
 import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc, getDocs, getDoc, writeBatch } from "firebase/firestore";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Users } from "lucide-react";
 import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
 import { PlanLimitBadge } from "@/components/plan-limit-badge";
 import {
@@ -337,7 +338,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           annualSalary: (season as any)?.annualSalary ?? (p as any).annualSalary,
           annualSalaryCurrency: (season as any)?.annualSalaryCurrency ?? (p as any).annualSalaryCurrency,
           contractEndDate: (season as any)?.contractEndDate ?? (p as any).contractEndDate,
-          photoUrl: season?.photoUrl ?? p.photoUrl,
+          photoUrl: pickPlayerPhotoUrl(p, selectedSeasonDash),
           snsLinks: season?.snsLinks ?? p.snsLinks,
           params: season?.params ?? p.params,
           manualCompetitionStats: season?.manualCompetitionStats ?? p.manualCompetitionStats,
@@ -392,7 +393,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       annualSalary: (season as any)?.annualSalary ?? (editingPlayer as any).annualSalary,
       annualSalaryCurrency: (season as any)?.annualSalaryCurrency ?? (editingPlayer as any).annualSalaryCurrency,
       contractEndDate: (season as any)?.contractEndDate ?? (editingPlayer as any).contractEndDate,
-      photoUrl: season.photoUrl ?? editingPlayer.photoUrl,
+      photoUrl: pickPlayerPhotoUrl(editingPlayer, selectedSeasonDash),
       snsLinks: season.snsLinks ?? editingPlayer.snsLinks,
       params: season.params ?? editingPlayer.params,
       manualCompetitionStats: season.manualCompetitionStats ?? editingPlayer.manualCompetitionStats,
@@ -490,6 +491,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     const prevPhotoUrl = ((seasonDefaults as any)?.photoUrl ?? (editingPlayer as any)?.photoUrl ?? '') as string;
     const nextPhotoUrl = (values as any)?.photoUrl as string | undefined;
     const isNewPhoto = Boolean(nextPhotoUrl && String(nextPhotoUrl).trim().length > 0 && (!prevPhotoUrl || String(prevPhotoUrl).trim().length === 0));
+    const prevPhotoTrim = String(prevPhotoUrl || '').trim();
+    const nextPhotoTrim = String(nextPhotoUrl || '').trim();
+    const photoChanged = nextPhotoTrim !== prevPhotoTrim;
 
     if (isNewPhoto) {
       try {
@@ -571,6 +575,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
       const seasonPayload: PlayerSeasonData = {
         number: valuesNormalized.number,
+        // 削除ケースでも旧URLを保持する（実削除は DELETE API が
+        // Cloudinary 削除成功後に全フィールドを一括クリアするため。
+        // ここで先に消すと API 失敗時に不整合になる）
+        photoUrl: nextPhotoTrim || prevPhotoTrim || undefined,
         subName: (values as any).subName,
         position: valuesNormalized.position as any,
         mainPosition: (values as any).mainPosition,
@@ -603,8 +611,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
       let savedPlayerId: string | null = null;
 
-      const attachPhotoIfNeeded = async (playerId: string) => {
-        if (!isNewPhoto || !nextPhotoUrl) return;
+      const syncPhotoIfNeeded = async (playerId: string) => {
+        if (!photoChanged) return;
         const currentUser = auth.currentUser;
         if (!currentUser) throw new Error("認証が必要です");
         const idToken = await currentUser.getIdToken();
@@ -615,23 +623,46 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
               ...Object.keys(editingPlayer.seasonData || {}),
             ])).filter(Boolean)
           : [selectedSeasonDash];
-        const attachRes = await fetch('/api/club/player-photos', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            teamId,
-            season: selectedSeasonDash,
-            playerId,
-            photoUrl: nextPhotoUrl,
-            seasons: syncSeasons,
-          }),
-        });
-        const attachData = (await attachRes.json().catch(() => ({ error: '画像保存に失敗しました' }))) as { error?: string };
-        if (!attachRes.ok) {
-          throw new Error(attachData.error || '選手画像の保存に失敗しました');
+
+        if (nextPhotoTrim) {
+          // 新規・変更: 新URLを player/roster/seasonData に反映
+          const attachRes = await fetch('/api/club/player-photos', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({
+              teamId,
+              season: selectedSeasonDash,
+              playerId,
+              photoUrl: nextPhotoTrim,
+              prevPhotoUrl: prevPhotoTrim || undefined,
+              seasons: syncSeasons,
+            }),
+          });
+          const attachData = (await attachRes.json().catch(() => ({ error: '画像保存に失敗しました' }))) as { error?: string };
+          if (!attachRes.ok) {
+            throw new Error(attachData.error || '選手画像の保存に失敗しました');
+          }
+        } else if (editingPlayer) {
+          // 削除: player/roster/seasonData の画像URLを全シーズン分クリア
+          const deleteRes = await fetch('/api/club/player-photos', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({
+              teamId,
+              playerId,
+              seasons: syncSeasons,
+            }),
+          });
+          const deleteData = (await deleteRes.json().catch(() => ({ error: '画像削除に失敗しました' }))) as { error?: string };
+          if (!deleteRes.ok) {
+            throw new Error(deleteData.error || '選手画像の削除に失敗しました');
+          }
         }
       };
 
@@ -813,7 +844,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
       if (savedPlayerId) {
         await invalidatePlayerStatsCache(savedPlayerId);
-        await attachPhotoIfNeeded(savedPlayerId);
+        await syncPhotoIfNeeded(savedPlayerId);
       }
 
       toast.success("保存しました。", {
@@ -1358,6 +1389,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                   defaultValues={seasonDefaults || editingPlayer || undefined}
                   defaultSeason={selectedSeason}
                   ownerUid={user?.uid ?? null}
+                  clubUid={clubUid}
+                  playerId={editingPlayer?.id ?? null}
                   teamId={teamId}
                   isEdit={!!editingPlayer}
                   onDirtyChange={setIsFormDirty}
@@ -1557,7 +1590,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                     {photoUrl ? (
                       <Image src={photoUrl} alt={p.name || ""} fill className="object-cover" />
                     ) : (
-                      <div className="h-full w-full" />
+                      <div className="flex h-full w-full items-center justify-center text-white/25">
+                        <Users className="h-8 w-8" />
+                      </div>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
