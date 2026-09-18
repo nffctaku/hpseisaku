@@ -77,6 +77,13 @@ export async function POST(req: NextRequest) {
     // 対象選手が所属する全シーズンも同期対象に含める。
     // どこかのシーズンに旧URLが残ると、旧画像削除時にリンク切れになるため。
     const playerDoc = playersSnap.docs.find((d) => d.id === playerId);
+    // 対象選手がactiveCareer領域の対象チームに存在することを検証（所有権チェック）
+    if (!playerDoc) {
+      return NextResponse.json<AttachPhotoResponse>(
+        { ok: false, photoUrl: '', error: '対象の選手が見つかりません' },
+        { status: 404 }
+      );
+    }
     const playerDocData = (playerDoc?.data() || {}) as Record<string, any>;
     const playerSeasonData = (playerDocData.seasonData && typeof playerDocData.seasonData === 'object'
       ? playerDocData.seasonData
@@ -146,9 +153,15 @@ export async function POST(req: NextRequest) {
       const cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
       const prevPublicId = extractCloudinaryPublicId(prevUrl, cloudName);
       if (prevPublicId) {
-        const ok = await destroyCloudinaryImage(prevPublicId);
-        if (!ok) {
-          console.warn('[player-photos] prev image destroy failed', { prevPublicId });
+        // Careerコピー等でURLを共有している場合は実ファイルを消さない
+        const shared = await isPhotoUrlReferencedElsewhere(prevUrl, uid, clubUid, playerId);
+        if (shared) {
+          console.info('[player-photos] prev image still referenced elsewhere, skip destroy', { prevPublicId });
+        } else {
+          const ok = await destroyCloudinaryImage(prevPublicId);
+          if (!ok) {
+            console.warn('[player-photos] prev image destroy failed', { prevPublicId });
+          }
         }
       }
     }
@@ -169,6 +182,53 @@ interface DeletePhotoRequest {
   teamId: string;
   playerId: string;
   seasons?: string[];
+}
+
+// doc が対象URLを参照しているか（トップレベル + 全 seasonData）
+function docReferencesPhotoUrl(data: Record<string, any>, url: string): boolean {
+  if (typeof data?.photoUrl === 'string' && data.photoUrl.trim() === url) return true;
+  const sd = data?.seasonData && typeof data.seasonData === 'object' ? data.seasonData : {};
+  return Object.values(sd).some(
+    (s: any) => typeof s?.photoUrl === 'string' && s.photoUrl.trim() === url
+  );
+}
+
+// 同一オーナーの全Career(clubUid)＋uid直下を走査し、対象選手以外に
+// このURLを参照する doc が残っているかを返す。
+// Careerコピー等で画像URLを共有している場合、他方の参照が残る限り
+// Cloudinary の実ファイルを物理削除してはいけない。
+async function isPhotoUrlReferencedElsewhere(
+  url: string,
+  ownerUid: string,
+  currentClubUid: string,
+  currentPlayerId: string
+): Promise<boolean> {
+  const careersSnap = await db.collection('careers').where('ownerId', '==', ownerUid).get();
+  const clubUids = new Set<string>([
+    ownerUid,
+    currentClubUid,
+    ...careersSnap.docs.map((d) => (d.data()?.clubUid as string) || '').filter(Boolean),
+  ]);
+
+  for (const cu of clubUids) {
+    const teamsSnap = await db.collection(`clubs/${cu}/teams`).get();
+    for (const t of teamsSnap.docs) {
+      const playersSnap = await t.ref.collection('players').get();
+      for (const p of playersSnap.docs) {
+        if (cu === currentClubUid && p.id === currentPlayerId) continue;
+        if (docReferencesPhotoUrl(p.data() as Record<string, any>, url)) return true;
+      }
+    }
+    const seasonsSnap = await db.collection(`clubs/${cu}/seasons`).get();
+    for (const s of seasonsSnap.docs) {
+      const rosterSnap = await s.ref.collection('roster').get();
+      for (const r of rosterSnap.docs) {
+        if (cu === currentClubUid && r.id === currentPlayerId) continue;
+        if (docReferencesPhotoUrl(r.data() as Record<string, any>, url)) return true;
+      }
+    }
+  }
+  return false;
 }
 
 // Cloudinary URL から public_id を抽出する（外部URL・異なるクラウドは null）。
@@ -256,10 +316,17 @@ export async function DELETE(req: NextRequest) {
     }
 
     // 1. Cloudinary の旧画像を先に削除。失敗時は Firestore を変更せず終了。
+    //    ただし他Career/他選手が同じURLを参照している場合は実ファイルを保持し、
+    //    参照の削除（Firestore側）だけを行う。
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
     for (const url of oldUrls) {
       const publicId = extractCloudinaryPublicId(url, cloudName);
       if (!publicId) continue;
+      const shared = await isPhotoUrlReferencedElsewhere(url, uid, clubUid, playerId);
+      if (shared) {
+        console.info('[player-photos] image referenced elsewhere, skip destroy', { publicId });
+        continue;
+      }
       const ok = await destroyCloudinaryImage(publicId);
       if (!ok) {
         console.error('[player-photos] cloudinary destroy failed', { publicId });
