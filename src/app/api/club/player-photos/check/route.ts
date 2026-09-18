@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ allowed: false, error: "Unauthorized" }, { status: 401 });
     }
     const decoded = await auth.verifyIdToken(token);
-    const clubUid = await getActiveClubUid(decoded.uid);
+    const uid = decoded.uid;
+    const clubUid = await getActiveClubUid(uid);
 
     const { searchParams } = new URL(req.url);
     const teamId = searchParams.get("teamId") || "";
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     }
 
     const [effectivePlan, playersSnap] = await Promise.all([
-      getEffectivePlanForUid(clubUid),
+      getEffectivePlanForUid(uid),
       db.collection(`clubs/${clubUid}/teams/${teamId}/players`).get(),
     ]);
 
@@ -40,7 +41,13 @@ export async function GET(req: NextRequest) {
       const data = d.data() as Record<string, unknown>;
       if (typeof data.photoUrl === "string" && data.photoUrl.trim().length > 0) {
         currentCount++;
+        continue;
       }
+      const seasonData = (data.seasonData || {}) as Record<string, Record<string, unknown>>;
+      const hasSeasonPhoto = Object.values(seasonData).some(
+        (s) => typeof s?.photoUrl === "string" && (s.photoUrl as string).trim().length > 0
+      );
+      if (hasSeasonPhoto) currentCount++;
     }
 
     const allowed = !Number.isFinite(limit) || currentCount < limit;
@@ -48,10 +55,10 @@ export async function GET(req: NextRequest) {
     if (!allowed) {
       await db.collection("analyticsEvents").add({
         eventName: "plan_limit_reached",
-        userId: clubUid,
+        userId: uid,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         properties: {
-          uid: clubUid,
+          uid,
           limitType: "player_photo",
           currentCount,
           limit,

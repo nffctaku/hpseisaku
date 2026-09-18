@@ -129,7 +129,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     void fetchUsage();
   }, [selectedSeason]);
 
-  const planTier = getPlanTier(user?.plan);
+  // playerUsage.plan は /api/club/players/usage 経由のサーバー実効プラン。
+  // user.plan（クライアント側プロフィール）とズレた場合はサーバー値を優先する。
+  const planTier = getPlanTier(playerUsage?.plan ?? user?.plan);
   const maxPlayers = getPlanLimit("players_per_team_per_season", planTier);
   const maxPlayerPhotos = getPlanLimit("player_photos_per_team", planTier);
 

@@ -39,17 +39,23 @@ export async function getEffectivePlanForUid(uid: string): Promise<EffectivePlan
   }
 
   // 優先：Paid Pro
+  // users.subscription.status は解約 webhook で更新されず 'pro' が残り得る。
+  // stripeCustomerId 連携済みプロフィールの plan は webhook が解約時に 'free' へ
+  // 更新するため、Stripe連携レコードが存在する場合はそちらを真の課金状態とみなす。
   const isUserSubscriptionPro = normalizeProStatus(userSubscription?.status) === 'pro';
-  const hasPaidProfile = profiles.some(
-    (p) => isProPlan(p.plan) && isNonEmptyString(p.stripeCustomerId)
-  );
+  const stripeProfiles = profiles.filter((p) => isNonEmptyString(p.stripeCustomerId));
+  const hasPaidProfile = stripeProfiles.some((p) => isProPlan(p.plan));
+  const hasStripeRecord =
+    stripeProfiles.length > 0 || isNonEmptyString(userData?.stripeCustomerId);
 
-  if (isUserSubscriptionPro || hasPaidProfile) {
+  if (hasPaidProfile || (isUserSubscriptionPro && !hasStripeRecord)) {
     return { plan: 'pro', tier: getPlanTier('pro'), isPaid: true, isGranted: false };
   }
 
-  // 次：Granted Pro
-  const hasGrantedProfile = profiles.some((p) => isProPlan(p.plan));
+  // 次：Granted Pro（users.plan を含む。手動付与は subscription.status を
+  // 更新しないケースがあるため両方を見る）
+  const hasGrantedProfile =
+    profiles.some((p) => isProPlan(p.plan)) || isProPlan(userData?.plan);
   if (hasGrantedProfile) {
     return { plan: 'officia', tier: getPlanTier('officia'), isPaid: false, isGranted: true };
   }

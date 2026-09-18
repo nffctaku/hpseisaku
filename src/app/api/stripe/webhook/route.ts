@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db, admin } from '@/lib/firebase/admin';
-import type { DocumentReference } from 'firebase-admin/firestore';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const proPriceId = process.env.STRIPE_PRICE_ID;
@@ -29,15 +28,40 @@ const resolvePlanFromSubscription = (sub: Stripe.Subscription): 'free' | 'pro' |
   return 'free';
 };
 
-const getProfileRefsByCustomerId = async (
-  customerId: string
-): Promise<DocumentReference[]> => {
+const getProfileDocsByCustomerId = async (customerId: string) => {
   const snap = await db
     .collection('club_profiles')
     .where('stripeCustomerId', '==', customerId)
     .limit(10)
     .get();
-  return snap.docs.map((d) => d.ref);
+  return snap.docs;
+};
+
+// users/{uid}.subscription.status を課金状態に同期する。
+// checkout では 'pro' が書かれるが解約系イベントでは更新されず残存するため、
+// 解約・非アクティブ化時に 'free' へ戻して stale なPro判定を防ぐ。
+// プロフィールdoc id と ownerUid の両方をユーザーdoc候補にする。
+const syncUserSubscriptionStatus = async (
+  profileDocs: FirebaseFirestore.QueryDocumentSnapshot[],
+  status: 'pro' | 'free'
+): Promise<void> => {
+  const candidates = new Set<string>();
+  for (const d of profileDocs) {
+    candidates.add(d.id);
+    const owner = (d.data() as Record<string, unknown>)?.ownerUid;
+    if (typeof owner === 'string' && owner) candidates.add(owner);
+  }
+  for (const uid of candidates) {
+    try {
+      const ref = db.collection('users').doc(uid);
+      const snap = await ref.get();
+      if (snap.exists) {
+        await ref.set({ subscription: { status } }, { merge: true });
+      }
+    } catch (e) {
+      console.warn('[StripeWebhook] users.subscription sync failed', { uid, e });
+    }
+  }
 };
 
 export async function POST(req: NextRequest) {
@@ -139,8 +163,9 @@ export async function POST(req: NextRequest) {
       const customerId = typeof sub.customer === 'string' ? sub.customer : undefined;
       if (customerId) {
         const plan = resolvePlanFromSubscription(sub);
-        const refs = await getProfileRefsByCustomerId(customerId);
-        await Promise.all(refs.map((ref: DocumentReference) => ref.set({ plan }, { merge: true })));
+        const docs = await getProfileDocsByCustomerId(customerId);
+        await Promise.all(docs.map((d) => d.ref.set({ plan }, { merge: true })));
+        await syncUserSubscriptionStatus(docs, plan === 'free' ? 'free' : 'pro');
       } else {
         console.warn('customer.subscription.updated without customer id');
       }
@@ -150,8 +175,9 @@ export async function POST(req: NextRequest) {
       const sub = event.data.object as Stripe.Subscription;
       const customerId = typeof sub.customer === 'string' ? sub.customer : undefined;
       if (customerId) {
-        const refs = await getProfileRefsByCustomerId(customerId);
-        await Promise.all(refs.map((ref: DocumentReference) => ref.set({ plan: 'free' }, { merge: true })));
+        const docs = await getProfileDocsByCustomerId(customerId);
+        await Promise.all(docs.map((d) => d.ref.set({ plan: 'free' }, { merge: true })));
+        await syncUserSubscriptionStatus(docs, 'free');
       } else {
         console.warn('customer.subscription.deleted without customer id');
       }
