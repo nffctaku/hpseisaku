@@ -3,17 +3,45 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
-import { Loader2, X, Info } from "lucide-react";
+import { Loader2, Info, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { ADMIN_UID } from "@/lib/admin-config";
 
 const PAGE_SIZE = 30;
 
+// ---------- API レスポンス型 ----------
+
+interface CareerItem {
+  careerId: string;
+  name: string;
+  clubUid: string;
+  status: string;
+  isDefault: boolean;
+  isActive: boolean;
+  isCreating: boolean;
+  sharedDataRoot: boolean;
+  clubName: string;
+  nameSet: boolean;
+  publicSlug: string;
+  publicUrl: string;
+  isPublic: boolean;
+  playerCount: number;
+  playerImageCount: number;
+  teamCount: number;
+  teamImageCount: number;
+  competitionCount: number;
+  matchCount: number;
+  newsCount: number;
+  lastActivityAt: string | null;
+}
+
 interface ClubItem {
   id: string;
   clubName: string;
   nameSet: boolean;
+  allCareersNameUnset: boolean;
+  anyCareerNameUnset: boolean;
   logoUrl: string | null;
   publicUrl: string;
   publicSlug: string;
@@ -53,6 +81,13 @@ interface ClubItem {
   anyProPlan: boolean;
   anyStripeCustomer: boolean;
   lastActivityAtMillis: number;
+  careerCount: number;
+  creatingCareerCount: number;
+  dataRootCount: number;
+  sharedDataRoots: number;
+  profileCount: number;
+  unmatchedProfileCount: number;
+  careers: CareerItem[];
   activeDetail: {
     eventAt: number;
     userAt: number;
@@ -61,13 +96,28 @@ interface ClubItem {
   };
 }
 
+interface ProfileDiagnostics {
+  clubProfilesTotal: number;
+  careerMatchedProfiles: number;
+  ownerDocProfiles: number;
+  unmatchedProfiles: number;
+  unmatchedProfileIds: string[];
+  authlessProfiles: number;
+  authlessOwnerUids: string[];
+}
+
 interface Summary {
   total: number;
   aggregatable: number;
+  totalCareers: number;
+  creatingCareers: number;
+  multiCareerUsers: number;
   nameSet: number;
   nameUnset: number;
   nameUnsetRate: number;
   public: number;
+  publicCareers: number;
+  nameUnsetCareers: number;
   paidPro: number;
   grantedPro: number;
   totalPro: number;
@@ -145,6 +195,15 @@ interface FunnelRow {
   };
 }
 
+interface MonetizationFunnel {
+  last7?: Record<string, number>;
+  last30?: Record<string, number>;
+  uniqueUidCounts?: boolean;
+  remappedClubUidEvents?: number;
+  unmappedUserIds?: string[];
+  notes?: string[];
+}
+
 type SortKey =
   | "active"
   | "new"
@@ -155,19 +214,12 @@ type SortKey =
   | "usageHigh"
   | "usageLow";
 type PlanFilter = "all" | "pro" | "free";
-type PublicFilter = "all" | "public" | "private";
+type PublicFilter = "all" | "anyPublic" | "allPrivate";
 type CohortFilter = "all" | "tracked" | "pre_tracking";
-type NameFilter = "all" | "unset";
+type NameFilter = "all" | "anyUnset" | "allUnset";
 type LevelFilter = "all" | "0" | "1" | "2" | "3" | "4" | "5" | "6";
-type AggregateFilter =
-  | "all"
-  | "available"
-  | "unavailable"
-  | "multipleProfiles"
-  | "noOwnerUid"
-  | "profileMappingFailed"
-  | "dataStructureUnsupported"
-  | "unknown";
+type CareerFilter = "all" | "multiCareer" | "hasCreating" | "sharedRoot" | "noCareer";
+type DiagFilter = "all" | "unmatchedProfile" | "authlessOwner";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -252,15 +304,23 @@ function LogoImage({
   );
 }
 
+// ユーザーのいずれかのCareerが公開か（creating除外）。Career無しは代表値を使う
+function anyCareerPublic(c: ClubItem): boolean {
+  const usable = c.careers.filter((x) => !x.isCreating);
+  if (usable.length === 0) return c.isPublic;
+  return usable.some((x) => x.isPublic);
+}
+
 export default function InternalClubsPage() {
   const { user, loading } = useAuth();
   const [items, setItems] = useState<ClubItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [matchDiagnostics, setMatchDiagnostics] = useState<Record<string, { total: number; valid: number; friendly: number; invalid: number }> | null>(null);
+  const [profileDiagnostics, setProfileDiagnostics] = useState<ProfileDiagnostics | null>(null);
   const [authlessUids, setAuthlessUids] = useState<string[]>([]);
   const [funnelSummary, setFunnelSummary] = useState<FunnelSummary | null>(null);
   const [funnelRows, setFunnelRows] = useState<FunnelRow[]>([]);
-  const [monetizationFunnel, setMonetizationFunnel] = useState<Record<string, unknown> | null>(null);
+  const [monetizationFunnel, setMonetizationFunnel] = useState<MonetizationFunnel | null>(null);
   const [potentialProUsers, setPotentialProUsers] = useState<Record<string, number> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
@@ -271,10 +331,11 @@ export default function InternalClubsPage() {
   const [publicFilter, setPublicFilter] = useState<PublicFilter>("all");
   const [cohortFilter, setCohortFilter] = useState<CohortFilter>("all");
   const [nameFilter, setNameFilter] = useState<NameFilter>("all");
-  const [aggregateFilter, setAggregateFilter] = useState<AggregateFilter>("all");
+  const [careerFilter, setCareerFilter] = useState<CareerFilter>("all");
+  const [diagFilter, setDiagFilter] = useState<DiagFilter>("all");
   const [levelFilter, setLevelFilter] = useState<LevelFilter>("all");
   const [page, setPage] = useState(0);
-  const [selected, setSelected] = useState<ClubItem | null>(null);
+  const [expandedUids, setExpandedUids] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (loading || !user) return;
@@ -296,17 +357,19 @@ export default function InternalClubsPage() {
           clubs: ClubItem[];
           authlessUids: string[];
           matchDiagnostics: Record<string, { total: number; valid: number; friendly: number; invalid: number }>;
+          profileDiagnostics?: ProfileDiagnostics;
         };
         setItems(clubsJson.clubs);
         setSummary(clubsJson.summary);
         setAuthlessUids(clubsJson.authlessUids);
         setMatchDiagnostics(clubsJson.matchDiagnostics);
+        setProfileDiagnostics(clubsJson.profileDiagnostics || null);
 
         if (funnelRes.ok) {
           const funnelJson = (await funnelRes.json()) as {
             summaryByProfile: FunnelSummary;
             users: FunnelRow[];
-            monetizationFunnel?: Record<string, unknown>;
+            monetizationFunnel?: MonetizationFunnel;
             potentialProUsers?: Record<string, number>;
           };
           setFunnelSummary(funnelJson.summaryByProfile);
@@ -325,39 +388,59 @@ export default function InternalClubsPage() {
     void run();
   }, [user, loading]);
 
+  // 検索クエリに一致したCareerのID（ユーザー行内でハイライト・自動展開用）
+  const matchedCareerIds = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    const q = search.trim().toLowerCase();
+    if (!q) return map;
+    for (const c of items) {
+      for (const career of c.careers) {
+        const hit =
+          career.name.toLowerCase().includes(q) ||
+          career.careerId.toLowerCase().includes(q) ||
+          career.clubUid.toLowerCase().includes(q) ||
+          career.clubName.toLowerCase().includes(q) ||
+          career.publicSlug.toLowerCase().includes(q);
+        if (hit) {
+          if (!map.has(c.ownerUid)) map.set(c.ownerUid, new Set());
+          map.get(c.ownerUid)!.add(career.careerId);
+        }
+      }
+    }
+    return map;
+  }, [items, search]);
+
   const filtered = useMemo(() => {
     let out = items.filter((c) => {
       const q = search.trim().toLowerCase();
       if (!q) return true;
+      // ユーザー行（email/uid/代表クラブ名/slug）またはいずれかのCareerに一致
       return (
         c.clubName.toLowerCase().includes(q) ||
         (c.email && c.email.toLowerCase().includes(q)) ||
         c.ownerUid.toLowerCase().includes(q) ||
-        c.publicSlug.toLowerCase().includes(q)
+        c.publicSlug.toLowerCase().includes(q) ||
+        (matchedCareerIds.get(c.ownerUid)?.size ?? 0) > 0
       );
     });
 
     if (planFilter !== "all") {
+      // UID単位の実効プランで判定
       out = out.filter(
         (c) => c.plan === planFilter || (planFilter === "pro" && c.plan === "officia")
       );
     }
-    if (publicFilter === "public") out = out.filter((c) => c.isPublic);
-    if (publicFilter === "private") out = out.filter((c) => !c.isPublic);
+    if (publicFilter === "anyPublic") out = out.filter((c) => anyCareerPublic(c));
+    if (publicFilter === "allPrivate") out = out.filter((c) => !anyCareerPublic(c));
     if (cohortFilter !== "all") out = out.filter((c) => c.analyticsCohort === cohortFilter);
-    if (nameFilter === "unset") out = out.filter((c) => !c.nameSet);
-    if (aggregateFilter === "available") out = out.filter((c) => c.aggregateAvailable);
-    if (aggregateFilter === "unavailable") out = out.filter((c) => !c.aggregateAvailable);
-    if (aggregateFilter === "multipleProfiles")
-      out = out.filter((c) => c.aggregateUnavailableReason === "MULTIPLE_PROFILES");
-    if (aggregateFilter === "noOwnerUid")
-      out = out.filter((c) => c.aggregateUnavailableReason === "NO_OWNER_UID");
-    if (aggregateFilter === "profileMappingFailed")
-      out = out.filter((c) => c.aggregateUnavailableReason === "PROFILE_MAPPING_FAILED");
-    if (aggregateFilter === "dataStructureUnsupported")
-      out = out.filter((c) => c.aggregateUnavailableReason === "DATA_STRUCTURE_UNSUPPORTED");
-    if (aggregateFilter === "unknown")
-      out = out.filter((c) => c.aggregateUnavailableReason === "UNKNOWN");
+    if (nameFilter === "anyUnset") out = out.filter((c) => c.anyCareerNameUnset);
+    if (nameFilter === "allUnset") out = out.filter((c) => c.allCareersNameUnset);
+    if (careerFilter === "multiCareer") out = out.filter((c) => c.careerCount > 1);
+    if (careerFilter === "hasCreating") out = out.filter((c) => c.creatingCareerCount > 0);
+    if (careerFilter === "sharedRoot") out = out.filter((c) => c.sharedDataRoots > 0);
+    if (careerFilter === "noCareer") out = out.filter((c) => c.careerCount === 0 && c.creatingCareerCount === 0);
+    if (diagFilter === "unmatchedProfile") out = out.filter((c) => c.unmatchedProfileCount > 0);
+    if (diagFilter === "authlessOwner") out = out.filter((c) => !c.authExists);
     if (levelFilter !== "all") {
       out = out.filter((c) => c.usageLevel !== null && c.usageLevel === Number(levelFilter));
     }
@@ -417,15 +500,31 @@ export default function InternalClubsPage() {
         break;
     }
     return out;
-  }, [items, search, sort, planFilter, publicFilter, cohortFilter, nameFilter, aggregateFilter, levelFilter]);
+  }, [items, search, sort, planFilter, publicFilter, cohortFilter, nameFilter, careerFilter, diagFilter, levelFilter, matchedCareerIds]);
 
   const totalFiltered = filtered.length;
   const pageCount = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
   const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
+  // 検索でCareerにヒットしたユーザーは自動展開
+  const effectiveExpanded = useMemo(() => {
+    const s = new Set(expandedUids);
+    for (const uid of matchedCareerIds.keys()) s.add(uid);
+    return s;
+  }, [expandedUids, matchedCareerIds]);
+
+  const toggleExpanded = (uid: string) => {
+    setExpandedUids((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  };
+
   const consistency = useMemo(() => {
     if (!summary || !funnelSummary) return null;
-    const items = [
+    const rows = [
       { key: "totalUsers", label: "総ユーザー", left: summary.total, right: funnelSummary.total },
       { key: "paidPro", label: "Paid Pro", left: summary.paidPro, right: funnelSummary.isPaidPro },
       { key: "grantedPro", label: "Granted Pro", left: summary.grantedPro, right: funnelSummary.isGrantedPro },
@@ -439,10 +538,10 @@ export default function InternalClubsPage() {
       { key: "active7", label: "7日Active", left: summary.active7, right: funnelSummary.active7 },
       { key: "active30", label: "30日Active", left: summary.active30, right: funnelSummary.active30 },
     ];
-    return items.map((i) => ({
+    return rows.map((i) => ({
       ...i,
       ok: i.left === i.right,
-      diff: typeof i.right === 'number' && !Number.isNaN(i.right) ? i.right - i.left : 0,
+      diff: typeof i.right === "number" && !Number.isNaN(i.right) ? i.right - i.left : 0,
     }));
   }, [summary, funnelSummary]);
 
@@ -504,7 +603,7 @@ export default function InternalClubsPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [search, sort, planFilter, publicFilter, cohortFilter, nameFilter, aggregateFilter, levelFilter]);
+  }, [search, sort, planFilter, publicFilter, cohortFilter, nameFilter, careerFilter, diagFilter, levelFilter]);
 
   if (loading || fetching) {
     return (
@@ -548,6 +647,40 @@ export default function InternalClubsPage() {
     </div>
   );
 
+  const careerStatusBadges = (career: CareerItem) => (
+    <>
+      {career.isDefault && (
+        <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[10px] font-bold text-sky-400">デフォルト</span>
+      )}
+      {career.isActive && (
+        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">アクティブ</span>
+      )}
+      {career.isCreating && (
+        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">作成中（集計除外）</span>
+      )}
+      {career.sharedDataRoot && (
+        <span
+          className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-bold text-violet-400"
+          title="同じ clubUid を共有する旧Careerがあります。ユーザー合計では1回だけ計上されます"
+        >
+          共有データルート
+        </span>
+      )}
+      <span
+        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+          career.isPublic ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+        }`}
+      >
+        {career.isPublic ? "公開" : "非公開"}
+      </span>
+      {!career.nameSet && !career.isCreating && (
+        <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400">
+          名称未設定
+        </span>
+      )}
+    </>
+  );
+
   return (
     <main className="min-h-screen bg-[#0b1220] px-4 py-6 text-white sm:px-6 sm:py-8">
       <div className="mx-auto max-w-6xl space-y-5">
@@ -564,67 +697,90 @@ export default function InternalClubsPage() {
         {summary && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <SummaryCard label="総ユーザー" value={summary.total} color="text-white" />
+              <SummaryCard label="総ユーザー（Auth UID）" value={summary.total} color="text-white" />
               <SummaryCard
-                label="クラブ名未設定"
-                value={summary.nameUnset}
-                sub={`${summary.nameUnsetRate}%`}
+                label="有効Career数"
+                value={summary.totalCareers}
+                sub={`creating除外 / 作成中 ${summary.creatingCareers}`}
+                color="text-sky-400"
+              />
+              <SummaryCard
+                label="club_profiles（profile数）"
+                value={summary.clubProfilesTotal}
+                color="text-slate-300"
+              />
+              <SummaryCard
+                label="複数Careerユーザー"
+                value={summary.multiCareerUsers}
+                sub={`一覧で折りたたまれたCareer: ${Math.max(0, summary.totalCareers - summary.total)}`}
+                color="text-violet-400"
+              />
+              <SummaryCard label="Total Pro（UID）" value={summary.totalPro} color="text-amber-400" />
+              <SummaryCard label="Free（UID）" value={summary.free} color="text-slate-300" />
+              <SummaryCard
+                label="クラブ名未設定（Career）"
+                value={summary.nameUnsetCareers}
+                sub={`全Career未設定ユーザー ${summary.nameUnset}`}
                 color="text-red-400"
               />
-              <SummaryCard label="公開中" value={summary.public} color="text-emerald-400" />
-              <SummaryCard label="Total Pro" value={summary.totalPro} color="text-amber-400" />
-              <SummaryCard label="Paid Pro" value={summary.paidPro} color="text-amber-400" />
-              <SummaryCard label="Granted Pro" value={summary.grantedPro} color="text-indigo-400" />
-              <SummaryCard label="7日アクティブ" value={summary.active7} color="text-emerald-400" />
-              <SummaryCard label="30日アクティブ" value={summary.active30} color="text-emerald-400" />
+              <SummaryCard
+                label="公開中（Career）"
+                value={summary.publicCareers}
+                sub={`いずれか公開ユーザー ${summary.public}`}
+                color="text-emerald-400"
+              />
+              <SummaryCard label="Paid Pro（UID）" value={summary.paidPro} color="text-amber-400" />
+              <SummaryCard label="Granted Pro（UID）" value={summary.grantedPro} color="text-indigo-400" />
+              <SummaryCard label="7日アクティブ（UID）" value={summary.active7} color="text-emerald-400" />
+              <SummaryCard label="30日アクティブ（UID）" value={summary.active30} color="text-emerald-400" />
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
               <p className="mb-3 text-xs font-bold text-slate-300">
-                利用状況（分母: 集計可能 {summary.aggregatable} クラブ / 全 {summary.total} クラブ）
+                利用状況（分母: 全 {summary.total} ユーザー。いずれかのCareerが条件を満たすUIDを1件計上・共有データルートは1回のみ）
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                <SummaryCard label="7日Active" value={summary.active7} color="text-emerald-400" />
-                <SummaryCard label="30日Active" value={summary.active30} color="text-emerald-400" />
-                <SummaryCard label="30日Engaged" value={summary.engaged30} color="text-amber-400" />
-                <SummaryCard label="7日Match Active" value={summary.matchActive7} color="text-fuchsia-400" />
-                <SummaryCard label="30日Match Active" value={summary.matchActive30} color="text-fuchsia-400" />
-                <SummaryCard label="Free" value={summary.free} color="text-slate-300" />
+                <SummaryCard label="7日Active（UID）" value={summary.active7} color="text-emerald-400" />
+                <SummaryCard label="30日Active（UID）" value={summary.active30} color="text-emerald-400" />
+                <SummaryCard label="30日Engaged（UID）" value={summary.engaged30} color="text-amber-400" />
+                <SummaryCard label="7日Match Active（UID）" value={summary.matchActive7} color="text-fuchsia-400" />
+                <SummaryCard label="30日Match Active（UID）" value={summary.matchActive30} color="text-fuchsia-400" />
+                <SummaryCard label="Free（UID）" value={summary.free} color="text-slate-300" />
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 <SummaryCard
-                  label="試合登録あり"
+                  label="試合登録あり（UID・全Career合算）"
                   value={summary.withMatches}
                   sub={`${summary.withMatchesRate}%（全 ${summary.total} ユーザー中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
-                  label="10試合以上"
+                  label="10試合以上（UID・全Career合算）"
                   value={summary.matches10}
                   sub={`${summary.matches10Rate}%（全 ${summary.total} ユーザー中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
-                  label="50試合以上"
+                  label="50試合以上（UID・全Career合算）"
                   value={summary.matches50}
                   sub={`${summary.matches50Rate}%（全 ${summary.total} ユーザー中）`}
                   color="text-amber-400"
                 />
                 <SummaryCard
-                  label="100試合以上"
+                  label="100試合以上（UID・全Career合算）"
                   value={summary.matches100}
                   sub={`${summary.matches100Rate}%（全 ${summary.total} ユーザー中）`}
                   color="text-fuchsia-400"
                 />
                 <SummaryCard
-                  label="選手画像20人以上"
+                  label="選手画像20人以上（UID）"
                   value={summary.withPlayerImages20}
                   sub={`${summary.withPlayerImages20Rate}%（全 ${summary.total} ユーザー中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
-                  label="チーム画像あり"
+                  label="チーム画像あり（UID）"
                   value={summary.withTeamImages}
                   sub={`${summary.withTeamImagesRate}%（全 ${summary.total} ユーザー中）`}
                   color="text-emerald-400"
@@ -632,23 +788,50 @@ export default function InternalClubsPage() {
               </div>
 
               <div className="mt-3 rounded-2xl border border-white/10 bg-[#0b1220] p-4">
-                <p className="mb-3 text-xs font-bold text-slate-300">ユーザー / 重複診断</p>
+                <p className="mb-3 text-xs font-bold text-slate-300">profile診断（club_profiles ドキュメント単位）</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                  <SummaryCard label="club_profiles総件数" value={summary.clubProfilesTotal} color="text-slate-300" />
-                  <SummaryCard label="重複profile保有UID数" value={summary.multiClubOwners} color="text-amber-400" />
                   <SummaryCard
-                    label="重複によって削減された表示行数"
-                    value={summary.reducedDisplayRows}
+                    label="Career紐付けprofile（正常）"
+                    value={profileDiagnostics?.careerMatchedProfiles ?? "—"}
+                    sub="複数Career由来は正常・異常に含めない"
+                    color="text-emerald-400"
+                  />
+                  <SummaryCard
+                    label="owner直下profile"
+                    value={profileDiagnostics?.ownerDocProfiles ?? "—"}
+                    sub="doc id = uid の旧形式"
+                    color="text-slate-300"
+                  />
+                  <SummaryCard
+                    label="要確認profile（Career対応不明）"
+                    value={profileDiagnostics?.unmatchedProfiles ?? "—"}
+                    sub="旧データ・推測修正なし"
                     color="text-amber-400"
                   />
                   <SummaryCard
-                    label="平均重複profile数"
-                    value={summary.avgClubsPerMultiOwner}
+                    label="Auth不在ownerのprofile"
+                    value={profileDiagnostics?.authlessProfiles ?? "—"}
+                    sub="削除せず診断のみ"
+                    color="text-rose-400"
+                  />
+                  <SummaryCard
+                    label="同一Career余分profile保有UID"
+                    value={summary.multiClubOwners}
+                    sub="profile>1のUID（複数Career由来を含む）"
                     color="text-slate-300"
                   />
-                  <SummaryCard label="最大重複profile数" value={summary.maxClubsPerOwner} color="text-slate-300" />
-                  <SummaryCard label="Granted Pro" value={summary.grantedPro} color="text-indigo-400" />
+                  <SummaryCard
+                    label="削減された表示行数"
+                    value={summary.reducedDisplayRows}
+                    sub="profile数 − ユーザー数"
+                    color="text-slate-300"
+                  />
                 </div>
+                {(profileDiagnostics?.unmatchedProfileIds?.length ?? 0) > 0 && (
+                  <div className="mt-3 max-h-24 overflow-auto rounded-xl border border-white/10 p-2 font-mono text-[10px] text-slate-500">
+                    要確認profile: {profileDiagnostics!.unmatchedProfileIds.join(", ")}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -658,36 +841,38 @@ export default function InternalClubsPage() {
           <div className="space-y-3">
             {monetizationFunnel && (
               <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
-                <p className="mb-3 text-xs font-bold text-slate-300">Monetization Funnel（Free → Pro）</p>
+                <p className="mb-1 text-xs font-bold text-slate-300">
+                  Monetizationイベント実測（イベントごとの重複なしUID数）
+                </p>
+                <p className="mb-3 text-[10px] text-slate-500">
+                  順序付き行動を表さないため転換率は表示しません。
+                  {typeof monetizationFunnel.remappedClubUidEvents === "number" &&
+                    ` userId=clubUid の過去イベント ${monetizationFunnel.remappedClubUidEvents} 件をCareerマッピングでuidへ解決。`}
+                  {(monetizationFunnel.unmappedUserIds?.length ?? 0) > 0 &&
+                    ` uid/clubUidいずれにも解決できないID ${monetizationFunnel.unmappedUserIds!.length} 件は集計対象外。`}
+                </p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                  {(() => {
-                    const mf = monetizationFunnel as {
-                      last7?: Record<string, number>;
-                      last30?: Record<string, number>;
-                    };
-                    const last7 = mf.last7 || {};
-                    const last30 = mf.last30 || {};
-                    return (
-                      <>
-                        <SummaryCard label="plan_limit_reached 7日" value={last7.plan_limit_reached ?? 0} color="text-amber-400" />
-                        <SummaryCard label="pro_paywall_view 7日" value={last7.pro_paywall_view ?? 0} color="text-amber-400" />
-                        <SummaryCard label="pro_cta_click 7日" value={last7.pro_cta_click ?? 0} color="text-emerald-400" />
-                        <SummaryCard label="checkout_start 7日" value={last7.checkout_start ?? 0} color="text-emerald-400" />
-                        <SummaryCard label="subscription_start 7日" value={last7.subscription_start ?? 0} color="text-fuchsia-400" />
-                        <SummaryCard label="plan_limit_reached 30日" value={last30.plan_limit_reached ?? 0} color="text-amber-400" />
-                        <SummaryCard label="pro_paywall_view 30日" value={last30.pro_paywall_view ?? 0} color="text-amber-400" />
-                        <SummaryCard label="pro_cta_click 30日" value={last30.pro_cta_click ?? 0} color="text-emerald-400" />
-                        <SummaryCard label="checkout_start 30日" value={last30.checkout_start ?? 0} color="text-emerald-400" />
-                        <SummaryCard label="subscription_start 30日" value={last30.subscription_start ?? 0} color="text-fuchsia-400" />
-                      </>
-                    );
-                  })()}
+                  <SummaryCard label="plan_limit_reached 7日" value={monetizationFunnel.last7?.plan_limit_reached ?? 0} color="text-amber-400" />
+                  <SummaryCard label="pro_paywall_view 7日" value={monetizationFunnel.last7?.pro_paywall_view ?? 0} color="text-amber-400" />
+                  <SummaryCard label="pro_cta_click 7日" value={monetizationFunnel.last7?.pro_cta_click ?? 0} color="text-emerald-400" />
+                  <SummaryCard label="checkout_start 7日" value={monetizationFunnel.last7?.checkout_start ?? 0} color="text-emerald-400" />
+                  <SummaryCard label="subscription_start 7日" value={monetizationFunnel.last7?.subscription_start ?? 0} color="text-fuchsia-400" />
+                  <SummaryCard label="plan_limit_reached 30日" value={monetizationFunnel.last30?.plan_limit_reached ?? 0} color="text-amber-400" />
+                  <SummaryCard label="pro_paywall_view 30日" value={monetizationFunnel.last30?.pro_paywall_view ?? 0} color="text-amber-400" />
+                  <SummaryCard label="pro_cta_click 30日" value={monetizationFunnel.last30?.pro_cta_click ?? 0} color="text-emerald-400" />
+                  <SummaryCard label="checkout_start 30日" value={monetizationFunnel.last30?.checkout_start ?? 0} color="text-emerald-400" />
+                  <SummaryCard label="subscription_start 30日" value={monetizationFunnel.last30?.subscription_start ?? 0} color="text-fuchsia-400" />
                 </div>
+                {(monetizationFunnel.unmappedUserIds?.length ?? 0) > 0 && (
+                  <div className="mt-3 max-h-24 overflow-auto rounded-xl border border-white/10 p-2 font-mono text-[10px] text-slate-500">
+                    未解決ID: {monetizationFunnel.unmappedUserIds!.join(", ")}
+                  </div>
+                )}
               </div>
             )}
             {potentialProUsers && (
               <div className="rounded-2xl border border-white/10 bg-[#0b1220] p-4">
-                <p className="mb-3 text-xs font-bold text-slate-300">潜在課金Freeユーザー</p>
+                <p className="mb-3 text-xs font-bold text-slate-300">潜在課金Freeユーザー（UID単位）</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                   <SummaryCard label="選手画像20人以上" value={potentialProUsers.playerImage20plus ?? 0} color="text-emerald-400" />
                   <SummaryCard label="大会3つ以上" value={potentialProUsers.competition3plus ?? 0} color="text-emerald-400" />
@@ -704,19 +889,22 @@ export default function InternalClubsPage() {
           <div className="flex items-start gap-2 text-xs leading-relaxed text-slate-400">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
             <p>
-              1 Auth UID = 1 行で表示しています。同一ユーザーが複数の club_profiles を保有する
-              legacy データも、代表 profile を選定し UID 単位で集約しています。既存データは
-              削除・統合していません。重複 profile 数はメタ情報として表示しています。
+              1 Auth UID = 1 行です。行を展開するとそのユーザーの全Career（careerId・clubUid・状態・利用数）を確認できます。
+              複数Careerによる profile は正常とみなし「重複異常」には数えません。Careerと対応付けられない旧profileは
+              「要確認」として件数のみ表示し、データの削除・統合・推測修正は行っていません。
             </p>
           </div>
         </div>
 
         {consistency && (
           <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
-            <p className="mb-3 text-xs font-bold text-slate-300">profile保有Auth UID 整合性チェック</p>
+            <p className="mb-1 text-xs font-bold text-slate-300">整合性チェック（IC一覧 vs Funnel）</p>
+            <p className="mb-3 text-[10px] text-slate-500">
+              両側とも UID単位・clubUid解決済み。母集団の違い（ICはprofile保有∪Career保有、Funnelはprofile保有のみ）は不整合ではなく定義差です。
+            </p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {consistency.map((c) => {
-                const right = typeof c.right === 'number' && !Number.isNaN(c.right) ? c.right : '—';
+                const right = typeof c.right === "number" && !Number.isNaN(c.right) ? c.right : "—";
                 return (
                   <div
                     key={c.key}
@@ -767,11 +955,11 @@ export default function InternalClubsPage() {
                   {proDiffUsers.map((u) => (
                     <tr key={u.uid} className="border-t border-white/5">
                       <td className="px-3 py-2 font-mono text-slate-400">{u.uid}</td>
-                      <td className="px-3 py-2">{u.f.subscriptionStatus || '—'}</td>
-                      <td className="px-3 py-2">{u.ic.allProfilePlans.join(', ') || '—'}</td>
-                      <td className="px-3 py-2">{u.ic.allStripeCustomerIds.join(', ') || '—'}</td>
-                      <td className="px-3 py-2 text-right">{u.ic.isPaidPro ? 'Paid' : u.ic.isGrantedPro ? 'Granted' : 'Free'}</td>
-                      <td className="px-3 py-2 text-right">{u.f.isPaidPro ? 'Paid' : u.f.isGrantedPro ? 'Granted' : 'Free'}</td>
+                      <td className="px-3 py-2">{u.f.subscriptionStatus || "—"}</td>
+                      <td className="px-3 py-2">{u.ic.allProfilePlans.join(", ") || "—"}</td>
+                      <td className="px-3 py-2">{u.ic.allStripeCustomerIds.join(", ") || "—"}</td>
+                      <td className="px-3 py-2 text-right">{u.ic.isPaidPro ? "Paid" : u.ic.isGrantedPro ? "Granted" : "Free"}</td>
+                      <td className="px-3 py-2 text-right">{u.f.isPaidPro ? "Paid" : u.f.isGrantedPro ? "Granted" : "Free"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -826,12 +1014,12 @@ export default function InternalClubsPage() {
                   {activeDiffUsers.map((u) => (
                     <tr key={u.uid} className="border-t border-white/5">
                       <td className="px-3 py-2 font-mono text-slate-400">{u.uid}</td>
-                      <td className="px-3 py-2 text-center">{u.ic.active7 ? '1' : '0'}/{u.ic.active30 ? '1' : '0'}</td>
-                      <td className="px-3 py-2 text-center">{u.f.active7 ? '1' : '0'}/{u.f.active30 ? '1' : '0'}</td>
-                      <td className="px-3 py-2 text-right">{u.f.activeDetail.eventAt ? new Date(u.f.activeDetail.eventAt).toLocaleString('ja-JP', { hour12: false }) : '—'}</td>
-                      <td className="px-3 py-2 text-right">{u.f.activeDetail.userAt ? new Date(u.f.activeDetail.userAt).toLocaleString('ja-JP', { hour12: false }) : '—'}</td>
-                      <td className="px-3 py-2 text-right">{u.ic.activeDetail.profileAt ? new Date(u.ic.activeDetail.profileAt).toLocaleString('ja-JP', { hour12: false }) : '—'}</td>
-                      <td className="px-3 py-2 text-right">{u.f.activeDetail.adoptedAt ? new Date(u.f.activeDetail.adoptedAt).toLocaleString('ja-JP', { hour12: false }) : '—'}</td>
+                      <td className="px-3 py-2 text-center">{u.ic.active7 ? "1" : "0"}/{u.ic.active30 ? "1" : "0"}</td>
+                      <td className="px-3 py-2 text-center">{u.f.active7 ? "1" : "0"}/{u.f.active30 ? "1" : "0"}</td>
+                      <td className="px-3 py-2 text-right">{u.f.activeDetail.eventAt ? new Date(u.f.activeDetail.eventAt).toLocaleString("ja-JP", { hour12: false }) : "—"}</td>
+                      <td className="px-3 py-2 text-right">{u.f.activeDetail.userAt ? new Date(u.f.activeDetail.userAt).toLocaleString("ja-JP", { hour12: false }) : "—"}</td>
+                      <td className="px-3 py-2 text-right">{u.ic.activeDetail.profileAt ? new Date(u.ic.activeDetail.profileAt).toLocaleString("ja-JP", { hour12: false }) : "—"}</td>
+                      <td className="px-3 py-2 text-right">{u.f.activeDetail.adoptedAt ? new Date(u.f.activeDetail.adoptedAt).toLocaleString("ja-JP", { hour12: false }) : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -875,8 +1063,8 @@ export default function InternalClubsPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="クラブ名 / メール / UID / slug"
-            className="w-full rounded-lg border border-white/10 bg-[#0b1220] px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 sm:w-72"
+            placeholder="メール / UID / クラブ名 / slug / Career名 / clubUid"
+            className="w-full rounded-lg border border-white/10 bg-[#0b1220] px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 sm:w-80"
           />
           <div className="flex flex-wrap items-center gap-2">
             <select
@@ -897,19 +1085,21 @@ export default function InternalClubsPage() {
               value={planFilter}
               onChange={(e) => setPlanFilter(e.target.value as PlanFilter)}
               className="rounded-lg border border-white/10 bg-[#0b1220] px-3 py-2 text-sm text-white"
+              title="UID単位の実効プランで判定"
             >
-              <option value="all">全プラン</option>
-              <option value="pro">Proのみ</option>
-              <option value="free">Freeのみ</option>
+              <option value="all">全プラン（UID実効）</option>
+              <option value="pro">Proのみ（UID実効）</option>
+              <option value="free">Freeのみ（UID実効）</option>
             </select>
             <select
               value={publicFilter}
               onChange={(e) => setPublicFilter(e.target.value as PublicFilter)}
               className="rounded-lg border border-white/10 bg-[#0b1220] px-3 py-2 text-sm text-white"
+              title="Career単位の公開状態で判定"
             >
-              <option value="all">公開・非公開</option>
-              <option value="public">公開中のみ</option>
-              <option value="private">非公開のみ</option>
+              <option value="all">公開状態: すべて</option>
+              <option value="anyPublic">いずれかのCareer公開中</option>
+              <option value="allPrivate">全Career非公開</option>
             </select>
             <select
               value={cohortFilter}
@@ -921,163 +1111,282 @@ export default function InternalClubsPage() {
               <option value="pre_tracking">pre_tracking</option>
             </select>
             <select
-            value={levelFilter}
-            onChange={(e) => setLevelFilter(e.target.value as LevelFilter)}
-            className="rounded-full border border-white/20 bg-[#0b1220] px-3 py-2 text-xs text-slate-300"
-          >
-            <option value="all">利用深度</option>
-            <option value="0">Lv.0</option>
-            <option value="1">Lv.1</option>
-            <option value="2">Lv.2</option>
-            <option value="3">Lv.3</option>
-            <option value="4">Lv.4</option>
-            <option value="5">Lv.5</option>
-            <option value="6">Lv.6</option>
-          </select>
-          <select
-            value={aggregateFilter}
-            onChange={(e) => setAggregateFilter(e.target.value as AggregateFilter)}
-            className="rounded-full border border-white/20 bg-[#0b1220] px-3 py-2 text-xs text-slate-300"
-          >
-            <option value="all">集計: すべて</option>
-            <option value="available">集計可能のみ</option>
-            <option value="unavailable">集計不可のみ</option>
-            <option value="multipleProfiles">複数クラブ所有</option>
-            <option value="noOwnerUid">ownerUidなし</option>
-            <option value="profileMappingFailed">紐付け不可</option>
-            <option value="dataStructureUnsupported">旧形式</option>
-            <option value="unknown">その他</option>
-          </select>
-          <button
-            onClick={() => setNameFilter((v) => (v === "unset" ? "all" : "unset"))}
-            className={`rounded-full px-3 py-2 text-xs font-bold transition ${
-                nameFilter === "unset"
-                  ? "bg-red-500/20 text-red-400 border border-red-500/40"
-                  : "border border-white/20 text-slate-300 hover:bg-white/5"
-              }`}
+              value={careerFilter}
+              onChange={(e) => setCareerFilter(e.target.value as CareerFilter)}
+              className="rounded-full border border-white/20 bg-[#0b1220] px-3 py-2 text-xs text-slate-300"
+              title="Careerの構成でユーザー行を絞り込み"
             >
-              未設定のみ
-            </button>
+              <option value="all">Career状態: すべて</option>
+              <option value="multiCareer">複数Career</option>
+              <option value="hasCreating">作成中Careerあり</option>
+              <option value="sharedRoot">共有データルートあり</option>
+              <option value="noCareer">Career無し（旧形式）</option>
+            </select>
+            <select
+              value={levelFilter}
+              onChange={(e) => setLevelFilter(e.target.value as LevelFilter)}
+              className="rounded-full border border-white/20 bg-[#0b1220] px-3 py-2 text-xs text-slate-300"
+              title="ユーザー合算の利用深度（共有ルート重複なし）"
+            >
+              <option value="all">利用深度（ユーザー合算）</option>
+              <option value="0">Lv.0</option>
+              <option value="1">Lv.1</option>
+              <option value="2">Lv.2</option>
+              <option value="3">Lv.3</option>
+              <option value="4">Lv.4</option>
+              <option value="5">Lv.5</option>
+              <option value="6">Lv.6</option>
+            </select>
+            <select
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value as NameFilter)}
+              className="rounded-full border border-white/20 bg-[#0b1220] px-3 py-2 text-xs text-slate-300"
+              title="Careerのクラブ名設定状態"
+            >
+              <option value="all">名称設定: すべて</option>
+              <option value="anyUnset">いずれかのCareer未設定</option>
+              <option value="allUnset">全Career未設定</option>
+            </select>
+            <select
+              value={diagFilter}
+              onChange={(e) => setDiagFilter(e.target.value as DiagFilter)}
+              className="rounded-full border border-white/20 bg-[#0b1220] px-3 py-2 text-xs text-slate-300"
+              title="profile/Authの診断で絞り込み"
+            >
+              <option value="all">診断: すべて</option>
+              <option value="unmatchedProfile">要確認profileあり</option>
+              <option value="authlessOwner">Auth不在owner</option>
+            </select>
           </div>
         </div>
 
         <p className="text-xs text-slate-500">
-          全 {items.length} 件（Auth {authItems.length} / Legacy {items.length - authItems.length}）中 {totalFiltered} 件表示（{page + 1}/{pageCount} ページ）
+          ユーザー件数: 全 {items.length} 件（Auth {authItems.length} / Auth不在 {items.length - authItems.length}）中 {totalFiltered} ユーザー表示（{page + 1}/{pageCount} ページ）
         </p>
 
         <div className="space-y-3">
-          {paginated.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setSelected(c)}
-              className="w-full rounded-2xl border border-white/10 bg-[#111827] p-4 text-left transition hover:border-white/20 sm:flex sm:items-start sm:gap-4"
-            >
-              <div className="flex items-start gap-3 sm:flex-1">
-                <LogoImage
-                  src={c.logoUrl}
-                  alt={c.clubName}
-                  className="h-12 w-12 shrink-0"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate font-black text-emerald-400" title={c.clubName}>
-                      {c.clubName}
-                    </span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${levelBadgeClasses(c.usageLevel)}`}>
-                      {levelLabel(c.usageLevel)}
-                    </span>
-                    {c.plan === "pro" || c.plan === "officia" ? (
-                      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">
-                        Pro
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-slate-600/20 px-2 py-0.5 text-[10px] font-bold text-slate-400">
-                        Free
-                      </span>
-                    )}
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        c.isPublic
-                          ? "bg-emerald-500/20 text-emerald-400"
-                          : "bg-red-500/20 text-red-400"
-                      }`}
-                    >
-                      {c.isPublic ? "公開" : "非公開"}
-                    </span>
-                    {!c.nameSet && (
-                      <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400">
-                        設定未完了
-                      </span>
-                    )}
-                    {c.duplicateProfileCount > 1 && (
-                      <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-400">
-                        重複 {c.duplicateProfileCount}
-                      </span>
-                    )}
-                    {!c.aggregateAvailable && (
-                      <span
-                        className="rounded-full border border-slate-600 px-2 py-0.5 text-[10px] font-bold text-slate-400"
-                        title={c.aggregateUnavailableReason || "集計を1クラブに特定できません"}
-                      >
-                        {c.aggregateUnavailableReason || "集計不可"}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
-                    <div>
-                      <p className="text-[10px] text-slate-500">選手</p>
-                      <p className="font-black text-slate-300">
-                        {countLabel(c.playerCount)} <span className="text-[10px] font-normal text-slate-500">/ 画像{countLabel(c.playerImageCount)}</span>
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500">チーム</p>
-                      <p className="font-black text-slate-300">
-                        {countLabel(c.teamCount)} <span className="text-[10px] font-normal text-slate-500">/ 画像{countLabel(c.teamImageCount)}</span>
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500">試合</p>
-                      <p className="font-black text-white">{countLabel(c.matchCount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500">大会</p>
-                      <p className="font-black text-slate-300">{countLabel(c.competitionCount)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-500">最終活動</p>
-                      <p className="font-black text-slate-300">{formatDate(c.lastActivityAt)}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600">
-                    {c.email && <span className="truncate max-w-[200px]">{c.email}</span>}
-                    <span>UID: {c.ownerUid}</span>
-                    <span>slug: {c.publicSlug}</span>
-                    <span>作成: {formatDate(c.clubCreatedAt)}</span>
-                    <span>重複profile: {c.duplicateProfileCount > 1 ? c.duplicateProfileCount : "—"}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-2 sm:mt-0 sm:shrink-0">
-                <a
-                  href={c.publicUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-[#06111f] hover:bg-emerald-300"
+          {paginated.map((c) => {
+            const expanded = effectiveExpanded.has(c.ownerUid);
+            const matched = matchedCareerIds.get(c.ownerUid);
+            return (
+              <div
+                key={c.id}
+                className="w-full rounded-2xl border border-white/10 bg-[#111827] p-4"
+              >
+                <button
+                  onClick={() => toggleExpanded(c.ownerUid)}
+                  className="w-full text-left sm:flex sm:items-start sm:gap-4"
                 >
-                  HP を開く
-                </a>
+                  <div className="flex items-start gap-3 sm:flex-1">
+                    <span className="mt-3 text-slate-500">
+                      {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </span>
+                    <LogoImage
+                      src={c.logoUrl}
+                      alt={c.clubName}
+                      className="h-12 w-12 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-black text-emerald-400" title={c.clubName}>
+                          {c.clubName}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${levelBadgeClasses(c.usageLevel)}`}>
+                          {levelLabel(c.usageLevel)}
+                        </span>
+                        <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[10px] font-bold text-sky-400">
+                          Career {c.careerCount}
+                          {c.creatingCareerCount > 0 ? `（作成中${c.creatingCareerCount}）` : ""}
+                        </span>
+                        {c.isPaidPro ? (
+                          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                            Paid Pro
+                          </span>
+                        ) : c.isGrantedPro ? (
+                          <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-bold text-indigo-400">
+                            Granted Pro
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-slate-600/20 px-2 py-0.5 text-[10px] font-bold text-slate-400">
+                            Free
+                          </span>
+                        )}
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            anyCareerPublic(c)
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : "bg-red-500/20 text-red-400"
+                          }`}
+                        >
+                          {anyCareerPublic(c) ? "いずれか公開" : "全非公開"}
+                        </span>
+                        {c.anyCareerNameUnset && (
+                          <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400">
+                            {c.allCareersNameUnset ? "全Career未設定" : "一部Career未設定"}
+                          </span>
+                        )}
+                        {c.unmatchedProfileCount > 0 && (
+                          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                            要確認profile {c.unmatchedProfileCount}
+                          </span>
+                        )}
+                        {c.profileCount > c.careerCount + 1 && c.careerCount >= 0 && (
+                          <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-400">
+                            profile {c.profileCount}
+                          </span>
+                        )}
+                        {!c.authExists && (
+                          <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-400">
+                            Auth不在
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+                        <div>
+                          <p className="text-[10px] text-slate-500">選手（全Career合算）</p>
+                          <p className="font-black text-slate-300">
+                            {countLabel(c.playerCount)} <span className="text-[10px] font-normal text-slate-500">/ 画像{countLabel(c.playerImageCount)}</span>
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-500">チーム</p>
+                          <p className="font-black text-slate-300">
+                            {countLabel(c.teamCount)} <span className="text-[10px] font-normal text-slate-500">/ 画像{countLabel(c.teamImageCount)}</span>
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-500">試合（全Career合算）</p>
+                          <p className="font-black text-white">{countLabel(c.matchCount)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-500">大会</p>
+                          <p className="font-black text-slate-300">{countLabel(c.competitionCount)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-500">最終活動（全Career）</p>
+                          <p className="font-black text-slate-300">{formatDate(c.lastActivityAt)}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600">
+                        {c.email && <span className="truncate max-w-[200px]">{c.email}</span>}
+                        <span>UID: {c.ownerUid}</span>
+                        <span>profile: {c.profileCount}</span>
+                        <span>データルート: {c.dataRootCount}</span>
+                        {c.sharedDataRoots > 0 && <span className="text-violet-400">共有ルートCareer {c.sharedDataRoots}</span>}
+                        <span>作成: {formatDate(c.clubCreatedAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 sm:mt-0 sm:shrink-0">
+                    <a
+                      href={c.publicUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-[#06111f] hover:bg-emerald-300"
+                    >
+                      代表HP
+                    </a>
+                  </div>
+                </button>
+
+                {expanded && (
+                  <div className="mt-4 space-y-2 border-t border-white/10 pt-3">
+                    <p className="text-[10px] font-bold text-slate-400">
+                      Careers（{c.careers.length} 件 / profile {c.profileCount} 件）
+                    </p>
+                    {c.careers.length === 0 && (
+                      <p className="rounded-xl border border-white/10 bg-[#0b1220] p-3 text-xs text-slate-500">
+                        Careerドキュメントがありません（旧形式: profile = uid直下のみ）。利用数は uid 直下のデータルートから集計しています。
+                      </p>
+                    )}
+                    {c.careers.map((career) => {
+                      const isMatch = matched?.has(career.careerId);
+                      return (
+                        <div
+                          key={career.careerId}
+                          className={`rounded-xl border p-3 ${
+                            isMatch
+                              ? "border-emerald-500/50 bg-emerald-500/5"
+                              : "border-white/10 bg-[#0b1220]"
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-slate-200">{career.name || career.clubName}</span>
+                            {isMatch && (
+                              <span className="rounded-full bg-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                                検索一致
+                              </span>
+                            )}
+                            {careerStatusBadges(career)}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] text-slate-500">
+                            <span>careerId: {career.careerId}</span>
+                            <span>clubUid: {career.clubUid}</span>
+                            <span>slug: {career.publicSlug}</span>
+                            <span>status: {career.status}</span>
+                          </div>
+                          <div className="mt-2 grid grid-cols-3 gap-2 text-xs sm:grid-cols-7">
+                            <div>
+                              <p className="text-[10px] text-slate-500">選手</p>
+                              <p className="font-black text-slate-300">
+                                {career.isCreating ? "—" : career.playerCount}
+                                {!career.isCreating && (
+                                  <span className="text-[10px] font-normal text-slate-500"> / 画像{career.playerImageCount}</span>
+                                )}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-slate-500">チーム</p>
+                              <p className="font-black text-slate-300">
+                                {career.isCreating ? "—" : career.teamCount}
+                                {!career.isCreating && (
+                                  <span className="text-[10px] font-normal text-slate-500"> / 画像{career.teamImageCount}</span>
+                                )}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-slate-500">大会</p>
+                              <p className="font-black text-slate-300">{career.isCreating ? "—" : career.competitionCount}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-slate-500">試合</p>
+                              <p className="font-black text-white">{career.isCreating ? "—" : career.matchCount}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-slate-500">ニュース</p>
+                              <p className="font-black text-slate-300">{career.isCreating ? "—" : career.newsCount}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-slate-500">最終活動</p>
+                              <p className="font-black text-slate-300">{formatDate(career.lastActivityAt)}</p>
+                            </div>
+                            <div>
+                              <a
+                                href={career.publicUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300"
+                              >
+                                公開HP →
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
 
         {totalFiltered === 0 && (
           <div className="rounded-2xl border border-white/10 bg-[#111827] p-8 text-center text-sm text-slate-400">
-            該当するクラブがありません
+            該当するユーザーがありません
           </div>
         )}
 
@@ -1103,142 +1412,6 @@ export default function InternalClubsPage() {
           </div>
         )}
       </div>
-
-      {selected && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setSelected(null)}
-        >
-          <div
-            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/10 bg-[#111827] p-5 text-white"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-black">クラブ詳細</h2>
-              <button
-                onClick={() => setSelected(null)}
-                className="rounded-full p-1 text-slate-400 hover:bg-white/10"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="mb-4 flex items-center gap-3">
-              <LogoImage
-                src={selected.logoUrl}
-                alt={selected.clubName}
-                className="h-16 w-16"
-              />
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-lg font-black text-emerald-400">{selected.clubName}</p>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${levelBadgeClasses(selected.usageLevel)}`}>
-                    {levelLabel(selected.usageLevel)}
-                  </span>
-                  {!selected.nameSet && (
-                    <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400">
-                      設定未完了
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400">slug: {selected.publicSlug}</p>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between border-b border-white/5 py-2">
-                <span className="text-slate-400">所有者</span>
-                <span className="font-mono text-right text-slate-300">{selected.ownerUid}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 py-2">
-                <span className="text-slate-400">メール</span>
-                <span className="text-right text-slate-300">{selected.email || "—"}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 py-2">
-                <span className="text-slate-400">クラブID</span>
-                <span className="text-slate-300">{selected.id}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 py-2">
-                <span className="text-slate-400">チーム名</span>
-                <span className="text-slate-300">{selected.mainTeamName ?? "未設定"}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 py-2">
-                <span className="text-slate-400">プラン</span>
-                <span className="font-bold">{selected.plan}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 py-2">
-                <span className="text-slate-400">公開状態</span>
-                <span className={selected.isPublic ? "text-emerald-400" : "text-red-400"}>
-                  {selected.isPublic ? "公開" : "非公開"}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 py-2">
-                <span className="text-slate-400">コホート</span>
-                <span className="font-bold">{selected.analyticsCohort}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 py-2">
-                <span className="text-slate-400">作成日</span>
-                <span className="text-slate-300">{formatDate(selected.clubCreatedAt)}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/5 py-2">
-                <span className="text-slate-400">最終活動</span>
-                <span className="text-slate-300">{formatDateTime(selected.lastActivityAt)}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 py-2 text-center sm:grid-cols-8">
-                <div>
-                  <p className="text-xs text-slate-400">選手</p>
-                  <p className="font-black">{countLabel(selected.playerCount)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">選手画像</p>
-                  <p className="font-black">{countLabel(selected.playerImageCount)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">チーム</p>
-                  <p className="font-black">{countLabel(selected.teamCount)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">チーム画像</p>
-                  <p className="font-black">{countLabel(selected.teamImageCount)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">大会</p>
-                  <p className="font-black">{countLabel(selected.competitionCount)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">試合</p>
-                  <p className="font-black">{countLabel(selected.matchCount)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">30日Engaged</p>
-                  <p className="font-black">{selected.engaged30 ? "Yes" : "No"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">30日Match</p>
-                  <p className="font-black">{selected.matchActive30 ? "Yes" : "No"}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex gap-2">
-              <a
-                href={selected.publicUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 rounded-lg bg-emerald-400 py-2.5 text-center text-sm font-black text-[#06111f] hover:bg-emerald-300"
-              >
-                公開HPを開く
-              </a>
-              <button
-                onClick={() => setSelected(null)}
-                className="rounded-lg border border-white/10 bg-[#0b1220] px-4 py-2.5 text-sm font-bold text-slate-300 hover:bg-white/5"
-              >
-                閉じる
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

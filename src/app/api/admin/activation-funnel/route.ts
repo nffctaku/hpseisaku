@@ -13,10 +13,13 @@ import {
   validMatch,
   hasTeamImage,
   hasPlayerImage,
-  computeProStatus,
   computeTeamImageWithFallback,
 } from '@/lib/admin-analytics/uid-analytics';
 import { computeLastActivityForUid } from '@/lib/admin-analytics/last-activity';
+import {
+  buildCareerMaps,
+  computeEffectivePlanFromData,
+} from '@/lib/admin-analytics/career-mapping';
 
 // FC27 発売スケジュール（JST）。実際の日時が確定したらここを 1 箇所だけ変更してください。
 const FC27_EARLY_ACCESS_DATE = new Date('2026-09-18T00:00:00+09:00').getTime();
@@ -145,6 +148,7 @@ export async function GET(req: NextRequest) {
     const [
       profilesSnap,
       usersSnap,
+      careersSnap,
       eventsSnap,
       teamsSnap,
       playersSnap,
@@ -153,7 +157,8 @@ export async function GET(req: NextRequest) {
       friendlySnap,
     ] = await Promise.all([
       db.collection('club_profiles').select('ownerUid', 'clubName', 'name', 'teamName', 'club', 'profile', 'plan', 'stripeCustomerId', 'lastLoginAt', 'createdAt', 'mainTeamId', 'logoUrl').get(),
-      db.collection('users').select('subscription', 'lastLoginAt', 'createdAt', 'utm_campaign', 'utm_source').get(),
+      db.collection('users').select('subscription', 'lastLoginAt', 'createdAt', 'utm_campaign', 'utm_source', 'plan').get(),
+      db.collection('careers').select('ownerId', 'clubUid', 'status', 'name', 'clubName', 'clubId', 'isPublic', 'createdAt', 'updatedAt').get(),
       db.collection('analyticsEvents').where('createdAt', '>=', since30).select('userId', 'createdAt', 'eventName', 'properties').get(),
       db.collectionGroup('teams').select('name', 'logoUrl', 'image', 'photoUrl', 'imageUrl', 'isDeleted', 'createdAt').get(),
       db.collectionGroup('players').select('name', 'image', 'photo', 'photoUrl', 'photoURL', 'seasonData', 'imageUrl', 'isDeleted', 'createdAt').get(),
@@ -164,8 +169,6 @@ export async function GET(req: NextRequest) {
 
     // 3. club_profiles を UID ごとに集約
     const profilesByOwner: Record<string, FirebaseFirestore.QueryDocumentSnapshot[]> = {};
-    const uidToPlan: Record<string, boolean> = {};
-    const uidHasStripeCustomer: Record<string, boolean> = {};
     const mainTeamIdByUid: Record<string, string | null> = {};
     const clubLogoUrlByUid: Record<string, string | null> = {};
 
@@ -176,13 +179,6 @@ export async function GET(req: NextRequest) {
       const uid = ownerUid.trim();
       profilesByOwner[uid] = profilesByOwner[uid] || [];
       profilesByOwner[uid].push(d);
-
-      if (!uidToPlan[uid] && isProPlan(data.plan)) {
-        uidToPlan[uid] = true;
-      }
-      if (!uidHasStripeCustomer[uid] && isProPlan(data.plan) && isNonEmptyString(data.stripeCustomerId)) {
-        uidHasStripeCustomer[uid] = true;
-      }
 
       if (mainTeamIdByUid[uid] == null && isNonEmptyString(data.mainTeamId)) {
         mainTeamIdByUid[uid] = data.mainTeamId.trim();
@@ -198,12 +194,19 @@ export async function GET(req: NextRequest) {
       userDataByUid[d.id] = d.data() as Record<string, unknown>;
     }
 
+    // 4.5 Career マッピング: clubs/{clubUid} パスや userId=clubUid の
+    // 過去イベントを owner uid へ解決する
+    const { ownerByClubUid, careersByOwner } = buildCareerMaps(careersSnap, userDataByUid);
+    const authUidSet = new Set(authUsers.map((u) => u.uid));
+    const resolveUid = (id: string) => ownerByClubUid.get(id) || id;
+
     // 5. analyticsEvents から最新活動時刻を取得（UID 単位）
     const lastEventByUid: Record<string, number> = {};
     for (const d of eventsSnap.docs) {
       const data = d.data() as Record<string, unknown>;
-      const uid = typeof data.userId === 'string' ? data.userId : null;
-      if (!uid) continue;
+      const rawId = typeof data.userId === 'string' ? data.userId : null;
+      if (!rawId) continue;
+      const uid = resolveUid(rawId);
       const ts = toDateMillis(data.createdAt);
       if (ts > (lastEventByUid[uid] || 0)) {
         lastEventByUid[uid] = ts;
@@ -241,11 +244,22 @@ export async function GET(req: NextRequest) {
       checkout_start: { last7: new Set<string>(), last30: new Set<string>(), byCohort: {} },
       subscription_start: { last7: new Set<string>(), last30: new Set<string>(), byCohort: {} },
     };
+    // userId=clubUid の過去イベントは Career マッピングで uid へ解決
+    // （推測書き換えではなく集計時の解決）。解決できないIDは別集計にする。
+    let monetizationRemappedEvents = 0;
+    const monetizationUnmappedIds = new Set<string>();
     for (const d of eventsSnap.docs) {
       const data = d.data() as Record<string, unknown>;
-      const uid = typeof data.userId === 'string' ? data.userId : null;
+      const rawId = typeof data.userId === 'string' ? data.userId : null;
       const eventName = typeof data.eventName === 'string' ? data.eventName : null;
-      if (!uid || !eventName || !(monetizationEventNames as readonly string[]).includes(eventName)) continue;
+      if (!rawId || !eventName || !(monetizationEventNames as readonly string[]).includes(eventName)) continue;
+      const resolved = resolveUid(rawId);
+      if (!authUidSet.has(resolved)) {
+        monetizationUnmappedIds.add(rawId);
+        continue;
+      }
+      if (resolved !== rawId) monetizationRemappedEvents++;
+      const uid = resolved;
       const ts = toDateMillis(data.createdAt);
       const key = eventName as MonetizationEvent;
       if (ts >= since7.getTime()) {
@@ -290,11 +304,24 @@ export async function GET(req: NextRequest) {
       last30: Record<MonetizationEvent, number>;
       byCohort: Record<MonetizationEvent, Record<string, number>>;
       limitType: Record<string, { last7: number; last30: number }>;
+      uniqueUidCounts: true;
+      remappedClubUidEvents: number;
+      unmappedUserIds: string[];
+      notes: string[];
     } = {
       last7,
       last30,
       byCohort,
       limitType: {},
+      uniqueUidCounts: true,
+      remappedClubUidEvents: monetizationRemappedEvents,
+      unmappedUserIds: Array.from(monetizationUnmappedIds),
+      notes: [
+        '各数値はイベント発火した重複なしUID数（イベント件数ではない）',
+        'userId=clubUid の過去イベントはCareerマッピングでuidへ解決済み',
+        'uidにもclubUidにも解決できないIDは集計対象外（unmappedUserIds参照）',
+        '手動Pro付与・既存課金者のイベントも含む',
+      ],
     };
 
     const limitTypes = ['player_photo', 'competition', 'ocr'] as const;
@@ -303,10 +330,11 @@ export async function GET(req: NextRequest) {
       const last30Set = new Set<string>();
       for (const d of eventsSnap.docs) {
         const data = d.data() as Record<string, unknown>;
-        const uid = typeof data.userId === 'string' ? data.userId : null;
+        const rawId = typeof data.userId === 'string' ? data.userId : null;
         const eventName = typeof data.eventName === 'string' ? data.eventName : null;
         const props = (data.properties || {}) as Record<string, unknown>;
-        if (!uid || eventName !== 'plan_limit_reached' || props.limitType !== lt) continue;
+        const uid = rawId ? resolveUid(rawId) : null;
+        if (!uid || !authUidSet.has(uid) || eventName !== 'plan_limit_reached' || props.limitType !== lt) continue;
         const ts = toDateMillis(data.createdAt);
         if (ts >= since7.getTime()) {
           last7Set.add(uid);
@@ -335,8 +363,9 @@ export async function GET(req: NextRequest) {
     const firstMatchAtByUid: Record<string, number> = {};
 
     for (const d of teamsSnap.docs) {
-      const uid = ownerUidFromPath(d.ref.path);
-      if (!uid) continue;
+      const pathUid = ownerUidFromPath(d.ref.path);
+      if (!pathUid) continue;
+      const uid = resolveUid(pathUid);
       const data = d.data() as Record<string, unknown>;
       if (!validTeam(data)) continue;
       hasTeamByUid[uid] = true;
@@ -346,11 +375,12 @@ export async function GET(req: NextRequest) {
       if (hasTeamImage(data)) {
         teamImageCountByUid[uid] = (teamImageCountByUid[uid] || 0) + 1;
       }
-      mainTeamMap.set(`${uid}/${d.id}`, data);
+      mainTeamMap.set(`${pathUid}/${d.id}`, data);
     }
     for (const d of playersSnap.docs) {
-      const uid = ownerUidFromPath(d.ref.path);
-      if (!uid) continue;
+      const pathUid = ownerUidFromPath(d.ref.path);
+      if (!pathUid) continue;
+      const uid = resolveUid(pathUid);
       const data = d.data() as Record<string, unknown>;
       if (!validPlayer(data)) continue;
       hasPlayerByUid[uid] = true;
@@ -363,9 +393,9 @@ export async function GET(req: NextRequest) {
     }
     for (const d of competitionsSnap.docs) {
       const data = d.data() as Record<string, unknown>;
-      const uidFromPath = ownerUidFromPath(d.ref.path);
+      const pathUid = ownerUidFromPath(d.ref.path);
       const uidFromData = typeof data.ownerUid === 'string' ? data.ownerUid : typeof data.clubProfileId === 'string' ? data.clubProfileId : null;
-      const uid = (uidFromPath && uidFromPath.trim()) || (uidFromData && uidFromData.trim());
+      const uid = (pathUid && resolveUid(pathUid).trim()) || (uidFromData && uidFromData.trim());
       if (uid && validCompetition(data)) {
         hasCompetitionByUid[uid] = true;
         competitionCountByUid[uid] = (competitionCountByUid[uid] || 0) + 1;
@@ -375,9 +405,9 @@ export async function GET(req: NextRequest) {
     }
     const processMatchDoc = (d: FirebaseFirestore.QueryDocumentSnapshot) => {
       const data = d.data() as Record<string, unknown>;
-      const uidFromPath = ownerUidFromPath(d.ref.path);
+      const pathUid = ownerUidFromPath(d.ref.path);
       const uidFromData = typeof data.ownerUid === 'string' ? data.ownerUid : null;
-      const uid = (uidFromPath && uidFromPath.trim()) || (uidFromData && uidFromData.trim());
+      const uid = (pathUid && resolveUid(pathUid).trim()) || (uidFromData && uidFromData.trim());
       if (uid && validMatch(data)) {
         matchCountByUid[uid] = (matchCountByUid[uid] || 0) + 1;
         const ts = toDateMillis(data.createdAt);
@@ -419,7 +449,13 @@ export async function GET(req: NextRequest) {
       const teamCount = teamCountByUid[uid] || 0;
       const ownTeamImageCount = teamImageCountByUid[uid] || 0;
       const mainTeamId = mainTeamIdByUid[uid] || null;
-      const mainTeamData = mainTeamId ? mainTeamMap.get(`${uid}/${mainTeamId}`) : undefined;
+      // mainTeamMap は clubs/{clubUid}/{teamId} キー。ユーザーの全Careerの
+      // clubUid を試し、最後に旧形式 uid 直下も確認する
+      const mainTeamData = mainTeamId
+        ? (careersByOwner.get(uid) || [])
+            .map((c) => mainTeamMap.get(`${c.clubUid}/${mainTeamId}`))
+            .find(Boolean) ?? mainTeamMap.get(`${uid}/${mainTeamId}`)
+        : undefined;
       const mainTeamLogoUrl = typeof mainTeamData?.logoUrl === 'string' ? mainTeamData.logoUrl : null;
       const clubLogoUrl = clubLogoUrlByUid[uid] || null;
       const teamImageCount = computeTeamImageWithFallback(ownTeamImageCount, teamCount, {
@@ -478,12 +514,15 @@ export async function GET(req: NextRequest) {
       };
 
       const userSubscription = userDataByUid[uid]?.subscription as { status?: string; startedAt?: unknown } | undefined;
-      const proStatus = computeProStatus(uid, {
-        userSubscription,
-        uidHasStripeCustomer,
-        uidToPlan,
-      });
-      const { isPaidPro, isGrantedPro, isFree } = proStatus;
+      // server-plan と同一ルールの実効プラン判定（Career側 plan:'free' や
+      // 解約後の stale subscription.status で誤分類しない）
+      const effective = computeEffectivePlanFromData(
+        userDataByUid[uid],
+        profiles.map((d) => d.data() as Record<string, unknown>)
+      );
+      const isPaidPro = effective.isPaid;
+      const isGrantedPro = effective.isGranted;
+      const isFree = effective.plan === 'free';
 
       const paidStartedAt = toDateMillis(userSubscription?.startedAt);
       const daysToPaid = isPaidPro && paidStartedAt > 0 && signupAt > 0 ? days(signupAt, paidStartedAt) : null;

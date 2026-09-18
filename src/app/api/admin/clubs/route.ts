@@ -5,25 +5,54 @@ import { scoreRepresentativeProfiles } from "@/lib/representative-profile";
 import {
   isNonEmptyString,
   isProPlan,
-  ownerUidFromPath,
   validTeam,
   validPlayer,
   validCompetition,
   validMatch,
   hasTeamImage,
   hasPlayerImage,
-  computeProStatus,
   computeTeamImageWithFallback,
   type MatchDiagnostic,
 } from "@/lib/admin-analytics/uid-analytics";
 import { computeLastActivityForUid } from "@/lib/admin-analytics/last-activity";
+import {
+  buildCareerMaps,
+  computeEffectivePlanFromData,
+  type AdminCareer,
+} from "@/lib/admin-analytics/career-mapping";
 
 const ANALYTICS_DAYS = 30;
+
+interface CareerItem {
+  careerId: string;
+  name: string;
+  clubUid: string;
+  status: string;
+  isDefault: boolean;
+  isActive: boolean;
+  isCreating: boolean;
+  sharedDataRoot: boolean;
+  clubName: string;
+  nameSet: boolean;
+  publicSlug: string;
+  publicUrl: string;
+  isPublic: boolean;
+  playerCount: number;
+  playerImageCount: number;
+  teamCount: number;
+  teamImageCount: number;
+  competitionCount: number;
+  matchCount: number;
+  newsCount: number;
+  lastActivityAt: string | null;
+}
 
 interface ClubListItem {
   id: string;
   clubName: string;
   nameSet: boolean;
+  allCareersNameUnset: boolean;
+  anyCareerNameUnset: boolean;
   logoUrl: string | null;
   publicUrl: string;
   publicSlug: string;
@@ -63,6 +92,13 @@ interface ClubListItem {
   anyProPlan: boolean;
   anyStripeCustomer: boolean;
   lastActivityAtMillis: number;
+  careerCount: number;
+  creatingCareerCount: number;
+  dataRootCount: number;
+  sharedDataRoots: number;
+  profileCount: number;
+  unmatchedProfileCount: number;
+  careers: CareerItem[];
   activeDetail: {
     lastActivityAt: number;
     eventAt: number;
@@ -77,13 +113,28 @@ interface ClubListItem {
   };
 }
 
+interface ProfileDiagnostics {
+  clubProfilesTotal: number;
+  careerMatchedProfiles: number;
+  ownerDocProfiles: number;
+  unmatchedProfiles: number;
+  unmatchedProfileIds: string[];
+  authlessProfiles: number;
+  authlessOwnerUids: string[];
+}
+
 interface Summary {
   total: number;
   aggregatable: number;
+  totalCareers: number;
+  creatingCareers: number;
+  multiCareerUsers: number;
   nameSet: number;
   nameUnset: number;
   nameUnsetRate: number;
   public: number;
+  publicCareers: number;
+  nameUnsetCareers: number;
   paidPro: number;
   grantedPro: number;
   totalPro: number;
@@ -141,23 +192,11 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-function eventClubId(data: Record<string, unknown>): string | null {
-  if (typeof data.clubId === "string") return data.clubId;
-  const props = (data.properties as Record<string, unknown>) || {};
-  if (typeof props.clubId === "string") return props.clubId;
-  if (typeof props.profileId === "string") return props.profileId;
-  return null;
-}
-
-function eventClubProfileId(data: Record<string, unknown>): string | null {
-  const props = (data.properties as Record<string, unknown>) || {};
-  if (typeof props.clubProfileId === "string" && props.clubProfileId.trim()) {
-    return props.clubProfileId;
-  }
-  if (typeof data.clubProfileId === "string" && data.clubProfileId.trim()) {
-    return data.clubProfileId;
-  }
-  return null;
+// clubs/{clubUid}/... のパス第1セグメントを取り出す。
+// 返り値はデータルート clubUid（旧データでは uid と同値のことが多い）。
+function clubUidFromPath(path: string): string | null {
+  const parts = path.split('/');
+  return parts.length >= 2 && parts[0] === 'clubs' ? parts[1] : null;
 }
 
 function calcUsageLevel(
@@ -194,6 +233,7 @@ export async function GET(req: NextRequest) {
     const [
       profilesSnap,
       usersSnap,
+      careersSnap,
       playersSnap,
       teamsSnap,
       competitionsSnap,
@@ -204,6 +244,7 @@ export async function GET(req: NextRequest) {
     ] = await Promise.all([
       db.collection("club_profiles").get(),
       db.collection("users").get(),
+      db.collection("careers").get(),
       db.collectionGroup("players").get(),
       db.collectionGroup("teams").get(),
       db.collectionGroup("competitions").get(),
@@ -226,9 +267,11 @@ export async function GET(req: NextRequest) {
       userDataByUid[d.id] = data as Record<string, unknown>;
     }
 
-    const dataCountsByClubProfile: Record<string, number> = {};
+    const { careersByOwner, careersByClubUid, ownerByClubUid, activeCareerIdByOwner } =
+      buildCareerMaps(careersSnap, userDataByUid);
 
-    const playerStatsByTeam: Record<string, { count: number; imageCount: number }> = {};
+    // ---- データルート(clubUid)単位の集計。path第1セグメントはclubUid ----
+    const playerStatsByClub: Record<string, { count: number; imageCount: number }> = {};
     for (const d of playersSnap.docs) {
       const parts = d.ref.path.split("/");
       if (
@@ -239,111 +282,75 @@ export async function GET(req: NextRequest) {
       ) {
         continue;
       }
-      const uid = parts[1];
+      const clubUid = parts[1];
       const teamId = parts[3];
       const data = d.data() as Record<string, unknown>;
       if (!validPlayer(data)) continue;
-
-      const key = `${uid}/${teamId}`;
-      const prev = playerStatsByTeam[key] || { count: 0, imageCount: 0 };
-      playerStatsByTeam[key] = {
+      const key = `${clubUid}/${teamId}`;
+      const prev = playerStatsByClub[key] || { count: 0, imageCount: 0 };
+      playerStatsByClub[key] = {
         count: prev.count + 1,
         imageCount: prev.imageCount + (hasPlayerImage(data) ? 1 : 0),
       };
-      const playerClubProfileId = typeof data.clubProfileId === 'string' ? data.clubProfileId : null;
-      if (playerClubProfileId) {
-        dataCountsByClubProfile[playerClubProfileId] = (dataCountsByClubProfile[playerClubProfileId] || 0) + 1;
-      }
     }
 
-    const competitionCountBy: Record<string, number> = {};
-    const competitionCountByClubProfile: Record<string, number> = {};
+    const competitionCountByClub: Record<string, number> = {};
     for (const d of competitionsSnap.docs) {
-      const uid = ownerUidFromPath(d.ref.path);
+      const clubUid = clubUidFromPath(d.ref.path);
       const data = d.data() as Record<string, unknown>;
-      const isValid = validCompetition(data);
-      if (typeof data.clubProfileId === "string" && data.clubProfileId.trim()) {
-        competitionCountByClubProfile[data.clubProfileId] = (competitionCountByClubProfile[data.clubProfileId] || 0) + 1;
-        dataCountsByClubProfile[data.clubProfileId] = (dataCountsByClubProfile[data.clubProfileId] || 0) + 1;
-      }
-      if (uid && isValid) {
-        competitionCountBy[uid] = (competitionCountBy[uid] || 0) + 1;
+      if (clubUid && validCompetition(data)) {
+        competitionCountByClub[clubUid] = (competitionCountByClub[clubUid] || 0) + 1;
       }
     }
 
-    const newsCountBy: Record<string, number> = {};
-    const newsCountByClubProfile: Record<string, number> = {};
+    const newsCountByClub: Record<string, number> = {};
     for (const d of newsSnap.docs) {
-      const uid = ownerUidFromPath(d.ref.path);
-      const data = d.data() as Record<string, unknown>;
-      if (typeof data.clubProfileId === "string" && data.clubProfileId.trim()) {
-        newsCountByClubProfile[data.clubProfileId] = (newsCountByClubProfile[data.clubProfileId] || 0) + 1;
-        dataCountsByClubProfile[data.clubProfileId] = (dataCountsByClubProfile[data.clubProfileId] || 0) + 1;
-      }
-      if (uid) {
-        newsCountBy[uid] = (newsCountBy[uid] || 0) + 1;
+      const clubUid = clubUidFromPath(d.ref.path);
+      if (clubUid) {
+        newsCountByClub[clubUid] = (newsCountByClub[clubUid] || 0) + 1;
       }
     }
 
-    const matchCountBy: Record<string, number> = {};
-    const matchCountByClubProfile: Record<string, number> = {};
+    const matchCountByClub: Record<string, number> = {};
+    // matchDiagnostics は clubUid→uid 解決後の uid 単位で保持する
     const matchDiagnostics: Record<string, MatchDiagnostic> = {};
 
     const processMatch = (d: FirebaseFirestore.QueryDocumentSnapshot, isFriendly: boolean) => {
-      const uid = ownerUidFromPath(d.ref.path);
+      const clubUid = clubUidFromPath(d.ref.path);
       const data = d.data() as Record<string, unknown>;
       const isValid = validMatch(data);
-
-      if (typeof data.clubProfileId === "string" && data.clubProfileId.trim()) {
-        dataCountsByClubProfile[data.clubProfileId] = (dataCountsByClubProfile[data.clubProfileId] || 0) + 1;
-      }
-
-      if (uid) {
-        const prev = matchDiagnostics[uid] || { total: 0, valid: 0, friendly: 0, invalid: 0 };
-        matchDiagnostics[uid] = {
-          total: prev.total + 1,
-          valid: isValid && !isFriendly ? prev.valid + 1 : prev.valid,
-          friendly: isFriendly ? prev.friendly + 1 : prev.friendly,
-          invalid: !isValid ? prev.invalid + 1 : prev.invalid,
-        };
-        if (isValid) {
-          matchCountBy[uid] = (matchCountBy[uid] || 0) + 1;
-          if (typeof data.clubProfileId === "string" && data.clubProfileId.trim()) {
-            matchCountByClubProfile[data.clubProfileId] = (matchCountByClubProfile[data.clubProfileId] || 0) + 1;
-          }
-        }
+      if (!clubUid) return;
+      const uid = ownerByClubUid.get(clubUid) || clubUid;
+      const prev = matchDiagnostics[uid] || { total: 0, valid: 0, friendly: 0, invalid: 0 };
+      matchDiagnostics[uid] = {
+        total: prev.total + 1,
+        valid: isValid && !isFriendly ? prev.valid + 1 : prev.valid,
+        friendly: isFriendly ? prev.friendly + 1 : prev.friendly,
+        invalid: !isValid ? prev.invalid + 1 : prev.invalid,
+      };
+      if (isValid) {
+        matchCountByClub[clubUid] = (matchCountByClub[clubUid] || 0) + 1;
       }
     };
 
-    for (const d of matchesSnap.docs) {
-      processMatch(d, false);
-    }
-    for (const d of friendlySnap.docs) {
-      processMatch(d, true);
-    }
+    for (const d of matchesSnap.docs) processMatch(d, false);
+    for (const d of friendlySnap.docs) processMatch(d, true);
 
     const profileRows = profilesSnap.docs.map((d) => ({
       id: d.id,
       data: d.data() as Record<string, unknown>,
     }));
 
-    const uidToPlan: Record<string, boolean> = {};
-    const uidHasStripeCustomer: Record<string, boolean> = {};
     const uidAllPlans: Record<string, string[]> = {};
     const uidAllStripeCustomerIds: Record<string, string[]> = {};
     for (const r of profileRows) {
       const uid = String(r.data.ownerUid || r.id);
-      const data = r.data;
-      const planStr = typeof data.plan === 'string' ? data.plan : '';
+      const planStr = typeof r.data.plan === 'string' ? r.data.plan : '';
       uidAllPlans[uid] = uidAllPlans[uid] || [];
       uidAllPlans[uid].push(planStr);
-      if (isProPlan(data.plan)) uidToPlan[uid] = true;
-      if (isProPlan(data.plan) && isNonEmptyString(data.stripeCustomerId)) {
-        uidHasStripeCustomer[uid] = true;
-      }
-      if (isNonEmptyString(data.stripeCustomerId)) {
+      if (isNonEmptyString(r.data.stripeCustomerId)) {
         uidAllStripeCustomerIds[uid] = uidAllStripeCustomerIds[uid] || [];
-        uidAllStripeCustomerIds[uid].push(data.stripeCustomerId);
+        uidAllStripeCustomerIds[uid].push(r.data.stripeCustomerId);
       }
     }
 
@@ -354,31 +361,17 @@ export async function GET(req: NextRequest) {
       profileIdsByOwner[ownerUid].push(r.id);
     }
 
-    const uniquePublicSlugByOwner: Record<string, string> = {};
-    for (const [uid, ids] of Object.entries(profileIdsByOwner)) {
-      if (ids.length === 1) {
-        const r = profileRows.find((row) => row.id === ids[0])!;
-        uniquePublicSlugByOwner[uid] = String(r.data.clubId || r.id);
-      }
-    }
-
     const now = Date.now();
+    // イベントの clubProfileId プロパティには clubUid が入る。
+    // userId には uid（新規）と clubUid（過去のバグ）の両方が混在するため、
+    // clubUid→uid 解決できるものは owner 単位にも紐付ける。
     const lastActiveByClub: Record<string, string> = {};
-    const lastActiveByClubProfile: Record<string, string> = {};
     const lastActiveByOwner: Record<string, string> = {};
     const lastEventByOwner: Record<string, number> = {};
     const engaged7ByOwner: Record<string, boolean> = {};
     const engaged30ByOwner: Record<string, boolean> = {};
     const matchActive7ByOwner: Record<string, boolean> = {};
     const matchActive30ByOwner: Record<string, boolean> = {};
-    const engaged7ByClub: Record<string, boolean> = {};
-    const engaged30ByClub: Record<string, boolean> = {};
-    const engaged7ByClubProfile: Record<string, boolean> = {};
-    const engaged30ByClubProfile: Record<string, boolean> = {};
-    const matchActive7ByClub: Record<string, boolean> = {};
-    const matchActive30ByClub: Record<string, boolean> = {};
-    const matchActive7ByClubProfile: Record<string, boolean> = {};
-    const matchActive30ByClubProfile: Record<string, boolean> = {};
 
     const engagedEventNames = new Set([
       "match_create",
@@ -390,7 +383,7 @@ export async function GET(req: NextRequest) {
 
     for (const d of eventsSnap.docs) {
       const data = d.data() as Record<string, unknown>;
-      const userId = typeof data.userId === "string" ? data.userId : null;
+      const rawUserId = typeof data.userId === "string" ? data.userId : null;
       const props = (data.properties as Record<string, unknown>) || {};
       const eventName = typeof data.eventName === "string" ? data.eventName : "";
       const createdAt = data.createdAt;
@@ -406,45 +399,16 @@ export async function GET(req: NextRequest) {
       if (time === null) continue;
       const iso = new Date(time).toISOString();
 
-      let clubId: string | null = null;
-      const directClubProfileId = eventClubProfileId(data);
-      const directClubId = eventClubId(data);
-      if (directClubProfileId) {
-        clubId = directClubProfileId;
-      } else if (directClubId) {
-        clubId = directClubId;
-      } else {
-        const candidateUid =
-          userId ||
-          (typeof props.ownerUid === "string" ? props.ownerUid : null) ||
-          (typeof props.profileId === "string" ? props.profileId : null);
-        if (candidateUid && uniquePublicSlugByOwner[candidateUid]) {
-          clubId = uniquePublicSlugByOwner[candidateUid];
-        }
+      const clubProfileId =
+        (typeof props.clubProfileId === "string" && props.clubProfileId.trim()) ||
+        (typeof data.clubProfileId === "string" && (data.clubProfileId as string).trim()) ||
+        null;
+      if (clubProfileId && !lastActiveByClub[clubProfileId]) {
+        lastActiveByClub[clubProfileId] = iso;
       }
 
-      if (directClubProfileId) {
-        if (!lastActiveByClubProfile[directClubProfileId]) lastActiveByClubProfile[directClubProfileId] = iso;
-        if (engagedEventNames.has(eventName)) {
-          engaged30ByClubProfile[directClubProfileId] = true;
-          if (now - time < 7 * 24 * 60 * 60 * 1000) engaged7ByClubProfile[directClubProfileId] = true;
-        }
-        if (matchEventNames.has(eventName)) {
-          matchActive30ByClubProfile[directClubProfileId] = true;
-          if (now - time < 7 * 24 * 60 * 60 * 1000) matchActive7ByClubProfile[directClubProfileId] = true;
-        }
-      } else if (clubId) {
-        if (!lastActiveByClub[clubId]) lastActiveByClub[clubId] = iso;
-        if (engagedEventNames.has(eventName)) {
-          engaged30ByClub[clubId] = true;
-          if (now - time < 7 * 24 * 60 * 60 * 1000) engaged7ByClub[clubId] = true;
-        }
-        if (matchEventNames.has(eventName)) {
-          matchActive30ByClub[clubId] = true;
-          if (now - time < 7 * 24 * 60 * 60 * 1000) matchActive7ByClub[clubId] = true;
-        }
-      }
-
+      // userId が clubUid の過去イベントは owner uid へ解決する（推測ではなく Career マッピング）
+      const userId = rawUserId ? ownerByClubUid.get(rawUserId) || rawUserId : null;
       if (userId) {
         if (!lastActiveByOwner[userId]) lastActiveByOwner[userId] = iso;
         if (time > (lastEventByOwner[userId] || 0)) lastEventByOwner[userId] = time;
@@ -460,9 +424,7 @@ export async function GET(req: NextRequest) {
     }
 
     const mainTeamMap = new Map<string, Record<string, unknown>>();
-    const teamStatsByUid: Record<string, { count: number; imageCount: number }> = {};
-    const teamStatsByClubProfile: Record<string, { count: number; imageCount: number }> = {};
-    const teamIdsByClubProfile: Record<string, string[]> = {};
+    const teamStatsByClub: Record<string, { count: number; imageCount: number }> = {};
     for (const d of teamsSnap.docs) {
       const parts = d.ref.path.split("/");
       if (
@@ -472,39 +434,28 @@ export async function GET(req: NextRequest) {
       ) {
         continue;
       }
-      const uid = parts[1];
+      const clubUid = parts[1];
       const data = d.data() as Record<string, unknown>;
       if (!validTeam(data)) continue;
 
-      mainTeamMap.set(`${uid}/${d.id}`, data);
+      mainTeamMap.set(`${clubUid}/${d.id}`, data);
 
-      const prev = teamStatsByUid[uid] || { count: 0, imageCount: 0 };
-      teamStatsByUid[uid] = {
+      const prev = teamStatsByClub[clubUid] || { count: 0, imageCount: 0 };
+      teamStatsByClub[clubUid] = {
         count: prev.count + 1,
         imageCount: prev.imageCount + (hasTeamImage(data) ? 1 : 0),
       };
-
-      const cpid = typeof data.clubProfileId === "string" ? data.clubProfileId : null;
-      if (cpid) {
-        const prevByProfile = teamStatsByClubProfile[cpid] || { count: 0, imageCount: 0 };
-        teamStatsByClubProfile[cpid] = {
-          count: prevByProfile.count + 1,
-          imageCount: prevByProfile.imageCount + (hasTeamImage(data) ? 1 : 0),
-        };
-        teamIdsByClubProfile[cpid] = teamIdsByClubProfile[cpid] || [];
-        teamIdsByClubProfile[cpid].push(d.id);
-        dataCountsByClubProfile[cpid] = (dataCountsByClubProfile[cpid] || 0) + 1;
-      }
     }
 
-    const uids = profileRows.map((r) => String(r.data.ownerUid || "")).filter(Boolean);
-    const uidSet = Array.from(new Set(uids));
+    // Auth 存在チェック（profile owner ∪ career owner が対象）
+    const candidateUids = new Set<string>([
+      ...Object.keys(profileIdsByOwner),
+      ...careersByOwner.keys(),
+    ]);
     const emailMap: Record<string, string> = {};
     const authUserUids = new Set<string>();
-
     const authLastSignInByUid: Record<string, string> = {};
-    const uidChunks = chunk(uidSet, 100);
-    for (const uidsBatch of uidChunks) {
+    for (const uidsBatch of chunk(Array.from(candidateUids), 100)) {
       const result = await auth.getUsers(uidsBatch.map((uid) => ({ uid })));
       for (const u of result.users) {
         authUserUids.add(u.uid);
@@ -519,102 +470,182 @@ export async function GET(req: NextRequest) {
       profileDocById[d.id] = d;
     }
 
-    let missingActivityCount = 0;
-    const clubs: ClubListItem[] = Object.keys(profileIdsByOwner).map((ownerUid) => {
-      const profileIds = profileIdsByOwner[ownerUid];
-      const docs = profileIds.map((id) => profileDocById[id]);
-      const ranked = scoreRepresentativeProfiles(docs, { dataCountsByClubProfile, now });
-      const rep = ranked[0];
-      const repData = rep.data as Record<string, unknown>;
-      const repId = rep.id;
-      const duplicateProfileCount = profileIds.length;
-
-      const publicSlug = String(repData.clubId || repId);
-      const mainTeamId = typeof repData.mainTeamId === "string" ? repData.mainTeamId : null;
-      const mainTeamData = mainTeamId
-        ? mainTeamMap.get(`${ownerUid}/${mainTeamId}`)
-        : undefined;
-
-      const rawName = repData.clubName;
-      const mainTeamName =
-        typeof mainTeamData?.name === "string" ? mainTeamData.name.trim() : null;
-      const nameSet =
-        (typeof rawName === "string" && rawName.trim().length > 0) ||
-        Boolean(mainTeamName);
-      const clubName =
-        (typeof rawName === "string" && rawName.trim()) ||
-        mainTeamName ||
-        publicSlug ||
-        repId;
-
-      const created = toIso(repData.createdAt);
-
-      const profileDocsForUid = profileIds.map((id) => profileDocById[id].data() as Record<string, unknown>);
-      const { lastActivityAt: lastActivityAtMillis, active7, active30, sources } = computeLastActivityForUid({
-        userData: userDataByUid[ownerUid],
-        authLastSignInAt: authLastSignInByUid[ownerUid],
-        profileDocs: profileDocsForUid,
-        lastEventAt: lastEventByOwner[ownerUid],
+    // ---- ユーザー行（1 Auth UID = 1行）の構築 ----
+    const clubs: ClubListItem[] = Array.from(candidateUids).map((ownerUid) => {
+      const profileIds = profileIdsByOwner[ownerUid] || [];
+      const profileDocs = profileIds
+        .map((id) => profileDocById[id])
+        .filter(Boolean);
+      const ranked = scoreRepresentativeProfiles(profileDocs, {
+        dataCountsByClubProfile: {},
         now,
       });
+      const rep = ranked[0];
+      const repData = (rep?.data || {}) as Record<string, unknown>;
 
-      const activeDetail = {
-        lastActivityAt: sources.lastActivityAt ?? 0,
-        eventAt: sources.eventAt ?? 0,
-        userAt: sources.userAt ?? 0,
-        authAt: sources.authAt ?? 0,
-        profileAt: sources.profileAt ?? 0,
-        representativeAt: sources.representativeAt ?? 0,
-        userCreatedAt: sources.userCreatedAt ?? 0,
-        profileCreatedAt: sources.profileCreatedAt ?? 0,
-        profileUpdatedAt: sources.profileUpdatedAt ?? 0,
-        adoptedAt: lastActivityAtMillis ?? 0,
-      };
-      const lastActivity = toIso(lastActivityAtMillis) || created;
-      const lastActivityAtMillisValue = (lastActivityAtMillis ?? 0) as number;
+      const allCareers = careersByOwner.get(ownerUid) || [];
+      const validCareers = allCareers.filter((c) => c.status !== 'creating');
+      const creatingCareers = allCareers.filter((c) => c.status === 'creating');
+      const activeCareerId = activeCareerIdByOwner.get(ownerUid) || null;
 
-      if (missingActivityCount < 5) {
-        missingActivityCount += 1;
-        console.warn('[internal-clubs] lastActivityAt debug', {
-          uid: ownerUid,
-          email: emailMap[ownerUid] || null,
-          lastActivityAt: lastActivityAtMillis,
-          lastActivityString: lastActivity,
-          profileIds,
-          representativeId: repId,
-          sources,
-          created,
+      // ユーザーのデータルート集合（CareerのclubUid。Careerが無ければ旧形式のuid）
+      const rootSet = new Set<string>();
+      for (const c of validCareers) rootSet.add(c.clubUid);
+      for (const c of creatingCareers) rootSet.add(c.clubUid); // 分類用に含める（集計は別途制御）
+      if (allCareers.length === 0) rootSet.add(ownerUid);
+      const dataRoots = Array.from(rootSet);
+      const usageRoots = new Set<string>(validCareers.map((c) => c.clubUid));
+      if (allCareers.length === 0) usageRoots.add(ownerUid);
+
+      const careersByRoot = (clubUid: string) => careersByClubUid.get(clubUid) || [];
+
+      // Career行の構築
+      const careerItems: CareerItem[] = allCareers.map((c) => {
+        const rootProfiles = profileIds
+          .map((id) => profileDocById[id])
+          .filter((d) => d && (d.id === c.clubUid || (d.data() as any)?.clubUid === c.clubUid));
+        const rootProfileData = (rootProfiles[0]?.data() || {}) as Record<string, unknown>;
+        const isCreating = c.status === 'creating';
+        const shared = careersByRoot(c.clubUid).length > 1;
+        const statsClubUid = c.clubUid;
+        const pStats = Object.entries(playerStatsByClub)
+          .filter(([key]) => key.startsWith(`${statsClubUid}/`))
+          .reduce(
+            (acc, [, v]) => ({ count: acc.count + v.count, imageCount: acc.imageCount + v.imageCount }),
+            { count: 0, imageCount: 0 }
+          );
+        const tStats = teamStatsByClub[statsClubUid] || { count: 0, imageCount: 0 };
+        const mainTeamId =
+          typeof rootProfileData.mainTeamId === 'string' ? rootProfileData.mainTeamId : null;
+        const mainTeamData = mainTeamId ? mainTeamMap.get(`${statsClubUid}/${mainTeamId}`) : undefined;
+        const clubLogoUrl =
+          typeof rootProfileData.logoUrl === 'string' ? rootProfileData.logoUrl : null;
+        const mainTeamLogoUrl =
+          typeof mainTeamData?.logoUrl === 'string' ? mainTeamData.logoUrl : null;
+        const tImage = computeTeamImageWithFallback(tStats.imageCount, tStats.count, {
+          mainTeamId,
+          mainTeamLogoUrl,
+          clubLogoUrl,
         });
+        const clubName =
+          c.clubName ||
+          (typeof rootProfileData.clubName === 'string' ? rootProfileData.clubName : '') ||
+          c.name ||
+          '';
+        const slug = c.clubId || (typeof rootProfileData.clubId === 'string' ? rootProfileData.clubId : '') || c.clubUid;
+        const isPublic =
+          c.isPublic || rootProfileData.isPublic === true || rootProfileData.directoryListed === true;
+        return {
+          careerId: c.id,
+          name: c.name,
+          clubUid: c.clubUid,
+          status: c.status,
+          isDefault: c.clubUid === ownerUid,
+          isActive: c.id === activeCareerId,
+          isCreating,
+          sharedDataRoot: shared,
+          clubName: clubName || '(未設定)',
+          nameSet: clubName.trim().length > 0,
+          publicSlug: slug,
+          publicUrl: `/${encodeURIComponent(slug)}`,
+          isPublic,
+          playerCount: isCreating ? 0 : pStats.count,
+          playerImageCount: isCreating ? 0 : pStats.imageCount,
+          teamCount: isCreating ? 0 : tStats.count,
+          teamImageCount: isCreating ? 0 : tImage,
+          competitionCount: isCreating ? 0 : (competitionCountByClub[statsClubUid] ?? 0),
+          matchCount: isCreating ? 0 : (matchCountByClub[statsClubUid] ?? 0),
+          newsCount: isCreating ? 0 : (newsCountByClub[statsClubUid] ?? 0),
+          lastActivityAt: lastActiveByClub[c.clubUid] || null,
+        };
+      });
+
+      // ユーザー合計（共有データルートは1回だけ計上、creatingは除外）
+      let pCount = 0, pImage = 0, tCount = 0, tImageSum = 0, cCount = 0, mCount = 0, nCount = 0;
+      const countedRoots = new Set<string>();
+      for (const ci of careerItems) {
+        if (ci.isCreating || countedRoots.has(ci.clubUid)) continue;
+        countedRoots.add(ci.clubUid);
+        pCount += ci.playerCount;
+        pImage += ci.playerImageCount;
+        tCount += ci.teamCount;
+        tImageSum += ci.teamImageCount;
+        cCount += ci.competitionCount;
+        mCount += ci.matchCount;
+        nCount += ci.newsCount;
+      }
+      // Careerが無い旧ユーザー: uid直下を数える
+      if (allCareers.length === 0) {
+        for (const [key, v] of Object.entries(playerStatsByClub)) {
+          if (key.startsWith(`${ownerUid}/`)) { pCount += v.count; pImage += v.imageCount; }
+        }
+        const tStats = teamStatsByClub[ownerUid] || { count: 0, imageCount: 0 };
+        const mainTeamId = typeof repData.mainTeamId === 'string' ? repData.mainTeamId : null;
+        const mainTeamData = mainTeamId ? mainTeamMap.get(`${ownerUid}/${mainTeamId}`) : undefined;
+        tCount += tStats.count;
+        tImageSum += computeTeamImageWithFallback(tStats.imageCount, tStats.count, {
+          mainTeamId,
+          mainTeamLogoUrl: typeof mainTeamData?.logoUrl === 'string' ? mainTeamData.logoUrl : null,
+          clubLogoUrl: typeof repData.logoUrl === 'string' ? repData.logoUrl : null,
+        });
+        cCount += competitionCountByClub[ownerUid] ?? 0;
+        mCount += matchCountByClub[ownerUid] ?? 0;
+        nCount += newsCountByClub[ownerUid] ?? 0;
       }
 
-      const proStatus = computeProStatus(ownerUid, {
-        userSubscription: userDataByUid[ownerUid]?.subscription as { status?: string } | undefined,
-        uidHasStripeCustomer,
-        uidToPlan,
-      });
-      const { isPaidPro, isGrantedPro, isFree, plan } = proStatus;
+      // profile分類: Careerに紐づく / uid直下(ownerDoc) / 要確認(unmatched)
+      const careerClubUidSet = new Set(allCareers.map((c) => c.clubUid));
+      let careerMatchedProfiles = 0;
+      let ownerDocProfiles = 0;
+      let unmatchedProfiles = 0;
+      for (const r of profileRows) {
+        if (String(r.data.ownerUid || r.id) !== ownerUid) continue;
+        if (r.id === ownerUid) ownerDocProfiles++;
+        else if (careerClubUidSet.has(r.id) || careerClubUidSet.has(String(r.data.clubUid || ''))) {
+          careerMatchedProfiles++;
+        } else {
+          unmatchedProfiles++;
+        }
+      }
 
-      // UID 単位で安全に集約（legacy は path uid、新データは clubProfileId だが path 集計に含まれる）
-      const pCount = Object.entries(playerStatsByTeam)
-        .filter(([key]) => key.startsWith(`${ownerUid}/`))
-        .reduce((sum, [, v]) => sum + v.count, 0);
-      const pImage = Object.entries(playerStatsByTeam)
-        .filter(([key]) => key.startsWith(`${ownerUid}/`))
-        .reduce((sum, [, v]) => sum + v.imageCount, 0);
-      const tCount = teamStatsByUid[ownerUid]?.count ?? 0;
-      const ownTeamImageCount = teamStatsByUid[ownerUid]?.imageCount ?? 0;
-      const clubLogoUrl = typeof repData.logoUrl === 'string' && repData.logoUrl.trim() ? repData.logoUrl.trim() : null;
-      const mainTeamLogoUrl = typeof mainTeamData?.logoUrl === 'string' ? mainTeamData.logoUrl.trim() : null;
+      // 代表表示: activeCareer > デフォルトルートcareer > 先頭career > rep profile
+      const repCareer =
+        careerItems.find((c) => c.isActive) ||
+        careerItems.find((c) => c.isDefault) ||
+        careerItems[0] ||
+        null;
+      const mainTeamId = typeof repData.mainTeamId === 'string' ? repData.mainTeamId : null;
+      const repRoot = repCareer?.clubUid || ownerUid;
+      const mainTeamData = mainTeamId ? mainTeamMap.get(`${repRoot}/${mainTeamId}`) : undefined;
+      const mainTeamName = typeof mainTeamData?.name === 'string' ? mainTeamData.name : null;
 
-      const tImage = computeTeamImageWithFallback(ownTeamImageCount, tCount, {
-        mainTeamId,
-        mainTeamLogoUrl,
-        clubLogoUrl,
-      });
+      const publicSlug = repCareer?.publicSlug || String(repData.clubId || rep?.id || ownerUid);
+      const rawName = repCareer?.nameSet ? repCareer.clubName : (typeof repData.clubName === 'string' ? repData.clubName : null);
+      const nameSet =
+        (typeof rawName === 'string' && rawName.trim().length > 0) || Boolean(mainTeamName);
+      const clubName =
+        (typeof rawName === 'string' && rawName.trim()) || mainTeamName || publicSlug || ownerUid;
 
-      const cCount = competitionCountBy[ownerUid] ?? 0;
-      const mCount = matchCountBy[ownerUid] ?? 0;
-      const nCount = newsCountBy[ownerUid] ?? 0;
+      const created = toIso(
+        repCareer
+          ? (allCareers.find((c) => c.id === repCareer.careerId)?.createdAt || repData.createdAt)
+          : repData.createdAt
+      );
+
+      const { lastActivityAt: lastActivityAtMillis, active7, active30, sources } =
+        computeLastActivityForUid({
+          userData: userDataByUid[ownerUid],
+          authLastSignInAt: authLastSignInByUid[ownerUid],
+          profileDocs: profileDocs.map((d) => d.data() as Record<string, unknown>),
+          lastEventAt: lastEventByOwner[ownerUid],
+          now,
+        });
+      const lastActivity = toIso(lastActivityAtMillis) || created;
+
+      const effective = computeEffectivePlanFromData(
+        userDataByUid[ownerUid],
+        profileDocs.map((d) => d.data() as Record<string, unknown>)
+      );
 
       const usageLevel = calcUsageLevel(pCount, cCount, mCount);
 
@@ -622,6 +653,12 @@ export async function GET(req: NextRequest) {
         id: ownerUid,
         clubName,
         nameSet,
+        allCareersNameUnset:
+          careerItems.length > 0
+            ? careerItems.every((c) => !c.nameSet)
+            : !nameSet,
+        anyCareerNameUnset:
+          careerItems.length > 0 ? careerItems.some((c) => !c.nameSet) : !nameSet,
         logoUrl:
           typeof mainTeamData?.logoUrl === "string"
             ? mainTeamData.logoUrl
@@ -634,24 +671,35 @@ export async function GET(req: NextRequest) {
         email: emailMap[ownerUid] || null,
         clubCreatedAt: created,
         lastActivityAt: lastActivity,
-        lastActivityAtMillis: lastActivityAtMillisValue,
-        activeDetail,
+        lastActivityAtMillis: (lastActivityAtMillis ?? 0) as number,
+        activeDetail: {
+          lastActivityAt: sources.lastActivityAt ?? 0,
+          eventAt: sources.eventAt ?? 0,
+          userAt: sources.userAt ?? 0,
+          authAt: sources.authAt ?? 0,
+          profileAt: sources.profileAt ?? 0,
+          representativeAt: sources.representativeAt ?? 0,
+          userCreatedAt: sources.userCreatedAt ?? 0,
+          profileCreatedAt: sources.profileCreatedAt ?? 0,
+          profileUpdatedAt: sources.profileUpdatedAt ?? 0,
+          adoptedAt: lastActivityAtMillis ?? 0,
+        },
         playerCount: pCount,
         playerImageCount: pImage,
         playerImageRate: pCount > 0 ? Math.round((pImage / pCount) * 1000) / 10 : null,
         mainTeamName: mainTeamName || null,
         teamCount: tCount,
-        teamImageCount: tImage,
-        teamImageRate: tCount > 0 ? Math.round((tImage / tCount) * 1000) / 10 : null,
+        teamImageCount: tImageSum,
+        teamImageRate: tCount > 0 ? Math.round((tImageSum / tCount) * 1000) / 10 : null,
         competitionCount: cCount,
         matchCount: mCount,
         newsCount: nCount,
-        isPaidPro,
-        isGrantedPro,
-        isFree,
-        plan,
+        isPaidPro: effective.isPaid,
+        isGrantedPro: effective.isGranted,
+        isFree: effective.plan === 'free',
+        plan: effective.plan,
         analyticsCohort: cohortByUid[ownerUid] || "pre_tracking",
-        isPublic: repData.isPublic !== false,
+        isPublic: repCareer ? repCareer.isPublic : repData.isPublic !== false,
         aggregateAvailable: true,
         aggregateUnavailableReason: null,
         usageLevel,
@@ -661,14 +709,53 @@ export async function GET(req: NextRequest) {
         engaged30: engaged30ByOwner[ownerUid] || false,
         matchActive7: matchActive7ByOwner[ownerUid] || false,
         matchActive30: matchActive30ByOwner[ownerUid] || false,
-        duplicateProfileCount,
+        duplicateProfileCount: profileIds.length,
         authExists: authUserUids.has(ownerUid),
         allProfilePlans: uidAllPlans[ownerUid] || [],
         allStripeCustomerIds: uidAllStripeCustomerIds[ownerUid] || [],
-        anyProPlan: !!uidToPlan[ownerUid],
-        anyStripeCustomer: !!uidHasStripeCustomer[ownerUid],
+        anyProPlan: (uidAllPlans[ownerUid] || []).some((p) => isProPlan(p)),
+        anyStripeCustomer: (uidAllStripeCustomerIds[ownerUid] || []).length > 0,
+        careerCount: validCareers.length,
+        creatingCareerCount: creatingCareers.length,
+        dataRootCount: dataRoots.length,
+        sharedDataRoots: careerItems.filter((c) => c.sharedDataRoot).length,
+        profileCount: profileIds.length,
+        unmatchedProfileCount: unmatchedProfiles,
+        careers: careerItems,
       };
     });
+
+    // ---- profile診断（グローバル分類） ----
+    const allCareerClubUids = new Set(careersByClubUid.keys());
+    const diag: ProfileDiagnostics = {
+      clubProfilesTotal: profileRows.length,
+      careerMatchedProfiles: 0,
+      ownerDocProfiles: 0,
+      unmatchedProfiles: 0,
+      unmatchedProfileIds: [],
+      authlessProfiles: 0,
+      authlessOwnerUids: [],
+    };
+    for (const r of profileRows) {
+      const ownerUid = String(r.data.ownerUid || r.id);
+      // Auth不在のownerは形式に関わらず先にauthlessへ分類する
+      if (!authUserUids.has(ownerUid)) {
+        diag.authlessProfiles++;
+        if (!diag.authlessOwnerUids.includes(ownerUid)) diag.authlessOwnerUids.push(ownerUid);
+        continue;
+      }
+      if (r.id === ownerUid) {
+        diag.ownerDocProfiles++;
+      } else if (
+        allCareerClubUids.has(r.id) ||
+        allCareerClubUids.has(String(r.data.clubUid || ''))
+      ) {
+        diag.careerMatchedProfiles++;
+      } else {
+        diag.unmatchedProfiles++;
+        diag.unmatchedProfileIds.push(r.id);
+      }
+    }
 
     const authClubs = clubs.filter((c) => c.authExists);
     const authlessUids = clubs.filter((c) => !c.authExists).map((c) => c.ownerUid);
@@ -687,7 +774,7 @@ export async function GET(req: NextRequest) {
     let multiClubProfiles = 0;
     let maxClubsPerOwner = 0;
     for (const c of authClubs) {
-      const ids = profileIdsByOwner[c.ownerUid];
+      const ids = profileIdsByOwner[c.ownerUid] || [];
       if (ids.length > 1) {
         multiClubOwners += 1;
         multiClubProfiles += ids.length;
@@ -699,18 +786,10 @@ export async function GET(req: NextRequest) {
         ? Math.round((multiClubProfiles / multiClubOwners) * 10) / 10
         : 0;
 
-    const withPlayerImages10 = authClubs.filter(
-      (c) => (c.playerImageCount ?? 0) >= 10
-    ).length;
-    const withPlayerImages20 = authClubs.filter(
-      (c) => (c.playerImageCount ?? 0) >= 20
-    ).length;
-    const withTeamImages = authClubs.filter(
-      (c) => (c.teamImageCount ?? 0) >= 1
-    ).length;
-    const withTeamImages5 = authClubs.filter(
-      (c) => (c.teamImageCount ?? 0) >= 5
-    ).length;
+    const withPlayerImages10 = authClubs.filter((c) => (c.playerImageCount ?? 0) >= 10).length;
+    const withPlayerImages20 = authClubs.filter((c) => (c.playerImageCount ?? 0) >= 20).length;
+    const withTeamImages = authClubs.filter((c) => (c.teamImageCount ?? 0) >= 1).length;
+    const withTeamImages5 = authClubs.filter((c) => (c.teamImageCount ?? 0) >= 5).length;
 
     const clubProfilesTotal = profileRows.length;
     const reducedDisplayRows = clubProfilesTotal - total;
@@ -718,13 +797,28 @@ export async function GET(req: NextRequest) {
     const grantedPro = authClubs.filter((c) => c.isGrantedPro).length;
     const totalPro = paidPro + grantedPro;
 
+    const totalCareers = authClubs.reduce((s, c) => s + c.careerCount, 0);
+    const creatingCareers = authClubs.reduce((s, c) => s + c.creatingCareerCount, 0);
+    const multiCareerUsers = authClubs.filter((c) => c.careerCount > 1).length;
+    const publicCareers = authClubs.reduce(
+      (s, c) => s + c.careers.filter((x) => !x.isCreating && x.isPublic).length, 0
+    );
+    const nameUnsetCareers = authClubs.reduce(
+      (s, c) => s + c.careers.filter((x) => !x.isCreating && !x.nameSet).length, 0
+    );
+
     const summary: Summary = {
       total,
       aggregatable,
+      totalCareers,
+      creatingCareers,
+      multiCareerUsers,
       nameSet,
       nameUnset,
       nameUnsetRate: total > 0 ? Math.round((nameUnset / total) * 1000) / 10 : 0,
       public: authClubs.filter((c) => c.isPublic).length,
+      publicCareers,
+      nameUnsetCareers,
       paidPro,
       grantedPro,
       totalPro,
@@ -764,7 +858,7 @@ export async function GET(req: NextRequest) {
       reducedDisplayRows,
     };
 
-    return NextResponse.json({ summary, clubs, authlessUids, matchDiagnostics });
+    return NextResponse.json({ summary, clubs, authlessUids, matchDiagnostics, profileDiagnostics: diag });
   } catch (error) {
     console.error("[admin/clubs] error", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
