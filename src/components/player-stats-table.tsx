@@ -336,10 +336,14 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
   const customStatHeaders = watch('customStatHeaders') || [];
 
   // Filter fields to only show players belonging to the current team
-  const teamPlayerFields = fields.filter(field => {
-    const fieldTeamId = (field as any).teamId;
-    return fieldTeamId === teamId;
-  });
+  // Merge live watched values over field ids: `fields` may not reflect setValue updates
+  const statsByIndex = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
+  const teamPlayerFields = fields
+    .map((field, index) => ({ ...(field as any), ...(statsByIndex[index] ?? {}), id: field.id }))
+    .filter(field => {
+      const fieldTeamId = (field as any).teamId;
+      return fieldTeamId === teamId;
+    });
 
   const teamPlayerIdsInStats = teamPlayerFields.map(f => (f as any).playerId);
   const availablePlayers = sortedAllPlayers.filter(p => !teamPlayerIdsInStats.includes(p.id));
@@ -377,24 +381,44 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
   useEffect(() => {
     const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
+    // Pass 1: first claimant keeps each explicitly-set valid slot (per team)
+    const slotOwner = new Map<number, number>();
     stats.forEach((ps, index) => {
       if (!ps) return;
       if (ps.teamId !== teamId) return;
-      if (index > 10) {
-        if ((ps.role ?? 'starter') === 'starter') {
-          setValue(`playerStats.${index}.role` as any, 'sub', { shouldDirty: false });
-        }
-        if (ps.starterSlot !== undefined) {
-          setValue(`playerStats.${index}.starterSlot` as any, undefined as any, { shouldDirty: false });
-        }
-        return;
-      }
       if ((ps.role ?? 'starter') !== 'starter') return;
       const slot = Number(ps.starterSlot);
-      if (Number.isInteger(slot) && slot >= 0 && slot <= 10) return;
-      setValue(`playerStats.${index}.starterSlot` as any, index, { shouldDirty: false });
+      if (Number.isInteger(slot) && slot >= 0 && slot <= 10 && !slotOwner.has(slot)) {
+        slotOwner.set(slot, index);
+      }
     });
-  }, [teamId, (watchedPlayerStats || []).map((ps: any) => ps?.starterSlot).join(','), setValue]);
+    // Pass 2: keep claimed slots, assign free slots to starters without one, demote overflow
+    stats.forEach((ps, index) => {
+      if (!ps) return;
+      if (ps.teamId !== teamId) return;
+      const isStarter = (ps.role ?? 'starter') === 'starter';
+      const slot = Number(ps.starterSlot);
+      if (isStarter && slotOwner.get(slot) === index) return;
+      if (isStarter) {
+        let nextSlot = -1;
+        for (let s = 0; s <= 10; s += 1) {
+          if (!slotOwner.has(s)) {
+            nextSlot = s;
+            break;
+          }
+        }
+        if (nextSlot !== -1) {
+          slotOwner.set(nextSlot, index);
+          setValue(`playerStats.${index}.starterSlot` as any, nextSlot, { shouldDirty: false });
+          return;
+        }
+        setValue(`playerStats.${index}.role` as any, 'sub', { shouldDirty: false });
+      }
+      if (ps.starterSlot !== undefined) {
+        setValue(`playerStats.${index}.starterSlot` as any, undefined as any, { shouldDirty: false });
+      }
+    });
+  }, [teamId, (watchedPlayerStats || []).map((ps: any) => `${ps?.teamId}:${ps?.role}:${ps?.starterSlot}`).join(','), setValue]);
 
   const handleAddPlayer = (playerId: string, role: 'starter' | 'sub') => {
     const player = allPlayers.find(p => p.id === playerId);
