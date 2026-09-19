@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MatchesFilters } from "./components/MatchesFilters";
 import { MatchesList } from "./components/MatchesList";
@@ -12,8 +12,8 @@ import { useMatchesData } from "./hooks/useMatchesData";
 export default function MatchesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, ownerUid } = useAuth();
-  const clubUid = ownerUid || user?.uid;
+  const { activeCareer, loading: careerLoading } = useCareer();
+  const clubUid = activeCareer?.clubUid;
   const { teams, competitions, competitionTeamIds, mainTeamId, matches, loadingBootstrap, loadingMatches, runSearch, clearMatches } =
     useMatchesData(clubUid);
 
@@ -24,6 +24,7 @@ export default function MatchesPage() {
   useEffect(() => {
     setHasSearched(false);
     setLastTeamId("all");
+    setSelectedSeason(null);
     clearMatches();
   }, [clubUid, clearMatches]);
 
@@ -47,23 +48,31 @@ export default function MatchesPage() {
   useEffect(() => {
     if (loadingBootstrap) return;
     const qSeason = (searchParams?.get("season") || "").trim();
-    if (!qSeason && seasonButtons.length > 0) {
-      // URLにシーズンがない場合、最新のシーズンを自動選択
+    if (selectedSeason !== null) {
+      // 選択中シーズンが候補に無い（Career切替等）場合は選び直す
+      if (!seasonButtons.includes(selectedSeason)) {
+        setSelectedSeason(null);
+      }
+      return;
+    }
+    if (qSeason && seasonButtons.includes(qSeason)) {
+      setSelectedSeason(qSeason);
+      setHasSearched(false);
+      clearMatches();
+      return;
+    }
+    // season未指定・無効指定は有効な最新シーズンへ。候補が無ければ空表示のまま
+    if (seasonButtons.length > 0) {
       setSelectedSeason(seasonButtons[0]);
       setHasSearched(false);
       clearMatches();
-      router.replace(`/admin/matches?season=${encodeURIComponent(seasonButtons[0])}`);
-      return;
+      if (qSeason !== seasonButtons[0]) {
+        router.replace(`/admin/matches?season=${encodeURIComponent(seasonButtons[0])}`);
+      }
     }
-    if (!qSeason) return;
-    if (selectedSeason !== null) return;
-    if (!seasonButtons.includes(qSeason)) return;
-    setSelectedSeason(qSeason);
-    setHasSearched(false);
-    clearMatches();
-  }, [loadingBootstrap, searchParams, seasonButtons, selectedSeason, clearMatches]);
+  }, [loadingBootstrap, searchParams, seasonButtons, selectedSeason, clearMatches, router]);
 
-  if (loadingBootstrap) {
+  if (careerLoading || loadingBootstrap) {
     return (
       <div className="container mx-auto py-10 flex justify-center items-center">
         <Loader2 className="h-8 w-8 animate-spin" />
