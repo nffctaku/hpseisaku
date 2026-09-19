@@ -62,6 +62,21 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
     });
 
     const provider = new GoogleAuthProvider();
+    const ua = window.navigator.userAgent || '';
+    const isMobileBrowser = /iPhone|iPad|iPod|Android/i.test(ua)
+      || (/Macintosh/i.test(ua) && window.navigator.maxTouchPoints > 1);
+    if (isMobileBrowser) {
+      // スマホではpopupが不安定＆余分な往復になるため直接redirect
+      try {
+        await signInWithRedirect(auth, provider);
+      } catch (e: any) {
+        console.error('[AuthButton] Error signing in with redirect', e);
+        window.alert(`ログインエラー: ${e.message || e.code || 'Unknown error'}`);
+      } finally {
+        signingInRef.current = false;
+      }
+      return;
+    }
     try {
       console.log('[AuthButton] Using popup');
       const result = await signInWithPopup(auth, provider);
