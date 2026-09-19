@@ -290,8 +290,23 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
   }, [teamId, watchedEvents, matchDuration]);
 
   // Automatically calculate and update minutesPlayed based on substitution events and matchDuration
+  // Only recalc when minutes-relevant data actually changed since load (lineup members or
+  // substitution events); viewing or unrelated edits must preserve stored minutesPlayed.
+  const minutesSignatureRef = useRef<string | null>(null);
   useEffect(() => {
     const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
+    const teamPlayerIds = stats
+      .filter((ps) => ps && ps.teamId === teamId)
+      .map((ps) => String(ps.playerId || ''))
+      .sort();
+    const teamSubEvents = (Array.isArray(watchedEvents) ? watchedEvents : []).filter(
+      (e: any) => e && e.teamId === teamId && e.type === 'substitution'
+    );
+    if (teamPlayerIds.length === 0 && teamSubEvents.length === 0 && minutesSignatureRef.current === null) return;
+    const signature = JSON.stringify({ p: teamPlayerIds, ev: teamSubEvents });
+    const changed = minutesSignatureRef.current !== null && minutesSignatureRef.current !== signature;
+    minutesSignatureRef.current = signature;
+    if (!changed) return;
     stats.forEach((ps, idx) => {
       if (!ps) return;
       if (ps.teamId !== teamId) return;
@@ -320,9 +335,10 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
       }
 
       if (curNum === desired) return;
-      setValue(`playerStats.${idx}.minutesPlayed` as any, desired, { shouldDirty: true });
+      // shouldDirty:false — recalculation must not trigger autosave by itself
+      setValue(`playerStats.${idx}.minutesPlayed` as any, desired, { shouldDirty: false });
     });
-  }, [derivedStarterMinutes, derivedBenchMinutes, matchDuration, teamId, watchedPlayerStats, setValue]);
+  }, [derivedStarterMinutes, derivedBenchMinutes, matchDuration, teamId, watchedPlayerStats, watchedEvents, setValue]);
 
   const sortedAllPlayers = [...allPlayers].sort((a, b) => {
     const an = typeof (a as any)?.number === 'number' && Number.isFinite((a as any).number) ? (a as any).number : Number.POSITIVE_INFINITY;
@@ -413,12 +429,14 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
           return;
         }
         setValue(`playerStats.${index}.role` as any, 'sub', { shouldDirty: false });
+        const demotedId = typeof ps.playerId === 'string' ? ps.playerId : '';
+        setValue(`playerStats.${index}.minutesPlayed` as any, demotedId ? (derivedBenchMinutes.get(demotedId) ?? 0) : 0, { shouldDirty: false });
       }
       if (ps.starterSlot !== undefined) {
         setValue(`playerStats.${index}.starterSlot` as any, undefined as any, { shouldDirty: false });
       }
     });
-  }, [teamId, (watchedPlayerStats || []).map((ps: any) => `${ps?.teamId}:${ps?.role}:${ps?.starterSlot}`).join(','), setValue]);
+  }, [teamId, derivedBenchMinutes, (watchedPlayerStats || []).map((ps: any) => `${ps?.teamId}:${ps?.role}:${ps?.starterSlot}`).join(','), setValue]);
 
   const handleAddPlayer = (playerId: string, role: 'starter' | 'sub') => {
     const player = allPlayers.find(p => p.id === playerId);
