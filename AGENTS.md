@@ -1,5 +1,30 @@
 # 引き継ぎメモ
 
+## 認証コード変更禁止（厳守）
+
+ログイン・認証関連のコードは原則変更禁止。以下は変更禁止対象:
+
+- `src/contexts/AuthContext.tsx`
+- `src/components/auth-button.tsx`
+- `src/lib/firebase.ts`
+- Firebase Authentication 設定
+- authDomain
+- Google OAuth 設定
+- `/__/auth/*` の rewrite（next.config.mjs）
+- ログイン後のリダイレクト処理
+
+別機能の実装中に関連コードを見つけても、整理・共通化・最適化・リファクタリングを行わないこと。
+
+認証関連の変更がどうしても必要な場合は、実装前に必ず以下を報告し、ユーザーの明示的な許可を待つこと:
+
+1. 変更が必要な理由
+2. 変更対象ファイル
+3. 本番ログインへの影響
+4. ロールバック方法
+5. PC・iPhoneでの検証方法
+
+許可なく認証コードを変更しないこと。
+
 ## Java / Firebase Emulator
 
 - Java は `C:\Users\footb\jre\jdk-17.0.20.1+1-jre\bin\java.exe` に配置済み（新規インストール不要）
