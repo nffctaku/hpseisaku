@@ -113,7 +113,7 @@ const getPositionPillClassName = (position: any) => {
 
 export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFormationChange, isHomeTeam }: { teamId: string, allPlayers: Player[], matchDuration?: number, onFormationChange?: (formation: string) => void, isHomeTeam?: boolean }) {
   console.log(`PlayerStatsTable v3 (${teamId}): Received allPlayers`, allPlayers);
-  const { control, watch, setValue } = useFormContext();
+  const { control, watch, setValue, formState } = useFormContext();
   const { fields, append, prepend, remove, update } = useFieldArray({
     control,
     name: 'playerStats',
@@ -297,7 +297,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
     const teamPlayerIds = stats
       .filter((ps) => ps && ps.teamId === teamId)
-      .map((ps) => String(ps.playerId || ''))
+      .map((ps) => `${String(ps.playerId || '')}:${ps.role ?? 'starter'}`)
       .sort();
     const teamSubEvents = (Array.isArray(watchedEvents) ? watchedEvents : []).filter(
       (e: any) => e && e.teamId === teamId && e.type === 'substitution'
@@ -306,7 +306,8 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     const signature = JSON.stringify({ p: teamPlayerIds, ev: teamSubEvents });
     const changed = minutesSignatureRef.current !== null && minutesSignatureRef.current !== signature;
     minutesSignatureRef.current = signature;
-    if (!changed) return;
+    // Recalc only on user edits; load-time normalization uses shouldDirty:false so it never qualifies
+    if (!changed || !formState.isDirty) return;
     stats.forEach((ps, idx) => {
       if (!ps) return;
       if (ps.teamId !== teamId) return;
@@ -429,8 +430,6 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
           return;
         }
         setValue(`playerStats.${index}.role` as any, 'sub', { shouldDirty: false });
-        const demotedId = typeof ps.playerId === 'string' ? ps.playerId : '';
-        setValue(`playerStats.${index}.minutesPlayed` as any, demotedId ? (derivedBenchMinutes.get(demotedId) ?? 0) : 0, { shouldDirty: false });
       }
       if (ps.starterSlot !== undefined) {
         setValue(`playerStats.${index}.starterSlot` as any, undefined as any, { shouldDirty: false });
