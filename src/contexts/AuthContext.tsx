@@ -332,12 +332,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const handleRedirectResult = async () => {
       try {
         // redirectログイン経由で戻った場合のみ authDomain を自ドメインに切替。
-        // pendingイベントは sessionStorage の firebase:redirectEvent* キーで検出する
+        // pendingイベントは sessionStorage の firebase:pendingRedirect* キーで検出する
         // （現行SDKでは復帰URLにauthパラメータは付かない）。
         // PCのpopupはweb.app直行の方が速いため、通常時は切替しない。
         const hasPendingRedirect = (() => {
           try {
-            return Object.keys(window.sessionStorage).some((k) => k.startsWith('firebase:redirectEvent'));
+            return Object.keys(window.sessionStorage).some((k) => k.startsWith('firebase:pendingRedirect'));
           } catch {
             return false;
           }

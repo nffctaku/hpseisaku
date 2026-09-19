@@ -69,14 +69,27 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       // スマホではpopupが不安定＆余分な往復になるため直接redirect。
       // redirectの認証結果はauthDomain側ストレージに保存されるため、
       // iOS等のサードパーティ制限を避けるよう自ドメインに切替える。
+      // 注意: signInWithRedirectのpromiseは設計上resolveしない（画面遷移するため）。
+      // awaitするとfinallyが走らずロックが残り、bfcache復帰後にボタンが
+      // 無反応になるため、awaitせずcatchでエラー処理し、pageshowでロックを戻す。
+      const resetLockOnPageShow = (e: PageTransitionEvent) => {
+        if (e.persisted) {
+          signingInRef.current = false;
+          window.removeEventListener('pageshow', resetLockOnPageShow);
+        }
+      };
+      window.addEventListener('pageshow', resetLockOnPageShow);
       try {
         useSelfAuthDomainForRedirect();
-        await signInWithRedirect(auth, provider);
+        void signInWithRedirect(auth, provider).catch((e: any) => {
+          console.error('[AuthButton] Error signing in with redirect', e);
+          signingInRef.current = false;
+          window.alert(`ログインエラー: ${e.message || e.code || 'Unknown error'}`);
+        });
       } catch (e: any) {
-        console.error('[AuthButton] Error signing in with redirect', e);
-        window.alert(`ログインエラー: ${e.message || e.code || 'Unknown error'}`);
-      } finally {
+        console.error('[AuthButton] Error starting redirect', e);
         signingInRef.current = false;
+        window.alert(`ログインエラー: ${e.message || e.code || 'Unknown error'}`);
       }
       return;
     }
@@ -101,12 +114,13 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
         // 無視してOK
       } else if (error.code === 'auth/popup-blocked' || error.code === 'auth/operation-not-supported-in-this-environment') {
-        try {
-          useSelfAuthDomainForRedirect();
-          await signInWithRedirect(auth, provider);
-        } catch (e: any) {
+        // signInWithRedirectのpromiseは設計上resolveしない（画面遷移するため）。
+        // awaitするとfinallyが走らずロックが残るので、awaitせずcatchのみ付ける。
+        useSelfAuthDomainForRedirect();
+        void signInWithRedirect(auth, provider).catch((e: any) => {
           console.error('[AuthButton] Error signing in with redirect fallback', e);
-        }
+          signingInRef.current = false;
+        });
       } else {
         window.alert(`ログインエラー: ${error.message || error.code || 'Unknown error'}`);
       }
