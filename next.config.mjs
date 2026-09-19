@@ -9,6 +9,21 @@ const nextConfig = {
   },
   productionBrowserSourceMaps: true,
   serverExternalPackages: ['firebase-admin'],
+  // Firebase Auth のリダイレクトログインを自ドメイン経由にするためのプロキシ。
+  // NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN を www.footchron.com に切り替えた時点で有効になる。
+  // （切替前は従来通り hpsakusei-app.web.app の authDomain が使われるため無害）
+  async rewrites() {
+    return [
+      {
+        source: '/__/auth/:path*',
+        destination: 'https://hpsakusei-app.firebaseapp.com/__/auth/:path*',
+      },
+      {
+        source: '/__/firebase/:path*',
+        destination: 'https://hpsakusei-app.firebaseapp.com/__/firebase/:path*',
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

@@ -82,7 +82,7 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       console.error('[AuthButton] Error signing in with popup', error);
       if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
         // 無視してOK
-      } else if (error.code === 'auth/popup-blocked') {
+      } else if (error.code === 'auth/popup-blocked' || error.code === 'auth/operation-not-supported-in-this-environment') {
         try {
           await signInWithRedirect(auth, provider);
         } catch (e: any) {
