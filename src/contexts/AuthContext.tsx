@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged, getRedirectResult, getAdditionalUserInfo } from 'firebase/auth';
-import { auth, db, useSelfAuthDomainForRedirect } from '@/lib/firebase';
+import { auth, db, useSelfAuthDomainForRedirect, restoreDefaultAuthDomain } from '@/lib/firebase';
 import { doc, getDoc, getDocFromServer, collection, query, where, getDocs, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { saveUserAcquisition, trackEvent, getAcquisitionSnapshot } from '@/lib/analytics';
 import { ADMIN_UID } from "@/lib/admin-config";
@@ -325,27 +325,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, 30000); // 30 second global timeout
 
     // Handle redirect result from Google sign-in.
-    // NOTE: 現在のFirebase SDKでは復帰URLにauthパラメータは付かず、
-    // 認証イベントはauthDomain側ストレージ経由で取得される。
-    // URLパラメータで判定するとredirectログインが永遠にスキップされるため
-    // getRedirectResultは常に呼ぶ（未ログイン時は即座にnullが返る）。
+    // getRedirectResultは起動時に条件なしで必ず1回呼ぶ。
+    // pendingイベントが無い場合はSDK内部判定で即nullが返り、authDomainの
+    // iframeも読み込まれないためコストは無い。
+    // 自ドメイン上ではredirect結果が自ドメイン側ストレージに保存されるため、
+    // 呼ぶ前にauthDomainを自ドメインへ切替え、完了後にenv値へ戻す
+    // （PCのpopupはweb.app直行の方が速いため）。
     const handleRedirectResult = async () => {
       try {
-        // redirectログイン経由で戻った場合のみ authDomain を自ドメインに切替。
-        // pendingイベントは sessionStorage の firebase:pendingRedirect* キーで検出する
-        // （現行SDKでは復帰URLにauthパラメータは付かない）。
-        // PCのpopupはweb.app直行の方が速いため、通常時は切替しない。
-        const hasPendingRedirect = (() => {
-          try {
-            return Object.keys(window.sessionStorage).some((k) => k.startsWith('firebase:pendingRedirect'));
-          } catch {
-            return false;
-          }
-        })();
-        if (hasPendingRedirect) {
-          useSelfAuthDomainForRedirect();
-        }
-        console.log('[AuthContext] Checking redirect result', { hasPendingRedirect });
+        useSelfAuthDomainForRedirect();
+        console.log('[AuthContext] Checking redirect result');
         const result = await getRedirectResult(auth);
         console.log('[AuthContext] Redirect result received', { hasUser: !!result?.user });
         const authDomain = (auth.app.options as any).authDomain;
@@ -371,13 +360,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (error: any) {
         console.error('[AuthContext] Error handling redirect result:', error);
+      } finally {
+        // PCのpopupはweb.app直行の方が速いためenv値へ戻す
+        restoreDefaultAuthDomain();
       }
     };
 
-    handleRedirectResult();
-
-    try {
-      authUnsubscribe = onAuthStateChanged(auth, async (authUser) => {
+    // getRedirectResultの完了を待ってからauthリスナーを登録する。
+    // これによりredirect復帰時のサインイン処理が先に終わり、
+    // loading解除がredirect結果反映後になる。
+    (async () => {
+      await handleRedirectResult();
+      try {
+        authUnsubscribe = onAuthStateChanged(auth, async (authUser) => {
         console.log('[AuthContext] onAuthStateChanged triggered', { authUser, uid: authUser?.uid });
         if (authUser) {
           const isSameUid = lastProcessedUidRef.current === authUser.uid;
@@ -461,13 +456,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
       });
-    } catch (error) {
-      console.error('[AuthContext] Error setting up auth listener:', error);
-      if (loadingRef.current) {
-        loadingRef.current = false;
-        setLoading(false);
+      } catch (error) {
+        console.error('[AuthContext] Error setting up auth listener:', error);
+        if (loadingRef.current) {
+          loadingRef.current = false;
+          setLoading(false);
+        }
       }
-    }
+    })();
 
     return () => {
       console.log('[AuthContext] cleanup, clearing timeout');

@@ -10,7 +10,7 @@ import {
   setSignupSource,
   trackEvent,
 } from "@/lib/analytics";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -35,6 +35,18 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const signingInRef = useRef(false);
   const isAdmin = typeof pathname === "string" && pathname.startsWith("/admin");
   console.log('[AuthButton] render', { hasUser: !!user, user });
+
+  // signInWithRedirectのpromiseは設計上resolveしないため、redirect開始後に
+  // bfcacheから復帰した場合に備えてロックを必ず解除する
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        signingInRef.current = false;
+      }
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
 
   const planLabel = user?.plan === 'pro' ? 'Pro' : 'Free';
   const planClassName = user?.plan === 'pro'
@@ -71,14 +83,8 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       // iOS等のサードパーティ制限を避けるよう自ドメインに切替える。
       // 注意: signInWithRedirectのpromiseは設計上resolveしない（画面遷移するため）。
       // awaitするとfinallyが走らずロックが残り、bfcache復帰後にボタンが
-      // 無反応になるため、awaitせずcatchでエラー処理し、pageshowでロックを戻す。
-      const resetLockOnPageShow = (e: PageTransitionEvent) => {
-        if (e.persisted) {
-          signingInRef.current = false;
-          window.removeEventListener('pageshow', resetLockOnPageShow);
-        }
-      };
-      window.addEventListener('pageshow', resetLockOnPageShow);
+      // 無反応になるため、awaitせずcatchのみ付ける
+      // （bfcache復帰時のロック解除はコンポーネントのpageshowリスナーで処理）。
       try {
         useSelfAuthDomainForRedirect();
         void signInWithRedirect(auth, provider).catch((e: any) => {
