@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged, getRedirectResult, getAdditionalUserInfo } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, useSelfAuthDomainForRedirect } from '@/lib/firebase';
 import { doc, getDoc, getDocFromServer, collection, query, where, getDocs, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { saveUserAcquisition, trackEvent, getAcquisitionSnapshot } from '@/lib/analytics';
 import { ADMIN_UID } from "@/lib/admin-config";
@@ -331,7 +331,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // getRedirectResultは常に呼ぶ（未ログイン時は即座にnullが返る）。
     const handleRedirectResult = async () => {
       try {
-        console.log('[AuthContext] Checking redirect result');
+        // redirectログイン経由で戻った場合のみ authDomain を自ドメインに切替。
+        // pendingイベントは sessionStorage の firebase:redirectEvent* キーで検出する
+        // （現行SDKでは復帰URLにauthパラメータは付かない）。
+        // PCのpopupはweb.app直行の方が速いため、通常時は切替しない。
+        const hasPendingRedirect = (() => {
+          try {
+            return Object.keys(window.sessionStorage).some((k) => k.startsWith('firebase:redirectEvent'));
+          } catch {
+            return false;
+          }
+        })();
+        if (hasPendingRedirect) {
+          useSelfAuthDomainForRedirect();
+        }
+        console.log('[AuthContext] Checking redirect result', { hasPendingRedirect });
         const result = await getRedirectResult(auth);
         console.log('[AuthContext] Redirect result received', { hasUser: !!result?.user });
         const authDomain = (auth.app.options as any).authDomain;

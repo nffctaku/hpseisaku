@@ -1,7 +1,7 @@
 "use client";
 
 import { signInWithPopup, signInWithRedirect, signOut, getAdditionalUserInfo } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, useSelfAuthDomainForRedirect } from "@/lib/firebase";
 import { GoogleAuthProvider } from "firebase/auth";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -66,8 +66,11 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
     const isMobileBrowser = /iPhone|iPad|iPod|Android/i.test(ua)
       || (/Macintosh/i.test(ua) && window.navigator.maxTouchPoints > 1);
     if (isMobileBrowser) {
-      // スマホではpopupが不安定＆余分な往復になるため直接redirect
+      // スマホではpopupが不安定＆余分な往復になるため直接redirect。
+      // redirectの認証結果はauthDomain側ストレージに保存されるため、
+      // iOS等のサードパーティ制限を避けるよう自ドメインに切替える。
       try {
+        useSelfAuthDomainForRedirect();
         await signInWithRedirect(auth, provider);
       } catch (e: any) {
         console.error('[AuthButton] Error signing in with redirect', e);
@@ -99,6 +102,7 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
         // 無視してOK
       } else if (error.code === 'auth/popup-blocked' || error.code === 'auth/operation-not-supported-in-this-environment') {
         try {
+          useSelfAuthDomainForRedirect();
           await signInWithRedirect(auth, provider);
         } catch (e: any) {
           console.error('[AuthButton] Error signing in with redirect fallback', e);

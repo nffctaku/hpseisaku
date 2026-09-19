@@ -3,15 +3,19 @@ import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { getFirestore, setLogLevel, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// 本番ドメインでは authDomain を自ドメインに切り替える。
-// /__/auth/* は next.config の rewrite で firebaseapp.com にプロキシ済み。
-// これによりスマホ（iOS Safari等）の redirect ログイン結果が
-// ファーストパーティのストレージで復元できる。
+// スマホの redirect ログインでは authDomain を自ドメインに切り替える
+// （/__/auth/* は rewrite でプロキシ済み）。iOS Safari のサードパーティ
+// ストレージ制限で結果が復元できない問題を回避するため。
+// PC の popup は従来通り web.app 直行の方が速いため、初期値はenvのまま。
 const SELF_AUTH_DOMAINS = new Set(['www.footchron.com', 'footchron.com']);
-const runtimeHost = typeof window !== 'undefined' ? window.location.hostname : '';
-const resolvedAuthDomain = SELF_AUTH_DOMAINS.has(runtimeHost)
-  ? runtimeHost
-  : process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+const resolvedAuthDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+
+export function useSelfAuthDomainForRedirect(): void {
+  const host = typeof window !== 'undefined' ? window.location.hostname : '';
+  if (SELF_AUTH_DOMAINS.has(host)) {
+    (auth.config as { authDomain: string }).authDomain = host;
+  }
+}
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
