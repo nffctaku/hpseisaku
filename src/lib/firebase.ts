@@ -3,9 +3,19 @@ import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { getFirestore, setLogLevel, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
+// 本番ドメインでは authDomain を自ドメインに切り替える。
+// /__/auth/* は next.config の rewrite で firebaseapp.com にプロキシ済み。
+// これによりスマホ（iOS Safari等）の redirect ログイン結果が
+// ファーストパーティのストレージで復元できる。
+const SELF_AUTH_DOMAINS = new Set(['www.footchron.com', 'footchron.com']);
+const runtimeHost = typeof window !== 'undefined' ? window.location.hostname : '';
+const resolvedAuthDomain = SELF_AUTH_DOMAINS.has(runtimeHost)
+  ? runtimeHost
+  : process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  authDomain: resolvedAuthDomain,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
