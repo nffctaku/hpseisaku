@@ -380,15 +380,16 @@ export default function TrophyRoomAdminPage() {
   return (
     <div className="relative min-h-screen bg-[#050a12] pb-6 text-white">
       <header className="relative -mx-4 -mt-4 overflow-hidden sm:-mx-6 sm:-mt-6 md:-mx-8 md:-mt-8">
-        <Image src={TROPHY_ROOM_BG} alt="" fill priority className="object-cover object-center" sizes="100vw" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-[#0a1226]/85 to-black/60" />
-        <div className="relative mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-end sm:justify-between sm:px-6 md:px-8">
+        <Image src={TROPHY_ROOM_BG} alt="" fill priority className="object-cover object-center md:scale-125 md:origin-right md:object-contain md:object-right" sizes="100vw" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-[#0a1226]/70 to-black/45" />
+        <div className="relative mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6 md:min-h-[360px] md:justify-center md:px-8">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 shrink-0 text-yellow-400 sm:h-6 sm:w-6" />
-              <h1 className="whitespace-nowrap text-xl font-black tracking-tight sm:text-3xl">トロフィールーム</h1>
-            </div>
-            <p className="mt-1 text-xs font-bold text-white/60">獲得タイトルと優勝シーズンを管理</p>
+            <Trophy className="h-6 w-6 shrink-0 text-yellow-400 sm:h-7 sm:w-7" strokeWidth={2.4} />
+            <h1 className="mt-2 whitespace-nowrap text-2xl font-black leading-none tracking-[-0.04em] text-slate-100 sm:text-4xl">
+              TROPHY <span className="text-yellow-400">ROOM</span>
+            </h1>
+            <p className="mt-1.5 text-xs font-bold text-slate-300 sm:text-sm">トロフィールーム</p>
+            <p className="mt-2 text-xs font-bold text-white/70 sm:text-sm">クラブが獲得した栄光の記録</p>
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-white/75">
               <span><span className="font-mono text-base font-black text-yellow-300">{trophies.length > 0 ? trophies.length : "—"}</span> タイトル</span>
               <span><span className="font-mono text-base font-black text-yellow-300">{trophies.length > 0 ? totalWins : "—"}</span> 回優勝</span>
@@ -399,7 +400,7 @@ export default function TrophyRoomAdminPage() {
             <button
               onClick={openCreate}
               disabled={!isOwner || saving}
-              className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-yellow-400/70 bg-yellow-400/10 px-4 text-sm font-black text-yellow-300 transition hover:bg-yellow-400/20 disabled:opacity-50"
+              className="inline-flex h-11 items-center justify-center gap-1.5 self-start rounded-lg border border-yellow-400/70 bg-yellow-400/10 px-4 text-sm font-black text-yellow-300 transition hover:bg-yellow-400/20 disabled:opacity-50"
             >
               <Plus className="h-4 w-4" /> 新しいタイトル
             </button>
