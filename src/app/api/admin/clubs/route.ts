@@ -121,6 +121,15 @@ interface ProfileDiagnostics {
   unmatchedProfileIds: string[];
   authlessProfiles: number;
   authlessOwnerUids: string[];
+  // 要確認profileを持つAuth存在owner数と、各指標への包含状況
+  unmatchedOwnerUids: number;
+  unmatchedInclusion: {
+    publicUsers: number;
+    nameUnsetUsers: number;
+    active7Users: number;
+    active30Users: number;
+    usageUsers: number;
+  };
 }
 
 interface Summary {
@@ -168,6 +177,15 @@ interface Summary {
   matchActive30: number;
   clubProfilesTotal: number;
   reducedDisplayRows: number;
+  // Careerベースの折りたたみ数: Σ max(Career数-1, 0) per UID
+  foldedCareers: number;
+  // Career保有/旧形式（Career無し）の内訳
+  usersWithCareers: number;
+  legacyUsers: number;
+  publicCareerUsers: number;
+  publicLegacyUsers: number;
+  allNameUnsetCareerUsers: number;
+  legacyNameUnsetUsers: number;
 }
 
 function toIso(value: unknown): string | null {
@@ -533,8 +551,10 @@ export async function GET(req: NextRequest) {
           c.name ||
           '';
         const slug = c.clubId || (typeof rootProfileData.clubId === 'string' ? rootProfileData.clubId : '') || c.clubUid;
-        const isPublic =
-          c.isPublic || rootProfileData.isPublic === true || rootProfileData.directoryListed === true;
+        // 「公開」の実フラグは directoryListed（/clubs ディレクトリ掲載条件）。
+        // career.isPublic は作成時に directoryListed からコピーされたスナップショット。
+        // club_profiles に isPublic フィールドは存在しない（欠損を公開扱いしない）。
+        const isPublic = c.isPublic === true || rootProfileData.directoryListed === true;
         return {
           careerId: c.id,
           name: c.name,
@@ -699,7 +719,13 @@ export async function GET(req: NextRequest) {
         isFree: effective.plan === 'free',
         plan: effective.plan,
         analyticsCohort: cohortByUid[ownerUid] || "pre_tracking",
-        isPublic: repCareer ? repCareer.isPublic : repData.isPublic !== false,
+        // 「いずれか公開」: Career保有者は有効Careerのどれかが公開、旧形式はprofileのdirectoryListed
+        isPublic:
+          careerItems.length > 0
+            ? careerItems.some((ci) => !ci.isCreating && ci.isPublic)
+            : profileDocs.some(
+                (d) => (d.data() as Record<string, unknown>).directoryListed === true
+              ),
         aggregateAvailable: true,
         aggregateUnavailableReason: null,
         usageLevel,
@@ -735,6 +761,14 @@ export async function GET(req: NextRequest) {
       unmatchedProfileIds: [],
       authlessProfiles: 0,
       authlessOwnerUids: [],
+      unmatchedOwnerUids: 0,
+      unmatchedInclusion: {
+        publicUsers: 0,
+        nameUnsetUsers: 0,
+        active7Users: 0,
+        active30Users: 0,
+        usageUsers: 0,
+      },
     };
     for (const r of profileRows) {
       const ownerUid = String(r.data.ownerUid || r.id);
@@ -756,6 +790,38 @@ export async function GET(req: NextRequest) {
         diag.unmatchedProfileIds.push(r.id);
       }
     }
+
+    // 要確認profileの各指標への包含（owner単位。profile自体はusage集計のデータルートにならない）
+    const unmatchedOwnerSet = new Set<string>();
+    for (const r of profileRows) {
+      const ownerUid = String(r.data.ownerUid || r.id);
+      if (!authUserUids.has(ownerUid) || r.id === ownerUid) continue;
+      if (
+        !allCareerClubUids.has(r.id) &&
+        !allCareerClubUids.has(String(r.data.clubUid || ''))
+      ) {
+        unmatchedOwnerSet.add(ownerUid);
+      }
+    }
+    diag.unmatchedOwnerUids = unmatchedOwnerSet.size;
+    const unmatchedOwnerClubs = clubs.filter(
+      (c) => c.authExists && unmatchedOwnerSet.has(c.ownerUid)
+    );
+    diag.unmatchedInclusion = {
+      publicUsers: unmatchedOwnerClubs.filter((c) => c.isPublic).length,
+      nameUnsetUsers: unmatchedOwnerClubs.filter((c) => c.allCareersNameUnset).length,
+      active7Users: unmatchedOwnerClubs.filter((c) => c.active7).length,
+      active30Users: unmatchedOwnerClubs.filter((c) => c.active30).length,
+      usageUsers: unmatchedOwnerClubs.filter(
+        (c) =>
+          (c.playerCount ?? 0) +
+            (c.teamCount ?? 0) +
+            (c.competitionCount ?? 0) +
+            (c.matchCount ?? 0) +
+            (c.newsCount ?? 0) >
+          0
+      ).length,
+    };
 
     const authClubs = clubs.filter((c) => c.authExists);
     const authlessUids = clubs.filter((c) => !c.authExists).map((c) => c.ownerUid);
@@ -807,6 +873,26 @@ export async function GET(req: NextRequest) {
       (s, c) => s + c.careers.filter((x) => !x.isCreating && !x.nameSet).length, 0
     );
 
+    // Career単位の折りたたみ数: 各UIDの max(Career数-1, 0) の合計
+    const foldedCareers = authClubs.reduce(
+      (s, c) => s + Math.max(c.careerCount - 1, 0),
+      0
+    );
+    const usersWithCareers = authClubs.filter((c) => c.careerCount > 0).length;
+    const legacyUsers = total - usersWithCareers;
+    const publicCareerUsers = authClubs.filter(
+      (c) => c.careerCount > 0 && c.isPublic
+    ).length;
+    const publicLegacyUsers = authClubs.filter(
+      (c) => c.careerCount === 0 && c.isPublic
+    ).length;
+    const allNameUnsetCareerUsers = authClubs.filter(
+      (c) => c.careerCount > 0 && c.allCareersNameUnset
+    ).length;
+    const legacyNameUnsetUsers = authClubs.filter(
+      (c) => c.careerCount === 0 && c.allCareersNameUnset
+    ).length;
+
     const summary: Summary = {
       total,
       aggregatable,
@@ -856,6 +942,13 @@ export async function GET(req: NextRequest) {
       matchActive30: authClubs.filter((c) => c.matchActive30).length,
       clubProfilesTotal,
       reducedDisplayRows,
+      foldedCareers,
+      usersWithCareers,
+      legacyUsers,
+      publicCareerUsers,
+      publicLegacyUsers,
+      allNameUnsetCareerUsers,
+      legacyNameUnsetUsers,
     };
 
     return NextResponse.json({ summary, clubs, authlessUids, matchDiagnostics, profileDiagnostics: diag });

@@ -104,6 +104,14 @@ interface ProfileDiagnostics {
   unmatchedProfileIds: string[];
   authlessProfiles: number;
   authlessOwnerUids: string[];
+  unmatchedOwnerUids: number;
+  unmatchedInclusion: {
+    publicUsers: number;
+    nameUnsetUsers: number;
+    active7Users: number;
+    active30Users: number;
+    usageUsers: number;
+  };
 }
 
 interface Summary {
@@ -151,6 +159,13 @@ interface Summary {
   matchActive30: number;
   clubProfilesTotal: number;
   reducedDisplayRows: number;
+  foldedCareers: number;
+  usersWithCareers: number;
+  legacyUsers: number;
+  publicCareerUsers: number;
+  publicLegacyUsers: number;
+  allNameUnsetCareerUsers: number;
+  legacyNameUnsetUsers: number;
 }
 
 interface FunnelSummary {
@@ -671,7 +686,7 @@ export default function InternalClubsPage() {
           career.isPublic ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
         }`}
       >
-        {career.isPublic ? "公開" : "非公開"}
+        {career.isPublic ? "一覧掲載" : "未掲載"}
       </span>
       {!career.nameSet && !career.isCreating && (
         <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400">
@@ -697,7 +712,12 @@ export default function InternalClubsPage() {
         {summary && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <SummaryCard label="総ユーザー（Auth UID）" value={summary.total} color="text-white" />
+              <SummaryCard
+                label="総ユーザー（Auth UID）"
+                value={summary.total}
+                sub={`Career保有 ${summary.usersWithCareers} / 旧形式Career無し ${summary.legacyUsers}`}
+                color="text-white"
+              />
               <SummaryCard
                 label="有効Career数"
                 value={summary.totalCareers}
@@ -712,7 +732,7 @@ export default function InternalClubsPage() {
               <SummaryCard
                 label="複数Careerユーザー"
                 value={summary.multiCareerUsers}
-                sub={`一覧で折りたたまれたCareer: ${Math.max(0, summary.totalCareers - summary.total)}`}
+                sub={`一覧で折りたたまれたCareer: ${summary.foldedCareers}（Σ max(Career数-1,0)）`}
                 color="text-violet-400"
               />
               <SummaryCard label="Total Pro（UID）" value={summary.totalPro} color="text-amber-400" />
@@ -720,13 +740,13 @@ export default function InternalClubsPage() {
               <SummaryCard
                 label="クラブ名未設定（Career）"
                 value={summary.nameUnsetCareers}
-                sub={`全Career未設定ユーザー ${summary.nameUnset}`}
+                sub={`全Career未設定(Career保有) ${summary.allNameUnsetCareerUsers} / 旧形式未設定 ${summary.legacyNameUnsetUsers}`}
                 color="text-red-400"
               />
               <SummaryCard
-                label="公開中（Career）"
+                label="クラブ一覧掲載中（Career）"
                 value={summary.publicCareers}
-                sub={`いずれか公開ユーザー ${summary.public}`}
+                sub={`一覧掲載ユーザー: Career保有 ${summary.publicCareerUsers} + 旧形式 ${summary.publicLegacyUsers}`}
                 color="text-emerald-400"
               />
               <SummaryCard label="Paid Pro（UID）" value={summary.paidPro} color="text-amber-400" />
@@ -827,6 +847,23 @@ export default function InternalClubsPage() {
                     color="text-slate-300"
                   />
                 </div>
+                {profileDiagnostics?.unmatchedInclusion && (
+                  <div className="mt-3 rounded-xl border border-white/10 p-3 text-[10px] text-slate-400">
+                    <p className="mb-1 font-bold text-slate-300">
+                      要確認profile {profileDiagnostics.unmatchedProfiles}件（owner {profileDiagnostics.unmatchedOwnerUids}人）の各指標への包含
+                    </p>
+                    <p>
+                      一覧掲載ユーザー {profileDiagnostics.unmatchedInclusion.publicUsers} /
+                      未設定ユーザー {profileDiagnostics.unmatchedInclusion.nameUnsetUsers} /
+                      7日Active {profileDiagnostics.unmatchedInclusion.active7Users} /
+                      30日Active {profileDiagnostics.unmatchedInclusion.active30Users} /
+                      利用条件を満たしたowner {profileDiagnostics.unmatchedInclusion.usageUsers}
+                    </p>
+                    <p className="mt-1 text-slate-500">
+                      ※「利用条件を満たしたowner」は該当profileのownerが選手・試合等の利用条件を満たした人数であり、要確認profile自体を集計した数ではありません。profile自体はusage集計のデータルートにならず、ownerのCareer/代表profile経由でのみ影響します
+                    </p>
+                  </div>
+                )}
                 {(profileDiagnostics?.unmatchedProfileIds?.length ?? 0) > 0 && (
                   <div className="mt-3 max-h-24 overflow-auto rounded-xl border border-white/10 p-2 font-mono text-[10px] text-slate-500">
                     要確認profile: {profileDiagnostics!.unmatchedProfileIds.join(", ")}
@@ -898,23 +935,29 @@ export default function InternalClubsPage() {
 
         {consistency && (
           <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
-            <p className="mb-1 text-xs font-bold text-slate-300">整合性チェック（IC一覧 vs Funnel）</p>
+            <p className="mb-1 text-xs font-bold text-slate-300">集計母集団比較（IC一覧 vs Funnel）</p>
             <p className="mb-3 text-[10px] text-slate-500">
               両側とも UID単位・clubUid解決済み。母集団の違い（ICはprofile保有∪Career保有、Funnelはprofile保有のみ）は不整合ではなく定義差です。
             </p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {consistency.map((c) => {
                 const right = typeof c.right === "number" && !Number.isNaN(c.right) ? c.right : "—";
+                const diffText =
+                  c.diff > 0
+                    ? `Fにのみ含まれる${c.diff} UID`
+                    : c.diff < 0
+                      ? `ICにのみ含まれる${-c.diff} UID`
+                      : "";
                 return (
                   <div
                     key={c.key}
                     className={`rounded-xl border p-2 text-center ${
-                      c.ok ? "border-emerald-500/30 bg-emerald-500/10" : "border-rose-500/30 bg-rose-500/10"
+                      c.ok ? "border-emerald-500/30 bg-emerald-500/10" : "border-amber-500/30 bg-amber-500/10"
                     }`}
                   >
                     <p className="text-[10px] text-slate-400">{c.label}</p>
-                    <p className={`text-sm font-black ${c.ok ? "text-emerald-400" : "text-rose-400"}`}>
-                      {c.ok ? "OK" : `${c.diff > 0 ? `+${c.diff}` : c.diff}`}
+                    <p className={`text-sm font-black ${c.ok ? "text-emerald-400" : "text-amber-400"}`}>
+                      {c.ok ? "一致" : diffText}
                     </p>
                     <p className="text-[10px] text-slate-500">
                       IC {c.left} / F {right}
@@ -929,7 +972,7 @@ export default function InternalClubsPage() {
         {authlessUids.length > 0 && (
           <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
             <p className="mb-3 text-xs font-bold text-slate-300">Authに存在しない ownerUid 一覧（{authlessUids.length} 件）</p>
-            <p className="text-[10px] text-slate-500 mb-2">整合性チェックはこれらを除外しています。データは削除していません。</p>
+            <p className="text-[10px] text-slate-500 mb-2">集計母集団比較はこれらを除外しています。データは削除していません。</p>
             <div className="max-h-32 overflow-auto rounded-xl border border-white/10 p-2 font-mono text-[10px] text-slate-400">
               {authlessUids.join(", ")}
             </div>
@@ -1095,11 +1138,11 @@ export default function InternalClubsPage() {
               value={publicFilter}
               onChange={(e) => setPublicFilter(e.target.value as PublicFilter)}
               className="rounded-lg border border-white/10 bg-[#0b1220] px-3 py-2 text-sm text-white"
-              title="Career単位の公開状態で判定"
+              title="Career単位のクラブ一覧掲載状態で判定"
             >
-              <option value="all">公開状態: すべて</option>
-              <option value="anyPublic">いずれかのCareer公開中</option>
-              <option value="allPrivate">全Career非公開</option>
+              <option value="all">クラブ一覧への掲載状態: すべて</option>
+              <option value="anyPublic">掲載中（いずれかのCareer/旧形式）</option>
+              <option value="allPrivate">未掲載（全Career/旧形式）</option>
             </select>
             <select
               value={cohortFilter}
@@ -1144,8 +1187,8 @@ export default function InternalClubsPage() {
               title="Careerのクラブ名設定状態"
             >
               <option value="all">名称設定: すべて</option>
-              <option value="anyUnset">いずれかのCareer未設定</option>
-              <option value="allUnset">全Career未設定</option>
+              <option value="anyUnset">未設定あり（Career/旧形式）</option>
+              <option value="allUnset">全未設定（全Career/旧形式）</option>
             </select>
             <select
               value={diagFilter}
@@ -1211,6 +1254,11 @@ export default function InternalClubsPage() {
                             Free
                           </span>
                         )}
+                        {c.careerCount === 0 && (
+                          <span className="rounded-full bg-slate-500/20 px-2 py-0.5 text-[10px] font-bold text-slate-300">
+                            旧形式(Career無し)
+                          </span>
+                        )}
                         <span
                           className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                             anyCareerPublic(c)
@@ -1218,11 +1266,15 @@ export default function InternalClubsPage() {
                               : "bg-red-500/20 text-red-400"
                           }`}
                         >
-                          {anyCareerPublic(c) ? "いずれか公開" : "全非公開"}
+                          {anyCareerPublic(c)
+                            ? c.careerCount > 0 ? "いずれか掲載" : "一覧掲載(旧形式)"
+                            : c.careerCount > 0 ? "全未掲載" : "未掲載(旧形式)"}
                         </span>
                         {c.anyCareerNameUnset && (
                           <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400">
-                            {c.allCareersNameUnset ? "全Career未設定" : "一部Career未設定"}
+                            {c.careerCount === 0
+                              ? "名称未設定"
+                              : c.allCareersNameUnset ? "全Career未設定" : "一部Career未設定"}
                           </span>
                         )}
                         {c.unmatchedProfileCount > 0 && (
