@@ -19,6 +19,7 @@ import Image from 'next/image';
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { ClubEmblemUploader } from "@/components/club-emblem-uploader";
+import { normalizeRankLabels } from "@/lib/rank-labels";
 
 const rankLabelColorValues = ["green", "red", "orange", "blue", "yellow", "purple", "pink", "gray"] as const;
 
@@ -135,7 +136,7 @@ export default function EditCompetitionPage() {
             season: data.season,
             teams: data.teams || [],
             logoUrl: data.logoUrl || "",
-            rankLabels: Array.isArray((data as any).rankLabels) ? (data as any).rankLabels : [],
+            rankLabels: normalizeRankLabels((data as any).rankLabels),
           });
         } else {
           toast.error("大会が見つかりません。");
