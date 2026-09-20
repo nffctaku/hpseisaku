@@ -10,6 +10,7 @@ import Image from "next/image";
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithCredential,
   signInWithPopup,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -74,53 +75,36 @@ export default function LoginPage() {
             setSigningIn(false);
             return;
           }
-          // SDKを介さずREST直接実行で失敗箇所を切り分け
-          try {
-            const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "";
-            const r = await fetch(
-              `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${apiKey}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  postBody: `id_token=${encodeURIComponent(resp.credential)}&providerId=google.com`,
-                  requestUri: "https://www.footchron.com",
-                  returnSecureToken: true,
-                  returnIdpCredential: true,
-                }),
+          // SDKの失敗リクエストを捕捉: fetchをラップしてURL/status/bodyを記録
+          const logs: string[] = [];
+          const origFetch = window.fetch.bind(window);
+          window.fetch = async (input: any, init?: any) => {
+            const url = typeof input === "string" ? input : input?.url || "";
+            try {
+              const res = await origFetch(input, init);
+              if (!res.ok) {
+                const body = (await res.clone().text().catch(() => "")).slice(0, 200);
+                logs.push(`${res.status} ${url.slice(0, 100)} :: ${body}`);
               }
-            );
-            const j: any = await r.json().catch(() => ({}));
-            setDiag(
-              `REST status=${r.status} msg=${j?.error?.message || `OK uid=${j?.localId || "?"}`}`
-            );
-            // SDKが内部で呼ぶtelemetry系エンドポイントの疎通も確認
-            const probe = async (u: string) => {
-              try {
-                const pr = await fetch(u, { method: "POST", body: "{}" });
-                return String(pr.status);
-              } catch (pe: any) {
-                return `FAIL(${(pe?.message || pe?.name || "").slice(0, 30)})`;
-              }
-            };
-            const fid = await probe(
-              `https://firebaseinstallations.googleapis.com/v1/projects/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/installations`
-            );
-            const fl = await probe(
-              `https://firebaselogging.googleapis.com/v0cc/log/batch?format=json_proto3`
-            );
-            setDiag(
-              `REST status=${r.status} msg=${j?.error?.message || `OK uid=${j?.localId || "?"}`} | fid=${fid} | fl=${fl}`
-            );
-            if (!r.ok) {
-              signingInRef.current = false;
-              setSigningIn(false);
+              return res;
+            } catch (err: any) {
+              logs.push(`FAIL ${url.slice(0, 100)} :: ${(err?.message || err || "").slice(0, 60)}`);
+              throw err;
             }
+          };
+          try {
+            const credential = GoogleAuthProvider.credential(resp.credential);
+            await signInWithCredential(auth, credential);
+            // 以降は onAuthStateChanged が /admin へ遷移
           } catch (e: any) {
-            console.error("[LoginPage] REST signInWithIdp error", e);
+            console.error("[LoginPage] signInWithCredential error", e);
             signingInRef.current = false;
             setSigningIn(false);
-            setDiag(`REST FAIL(${e?.name}:${(e?.message || "").slice(0, 60)})`);
+            setDiag(
+              `err=${e.code || e.message} | ${logs.join(" || ") || "NO_FAILED_REQUEST"}`
+            );
+          } finally {
+            window.fetch = origFetch;
           }
         },
       });
