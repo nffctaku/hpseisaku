@@ -185,6 +185,17 @@ export default function LoginPage() {
             （テスト）Googleページを別タブで開く
           </button>
         </div>
+        {/* 一時切り分け用: JavaScriptを一切介さない純粋なHTMLリンク */}
+        <div className="mt-3 flex justify-center">
+          <a
+            href="https://accounts.google.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[12px] font-semibold text-gray-400 underline underline-offset-2"
+          >
+            （テスト）Googleを開くリンク
+          </a>
+        </div>
         <p className="mt-6 text-[12px] font-semibold leading-relaxed text-gray-400">
           ログインすることで
           <Link
