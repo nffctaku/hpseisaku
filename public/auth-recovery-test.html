@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>auth-recovery-test</title>
+</head>
+<body>
+  <p>IndexedDB minimal probe (no Firebase, no app JS)</p>
+  <pre id="out"></pre>
+  <script>
+    var el = document.getElementById("out");
+    var out = function (s) { el.textContent += s + "\n"; };
+
+    out("IDB_OPEN_START");
+    var req = indexedDB.open("firebaseLocalStorageDb", 1);
+    req.onerror = function () { out("IDB_OPEN_ERROR " + req.error); };
+    req.onblocked = function () { out("IDB_BLOCKED"); };
+    req.onupgradeneeded = function () {
+      out("IDB_UPGRADE");
+      try {
+        req.result.createObjectStore("firebaseLocalStorage", { keyPath: "fbase_key" });
+      } catch (e) {
+        out("UPGRADE_ERR " + e);
+      }
+    };
+    req.onsuccess = function () {
+      out("IDB_OPEN_OK");
+      var db = req.result;
+      try {
+        out("IDB_TX_START");
+        var tx = db.transaction("firebaseLocalStorage", "readwrite");
+        tx.oncomplete = function () { out("IDB_TX_COMPLETE"); };
+        tx.onerror = function () { out("IDB_TX_ERROR " + tx.error); };
+        tx.onabort = function () { out("IDB_TX_ABORT " + tx.error); };
+        out("IDB_PUT_START");
+        var p = tx.objectStore("firebaseLocalStorage").put({
+          fbase_key: "firebase:seedProbe:ping",
+          value: { ok: true }
+        });
+        p.onsuccess = function () { out("IDB_PUT_SUCCESS"); };
+        p.onerror = function () { out("IDB_PUT_ERROR " + p.error); };
+      } catch (e) {
+        out("THROW " + e);
+      }
+    };
+  </script>
+</body>
+</html>
