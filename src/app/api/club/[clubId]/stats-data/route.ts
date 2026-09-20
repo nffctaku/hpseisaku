@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/lib/firebase/admin";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,33 +47,12 @@ function seasonEquals(a: string, b: string): boolean {
 }
 
 async function resolveOwnerUid(clubId: string): Promise<{ ownerUid: string; profile: any }> {
-  const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
-  const profilesSnap = await profilesQuery.get();
-
-  let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
-  if (!profilesSnap.empty) {
-    profileDoc = profilesSnap.docs[0];
-  } else {
-    const direct = await db.collection('club_profiles').doc(clubId).get();
-    if (direct.exists) {
-      profileDoc = direct;
-    } else {
-      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
-    }
-  }
-
-  if (!profileDoc) {
+  // clubId -> 正規 clubUid は共通 resolver に統一（ownerUid 直参照は旧Careerを指すため不可）
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) {
     throw new Error("Club not found");
   }
-
-  const profileData = profileDoc.data()!;
-  const ownerUid = (profileData as any).ownerUid || profileDoc.id;
-  if (!ownerUid) {
-    throw new Error("Club owner UID not found");
-  }
-
-  return { ownerUid, profile: profileData };
+  return { ownerUid: resolved.ownerUid, profile: resolved.profileData };
 }
 
 function chunkArray<T>(arr: T[], chunkSize: number): T[][] {

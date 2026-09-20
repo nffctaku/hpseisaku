@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/firebase/admin";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 function toSlashSeason(season: string): string {
   if (!season) return season;
@@ -51,27 +52,12 @@ function getSeasonDataEntry(seasonData: any, seasonId: string): any {
 }
 
 async function resolveOwnerUid(clubId: string): Promise<{ ownerUid: string; clubName?: string | null; legalPages?: any[] }> {
-  const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
-  const profileSnap = await profilesQuery.get();
-
-  let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
-  if (!profileSnap.empty) {
-    profileDoc = profileSnap.docs[0];
-  } else {
-    const direct = await db.collection('club_profiles').doc(clubId).get();
-    if (direct.exists) {
-      profileDoc = direct;
-    } else {
-      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
-    }
-  }
-
-  if (!profileDoc) throw new Error("Club not found");
-  const data = profileDoc.data() as any;
-  const ownerUid = (data.ownerUid as string) || profileDoc.id;
+  // clubId -> 正規 clubUid は共通 resolver に統一（ownerUid 直参照は旧Careerを指すため不可）
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) throw new Error("Club not found");
+  const data = resolved.profileData as any;
   return {
-    ownerUid,
+    ownerUid: resolved.ownerUid,
     clubName: typeof data.clubName === "string" ? data.clubName : null,
     legalPages: Array.isArray(data.legalPages) ? data.legalPages : [],
   };

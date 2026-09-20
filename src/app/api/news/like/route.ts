@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db, admin } from '@/lib/firebase/admin';
+import { resolvePublicClubProfile } from '@/lib/public-club-profile';
 
 export const runtime = 'nodejs';
 
@@ -11,12 +12,9 @@ type Body = {
 
 async function resolveOwnerUid(clubId: string): Promise<string | null> {
   try {
-    const profilesQuery = db.collection('club_profiles').where('clubId', '==', clubId).limit(1);
-    const profileSnap = await profilesQuery.get();
-    if (profileSnap.empty) return null;
-    const doc = profileSnap.docs[0];
-    const data = doc.data() as any;
-    return (data.ownerUid as string) || doc.id;
+    // 共通 resolver で clubId -> 正規 clubUid（ownerUid 直参照は旧Careerを指すため不可）
+    const resolved = await resolvePublicClubProfile(clubId);
+    return resolved?.ownerUid ?? null;
   } catch {
     return null;
   }
