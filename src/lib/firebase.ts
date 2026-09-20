@@ -12,10 +12,9 @@ const DEFAULT_AUTH_DOMAIN = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
 const resolvedAuthDomain = DEFAULT_AUTH_DOMAIN;
 
 export function useSelfAuthDomainForRedirect(): void {
-  const host = typeof window !== 'undefined' ? window.location.hostname : '';
-  if (SELF_AUTH_DOMAINS.has(host)) {
-    (auth.config as { authDomain: string }).authDomain = host;
-  }
+  // A/B切り分けのため一時無効化: 自ドメイン切替をやめ、
+  // redirect/iframe とも firebaseapp.com 直行に戻す。
+  // モバイルChromeでプロキシ経由iframeがハングする疑いを検証する。
 }
 
 export function restoreDefaultAuthDomain(): void {

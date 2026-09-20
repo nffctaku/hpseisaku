@@ -87,6 +87,8 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       // （bfcache復帰時のロック解除はコンポーネントのpageshowリスナーで処理）。
       try {
         useSelfAuthDomainForRedirect();
+        console.log('AUTH_DOMAIN', (auth.config as any).authDomain);
+        console.log('BEFORE_REDIRECT');
         void signInWithRedirect(auth, provider).catch((e: any) => {
           console.error('[AuthButton] Error signing in with redirect', e);
           signingInRef.current = false;
@@ -123,6 +125,8 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
         // signInWithRedirectのpromiseは設計上resolveしない（画面遷移するため）。
         // awaitするとfinallyが走らずロックが残るので、awaitせずcatchのみ付ける。
         useSelfAuthDomainForRedirect();
+        console.log('AUTH_DOMAIN', (auth.config as any).authDomain);
+        console.log('BEFORE_REDIRECT');
         void signInWithRedirect(auth, provider).catch((e: any) => {
           console.error('[AuthButton] Error signing in with redirect fallback', e);
           signingInRef.current = false;
