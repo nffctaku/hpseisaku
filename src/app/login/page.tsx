@@ -17,6 +17,7 @@ import { auth, useSelfAuthDomainForRedirect } from "@/lib/firebase";
 
 export default function LoginPage() {
   const [signingIn, setSigningIn] = useState(false);
+  const [stage, setStage] = useState("");
   const signingInRef = useRef(false);
 
   // ログイン済みになったら /admin へ遷移（redirect復帰時もここで拾う）
@@ -94,16 +95,20 @@ export default function LoginPage() {
       popupPromise = signInWithPopup(auth, provider);
     } catch (e: any) {
       console.error("POPUP_ERROR(sync)", e);
+      setStage('POPUP_ERROR(sync) ' + (e.code || e.message || e));
       signingInRef.current = false;
       window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
       return;
     }
+    setStage('BEFORE_POPUP');
     setSigningIn(true);
     try {
       const result = await popupPromise;
       console.log("POPUP_SUCCESS", result.user.uid);
+      setStage('POPUP_SUCCESS');
     } catch (error: any) {
       console.error("POPUP_ERROR", error);
+      setStage('POPUP_ERROR ' + (error.code || error.message || error));
       if (
         error.code === "auth/cancelled-popup-request" ||
         error.code === "auth/popup-closed-by-user"
@@ -186,6 +191,9 @@ export default function LoginPage() {
             （テスト）Googleページを別タブで開く
           </button>
         </div>
+        {stage && (
+          <div className="mt-4 text-[11px] font-mono text-gray-500 break-all">{stage}</div>
+        )}
         {/* 一時切り分け用: React onClickのみ（Firebase不使用）の最小テスト */}
         <div className="mt-3 flex justify-center">
           <button
