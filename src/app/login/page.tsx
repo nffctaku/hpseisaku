@@ -10,11 +10,12 @@ import Image from "next/image";
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithCustomToken,
+  signInWithCredential,
   signInWithPopup,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getNetLog } from "@/lib/net-tap";
+import { seedFirebaseAuthUser } from "@/lib/firebase-auth-seed";
 
 // Firebase Google provider が使う Web OAuth client（handler の OAuth URL で確認済み）。
 // この client 宛の ID token は signInWithCredential で Firebase Auth に入れる。
@@ -76,8 +77,26 @@ export default function LoginPage() {
             setSigningIn(false);
             return;
           }
-          // GIS ID token → REST signInWithIdp → Firebase ID token
-          // → サーバーでCustom Token発行 → signInWithCustomToken
+          // 1) まず通常経路: SDK Auth が通る環境(iPhone Safari等)はここで完了。
+          //    迂回経路に健全環境を巻き込まないための capability 判定。
+          try {
+            const credential = GoogleAuthProvider.credential(resp.credential);
+            await Promise.race([
+              signInWithCredential(auth, credential),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("SDK_SIGNIN_TIMEOUT")), 15000)
+              ),
+            ]);
+            // 以降は onAuthStateChanged が /admin へ遷移
+            return;
+          } catch (sdkErr: any) {
+            console.warn(
+              "[LoginPage] SDK credential sign-in unavailable, using REST+seed fallback",
+              sdkErr?.code || sdkErr
+            );
+          }
+          // 2) SDK Auth が失敗する環境のみ迂回:
+          //    REST signInWithIdp → SDK永続化領域へseed → リロードで初期化復元。
           try {
             const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "";
             const r = await fetch(
@@ -97,17 +116,9 @@ export default function LoginPage() {
             if (!r.ok || !j?.idToken) {
               throw new Error(`REST ${r.status} ${j?.error?.message || "no idToken"}`);
             }
-            const ct = await fetch("/api/auth/custom-token", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ idToken: j.idToken }),
-            });
-            const ctj: any = await ct.json().catch(() => ({}));
-            if (!ct.ok || !ctj?.customToken) {
-              throw new Error(`CUSTOM_TOKEN ${ct.status} ${ctj?.error || "no token"}`);
-            }
-            await signInWithCustomToken(auth, ctj.customToken);
-            // 以降は onAuthStateChanged が /admin へ遷移
+            await seedFirebaseAuthUser(j, apiKey, auth.app.name);
+            // SDK初期化の永続化復元経路に拾わせるためフルリロード
+            window.location.href = "/admin";
           } catch (e: any) {
             console.error("[LoginPage] mobile sign-in error", e);
             signingInRef.current = false;
