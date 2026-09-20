@@ -278,11 +278,11 @@ async function getCompetitions(ownerUid: string) {
   return unstable_cache(
     async () => {
       const snap = await db.collection(`clubs/${ownerUid}/competitions`).get();
+      // ref は unstable_cache でシリアライズされ壊れるため保持しない（id からパス再構築）
       return snap.docs.map((d) => {
         const data = d.data() as any;
         return {
           id: d.id,
-          ref: d.ref,
           name: (data?.name as string) || d.id,
           season: typeof data?.season === "string" ? data.season : null,
           logoUrl: typeof data?.logoUrl === "string" ? data.logoUrl : null,
@@ -334,7 +334,7 @@ async function computeStats(ownerUid: string, playerId: string, playerData: any,
       continue;
     }
 
-    const roundsSnap = await comp.ref.collection("rounds").get();
+    const roundsSnap = await db.collection(`clubs/${ownerUid}/competitions/${comp.id}/rounds`).get();
     const matchesByRound = await Promise.all(
       roundsSnap.docs.map(async (roundDoc) => {
         const matchesSnap = await roundDoc.ref.collection("matches").get();
@@ -471,7 +471,7 @@ async function computeSeasonSummaries(ownerUid: string, playerId: string, roster
       continue;
     }
 
-    const roundsSnap = await comp.ref.collection("rounds").get();
+    const roundsSnap = await db.collection(`clubs/${ownerUid}/competitions/${comp.id}/rounds`).get();
     for (const roundDoc of roundsSnap.docs) {
       const matchesSnap = await roundDoc.ref.collection("matches").get();
       for (const matchDoc of matchesSnap.docs) {
