@@ -128,7 +128,7 @@ export default function LoginPage() {
             }
             setStage("REST_OK");
             setStage("IDB_SEED_START");
-            await seedFirebaseAuthUser(j, apiKey, auth.app.name);
+            await seedFirebaseAuthUser(j, apiKey, auth.app.name, setStage);
             setStage("IDB_SEED_OK");
             setStage("RELOAD");
             // SDK初期化の永続化復元経路に拾わせるためフルリロード

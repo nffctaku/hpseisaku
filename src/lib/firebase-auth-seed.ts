@@ -28,25 +28,37 @@ export interface SignInWithIdpRestResponse {
   createdAt?: string | number;
 }
 
-function openAuthDb(): Promise<IDBDatabase> {
+function openAuthDb(onStage?: (stage: string) => void): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    onStage?.("IDB_OPEN_START");
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => {
+      onStage?.("IDB_OPEN_ERROR");
+      reject(req.error);
+    };
+    req.onblocked = () => {
+      onStage?.("IDB_BLOCKED");
+    };
     req.onupgradeneeded = () => {
+      onStage?.("IDB_UPGRADE");
       try {
         req.result.createObjectStore(STORE_NAME, { keyPath: "fbase_key" });
       } catch (e) {
         reject(e);
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      onStage?.("IDB_OPEN_OK");
+      resolve(req.result);
+    };
   });
 }
 
 export async function seedFirebaseAuthUser(
   resp: SignInWithIdpRestResponse,
   apiKey: string,
-  appName: string
+  appName: string,
+  onStage?: (stage: string) => void
 ): Promise<void> {
   if (!resp.localId || !resp.idToken || !resp.refreshToken) {
     throw new Error("incomplete signInWithIdp response");
@@ -84,7 +96,7 @@ export async function seedFirebaseAuthUser(
     appName,
   };
 
-  const db = await openAuthDb();
+  const db = await openAuthDb(onStage);
   try {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
