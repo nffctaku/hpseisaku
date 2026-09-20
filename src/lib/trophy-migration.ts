@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toSlashSeason } from "@/lib/season";
-import { normalizeTitleName, toTrophyTitle, TrophyTitle } from "@/lib/trophies";
+import { normalizeTitleName, toTrophyTitle, TrophyTitle, TROPHY_IMAGE_PRESETS } from "@/lib/trophies";
 
 export interface LegacyClubTitle {
   competitionName: string;
@@ -111,7 +111,7 @@ export async function migrateLegacyClubTitles(opts: {
       careerId,
       titleName: group.name,
       normalizedTitleName: normalized,
-      trophyImageKey: "gold",
+      trophyImageKey: TROPHY_IMAGE_PRESETS[0].key,
       winningSeasons: [...group.seasons],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import Link from 'next/link';
@@ -22,8 +23,10 @@ interface TeamOption {
 }
 
 export function PlayerStatsView() {
-  const { user, ownerUid: ownerUidFromContext } = useAuth();
-  const ownerUid = ownerUidFromContext || user?.uid || null;
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
+  // データパスはアクティブCareerのclubUidを優先（auth uid は旧Careerルートを指すため不可）
+  const ownerUid = activeCareer?.clubUid || user?.uid || null;
   const [seasons, setSeasons] = useState<string[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>('all');
   const [competitions, setCompetitions] = useState<{ id: string, name: string }[]>([]);

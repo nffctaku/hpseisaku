@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCareer } from '@/contexts/CareerContext';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy, deleteDoc, collectionGroup } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy, collectionGroup } from "firebase/firestore";
 import { Loader2, LifeBuoy, Square, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
 import { FaFutbol } from 'react-icons/fa';
 import Image from 'next/image';
@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EventForm } from '@/components/event-form';
 import { SquadRegistrationForm } from '@/components/squad-registration-form';
 import { MatchTeamStatsForm } from '@/components/match-team-stats-form';
+import { removeMatchEvent } from '@/lib/match-event-sync';
 import { MatchDetails, Player, MatchEvent } from '@/types/match';
 
 interface LocalMatchEvent extends MatchEvent {
@@ -151,8 +152,7 @@ export default function MatchAdminPage() {
     if (!user || !match || !match.roundId || typeof matchId !== 'string') return;
     try {
       const base = resolvedMatchDocPath || `clubs/${ownerUid}/competitions/${competitionId}/rounds/${match.roundId}/matches/${matchId}`;
-      const eventDocRef = doc(db, `${base}/events/${eventId}`);
-      await deleteDoc(eventDocRef);
+      await removeMatchEvent(db, base, eventId);
     } catch (error) {
       console.error("Error deleting event: ", error);
     }

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { db } from "@/lib/firebase/admin";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 type PartnerCategoryDef = {
   id: string;
@@ -26,34 +27,10 @@ const DEFAULT_CATEGORIES: PartnerCategoryDef[] = [
 ];
 
 async function resolveClubProfile(clubId: string) {
-  const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
-  const profilesSnap = await profilesQuery.get();
-
-  const clubProfileDoc = !profilesSnap.empty ? profilesSnap.docs[0] : null;
-  const directSnap = clubProfileDoc ? null : await db.collection("club_profiles").doc(clubId).get();
-  const ownerSnap =
-    clubProfileDoc || directSnap?.exists
-      ? null
-      : await db.collection("club_profiles").where("ownerUid", "==", clubId).limit(1).get();
-
-  if (!clubProfileDoc && !directSnap?.exists && ownerSnap?.empty) return null;
-
-  const fallbackDoc = ownerSnap && !ownerSnap.empty ? ownerSnap.docs[0] : null;
-  const profileData = (
-    clubProfileDoc
-      ? clubProfileDoc.data()
-      : directSnap?.exists
-        ? (directSnap!.data() as any)
-        : (fallbackDoc!.data() as any)
-  ) as any;
-
-  const ownerUid =
-    (profileData as any)?.ownerUid ||
-    (clubProfileDoc ? clubProfileDoc.id : directSnap?.exists ? directSnap!.id : fallbackDoc!.id);
-
-  if (!ownerUid) return null;
-
-  return { ownerUid: String(ownerUid), profile: profileData };
+  // clubId -> 正規 clubUid は共通 resolver に統一（ownerUid 直参照は旧Careerを指すため不可）
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) return null;
+  return { ownerUid: resolved.ownerUid, profile: resolved.profileData };
 }
 
 async function getPublishedPartners(ownerUid: string): Promise<Partner[]> {

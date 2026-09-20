@@ -5,7 +5,7 @@ import { useForm, FormProvider, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { db } from '@/lib/firebase';
-import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc, writeBatch } from 'firebase/firestore';
 import { Player, MatchDetails } from '@/types/match';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,8 +13,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCareer } from '@/contexts/CareerContext';
 import { PlayerStatsTable } from './player-stats-table';
 import { MatchEventsTable } from './match-events-table';
+import { mirrorDocsForEvent } from '@/lib/match-event-sync';
+import { recomputeTeamMinutes, healStaleTeamMinutes } from '@/lib/match-minutes';
 import type { SubmitHandler } from 'react-hook-form';
 
 const formSchema = z.object({
@@ -63,6 +66,18 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+// Substitution-only signature used to detect event edits since the document was loaded.
+// When this changes in a form instance that has no PlayerStatsTable mounted (view="events"),
+// saveSquadData recomputes minutesPlayed so event edits always propagate to minutes.
+function subEventsSignature(events: any[]): string {
+  return JSON.stringify(
+    (events || [])
+      .filter((e: any) => e?.type === 'substitution')
+      .map((e: any) => [e.id, String(e.minute), e.teamId, e.outPlayerId, e.inPlayerId])
+      .sort()
+  );
+}
+
 interface SquadRegistrationFormProps {
   match: MatchDetails;
   homePlayers: Player[];
@@ -77,8 +92,10 @@ interface SquadRegistrationFormProps {
 export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId, competitionId, matchDocPath, seasonId, view = 'both' }: SquadRegistrationFormProps) {
   console.log('SquadForm: Received homePlayers', homePlayers);
   console.log('SquadForm: Received awayPlayers', awayPlayers);
-  const { user, ownerUid: ownerUidFromContext } = useAuth();
-  const ownerUid = ownerUidFromContext || user?.uid;
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
+  // matchDocPath 未指定時のフォールバックもアクティブCareerのclubUidを使う（auth uid は旧Careerルートを指すため不可）
+  const ownerUid = activeCareer?.clubUid || user?.uid;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settingDefault, setSettingDefault] = useState(false);
@@ -88,6 +105,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
    const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
    const autosaveReadyRef = useRef(false);
    const prevEventCountRef = useRef(0);
+   const loadedSubSigRef = useRef<string | null>(null);
    const savingRef = useRef(false);
    const savedIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -376,14 +394,30 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         const matchDoc = await getDoc(matchDocRef);
         if (matchDoc.exists()) {
           const data = matchDoc.data();
+          const loadedEvents = data.events || [];
+          let loadedStats = data.playerStats || [];
+          const duration = data.matchDuration || match.matchDuration || 90;
+          // Heal stale minutesPlayed: only for players whose expected value is
+          // derivable from substitution events (non-event players untouched).
+          if (loadedEvents.some((ev: any) => ev?.type === 'substitution')) {
+            const teamIds = new Set<string>(loadedStats.map((ps: any) => ps?.teamId).filter(Boolean));
+            teamIds.forEach((tid) => {
+              loadedStats = healStaleTeamMinutes(loadedStats, loadedEvents, tid, duration);
+            });
+          }
+          const healed = loadedStats.some((ps: any, i: number) => ps !== (data.playerStats || [])[i]);
           methods.reset({
             customStatHeaders: data.customStatHeaders || [],
-            playerStats: data.playerStats || [],
-            events: data.events || [],
+            playerStats: loadedStats,
+            events: loadedEvents,
             homeFormation: data.homeFormation || match.homeFormation || '4-3-3',
             awayFormation: data.awayFormation || match.awayFormation || '4-3-3',
           });
-          prevEventCountRef.current = (data.events || []).length;
+          prevEventCountRef.current = loadedEvents.length;
+          loadedSubSigRef.current = subEventsSignature(loadedEvents);
+          if (healed) {
+            await saveSquadData(methods.getValues(), { showToast: false });
+          }
         } else {
           methods.reset({
             customStatHeaders: [],
@@ -393,6 +427,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
             awayFormation: match.awayFormation || '4-3-3',
           });
           prevEventCountRef.current = 0;
+          loadedSubSigRef.current = subEventsSignature([]);
         }
       } catch (error) {
         console.error("Error fetching match data:", error);
@@ -603,6 +638,23 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
         (payload as any).matchDuration = match.matchDuration || 90;
       }
 
+      // If substitution events changed since load, recompute minutesPlayed.
+      // This covers form instances without a mounted PlayerStatsTable (view="events").
+      const nextSubSig = subEventsSignature(sanitizedEvents);
+      if (loadedSubSigRef.current !== null && nextSubSig !== loadedSubSigRef.current) {
+        let recomputed = normalizedPlayerStats;
+        const teamIds = new Set(recomputed.map((ps: any) => ps?.teamId).filter(Boolean));
+        teamIds.forEach((teamId) => {
+          recomputed = recomputeTeamMinutes(
+            recomputed,
+            sanitizedEvents,
+            teamId as string,
+            (payload as any).matchDuration || 90
+          );
+        });
+        (payload as any).playerStats = recomputed;
+      }
+
       // Count yellow and red cards from events and update team stats
       const homeYellowCards = (data.events || []).filter((ev: any) => 
         ev.type === 'card' && ev.teamId === match.homeTeam && ev.cardColor === 'yellow'
@@ -649,56 +701,24 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       const desiredSubDocIds = new Set<string>();
       const batch = writeBatch(db);
 
-      (data.events || [])
-        .filter((ev) => ev.type === 'substitution')
-        .forEach((ev) => {
-          const base = {
-            minute: ev.minute,
-            teamId: ev.teamId,
-            timestamp: serverTimestamp(),
-          } as any;
-
-          if (ev.outPlayerId) {
-            const outDocId = `sub-${ev.id}-out`;
-            desiredSubDocIds.add(outDocId);
-            const outPlayerName = ev.outPlayerId.startsWith('custom_') ? (ev.outPlayerName || '') : (playerNameMap.get(ev.outPlayerId) || ev.outPlayerName || '');
-            batch.set(
-              doc(eventsColRef, outDocId),
-              {
-                ...base,
-                type: 'sub_out',
-                playerId: ev.outPlayerId,
-                playerName: outPlayerName,
-              },
-              { merge: true }
-            );
-          }
-
-          if (ev.inPlayerId) {
-            const inDocId = `sub-${ev.id}-in`;
-            desiredSubDocIds.add(inDocId);
-            const inPlayerName = ev.inPlayerId.startsWith('custom_') ? (ev.inPlayerName || '') : (playerNameMap.get(ev.inPlayerId) || ev.inPlayerName || '');
-            batch.set(
-              doc(eventsColRef, inDocId),
-              {
-                ...base,
-                type: 'sub_in',
-                playerId: ev.inPlayerId,
-                playerName: inPlayerName,
-              },
-              { merge: true }
-            );
-          }
-        });
+      (sanitizedEvents || []).forEach((ev: any) => {
+        for (const m of mirrorDocsForEvent(ev)) {
+          desiredSubDocIds.add(m.id);
+          batch.set(doc(eventsColRef, m.id), m.data, { merge: true });
+        }
+      });
 
       const existingEventsSnap = await getDocs(eventsColRef);
       existingEventsSnap.docs.forEach((d) => {
-        if (d.id.startsWith('sub-') && !desiredSubDocIds.has(d.id)) {
+        const managed = d.id.startsWith('sub-') || d.id.startsWith('evt-');
+        if (managed && !desiredSubDocIds.has(d.id)) {
           batch.delete(d.ref);
         }
       });
 
       await batch.commit();
+
+      loadedSubSigRef.current = nextSubSig;
 
       if (showToast) toast.success('出場選手・スタッツ・イベントを更新しました。');
 
@@ -836,7 +856,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                   <TabsTrigger value="home">{match.homeTeamName}</TabsTrigger>
                   <TabsTrigger value="away">{match.awayTeamName}</TabsTrigger>
                 </TabsList>
-                <TabsContent value="home">
+                <TabsContent value="home" forceMount className="data-[state=inactive]:hidden">
                   {homePlayers.length === 0 && awayPlayers.length > 0 && (
                     <div className="mb-4 p-2 bg-blue-50 border border-blue-200 rounded-md">
                       <p className="text-xs text-blue-800">相手チームの情報は入力しなくても問題ありません</p>
@@ -866,7 +886,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
                     }}
                   />
                 </TabsContent>
-                <TabsContent value="away">
+                <TabsContent value="away" forceMount className="data-[state=inactive]:hidden">
                   {awayPlayers.length === 0 && homePlayers.length > 0 && (
                     <div className="mb-4 p-2 bg-blue-50 border border-blue-200 rounded-md">
                       <p className="text-xs text-blue-800">相手チームの情報は入力しなくても問題ありません</p>

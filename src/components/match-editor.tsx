@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import { doc, deleteDoc, setDoc, increment } from "firebase/firestore";
 import { useParams } from 'next/navigation';
@@ -57,11 +58,13 @@ export function MatchEditor({ match, teams, allTeamsMap, excludedTeamIds, roundI
   }>(null);
   const [pressedPickerValue, setPressedPickerValue] = useState<string | null>(null);
 
-  const { user, ownerUid } = useAuth();
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
   const params = useParams();
   const competitionId = params.competitionId as string;
 
-  const clubUid = ownerUid || user?.uid;
+  // データパスはアクティブCareerのclubUidを優先（auth uid は旧Careerルートを指すため不可）
+  const clubUid = activeCareer?.clubUid || user?.uid;
 
 
   const handleDelete = async () => {

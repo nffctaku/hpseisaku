@@ -5,6 +5,7 @@ import { getEffectivePlanForUid } from "@/lib/server-plan";
 import { toDashSeason } from "@/lib/season";
 import { touchUserActivity } from "@/lib/server-activity";
 import { getActiveClubUid } from "@/lib/career-server";
+import { normalizeRankLabels } from "@/lib/rank-labels";
 
 interface CompetitionRound {
   name: string;
@@ -21,10 +22,13 @@ interface CreateCompetitionBody {
   showOnHome: boolean;
   showOnTable: boolean;
   rankLabels?: Array<{
-    name: string;
-    startRank: number;
-    endRank: number;
-    color: string;
+    name?: string;
+    // canonical (from/to) and legacy (startRank/endRank) shapes are both accepted
+    from?: number;
+    to?: number;
+    startRank?: number;
+    endRank?: number;
+    color?: string;
   }>;
 }
 
@@ -112,7 +116,7 @@ export async function POST(req: NextRequest) {
       logoUrl: logoUrl && logoUrl !== "" ? logoUrl : null,
       showOnHome: !!showOnHome,
       showOnTable: format === "cup" ? false : !!showOnTable,
-      rankLabels: format === "cup" ? [] : Array.isArray(rankLabels) ? rankLabels : [],
+      rankLabels: format === "cup" ? [] : normalizeRankLabels(rankLabels),
       ownerUid: uid,
       clubProfileId: clubUid,
     };

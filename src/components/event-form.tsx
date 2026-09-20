@@ -6,15 +6,15 @@ import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Player, MatchDetails, MatchEvent } from '@/types/match';
+import { appendMatchEvent } from '@/lib/match-event-sync';
 
 const eventFormSchema = z.object({
   type: z.enum(['goal', 'card', 'substitution']),
@@ -24,13 +24,26 @@ const eventFormSchema = z.object({
   manualPlayerName: z.string().optional(),
   assistPlayerId: z.string().optional(),
   isManual: z.boolean().default(false),
-}).refine(data => {
-  if (data.isManual) return !!data.manualPlayerName && data.manualPlayerName.length > 0;
-  if (!data.isManual) return !!data.playerId && data.playerId.length > 0;
-  return true;
-}, {
-  message: "選手を選択または入力してください。",
-  path: ["playerId"],
+  outPlayerId: z.string().optional(),
+  inPlayerId: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.type === 'substitution') {
+    if (!data.outPlayerId && !data.inPlayerId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "OUT/IN選手を選択してください。",
+        path: ["outPlayerId"],
+      });
+    }
+    return;
+  }
+  if (data.isManual ? !(data.manualPlayerName && data.manualPlayerName.length > 0) : !(data.playerId && data.playerId.length > 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "選手を選択または入力してください。",
+      path: ["playerId"],
+    });
+  }
 });
 
 type EventFormValues = z.infer<typeof eventFormSchema>;
@@ -43,8 +56,10 @@ interface EventFormProps {
 }
 
 export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: EventFormProps) {
-  const { user, ownerUid: ownerUidFromContext } = useAuth();
-  const ownerUid = ownerUidFromContext || user?.uid;
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
+  // matchDocPath 未指定時のフォールバックもアクティブCareerのclubUidを使う（auth uid は旧Careerルートを指すため不可）
+  const ownerUid = activeCareer?.clubUid || user?.uid;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [assistPlayerName, setAssistPlayerName] = useState('');
   const [mobilePicker, setMobilePicker] = useState<null | {
@@ -85,12 +100,22 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
     ? (isOGSelection ? awayPlayers : homePlayers)
     : (isOGSelection ? homePlayers : awayPlayers);
 
+  // 交代イベント用: 選択チームのスタメン/控え（match.playerStatsのroleで判定）
+  const rawTeamPlayers = selectedTeamId === match?.homeTeam ? homePlayers : awayPlayers;
+  const teamStats = (match?.playerStats || []).filter((ps: any) => ps?.teamId === selectedTeamId && ps?.playerId);
+  const starterIds = teamStats.filter((ps: any) => (ps.role ?? 'starter') === 'starter').map((ps: any) => ps.playerId);
+  const subIds = teamStats.filter((ps: any) => ps.role === 'sub').map((ps: any) => ps.playerId);
+  const starterPlayers = starterIds.length > 0 ? rawTeamPlayers.filter((p) => starterIds.includes(p.id)) : rawTeamPlayers;
+  const subPlayers = subIds.length > 0 ? rawTeamPlayers.filter((p) => subIds.includes(p.id)) : rawTeamPlayers;
+
   useEffect(() => {
     form.reset({
       ...form.getValues(),
       playerId: '',
       manualPlayerName: '',
       assistPlayerId: '',
+      outPlayerId: '',
+      inPlayerId: '',
     });
   }, [selectedTeamId, eventType, form]);
 
@@ -99,8 +124,11 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
     setIsSubmitting(true);
 
     const player = scorerTeamPlayers.find((p: Player) => p.id === values.playerId);
-    
-    const eventData: Partial<MatchEvent> = {
+    const outPlayer = rawTeamPlayers.find((p: Player) => p.id === values.outPlayerId);
+    const inPlayer = rawTeamPlayers.find((p: Player) => p.id === values.inPlayerId);
+
+    const eventData: MatchEvent & { id: string } = {
+      id: crypto.randomUUID(),
       type: values.type,
       minute: values.minute,
       teamId: values.teamId,
@@ -109,14 +137,15 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
       playerName: values.playerId === 'pk' ? `PK(${values.manualPlayerName || ''})` : values.playerId === 'og' ? `OG(${values.manualPlayerName || ''})` : values.isManual ? values.manualPlayerName : player?.name,
       assistPlayerId: values.assistPlayerId && values.assistPlayerId !== 'none' ? values.assistPlayerId : undefined,
       assistPlayerName: values.assistPlayerId && values.assistPlayerId !== 'none' ? assistTeamPlayers.find((p: Player) => p.id === values.assistPlayerId)?.name : undefined,
+      outPlayerId: values.outPlayerId || undefined,
+      outPlayerName: outPlayer?.name,
+      inPlayerId: values.inPlayerId || undefined,
+      inPlayerName: inPlayer?.name,
     };
 
     try {
-      const eventsCollection = collection(
-        db,
-        `${matchDocPath || `clubs/${ownerUid}/competitions/${match.competitionId}/rounds/${match.roundId}/matches/${match.id}`}/events`
-      );
-      await addDoc(eventsCollection, eventData);
+      const basePath = matchDocPath || `clubs/${ownerUid}/competitions/${match.competitionId}/rounds/${match.roundId}/matches/${match.id}`;
+      await appendMatchEvent(db, basePath, eventData);
       toast.success("イベントを追加しました。");
       form.reset();
     } catch (error) {
@@ -242,6 +271,65 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
           )}
         />
 
+        {eventType === 'substitution' ? (
+          <>
+            <FormField
+              control={form.control}
+              name="outPlayerId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>OUT選手</FormLabel>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobilePicker({
+                        title: 'OUT選手を選択',
+                        value: field.value || '',
+                        options: [
+                          { value: '', label: '未選択' },
+                          ...starterPlayers.map((p: Player) => ({ value: p.id, label: p.name })),
+                        ],
+                        onSelect: field.onChange,
+                      });
+                    }}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-left text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    {starterPlayers.find((p: Player) => p.id === field.value)?.name || 'OUT選手を選択'}
+                  </button>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="inPlayerId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>IN選手</FormLabel>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobilePicker({
+                        title: 'IN選手を選択',
+                        value: field.value || '',
+                        options: [
+                          { value: '', label: '未選択' },
+                          ...subPlayers.map((p: Player) => ({ value: p.id, label: p.name })),
+                        ],
+                        onSelect: field.onChange,
+                      });
+                    }}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-left text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    {subPlayers.find((p: Player) => p.id === field.value)?.name || 'IN選手を選択'}
+                  </button>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        ) : (
+        <>
         <FormField
           control={form.control}
           name="isManual"
@@ -389,6 +477,8 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
               </FormItem>
             )}
           />
+        )}
+        </>
         )}
 
         <Button type="submit" className="w-full mt-4" disabled={isSubmitting}>

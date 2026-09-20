@@ -356,6 +356,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
   const [filter, setFilter] = useState<string>('ALL');
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+  const [hoveredPlayerId, setHoveredPlayerId] = useState<string | null>(null);
 
   const handleSeasonChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     router.replace(`${pathname}?season=${encodeURIComponent(e.target.value)}`);
@@ -414,6 +415,8 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
     return (
       <div
         onClick={onSelect}
+        onMouseEnter={() => setHoveredPlayerId(player.id)}
+        onMouseLeave={() => setHoveredPlayerId(null)}
         className="group relative rounded-xl border border-white/[0.08] bg-black/[0.45] backdrop-blur-md overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(0,0,0,0.4)]"
         style={{ ['--pc' as any]: hex, ['--pc-30' as any]: hex.startsWith('#') ? `${hex}30` : 'rgba(255,255,255,0.3)', ['--pc-50' as any]: hex.startsWith('#') ? `${hex}50` : 'rgba(255,255,255,0.5)' }}
       >
@@ -448,7 +451,13 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
             style={{ backgroundColor: 'var(--pc)' }}
           />
           {hasStats && (
-            <div className="hidden sm:grid absolute inset-x-0 bottom-0 p-2 pt-8 bg-gradient-to-t from-black/95 via-black/80 to-transparent grid-cols-3 gap-1 max-h-0 overflow-hidden opacity-0 group-hover:max-h-16 group-hover:opacity-100 transition-all duration-300">
+            <div
+              className="absolute inset-x-0 bottom-0 z-20 hidden sm:grid grid-cols-3 gap-1 p-2 pt-8 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-all duration-200"
+              style={{
+                opacity: hoveredPlayerId === player.id ? 1 : 0,
+                transform: hoveredPlayerId === player.id ? "translateY(0)" : "translateY(8px)",
+              }}
+            >
               <div className="text-center">
                 <div className="text-[10px] text-white/60">出場</div>
                 <div className={`text-[18px] font-black italic leading-none ${barlow.className}`} style={{ color: brightenColor(hex) }}>{stats.appearances}</div>

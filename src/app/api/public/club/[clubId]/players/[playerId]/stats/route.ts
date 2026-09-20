@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/firebase/admin";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 function toSlashSeason(season: string): string {
   if (!season) return season;
@@ -51,27 +52,12 @@ function getSeasonDataEntry(seasonData: any, seasonId: string): any {
 }
 
 async function resolveOwnerUid(clubId: string): Promise<{ ownerUid: string; clubName?: string | null; legalPages?: any[] }> {
-  const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
-  const profileSnap = await profilesQuery.get();
-
-  let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
-  if (!profileSnap.empty) {
-    profileDoc = profileSnap.docs[0];
-  } else {
-    const direct = await db.collection('club_profiles').doc(clubId).get();
-    if (direct.exists) {
-      profileDoc = direct;
-    } else {
-      const ownerSnap = await db.collection('club_profiles').where('ownerUid', '==', clubId).limit(1).get();
-      if (!ownerSnap.empty) profileDoc = ownerSnap.docs[0];
-    }
-  }
-
-  if (!profileDoc) throw new Error("Club not found");
-  const data = profileDoc.data() as any;
-  const ownerUid = (data.ownerUid as string) || profileDoc.id;
+  // clubId -> 正規 clubUid は共通 resolver に統一（ownerUid 直参照は旧Careerを指すため不可）
+  const resolved = await resolvePublicClubProfile(clubId);
+  if (!resolved) throw new Error("Club not found");
+  const data = resolved.profileData as any;
   return {
-    ownerUid,
+    ownerUid: resolved.ownerUid,
     clubName: typeof data.clubName === "string" ? data.clubName : null,
     legalPages: Array.isArray(data.legalPages) ? data.legalPages : [],
   };
@@ -292,11 +278,11 @@ async function getCompetitions(ownerUid: string) {
   return unstable_cache(
     async () => {
       const snap = await db.collection(`clubs/${ownerUid}/competitions`).get();
+      // ref は unstable_cache でシリアライズされ壊れるため保持しない（id からパス再構築）
       return snap.docs.map((d) => {
         const data = d.data() as any;
         return {
           id: d.id,
-          ref: d.ref,
           name: (data?.name as string) || d.id,
           season: typeof data?.season === "string" ? data.season : null,
           logoUrl: typeof data?.logoUrl === "string" ? data.logoUrl : null,
@@ -348,7 +334,7 @@ async function computeStats(ownerUid: string, playerId: string, playerData: any,
       continue;
     }
 
-    const roundsSnap = await comp.ref.collection("rounds").get();
+    const roundsSnap = await db.collection(`clubs/${ownerUid}/competitions/${comp.id}/rounds`).get();
     const matchesByRound = await Promise.all(
       roundsSnap.docs.map(async (roundDoc) => {
         const matchesSnap = await roundDoc.ref.collection("matches").get();
@@ -485,7 +471,7 @@ async function computeSeasonSummaries(ownerUid: string, playerId: string, roster
       continue;
     }
 
-    const roundsSnap = await comp.ref.collection("rounds").get();
+    const roundsSnap = await db.collection(`clubs/${ownerUid}/competitions/${comp.id}/rounds`).get();
     for (const roundDoc of roundsSnap.docs) {
       const matchesSnap = await roundDoc.ref.collection("matches").get();
       for (const matchDoc of matchesSnap.docs) {
