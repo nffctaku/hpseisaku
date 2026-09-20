@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { Player } from '@/types/match';
+import { deriveStarterMinutes, deriveBenchMinutes } from '@/lib/match-minutes';
 import { toast } from 'sonner';
 
 const ratingOptions = (() => {
@@ -189,104 +190,13 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
   const derivedStarterMinutes = useMemo(() => {
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
-    const outMinuteByPlayerId = new Map<string, number>();
-    const halfTime = matchDuration / 2; // 90分の場合45分、120分の場合60分
-
-    events
-      .filter((ev: any) => ev?.type === 'substitution')
-      .forEach((ev: any) => {
-        const outId = typeof ev?.outPlayerId === 'string' ? ev.outPlayerId : '';
-        if (!outId) return;
-        if (ev?.teamId !== teamId) return;
-        
-        // Parse minute string (e.g., "45+9" -> base: 45, stoppage: 9)
-        const minuteStr = typeof ev?.minute === 'string' ? ev.minute : String(ev?.minute);
-        let baseMinute = 0;
-        let stoppageMinute = 0;
-        
-        if (minuteStr.includes('+')) {
-          const parts = minuteStr.split('+');
-          baseMinute = parseInt(parts[0], 10) || 0;
-          stoppageMinute = parseInt(parts[1], 10) || 0;
-        } else {
-          baseMinute = parseInt(minuteStr, 10) || 0;
-        }
-
-        // Apply new calculation rules
-        let calculatedMinute: number;
-        
-        if (baseMinute === halfTime && stoppageMinute > 0) {
-          // First half stoppage time substitution
-          // OUT player → playing time is halfTime minutes
-          calculatedMinute = halfTime;
-        } else if (baseMinute === matchDuration && stoppageMinute > 0) {
-          // Second half stoppage time substitution
-          // OUT player → playing time is matchDuration minutes (considered full time)
-          calculatedMinute = matchDuration;
-        } else {
-          // Normal time substitution: use base minute as before
-          const m = typeof ev?.minute === 'number' ? ev.minute : Number(ev?.minute);
-          calculatedMinute = Number.isFinite(m) ? Math.max(0, Math.floor(m)) : 0;
-        }
-
-        const cur = outMinuteByPlayerId.get(outId);
-        if (typeof cur === 'number') {
-          outMinuteByPlayerId.set(outId, Math.min(cur, calculatedMinute));
-        } else {
-          outMinuteByPlayerId.set(outId, calculatedMinute);
-        }
-      });
-
-    return outMinuteByPlayerId;
+    return deriveStarterMinutes(events, teamId, matchDuration);
   }, [teamId, watchedEvents, matchDuration]);
 
   // Calculate bench player minutes (IN substitutions)
   const derivedBenchMinutes = useMemo(() => {
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
-    const inMinuteByPlayerId = new Map<string, number>();
-    const halfTime = matchDuration / 2; // 90分の場合45分、120分の場合60分
-
-    events
-      .filter((ev: any) => ev?.type === 'substitution')
-      .forEach((ev: any) => {
-        const inId = typeof ev?.inPlayerId === 'string' ? ev.inPlayerId : '';
-        if (!inId) return;
-        if (ev?.teamId !== teamId) return;
-        
-        // Parse minute string (e.g., "45+9" -> base: 45, stoppage: 9)
-        const minuteStr = typeof ev?.minute === 'string' ? ev.minute : String(ev?.minute);
-        let baseMinute = 0;
-        let stoppageMinute = 0;
-        
-        if (minuteStr.includes('+')) {
-          const parts = minuteStr.split('+');
-          baseMinute = parseInt(parts[0], 10) || 0;
-          stoppageMinute = parseInt(parts[1], 10) || 0;
-        } else {
-          baseMinute = parseInt(minuteStr, 10) || 0;
-        }
-
-        // Apply new calculation rules for IN players
-        let calculatedMinute: number;
-        
-        if (baseMinute === halfTime && stoppageMinute > 0) {
-          // First half stoppage time substitution
-          // IN player → playing time is halfTime minutes (halfTime to matchDuration)
-          calculatedMinute = halfTime;
-        } else if (baseMinute === matchDuration && stoppageMinute > 0) {
-          // Second half stoppage time substitution
-          // IN player → playing time is fixed at 1 minute
-          calculatedMinute = 1;
-        } else {
-          // Normal time substitution: use base minute
-          // Playing time = matchDuration - baseMinute
-          calculatedMinute = Math.max(0, matchDuration - baseMinute);
-        }
-
-        inMinuteByPlayerId.set(inId, calculatedMinute);
-      });
-
-    return inMinuteByPlayerId;
+    return deriveBenchMinutes(events, teamId, matchDuration);
   }, [teamId, watchedEvents, matchDuration]);
 
   // Automatically calculate and update minutesPlayed based on substitution events and matchDuration
