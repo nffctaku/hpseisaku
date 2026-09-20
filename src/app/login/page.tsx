@@ -207,6 +207,9 @@ export default function LoginPage() {
               console.log("[LoginPage] window.open test tapped");
               const w = window.open("https://accounts.google.com", "_blank");
               console.log("[LoginPage] window.open result:", w ? "opened" : "blocked(null)");
+              flushSync(() => {
+                setStage(w ? "WINDOW_OPEN_RETURNED" : "WINDOW_OPEN_NULL");
+              });
             }}
             className="text-[12px] font-semibold text-gray-400 underline underline-offset-2"
           >
