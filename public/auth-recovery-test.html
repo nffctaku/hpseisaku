@@ -6,40 +6,40 @@
   <title>auth-recovery-test</title>
 </head>
 <body>
-  <p>IndexedDB minimal probe (no Firebase, no app JS)</p>
+  <p>IndexedDB minimal probe on a BRAND-NEW db (firebaseLocalStorageDb is not touched; no Firebase, no app JS)</p>
   <pre id="out"></pre>
   <script>
     var el = document.getElementById("out");
     var out = function (s) { el.textContent += s + "\n"; };
 
-    out("IDB_OPEN_START");
-    var req = indexedDB.open("firebaseLocalStorageDb", 1);
-    req.onerror = function () { out("IDB_OPEN_ERROR " + req.error); };
-    req.onblocked = function () { out("IDB_BLOCKED"); };
+    out("NEWDB_OPEN_START");
+    var req = indexedDB.open("footchron-idb-probe-20260921", 1);
+    req.onerror = function () { out("NEWDB_OPEN_ERROR " + req.error); };
+    req.onblocked = function () { out("NEWDB_BLOCKED"); };
     req.onupgradeneeded = function () {
-      out("IDB_UPGRADE");
+      out("NEWDB_UPGRADE");
       try {
-        req.result.createObjectStore("firebaseLocalStorage", { keyPath: "fbase_key" });
+        req.result.createObjectStore("test", { keyPath: "key" });
       } catch (e) {
-        out("UPGRADE_ERR " + e);
+        out("NEWDB_UPGRADE_ERR " + e);
       }
     };
     req.onsuccess = function () {
-      out("IDB_OPEN_OK");
+      out("NEWDB_OPEN_OK");
       var db = req.result;
       try {
-        out("IDB_TX_START");
-        var tx = db.transaction("firebaseLocalStorage", "readwrite");
-        tx.oncomplete = function () { out("IDB_TX_COMPLETE"); };
-        tx.onerror = function () { out("IDB_TX_ERROR " + tx.error); };
-        tx.onabort = function () { out("IDB_TX_ABORT " + tx.error); };
-        out("IDB_PUT_START");
-        var p = tx.objectStore("firebaseLocalStorage").put({
-          fbase_key: "firebase:seedProbe:ping",
+        out("NEWDB_TX_START");
+        var tx = db.transaction("test", "readwrite");
+        tx.oncomplete = function () { out("NEWDB_TX_COMPLETE"); };
+        tx.onerror = function () { out("NEWDB_TX_ERROR " + tx.error); };
+        tx.onabort = function () { out("NEWDB_TX_ABORT " + tx.error); };
+        out("NEWDB_PUT_START");
+        var p = tx.objectStore("test").put({
+          key: "probe",
           value: { ok: true }
         });
-        p.onsuccess = function () { out("IDB_PUT_SUCCESS"); };
-        p.onerror = function () { out("IDB_PUT_ERROR " + p.error); };
+        p.onsuccess = function () { out("NEWDB_PUT_SUCCESS"); };
+        p.onerror = function () { out("NEWDB_PUT_ERROR " + p.error); };
       } catch (e) {
         out("THROW " + e);
       }
