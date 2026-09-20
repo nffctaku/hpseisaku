@@ -99,14 +99,25 @@ export async function seedFirebaseAuthUser(
   const db = await openAuthDb(onStage);
   try {
     await new Promise<void>((resolve, reject) => {
+      onStage?.("IDB_TX_START");
       const tx = db.transaction(STORE_NAME, "readwrite");
-      tx.objectStore(STORE_NAME).put({
+      onStage?.("IDB_TX_OK");
+      tx.oncomplete = () => {
+        onStage?.("IDB_TX_COMPLETE");
+        resolve();
+      };
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => {
+        onStage?.("IDB_TX_ABORT");
+        reject(tx.error);
+      };
+      onStage?.("IDB_PUT_START");
+      const putReq = tx.objectStore(STORE_NAME).put({
         fbase_key: `firebase:authUser:${apiKey}:${appName}`,
         value: userJson,
       });
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
+      putReq.onsuccess = () => onStage?.("IDB_PUT_SUCCESS");
+      putReq.onerror = () => onStage?.("IDB_PUT_ERROR");
     });
   } finally {
     db.close();
