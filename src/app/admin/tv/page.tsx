@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCareer } from '@/contexts/CareerContext';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, onSnapshot, query, deleteDoc, doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -45,8 +46,9 @@ const extractYouTubeId = (url: string) => {
 };
 
 export default function TvAdminPage() {
-  const { user, ownerUid } = useAuth();
-  const clubUid = ownerUid || user?.uid;
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
+  const clubUid = activeCareer?.clubUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [videos, setVideos] = useState<Video[]>([]);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
@@ -66,7 +68,6 @@ export default function TvAdminPage() {
   useEffect(() => {
     console.log('[TvAdminPage] uid check', {
       userUid: user?.uid,
-      ownerUid,
       clubUid,
     });
 

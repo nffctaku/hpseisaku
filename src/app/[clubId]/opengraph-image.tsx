@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { db } from "@/lib/firebase/admin";
+import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 export const runtime = "nodejs";
 
@@ -16,28 +16,15 @@ async function getClubOgData(clubId: string): Promise<{
   homeBgColor: string | null;
 } | null> {
   try {
-    const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
-    const profilesSnap = await profilesQuery.get();
+    // clubId -> 正規 clubUid は共通 resolver に統一（ownerUid 直参照は旧Careerを指すため不可）
+    // resolver はメインチームの clubName/logoUrl と homeBgColor 補完まで済ませて返す
+    const resolved = await resolvePublicClubProfile(clubId);
+    if (!resolved) return null;
 
-    const clubProfileDoc = !profilesSnap.empty ? profilesSnap.docs[0] : null;
-    const directSnap = clubProfileDoc ? null : await db.collection("club_profiles").doc(clubId).get();
+    const profileData = resolved.profileData as any;
 
-    if (!clubProfileDoc && !directSnap?.exists) {
-      return null;
-    }
-
-    const profileData = (clubProfileDoc ? clubProfileDoc.data() : (directSnap!.data() as any))! as any;
-    const ownerUid = profileData?.ownerUid || (clubProfileDoc ? clubProfileDoc.id : directSnap!.id);
-
-    const mainTeamId = profileData?.mainTeamId;
-    let mainTeamData: any = null;
-    if (ownerUid && mainTeamId) {
-      const mainTeamSnap = await db.collection(`clubs/${ownerUid}/teams`).doc(mainTeamId).get();
-      if (mainTeamSnap.exists) mainTeamData = mainTeamSnap.data();
-    }
-
-    const clubNameRaw = (mainTeamData as any)?.name || profileData?.clubName || clubId;
-    const logoUrlRaw = (mainTeamData as any)?.logoUrl || profileData?.logoUrl || null;
+    const clubNameRaw = profileData?.clubName || clubId;
+    const logoUrlRaw = profileData?.logoUrl || null;
     const homeBgColorRaw = profileData?.homeBgColor || null;
 
     const clubName = typeof clubNameRaw === "string" && clubNameRaw.trim() ? clubNameRaw.trim() : clubId;

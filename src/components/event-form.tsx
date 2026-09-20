@@ -8,6 +8,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -55,8 +56,10 @@ interface EventFormProps {
 }
 
 export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: EventFormProps) {
-  const { user, ownerUid: ownerUidFromContext } = useAuth();
-  const ownerUid = ownerUidFromContext || user?.uid;
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
+  // matchDocPath 未指定時のフォールバックもアクティブCareerのclubUidを使う（auth uid は旧Careerルートを指すため不可）
+  const ownerUid = activeCareer?.clubUid || user?.uid;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [assistPlayerName, setAssistPlayerName] = useState('');
   const [mobilePicker, setMobilePicker] = useState<null | {

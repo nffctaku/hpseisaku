@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCareer } from '@/contexts/CareerContext';
 import { PlayerStatsTable } from './player-stats-table';
 import { MatchEventsTable } from './match-events-table';
 import { mirrorDocsForEvent } from '@/lib/match-event-sync';
@@ -91,8 +92,10 @@ interface SquadRegistrationFormProps {
 export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId, competitionId, matchDocPath, seasonId, view = 'both' }: SquadRegistrationFormProps) {
   console.log('SquadForm: Received homePlayers', homePlayers);
   console.log('SquadForm: Received awayPlayers', awayPlayers);
-  const { user, ownerUid: ownerUidFromContext } = useAuth();
-  const ownerUid = ownerUidFromContext || user?.uid;
+  const { user } = useAuth();
+  const { activeCareer } = useCareer();
+  // matchDocPath 未指定時のフォールバックもアクティブCareerのclubUidを使う（auth uid は旧Careerルートを指すため不可）
+  const ownerUid = activeCareer?.clubUid || user?.uid;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settingDefault, setSettingDefault] = useState(false);
