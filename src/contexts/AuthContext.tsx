@@ -366,11 +366,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    // getRedirectResultの完了を待ってからauthリスナーを登録する。
-    // これによりredirect復帰時のサインイン処理が先に終わり、
-    // loading解除がredirect結果反映後になる。
+    // getRedirectResultの完了を待ってからauthリスナーを登録するのは
+    // redirect復帰時のみ。通常訪問時（pendingRedirectフラグ無し）は
+    // SDKが必ずnullを返すため直列awaitをスキップし、リスナー登録と
+    // loading解除を即座に行ってログインUIの表示を早める。
+    const hasPendingRedirect = (() => {
+      try {
+        return Object.keys(window.sessionStorage).some((k) =>
+          k.startsWith('firebase:pendingRedirect')
+        );
+      } catch {
+        return false;
+      }
+    })();
     (async () => {
-      await handleRedirectResult();
+      if (hasPendingRedirect) {
+        await handleRedirectResult();
+      } else {
+        console.log('[AuthContext] No pending redirect, skipping getRedirectResult wait');
+      }
       try {
         authUnsubscribe = onAuthStateChanged(auth, async (authUser) => {
         console.log('[AuthContext] onAuthStateChanged triggered', { authUser, uid: authUser?.uid });
