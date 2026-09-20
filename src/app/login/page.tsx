@@ -11,10 +11,9 @@ import Image from "next/image";
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithPopup,
   signInWithRedirect,
 } from "firebase/auth";
-import { auth, useSelfAuthDomainForRedirect } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 
 export default function LoginPage() {
   const [signingIn, setSigningIn] = useState(false);
@@ -63,91 +62,30 @@ export default function LoginPage() {
     signingInRef.current = true;
 
     const provider = new GoogleAuthProvider();
-    // Android Chrome では redirect 起動が止まる障害があるため popup を使う。
-    // redirect は iPhone/iPad (Safari系) のみ維持。
-    const isIosMobile =
-      /iPhone|iPad|iPod/i.test(ua) ||
-      (/Macintosh/i.test(ua) && window.navigator.maxTouchPoints > 1);
-
-    if (isIosMobile) {
-      setSigningIn(true);
-      setTimeout(() => {
-        signingInRef.current = false;
-        setSigningIn(false);
-      }, 20000);
-      // signInWithRedirectのpromiseは設計上resolveしないためawaitしない
-      try {
-        useSelfAuthDomainForRedirect();
-        void signInWithRedirect(auth, provider).catch((e: any) => {
-          console.error("[LoginPage] Error signing in with redirect", e);
-          signingInRef.current = false;
-          setSigningIn(false);
-          window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
-        });
-      } catch (e: any) {
-        console.error("[LoginPage] Error starting redirect", e);
-        signingInRef.current = false;
-        setSigningIn(false);
-        window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
-      }
-      return;
-    }
-
-    // Android/PC: popupはユーザーのclick handler直下・state更新より先に呼ぶ
+    // Firebase標準のredirectのみ。useSelfAuthDomainForRedirect等の
+    // 独自制御は介さない。promiseは設計上resolveしないためawaitしない。
     console.log("AUTH_READY", (auth.config as any).authDomain);
-    console.log("BEFORE_POPUP");
     flushSync(() => {
-      setStage("BEFORE_FIREBASE_CALL");
-    });
-    let popupPromise: Promise<import("firebase/auth").UserCredential>;
-    try {
-      popupPromise = signInWithPopup(auth, provider);
-    } catch (e: any) {
-      console.error("POPUP_ERROR(sync)", e);
-      setStage('POPUP_ERROR(sync) ' + (e.code || e.message || e));
-      signingInRef.current = false;
-      window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
-      return;
-    }
-    flushSync(() => {
-      setStage("FIREBASE_CALL_RETURNED");
+      setStage("BEFORE_REDIRECT_CALL");
     });
     setSigningIn(true);
     try {
-      const result = await Promise.race([
-        popupPromise,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("FIREBASE_POPUP_TIMEOUT")), 5000)
-        ),
-      ]);
-      console.log("POPUP_SUCCESS", result.user.uid);
-      setStage('POPUP_SUCCESS');
-    } catch (error: any) {
-      console.error("POPUP_ERROR", error);
-      setStage('POPUP_ERROR ' + (error.code || error.message || error));
-      if (error?.message === "FIREBASE_POPUP_TIMEOUT") {
-        // Firebase popup内部でハング。ボタンを押せる状態に戻す
-      } else if (
-        error.code === "auth/cancelled-popup-request" ||
-        error.code === "auth/popup-closed-by-user"
-      ) {
-        // 無視してOK
-      } else if (
-        error.code === "auth/popup-blocked" ||
-        error.code === "auth/operation-not-supported-in-this-environment"
-      ) {
-        useSelfAuthDomainForRedirect();
-        void signInWithRedirect(auth, provider).catch((e: any) => {
-          console.error("[LoginPage] Error signing in with redirect fallback", e);
-          signingInRef.current = false;
-          setSigningIn(false);
-        });
-      } else {
-        window.alert(`ログインエラー: ${error.message || error.code || "Unknown error"}`);
-      }
-    } finally {
+      void signInWithRedirect(auth, provider).catch((e: any) => {
+        console.error("REDIRECT_ERROR", e);
+        setStage("REDIRECT_ERROR " + (e.code || e.message || e));
+        signingInRef.current = false;
+        setSigningIn(false);
+        window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
+      });
+      flushSync(() => {
+        setStage("REDIRECT_CALL_RETURNED");
+      });
+    } catch (e: any) {
+      console.error("REDIRECT_ERROR(sync)", e);
+      setStage("REDIRECT_ERROR(sync) " + (e.code || e.message || e));
       signingInRef.current = false;
       setSigningIn(false);
+      window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
     }
   };
 
@@ -197,23 +135,6 @@ export default function LoginPage() {
                 Googleでログイン
               </>
             )}
-          </button>
-        </div>
-        {/* 一時切り分け用: window.open が実機で成立するかの確認ボタン */}
-        <div className="mt-4 flex justify-center">
-          <button
-            type="button"
-            onClick={() => {
-              console.log("[LoginPage] window.open test tapped");
-              const w = window.open("https://accounts.google.com", "_blank");
-              console.log("[LoginPage] window.open result:", w ? "opened" : "blocked(null)");
-              flushSync(() => {
-                setStage(w ? "WINDOW_OPEN_RETURNED" : "WINDOW_OPEN_NULL");
-              });
-            }}
-            className="text-[12px] font-semibold text-gray-400 underline underline-offset-2"
-          >
-            （テスト）Googleページを別タブで開く
           </button>
         </div>
         {stage && (
