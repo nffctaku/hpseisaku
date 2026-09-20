@@ -3,13 +3,21 @@ import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { getFirestore, setLogLevel, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// スマホの redirect ログインでは authDomain を自ドメインに切り替える
-// （/__/auth/* は rewrite でプロキシ済み）。iOS Safari のサードパーティ
-// ストレージ制限で結果が復元できない問題を回避するため。
-// PC の popup は従来通り web.app 直行の方が速いため、初期値はenvのまま。
+// 自ドメイン上では authDomain を自ドメインにする
+// （/__/auth/* は rewrite でプロキシ済み）。iOS Safari や Chrome の
+// サードパーティストレージ制限で認証結果が復元できない問題を回避するため。
 const SELF_AUTH_DOMAINS = new Set(['www.footchron.com', 'footchron.com']);
 const DEFAULT_AUTH_DOMAIN = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
-const resolvedAuthDomain = DEFAULT_AUTH_DOMAIN;
+// 自ドメイン上では初期値から authDomain を自ドメインにする。
+// popup/redirect とも auth イベントの受け渡しに authDomain の
+// cross-origin iframe ストレージを使うため、Chrome のサードパーティ
+// ストレージブロックでは firebaseapp.com のままだとログインが失敗する。
+// 自ドメインなら iframe が同一オリジンになり影響を受けない
+// （/__/auth/* は rewrite で firebaseapp.com へプロキシ済み）。
+const resolvedAuthDomain =
+  typeof window !== 'undefined' && SELF_AUTH_DOMAINS.has(window.location.hostname)
+    ? window.location.hostname
+    : DEFAULT_AUTH_DOMAIN;
 
 export function useSelfAuthDomainForRedirect(): void {
   const host = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -19,8 +27,8 @@ export function useSelfAuthDomainForRedirect(): void {
 }
 
 export function restoreDefaultAuthDomain(): void {
-  if (DEFAULT_AUTH_DOMAIN) {
-    (auth.config as { authDomain: string }).authDomain = DEFAULT_AUTH_DOMAIN;
+  if (resolvedAuthDomain) {
+    (auth.config as { authDomain: string }).authDomain = resolvedAuthDomain;
   }
 }
 
