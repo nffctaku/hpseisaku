@@ -32,8 +32,7 @@ async function getClubs(): Promise<ClubProfile[]> {
   const base = querySnapshot.docs
     .map((doc) => {
       const data = doc.data() as any;
-      // データルートは clubUid フィールドを優先（ownerUid は旧Careerルートを指すため不可）
-      const ownerUid = (data?.clubUid as string) || doc.id;
+      const ownerUid = (data?.ownerUid as string) || doc.id;
       const clubId = (data?.clubId as string) || '';
       const mainTeamId = typeof data?.mainTeamId === 'string' ? (data.mainTeamId as string) : undefined;
       const logoUrl =

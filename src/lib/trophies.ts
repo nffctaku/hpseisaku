@@ -21,18 +21,10 @@ export interface TrophyImagePreset {
 }
 
 export const TROPHY_IMAGE_PRESETS: TrophyImagePreset[] = [
-  { key: "trophy-1", src: "/trophies/trophy-1.webp", label: "素材1" },
-  { key: "trophy-2", src: "/trophies/trophy-2.webp", label: "素材2" },
-  { key: "trophy-3", src: "/trophies/trophy-3.webp", label: "素材3" },
-  { key: "trophy-4", src: "/trophies/trophy-4.webp", label: "素材4" },
-  { key: "trophy-5", src: "/trophies/trophy-5.webp", label: "素材5" },
-  { key: "trophy-6", src: "/trophies/trophy-6.webp", label: "素材6" },
-  { key: "trophy-7", src: "/trophies/trophy-7.webp", label: "素材7" },
-  { key: "trophy-8", src: "/trophies/trophy-8.webp", label: "素材8" },
-  { key: "trophy-9", src: "/trophies/trophy-9.webp", label: "素材9" },
-  { key: "trophy-10", src: "/trophies/trophy-10.webp", label: "素材10" },
-  { key: "trophy-11", src: "/trophies/trophy-11.webp", label: "素材11" },
-  { key: "trophy-12", src: "/trophies/trophy-12.webp", label: "素材12" },
+  { key: "gold", src: "/trophies/trophy-gold.webp", label: "ゴールド" },
+  { key: "silver-ball", src: "/trophies/trophy-silver-ball.webp", label: "シルバー" },
+  { key: "cup", src: "/trophies/trophy-cup.webp", label: "カップ" },
+  { key: "silver", src: "/trophies/trophy-silver.webp", label: "シルバー2" },
 ];
 
 export const TROPHY_ROOM_BG = "/trophies/room-bg.webp";

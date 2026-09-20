@@ -538,10 +538,10 @@ async function getPlayersData(
   }
 
   // 試合結果から選手成績を集計
-  if (baseClubDocId && activeSeason) {
+  if (ownerUid && activeSeason) {
     try {
       const playerIds = (filteredPlayers as any[]).map((p: any) => String(p?.id || "")).filter(Boolean);
-      const statsMap = await getMatchStatsForPlayers(baseClubDocId, playerIds, allSeasons, activeSeason, filteredPlayers as any[]);
+      const statsMap = await getMatchStatsForPlayers(ownerUid, playerIds, allSeasons, activeSeason, filteredPlayers as any[]);
       for (const p of filteredPlayers as any[]) {
         const s = statsMap.get(String(p?.id || ""));
         p.stats = s?.stats || { appearances: 0, goals: 0, assists: 0 };

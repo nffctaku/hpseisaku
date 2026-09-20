@@ -42,9 +42,9 @@ export default function LandingPage() {
                 <a href="#faq" className="hover:text-white transition-colors">よくある質問</a>
               </nav>
               <div className="flex shrink-0 items-center gap-3 text-sm font-semibold sm:gap-6">
-                <a href="/login" className="text-slate-400 hover:text-white transition-colors">ログイン</a>
-                <a
-                  href="/login"
+                <Link href="/admin" className="text-slate-400 hover:text-white transition-colors">ログイン</Link>
+                <Link
+                  href="/admin"
                   onClick={() => {
                     setSignupSource("landing");
                     void trackEvent("signup_cta_click", null, { source: "landing" });
@@ -52,7 +52,7 @@ export default function LandingPage() {
                   className="rounded-md bg-emerald-400 px-4 py-2 text-xs text-[#06111f] hover:bg-emerald-300 transition-colors sm:px-5 sm:py-2.5 sm:text-sm"
                 >
                   無料で始める
-                </a>
+                </Link>
               </div>
             </header>
             <div className="relative z-10 mx-auto flex min-h-[620px] max-w-7xl flex-col items-start justify-center px-5 pb-14 pt-10 text-left sm:min-h-[560px] sm:px-6 sm:pb-16 sm:pt-14">
@@ -69,8 +69,8 @@ export default function LandingPage() {
                 サッカー・フットサルのシミュレーションゲームで積み上げたセーブデータを、そのまま可視化。順位表も、試合結果も、まるで本当のクラブのように。実チームの記録管理にも使えます。
               </p>
               <div className="mt-8 flex w-full flex-col gap-3 sm:mt-9 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
-                <a
-                  href="/login"
+                <Link
+                  href="/admin"
                   onClick={() => {
                     setSignupSource("landing");
                     void trackEvent("signup_cta_click", null, { source: "landing" });
@@ -78,7 +78,7 @@ export default function LandingPage() {
                   className="rounded-xl bg-emerald-400 px-6 py-3.5 text-center text-sm font-black text-[#06111f] shadow-lg shadow-emerald-950/20 hover:bg-emerald-300 transition-colors sm:px-8 sm:py-4 sm:text-base"
                 >
                   無料でチームを作成する →
-                </a>
+                </Link>
                 <Link
                   href="/0Px6FAwAafT2ssDGa0xz61FJro03"
                   className="rounded-xl border border-white/20 bg-white/10 px-6 py-3.5 text-center text-sm font-black text-white shadow-lg shadow-black/20 backdrop-blur-sm transition-colors hover:bg-white/15 sm:px-8 sm:py-4 sm:text-base"
@@ -423,12 +423,12 @@ export default function LandingPage() {
                       </li>
                     </ul>
 
-                    <a
-                      href="/login"
+                    <Link
+                      href="/admin"
                       className="block w-full text-center py-3 rounded-md bg-slate-800 text-white font-semibold hover:bg-slate-700 transition-colors"
                     >
                       無料で始める
-                    </a>
+                    </Link>
                   </div>
 
                   {/* Pro Card */}
@@ -490,12 +490,12 @@ export default function LandingPage() {
                       </li>
                     </ul>
 
-                    <a
-                      href="/login"
+                    <Link
+                      href="/admin"
                       className="block w-full text-center py-3 rounded-md bg-emerald-500 text-white font-semibold hover:bg-emerald-400 transition-colors"
                     >
                       Proで始める
-                    </a>
+                    </Link>
                   </div>
                 </div>
                 </div>

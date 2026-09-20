@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import {
   addDoc,
@@ -54,8 +53,6 @@ interface FriendlyMatch {
 
 export default function FriendlyMatchesPage() {
   const { user, clubProfileId } = useAuth();
-  const { activeCareer, loading: careerLoading } = useCareer();
-  const clubUid = activeCareer?.clubUid;
   const [loading, setLoading] = useState(true);
   const [teams, setTeams] = useState<Team[]>([]);
   const [matches, setMatches] = useState<FriendlyMatch[]>([]);
@@ -82,26 +79,15 @@ export default function FriendlyMatchesPage() {
   }, [teams]);
 
   useEffect(() => {
-    // Career切替時は旧データ・選択状態を即時クリア
-    setTeams([]);
-    setMatches([]);
-    setHomeTeamId("");
-    setAwayTeamId("");
-    if (careerLoading) {
-      setLoading(true);
-      return;
-    }
-    if (!user || !clubUid) {
+    if (!user) {
       setLoading(false);
       return;
     }
 
-    let cancelled = false;
     const fetchData = async () => {
       setLoading(true);
       try {
-        const teamsSnap = await getDocs(collection(db, `clubs/${clubUid}/teams`));
-        if (cancelled) return;
+        const teamsSnap = await getDocs(collection(db, `clubs/${user.clubUid}/teams`));
         const t = teamsSnap.docs
           .map((d) => ({ id: d.id, ...(d.data() as any) } as Team))
           .sort((a, b) => a.name.localeCompare(b.name));
@@ -109,41 +95,36 @@ export default function FriendlyMatchesPage() {
 
         const matchesSnap = await getDocs(
           query(
-            collection(db, `clubs/${clubUid}/friendly_matches`),
+            collection(db, `clubs/${user.clubUid}/friendly_matches`),
             orderBy("matchDate", "desc")
           )
         );
-        if (cancelled) return;
         const m = matchesSnap.docs.map(
           (d) => ({ id: d.id, ...(d.data() as any) } as FriendlyMatch)
         );
         setMatches(m);
 
-        if (t.length > 0) {
+        if (!homeTeamId && t.length > 0) {
           setHomeTeamId(t[0].id);
         }
       } catch (e) {
-        if (cancelled) return;
         console.error(e);
         toast.error("単発試合データの読み込みに失敗しました。")
       } finally {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       }
     };
 
     fetchData();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, clubUid, careerLoading]);
+  }, [user]);
 
   const handleDelete = async (matchId: string) => {
-    if (!user || !clubUid) return;
+    if (!user) return;
     const ok = window.confirm("この試合を削除します。よろしいですか？");
     if (!ok) return;
 
     try {
-      await deleteDoc(doc(db, `clubs/${clubUid}/friendly_matches/${matchId}`));
+      await deleteDoc(doc(db, `clubs/${user.clubUid}/friendly_matches/${matchId}`));
       setMatches((prev) => prev.filter((m) => m.id !== matchId));
       toast.success("試合を削除しました。");
     } catch (e: any) {
@@ -154,7 +135,7 @@ export default function FriendlyMatchesPage() {
   };
 
   const handleCreate = async () => {
-    if (!user || !clubUid) return;
+    if (!user) return;
     const isCustomHome = homeTeamId === "__custom_home__";
     const isCustomAway = awayTeamId === "__custom_away__";
     const customHomeName = customHomeTeamName.trim();
@@ -197,7 +178,7 @@ export default function FriendlyMatchesPage() {
       };
 
       await addDoc(
-        collection(db, `clubs/${clubUid}/friendly_matches`),
+        collection(db, `clubs/${user.clubUid}/friendly_matches`),
         payload
       );
       await touchUserActivity();
@@ -206,7 +187,7 @@ export default function FriendlyMatchesPage() {
 
       const matchesSnap = await getDocs(
         query(
-          collection(db, `clubs/${clubUid}/friendly_matches`),
+          collection(db, `clubs/${user.clubUid}/friendly_matches`),
           orderBy("matchDate", "desc")
         )
       );

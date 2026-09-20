@@ -8,7 +8,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ClubFooter } from "@/components/club-footer";
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import { formatMinute } from "@/lib/formatMinute";
-import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 const getFormationSlots = (formation: string) => {
   const lines = formation
@@ -66,13 +65,22 @@ async function getMatchDetail(
   gameTeamUsage: boolean;
   match: MatchDetails | null;
 } | null> {
-  // Resolve clubId -> clubUid via the shared public resolver so that
-  // Career-separated clubs (ownerUid !== clubUid) read the correct data root.
-  const resolved = await resolvePublicClubProfile(clubId);
-  if (!resolved) return null;
-  const profileData = resolved.profileData as any;
-  // resolved.ownerUid is the canonical data root (clubUid), not the Firebase user uid.
-  const ownerUid = resolved.ownerUid;
+  // resolve club profile to ownerUid
+  let profileDoc: FirebaseFirestore.DocumentSnapshot | null = null;
+
+  const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
+  const profilesSnap = await profilesQuery.get();
+  if (!profilesSnap.empty) {
+    profileDoc = profilesSnap.docs[0];
+  } else {
+    const directRef = db.collection("club_profiles").doc(clubId);
+    const directSnap = await directRef.get();
+    if (directSnap.exists) profileDoc = directSnap;
+  }
+
+  if (!profileDoc) return null;
+  const profileData = profileDoc.data() as any;
+  const ownerUid = (profileData as any).ownerUid || profileDoc.id;
   const clubName = (profileData as any).clubName || "";
   const logoUrl = (profileData as any).logoUrl || null;
   const snsLinks = (profileData as any).snsLinks || {};

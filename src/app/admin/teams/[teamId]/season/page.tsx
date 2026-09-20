@@ -5,7 +5,6 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { collection, doc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCareer } from "@/contexts/CareerContext";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -40,13 +39,12 @@ const generateSeasonOptions = (): string[] => {
 };
 
 export default function TeamSeasonSelectPage() {
-  const { user } = useAuth();
-  const { activeCareer } = useCareer();
+  const { user, ownerUid } = useAuth();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const teamId = params.teamId as string;
-  const clubUid = activeCareer?.clubUid || user?.uid;
+  const clubUid = ownerUid || user?.uid;
 
   const next = (searchParams.get("next") || "").trim();
 

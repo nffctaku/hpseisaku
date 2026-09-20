@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase/admin";
-import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 export const runtime = "nodejs";
 
@@ -37,12 +36,34 @@ function isLeagueRoundName(name: unknown): boolean {
   return /^第\s*\d+\s*節$/.test(s);
 }
 
-// Data root = career-aware clubUid (profile.clubUid / canonical doc id),
-// NOT profile.ownerUid which stays as the account uid across careers.
 async function resolveOwnerUid(clubId: string): Promise<string | null> {
   try {
-    const resolved = await resolvePublicClubProfile(clubId);
-    return resolved?.clubUid ?? null;
+    const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
+    const profileSnap = await profilesQuery.get();
+
+    const clubProfileDoc = !profileSnap.empty ? profileSnap.docs[0] : null;
+    const directSnap = clubProfileDoc ? null : await db.collection("club_profiles").doc(clubId).get();
+    const ownerSnap =
+      clubProfileDoc || directSnap?.exists
+        ? null
+        : await db.collection("club_profiles").where("ownerUid", "==", clubId).limit(1).get();
+
+    if (!clubProfileDoc && !directSnap?.exists && ownerSnap?.empty) return null;
+
+    const fallbackDoc = ownerSnap && !ownerSnap.empty ? ownerSnap.docs[0] : null;
+    const profileData = (
+      clubProfileDoc
+        ? clubProfileDoc.data()
+        : directSnap?.exists
+          ? (directSnap!.data() as any)
+          : (fallbackDoc!.data() as any)
+    ) as any;
+
+    const ownerUid =
+      (profileData as any)?.ownerUid ||
+      (clubProfileDoc ? clubProfileDoc.id : directSnap?.exists ? directSnap!.id : fallbackDoc!.id);
+
+    return ownerUid ? String(ownerUid) : null;
   } catch {
     return null;
   }

@@ -82,9 +82,7 @@ export function computeLastActivityForUid({
         })()
       : null;
 
-  // profileUpdatedAtは更新・移行処理でも書き換わるためActive判定の採用対象から除外。
-  // （sourcesには残しactiveDetailで監査可能にする）
-  const fallbackValues = [eventAt, userAt, profileAt, userCreatedAt, profileCreatedAt].filter(
+  const fallbackValues = [eventAt, userAt, profileAt, userCreatedAt, profileCreatedAt, profileUpdatedAt].filter(
     (v): v is number => v != null
   );
   const fallbackAt = fallbackValues.length > 0 ? Math.max(...fallbackValues) : null;

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -129,10 +128,8 @@ function isDraft(article: NewsListItem): boolean {
 }
 
 export default function NewsAdminPage() {
-  const { user } = useAuth();
-  const { activeCareer } = useCareer();
-  // Data root must follow the active Career (ownerUid points at the old/pre-separation path).
-  const clubUid = activeCareer?.clubUid || user?.uid;
+  const { user, ownerUid } = useAuth();
+  const clubUid = ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [news, setNews] = useState<NewsListItem[]>([]);
   const [editingArticle, setEditingArticle] = useState<NewsListItem | null>(null);

@@ -96,15 +96,6 @@ export default function TrophyRoomAdminPage() {
     [careerId, clubUid, clubProfileId]
   );
 
-  const totalWins = useMemo(
-    () => trophies.reduce((n, t) => n + t.winningSeasons.length, 0),
-    [trophies]
-  );
-  const latestSeason = useMemo(() => {
-    const all = trophies.flatMap((t) => t.winningSeasons);
-    return all.length > 0 ? sortSeasonsAsc(all)[all.length - 1] : null;
-  }, [trophies]);
-
   const load = useCallback(async () => {
     if (!clubUid || !careerId) return;
     setLoading(true);
@@ -378,36 +369,22 @@ export default function TrophyRoomAdminPage() {
     : dialog?.kind === "removeSeason" ? "獲得シーズンを削除" : "";
 
   return (
-    <div className="relative min-h-screen bg-[#050a12] pb-6 text-white">
-      <header className="relative -mx-4 -mt-4 overflow-hidden sm:-mx-6 sm:-mt-6 md:-mx-8 md:-mt-8">
-        <Image src={TROPHY_ROOM_BG} alt="" fill priority className="object-cover object-center md:scale-125 md:origin-right md:object-contain md:object-right" sizes="100vw" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-[#0a1226]/70 to-black/45" />
-        <div className="relative mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6 md:min-h-[360px] md:justify-center md:px-8">
-          <div className="min-w-0">
-            <Trophy className="h-6 w-6 shrink-0 text-yellow-400 sm:h-7 sm:w-7" strokeWidth={2.4} />
-            <h1 className="mt-2 whitespace-nowrap text-2xl font-black leading-none tracking-[-0.04em] text-slate-100 sm:text-4xl">
-              TROPHY <span className="text-yellow-400">ROOM</span>
-            </h1>
-            <p className="mt-1.5 text-xs font-bold text-slate-300 sm:text-sm">トロフィールーム</p>
-            <p className="mt-2 text-xs font-bold text-white/70 sm:text-sm">クラブが獲得した栄光の記録</p>
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-white/75">
-              <span><span className="font-mono text-base font-black text-yellow-300">{trophies.length > 0 ? trophies.length : "—"}</span> タイトル</span>
-              <span><span className="font-mono text-base font-black text-yellow-300">{trophies.length > 0 ? totalWins : "—"}</span> 回優勝</span>
-              <span>最新 <span className="font-mono text-base font-black text-yellow-300">{latestSeason ?? "—"}</span></span>
+    <div className="relative min-h-screen bg-[#050a12] px-4 py-8 text-white sm:px-6">
+      <div className="mx-auto max-w-5xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Trophy className="h-6 w-6 text-yellow-400" />
+              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">トロフィールーム</h1>
             </div>
+            <p className="mt-1 text-xs font-bold text-white/60">獲得タイトルと優勝シーズンを管理</p>
           </div>
           {trophies.length > 0 && (
-            <button
-              onClick={openCreate}
-              disabled={!isOwner || saving}
-              className="inline-flex h-11 items-center justify-center gap-1.5 self-start rounded-lg border border-yellow-400/70 bg-yellow-400/10 px-4 text-sm font-black text-yellow-300 transition hover:bg-yellow-400/20 disabled:opacity-50"
-            >
+            <Button onClick={openCreate} disabled={!isOwner || saving} className="gap-1.5">
               <Plus className="h-4 w-4" /> 新しいタイトル
-            </button>
+            </Button>
           )}
         </div>
-      </header>
-      <div className="mx-auto max-w-5xl">
 
         {!isOwner && user ? (
           <p className="mt-4 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-300">
@@ -446,36 +423,23 @@ export default function TrophyRoomAdminPage() {
         ) : (
           <div>
             {migrationCard ? <div className="mt-6 flex justify-center sm:justify-start">{migrationCard}</div> : null}
-            <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {trophies.map((t) => (
-              <div key={t.id} className="rounded-xl border border-white/10 bg-gradient-to-b from-[#0c1526] to-[#070c16] p-3">
-                <div className="flex gap-3">
-                  <div
-                    className="relative h-36 w-28 shrink-0 overflow-hidden rounded-lg border border-yellow-500/30 sm:h-44 sm:w-36"
-                    style={{
-                      background:
-                        "radial-gradient(ellipse at 50% -15%, rgba(253, 224, 71, 0.32), rgba(250, 204, 21, 0.10) 45%, transparent 70%), radial-gradient(ellipse at 50% 120%, #14203a 0%, #050a12 70%)",
-                    }}
-                  >
-                    <div className="pointer-events-none absolute bottom-1.5 left-1/2 h-4 w-4/5 -translate-x-1/2 rounded-[50%] bg-gradient-to-b from-slate-400/70 to-black/90 shadow-[0_3px_8px_rgba(0,0,0,0.9)]" />
-                    <Image
-                      src={trophyImageSrc(t.trophyImageKey)}
-                      alt={t.titleName}
-                      fill
-                      className="object-contain p-2 pb-5 drop-shadow-[0_8px_10px_rgba(0,0,0,0.8)]"
-                      sizes="(max-width: 640px) 112px, 144px"
-                    />
+              <div key={t.id} className="overflow-hidden rounded-xl border border-white/10 bg-slate-950/80">
+                <div className="flex items-start gap-3 p-4">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black">
+                    <Image src={trophyImageSrc(t.trophyImageKey)} alt={t.titleName} fill className="object-cover" sizes="64px" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-1">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <h2 className="truncate text-sm font-black text-white">{t.titleName}</h2>
-                        <p className="mt-0.5 text-[11px] font-bold text-yellow-400/90">{t.winningSeasons.length}回獲得</p>
+                        <p className="mt-0.5 text-[11px] font-bold text-yellow-400">{t.winningSeasons.length}回獲得</p>
                       </div>
                       {isOwner && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <button className="-m-1.5 shrink-0 rounded-md p-3 text-white/60 transition hover:bg-white/10 hover:text-white" aria-label="メニュー">
+                            <button className="rounded-md p-1 text-white/60 transition hover:bg-white/10 hover:text-white" aria-label="メニュー">
                               <MoreVertical className="h-4 w-4" />
                             </button>
                           </DropdownMenuTrigger>
@@ -496,15 +460,24 @@ export default function TrophyRoomAdminPage() {
                         </DropdownMenu>
                       )}
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      {sortSeasonsAsc(t.winningSeasons).map((s) => (
-                        <span key={s} className="rounded-full border border-white/15 bg-white/5 px-2.5 py-0.5 font-mono text-[11px] font-black text-white/85">
-                          {s}
-                        </span>
-                      ))}
-                    </div>
                   </div>
                 </div>
+                <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+                  {sortSeasonsAsc(t.winningSeasons).map((s) => (
+                    <span key={s} className="rounded-full border border-white/15 bg-white/5 px-2.5 py-0.5 font-mono text-[11px] font-black text-white/85">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+                {isOwner && (
+                  <button
+                    onClick={() => openAddSeason(t)}
+                    disabled={saving}
+                    className="flex w-full items-center gap-1.5 border-t border-white/10 px-4 py-2.5 text-left text-[11px] font-bold text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> 獲得シーズンを追加
+                  </button>
+                )}
               </div>
             ))}
             </div>
@@ -553,11 +526,10 @@ export default function TrophyRoomAdminPage() {
                       type="button"
                       onClick={() => setFormImageKey(p.key)}
                       className={`relative aspect-square overflow-hidden rounded-lg border-2 transition ${formImageKey === p.key ? "border-yellow-400 ring-2 ring-yellow-400/40" : "border-white/10 opacity-70 hover:opacity-100"}`}
-                      style={{ background: "radial-gradient(ellipse at 50% -10%, rgba(250, 204, 21, 0.14), transparent 55%), radial-gradient(ellipse at 50% 120%, #101a30 0%, #050a12 70%)" }}
                       aria-label={p.label}
                       aria-pressed={formImageKey === p.key}
                     >
-                      <Image src={p.src} alt={p.label} fill className="object-contain p-1.5" sizes="80px" />
+                      <Image src={p.src} alt={p.label} fill className="object-cover" sizes="80px" />
                     </button>
                   ))}
                 </div>

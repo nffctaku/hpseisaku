@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -32,8 +31,6 @@ interface LocalMatchEvent extends MatchEvent {
 
 export default function FriendlyMatchAdminPage() {
   const { user } = useAuth();
-  const { activeCareer } = useCareer();
-  const clubUid = activeCareer?.clubUid || user?.uid;
   const params = useParams();
   const router = useRouter();
   const matchId = params.matchId as string;
@@ -61,17 +58,17 @@ export default function FriendlyMatchAdminPage() {
   }, [match]);
 
   useEffect(() => {
-    if (!clubUid || !matchId) {
+    if (!user || !matchId) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
 
-    const matchDocRef = doc(db, `clubs/${clubUid}/friendly_matches/${matchId}`);
+    const matchDocRef = doc(db, `clubs/${user.clubUid}/friendly_matches/${matchId}`);
     const fetchPlayers = async (teamId: string): Promise<Player[]> => {
       if (!teamId) return [];
-      const playersRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
+      const playersRef = collection(db, `clubs/${user.clubUid}/teams/${teamId}/players`);
       const ps = await getDocs(playersRef);
       return ps.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as Player));
     };
@@ -130,7 +127,7 @@ export default function FriendlyMatchAdminPage() {
     return () => {
       unsubscribeMatch();
     };
-  }, [clubUid, matchId]);
+  }, [user, matchId]);
 
   if (loading) {
     return (
@@ -148,7 +145,7 @@ export default function FriendlyMatchAdminPage() {
     return <div className="flex h-screen items-center justify-center">試合が見つかりませんでした。</div>;
   }
 
-  const matchDocPath = `clubs/${clubUid}/friendly_matches/${match.id}`;
+  const matchDocPath = `clubs/${user.clubUid}/friendly_matches/${match.id}`;
 
   const handleDeleteMatch = async () => {
     if (!user || !match) return;
@@ -408,7 +405,7 @@ export default function FriendlyMatchAdminPage() {
         <TabsContent value="match-stats">
           <MatchTeamStatsForm
             match={match}
-            userId={clubUid as string}
+            userId={user.uid}
             competitionId={(match as any).competitionId}
             roundId={(match as any).roundId}
             matchDocPath={matchDocPath}

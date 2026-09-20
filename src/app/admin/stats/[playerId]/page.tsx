@@ -5,7 +5,6 @@ import { useParams, notFound } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { collection, collectionGroup, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCareer } from '@/contexts/CareerContext';
 import { toDashSeason } from '@/lib/season';
 import { MatchDetails, Player } from '@/types/match';
 import { Button } from '@/components/ui/button';
@@ -31,10 +30,7 @@ interface Competition {
 export default function PlayerStatsPage() {
   const params = useParams();
   const { user } = useAuth();
-  const { activeCareer } = useCareer();
   const playerId = params.playerId as string;
-  // データパスはアクティブCareerのclubUidを優先（user.clubUid は旧Careerルートを指すため不可）
-  const clubUid = activeCareer?.clubUid || user?.uid;
 
   const [playerInfo, setPlayerInfo] = useState<Player | null>(null);
   const [allStats, setAllStats] = useState<any[]>([]);
@@ -42,10 +38,10 @@ export default function PlayerStatsPage() {
   const [selectedCompetition, setSelectedCompetition] = useState('all');
 
   const fetchData = async () => {
-    if (!playerId || !clubUid) return;
+    if (!playerId || !user) return;
 
     setLoading(true);
-    const ownerUid = clubUid;
+    const ownerUid = user.clubUid;
 
     const seasonsRef = collection(db, `clubs/${ownerUid}/seasons`);
     const seasonsSnap = await getDocs(seasonsRef);
@@ -153,9 +149,9 @@ export default function PlayerStatsPage() {
   };
 
   useEffect(() => {
-    if (!playerId || !clubUid) return;
+    if (!playerId || !user) return;
     fetchData();
-  }, [playerId, clubUid]);
+  }, [playerId, user]);
 
   const competitionNames = useMemo(() => {
     const names = new Set(allStats.map(s => s.competitionName));

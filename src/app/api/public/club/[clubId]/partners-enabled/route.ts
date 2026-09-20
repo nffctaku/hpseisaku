@@ -1,14 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase/admin";
-import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 export const runtime = "nodejs";
 
 async function resolveOwnerUid(clubId: string): Promise<string | null> {
   try {
-    // clubId -> 正規 clubUid は共通 resolver に統一（ownerUid 直参照は旧Careerを指すため不可）
-    const resolved = await resolvePublicClubProfile(clubId);
-    return resolved?.ownerUid ?? null;
+    const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId).limit(1);
+    const profileSnap = await profilesQuery.get();
+
+    if (!profileSnap.empty) {
+      const doc = profileSnap.docs[0];
+      const data = doc.data() as any;
+      return (data.ownerUid as string) || doc.id;
+    }
+
+    const directSnap = await db.collection("club_profiles").doc(clubId).get();
+    if (directSnap.exists) {
+      const data = directSnap.data() as any;
+      return (data.ownerUid as string) || directSnap.id;
+    }
+
+    const ownerSnap = await db.collection("club_profiles").where("ownerUid", "==", clubId).limit(1).get();
+    if (!ownerSnap.empty) {
+      const doc = ownerSnap.docs[0];
+      const data = doc.data() as any;
+      return (data.ownerUid as string) || doc.id;
+    }
+
+    return null;
   } catch {
     return null;
   }

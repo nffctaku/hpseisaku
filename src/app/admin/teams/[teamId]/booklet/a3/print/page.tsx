@@ -6,7 +6,6 @@ import Link from "next/link";
 import { auth } from "@/lib/firebase";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCareer } from "@/contexts/CareerContext";
 import type { BookletResponse } from "../../types";
 import { BookletGlobalStyles } from "../../components/BookletGlobalStyles";
 import { ProPlanNotice } from "../../components/ProPlanNotice";
@@ -161,8 +160,7 @@ export default function TeamBookletA3PrintPage() {
   const season = (searchParams.get("season") || "").trim();
   const embed = (searchParams.get("embed") || "").trim() === "1";
 
-  const { user } = useAuth();
-  const { activeCareer } = useCareer();
+  const { user, ownerUid } = useAuth();
   const isPro = user?.plan === "pro";
 
   const [data, setData] = useState<BookletResponse | null>(null);
@@ -437,7 +435,7 @@ export default function TeamBookletA3PrintPage() {
     });
   }, [playersById, resolvedLayout.extras]);
 
-  const clubUid = activeCareer?.clubUid || user?.uid || null;
+  const clubUid = ownerUid || user?.uid || null;
   const [coachFromStaff, setCoachFromStaff] = useState<CoachInfo | null>(null);
   const [transfersInFromDb, setTransfersInFromDb] = useState<TransferRow[]>([]);
   const [transfersOutFromDb, setTransfersOutFromDb] = useState<TransferRow[]>([]);

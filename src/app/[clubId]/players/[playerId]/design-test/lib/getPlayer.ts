@@ -1,6 +1,5 @@
 import { db } from "@/lib/firebase/admin";
 import { unstable_cache } from "next/cache";
-import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 import { toSlashSeason } from "./season";
 
@@ -175,11 +174,13 @@ async function getPlayerRaw(
   let gameTeamUsage = false;
   let publicPlayerParamsEnabled: boolean | undefined = undefined;
 
-  // clubId -> 正規 clubUid は共通 resolver に統一（ownerUid 直参照は旧Careerを指すため不可）
-  const resolved = await resolvePublicClubProfile(clubId);
-  if (resolved) {
-    const data = resolved.profileData as any;
-    ownerUid = resolved.ownerUid;
+  const profilesQuery = db.collection("club_profiles").where("clubId", "==", clubId);
+  const profileSnap = await profilesQuery.get();
+
+  if (!profileSnap.empty) {
+    const doc = profileSnap.docs[0];
+    const data = doc.data() as any;
+    ownerUid = (data.ownerUid as string) || doc.id;
     clubName = data.clubName || clubName;
     gameTeamUsage = Boolean((data as any).gameTeamUsage);
     if (typeof (data as any).publicPlayerParamsEnabled === "boolean") {
@@ -192,6 +193,25 @@ async function getPlayerRaw(
           slug: typeof p?.slug === "string" ? p.slug : "",
         }))
         .filter((p: any) => typeof p.slug === "string" && p.slug.trim().length > 0);
+    }
+  } else {
+    const directSnap = await db.collection("club_profiles").doc(clubId).get();
+    if (directSnap.exists) {
+      const data = directSnap.data() as any;
+      ownerUid = (data.ownerUid as string) || directSnap.id;
+      clubName = data.clubName || clubName;
+      gameTeamUsage = Boolean((data as any).gameTeamUsage);
+      if (typeof (data as any).publicPlayerParamsEnabled === "boolean") {
+        publicPlayerParamsEnabled = Boolean((data as any).publicPlayerParamsEnabled);
+      }
+      if (Array.isArray((data as any).legalPages)) {
+        legalPages = (data as any).legalPages
+          .map((p: any) => ({
+            title: typeof p?.title === "string" ? p.title : "",
+            slug: typeof p?.slug === "string" ? p.slug : "",
+          }))
+          .filter((p: any) => typeof p.slug === "string" && p.slug.trim().length > 0);
+      }
     }
   }
 

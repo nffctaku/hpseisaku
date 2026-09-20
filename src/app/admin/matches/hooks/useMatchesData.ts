@@ -100,54 +100,19 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
     return `${m.competitionId}__${m.roundId}__${m.id}`;
   }, []);
 
-  const [reloadTick, setReloadTick] = useState(0);
-
-  // 大会作成など他画面での変更を反映するため、タブ復帰時に再取得する
   useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible") setReloadTick((t) => t + 1);
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onVisible);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onVisible);
-    };
-  }, []);
-
-  const prevClubUidRef = useRef<string | null | undefined>(undefined);
-
-  useEffect(() => {
-    // Career切替時は旧データを即時クリアし、遅れて返る旧取得結果は反映しない
-    const clubChanged = prevClubUidRef.current !== clubUid;
-    prevClubUidRef.current = clubUid;
-    if (clubChanged) {
-      setTeams([]);
-      setCompetitions([]);
-      setCompetitionTeamIds(new Map());
-      setMainTeamId(null);
-      setMatches([]);
-      setLoadingMatches(false);
-      teamsMapRef.current = new Map();
-      competitionMetaRef.current = new Map();
-      activeFetchIdRef.current++;
-    }
-
     if (!clubUid) {
       setLoadingBootstrap(false);
       return;
     }
 
-    let cancelled = false;
     const bootstrap = async () => {
-      // タブ復帰による再取得(reloadTick)ではスピナーを出さない
-      if (clubChanged) setLoadingBootstrap(true);
+      setLoadingBootstrap(true);
       try {
         const teamsMap = new Map<string, Team>();
         const teamsQueryRef = query(collection(db, `clubs/${clubUid}/teams`));
         const teamsSnap = await getDocs(teamsQueryRef);
         teamsSnap.forEach((d) => teamsMap.set(d.id, { id: d.id, ...(d.data() as any) } as Team));
-        if (cancelled) return;
         teamsMapRef.current = teamsMap;
 
         const competitionsQueryRef = query(collection(db, `clubs/${clubUid}/competitions`));
@@ -161,7 +126,6 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
             season: typeof data?.season === "string" ? data.season : undefined,
           });
         });
-        if (cancelled) return;
         competitionMetaRef.current = competitionMeta;
 
         const competitionOptions: CompetitionOption[] = competitionsSnap.docs.map((d) => ({
@@ -170,7 +134,6 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
           season: ((d.data() as any)?.season as string) || undefined,
         }));
         competitionOptions.sort((a, b) => a.name.localeCompare(b.name));
-        if (cancelled) return;
         setCompetitions(competitionOptions);
 
         const compTeams = new Map<string, string[]>();
@@ -179,7 +142,6 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
           const ids = Array.isArray(data?.teams) ? data.teams.filter((x: any) => typeof x === "string") : [];
           compTeams.set(d.id, ids);
         });
-        if (cancelled) return;
         setCompetitionTeamIds(compTeams);
 
         const teamsForDropdown = Array.from(teamsMap.values());
@@ -205,22 +167,17 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
         } catch (e) {
           console.warn("[useMatchesData] mainTeamId load failed", e);
         }
-        if (cancelled) return;
         setMainTeamId(main);
       } catch (error) {
-        if (cancelled) return;
         console.error("[useMatchesData] bootstrap failed", error);
         toast.error("試合データの読み込みに失敗しました。");
       } finally {
-        if (!cancelled && clubChanged) setLoadingBootstrap(false);
+        setLoadingBootstrap(false);
       }
     };
 
     void bootstrap();
-    return () => {
-      cancelled = true;
-    };
-  }, [clubUid, reloadTick]);
+  }, [clubUid]);
 
   const fetchMatchesFromTree = useCallback(
     async (clubUidInner: string, competitionMeta: Map<string, { name: string; season?: string }>): Promise<EnrichedMatch[]> => {

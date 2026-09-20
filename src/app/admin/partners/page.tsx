@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import {
   addDoc,
@@ -71,9 +70,7 @@ type Partner = {
 
 export default function PartnersAdminPage() {
   const { user, ownerUid } = useAuth();
-  const { activeCareer } = useCareer();
-  // データパスはアクティブCareerのclubUidを優先（user.clubUid は旧Careerルートを指すため不可）
-  const clubUid = activeCareer?.clubUid || user?.clubUid || null;
+  const clubUid = user?.clubUid || null;
 
   const canManagePartners =
     user?.uid === 'gNDzHTPlzVZK8cOl7ogxQBRvugH2' ||

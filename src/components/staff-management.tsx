@@ -3,7 +3,6 @@
 import { useMemo, useState, useEffect } from "react";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
@@ -44,10 +43,8 @@ interface StaffManagementProps {
 }
 
 export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps) {
-  const { user } = useAuth();
-  const { activeCareer } = useCareer();
-  // データパスはアクティブCareerのclubUidを優先（auth uid は旧Careerルートを指すため不可）
-  const clubUid = activeCareer?.clubUid || user?.uid;
+  const { user, ownerUid } = useAuth();
+  const clubUid = ownerUid || user?.uid;
   const isPro = user?.plan === "pro";
   const [staff, setStaff] = useState<Staff[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);

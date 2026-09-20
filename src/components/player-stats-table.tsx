@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { Player } from '@/types/match';
-import { deriveStarterMinutes, deriveBenchMinutes } from '@/lib/match-minutes';
 import { toast } from 'sonner';
 
 const ratingOptions = (() => {
@@ -114,7 +113,7 @@ const getPositionPillClassName = (position: any) => {
 
 export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFormationChange, isHomeTeam }: { teamId: string, allPlayers: Player[], matchDuration?: number, onFormationChange?: (formation: string) => void, isHomeTeam?: boolean }) {
   console.log(`PlayerStatsTable v3 (${teamId}): Received allPlayers`, allPlayers);
-  const { control, watch, setValue, formState } = useFormContext();
+  const { control, watch, setValue } = useFormContext();
   const { fields, append, prepend, remove, update } = useFieldArray({
     control,
     name: 'playerStats',
@@ -190,34 +189,109 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
   const derivedStarterMinutes = useMemo(() => {
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
-    return deriveStarterMinutes(events, teamId, matchDuration);
+    const outMinuteByPlayerId = new Map<string, number>();
+    const halfTime = matchDuration / 2; // 90分の場合45分、120分の場合60分
+
+    events
+      .filter((ev: any) => ev?.type === 'substitution')
+      .forEach((ev: any) => {
+        const outId = typeof ev?.outPlayerId === 'string' ? ev.outPlayerId : '';
+        if (!outId) return;
+        if (ev?.teamId !== teamId) return;
+        
+        // Parse minute string (e.g., "45+9" -> base: 45, stoppage: 9)
+        const minuteStr = typeof ev?.minute === 'string' ? ev.minute : String(ev?.minute);
+        let baseMinute = 0;
+        let stoppageMinute = 0;
+        
+        if (minuteStr.includes('+')) {
+          const parts = minuteStr.split('+');
+          baseMinute = parseInt(parts[0], 10) || 0;
+          stoppageMinute = parseInt(parts[1], 10) || 0;
+        } else {
+          baseMinute = parseInt(minuteStr, 10) || 0;
+        }
+
+        // Apply new calculation rules
+        let calculatedMinute: number;
+        
+        if (baseMinute === halfTime && stoppageMinute > 0) {
+          // First half stoppage time substitution
+          // OUT player → playing time is halfTime minutes
+          calculatedMinute = halfTime;
+        } else if (baseMinute === matchDuration && stoppageMinute > 0) {
+          // Second half stoppage time substitution
+          // OUT player → playing time is matchDuration minutes (considered full time)
+          calculatedMinute = matchDuration;
+        } else {
+          // Normal time substitution: use base minute as before
+          const m = typeof ev?.minute === 'number' ? ev.minute : Number(ev?.minute);
+          calculatedMinute = Number.isFinite(m) ? Math.max(0, Math.floor(m)) : 0;
+        }
+
+        const cur = outMinuteByPlayerId.get(outId);
+        if (typeof cur === 'number') {
+          outMinuteByPlayerId.set(outId, Math.min(cur, calculatedMinute));
+        } else {
+          outMinuteByPlayerId.set(outId, calculatedMinute);
+        }
+      });
+
+    return outMinuteByPlayerId;
   }, [teamId, watchedEvents, matchDuration]);
 
   // Calculate bench player minutes (IN substitutions)
   const derivedBenchMinutes = useMemo(() => {
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
-    return deriveBenchMinutes(events, teamId, matchDuration);
+    const inMinuteByPlayerId = new Map<string, number>();
+    const halfTime = matchDuration / 2; // 90分の場合45分、120分の場合60分
+
+    events
+      .filter((ev: any) => ev?.type === 'substitution')
+      .forEach((ev: any) => {
+        const inId = typeof ev?.inPlayerId === 'string' ? ev.inPlayerId : '';
+        if (!inId) return;
+        if (ev?.teamId !== teamId) return;
+        
+        // Parse minute string (e.g., "45+9" -> base: 45, stoppage: 9)
+        const minuteStr = typeof ev?.minute === 'string' ? ev.minute : String(ev?.minute);
+        let baseMinute = 0;
+        let stoppageMinute = 0;
+        
+        if (minuteStr.includes('+')) {
+          const parts = minuteStr.split('+');
+          baseMinute = parseInt(parts[0], 10) || 0;
+          stoppageMinute = parseInt(parts[1], 10) || 0;
+        } else {
+          baseMinute = parseInt(minuteStr, 10) || 0;
+        }
+
+        // Apply new calculation rules for IN players
+        let calculatedMinute: number;
+        
+        if (baseMinute === halfTime && stoppageMinute > 0) {
+          // First half stoppage time substitution
+          // IN player → playing time is halfTime minutes (halfTime to matchDuration)
+          calculatedMinute = halfTime;
+        } else if (baseMinute === matchDuration && stoppageMinute > 0) {
+          // Second half stoppage time substitution
+          // IN player → playing time is fixed at 1 minute
+          calculatedMinute = 1;
+        } else {
+          // Normal time substitution: use base minute
+          // Playing time = matchDuration - baseMinute
+          calculatedMinute = Math.max(0, matchDuration - baseMinute);
+        }
+
+        inMinuteByPlayerId.set(inId, calculatedMinute);
+      });
+
+    return inMinuteByPlayerId;
   }, [teamId, watchedEvents, matchDuration]);
 
   // Automatically calculate and update minutesPlayed based on substitution events and matchDuration
-  // Only recalc when minutes-relevant data actually changed since load (lineup members or
-  // substitution events); viewing or unrelated edits must preserve stored minutesPlayed.
-  const minutesSignatureRef = useRef<string | null>(null);
   useEffect(() => {
     const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
-    const teamPlayerIds = stats
-      .filter((ps) => ps && ps.teamId === teamId)
-      .map((ps) => `${String(ps.playerId || '')}:${ps.role ?? 'starter'}`)
-      .sort();
-    const teamSubEvents = (Array.isArray(watchedEvents) ? watchedEvents : []).filter(
-      (e: any) => e && e.teamId === teamId && e.type === 'substitution'
-    );
-    if (teamPlayerIds.length === 0 && teamSubEvents.length === 0 && minutesSignatureRef.current === null) return;
-    const signature = JSON.stringify({ p: teamPlayerIds, ev: teamSubEvents });
-    const changed = minutesSignatureRef.current !== null && minutesSignatureRef.current !== signature;
-    minutesSignatureRef.current = signature;
-    // Recalc only on user edits; load-time normalization uses shouldDirty:false so it never qualifies
-    if (!changed || !formState.isDirty) return;
     stats.forEach((ps, idx) => {
       if (!ps) return;
       if (ps.teamId !== teamId) return;
@@ -246,10 +320,9 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
       }
 
       if (curNum === desired) return;
-      // shouldDirty:false — recalculation must not trigger autosave by itself
-      setValue(`playerStats.${idx}.minutesPlayed` as any, desired, { shouldDirty: false });
+      setValue(`playerStats.${idx}.minutesPlayed` as any, desired, { shouldDirty: true });
     });
-  }, [derivedStarterMinutes, derivedBenchMinutes, matchDuration, teamId, watchedPlayerStats, watchedEvents, setValue]);
+  }, [derivedStarterMinutes, derivedBenchMinutes, matchDuration, teamId, watchedPlayerStats, setValue]);
 
   const sortedAllPlayers = [...allPlayers].sort((a, b) => {
     const an = typeof (a as any)?.number === 'number' && Number.isFinite((a as any).number) ? (a as any).number : Number.POSITIVE_INFINITY;
@@ -263,14 +336,10 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
   const customStatHeaders = watch('customStatHeaders') || [];
 
   // Filter fields to only show players belonging to the current team
-  // Merge live watched values over field ids: `fields` may not reflect setValue updates
-  const statsByIndex = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
-  const teamPlayerFields = fields
-    .map((field, index) => ({ ...(field as any), ...(statsByIndex[index] ?? {}), id: field.id }))
-    .filter(field => {
-      const fieldTeamId = (field as any).teamId;
-      return fieldTeamId === teamId;
-    });
+  const teamPlayerFields = fields.filter(field => {
+    const fieldTeamId = (field as any).teamId;
+    return fieldTeamId === teamId;
+  });
 
   const teamPlayerIdsInStats = teamPlayerFields.map(f => (f as any).playerId);
   const availablePlayers = sortedAllPlayers.filter(p => !teamPlayerIdsInStats.includes(p.id));
@@ -308,44 +377,24 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
   useEffect(() => {
     const stats = Array.isArray(watchedPlayerStats) ? (watchedPlayerStats as any[]) : [];
-    // Pass 1: first claimant keeps each explicitly-set valid slot (per team)
-    const slotOwner = new Map<number, number>();
     stats.forEach((ps, index) => {
       if (!ps) return;
       if (ps.teamId !== teamId) return;
+      if (index > 10) {
+        if ((ps.role ?? 'starter') === 'starter') {
+          setValue(`playerStats.${index}.role` as any, 'sub', { shouldDirty: false });
+        }
+        if (ps.starterSlot !== undefined) {
+          setValue(`playerStats.${index}.starterSlot` as any, undefined as any, { shouldDirty: false });
+        }
+        return;
+      }
       if ((ps.role ?? 'starter') !== 'starter') return;
       const slot = Number(ps.starterSlot);
-      if (Number.isInteger(slot) && slot >= 0 && slot <= 10 && !slotOwner.has(slot)) {
-        slotOwner.set(slot, index);
-      }
+      if (Number.isInteger(slot) && slot >= 0 && slot <= 10) return;
+      setValue(`playerStats.${index}.starterSlot` as any, index, { shouldDirty: false });
     });
-    // Pass 2: keep claimed slots, assign free slots to starters without one, demote overflow
-    stats.forEach((ps, index) => {
-      if (!ps) return;
-      if (ps.teamId !== teamId) return;
-      const isStarter = (ps.role ?? 'starter') === 'starter';
-      const slot = Number(ps.starterSlot);
-      if (isStarter && slotOwner.get(slot) === index) return;
-      if (isStarter) {
-        let nextSlot = -1;
-        for (let s = 0; s <= 10; s += 1) {
-          if (!slotOwner.has(s)) {
-            nextSlot = s;
-            break;
-          }
-        }
-        if (nextSlot !== -1) {
-          slotOwner.set(nextSlot, index);
-          setValue(`playerStats.${index}.starterSlot` as any, nextSlot, { shouldDirty: false });
-          return;
-        }
-        setValue(`playerStats.${index}.role` as any, 'sub', { shouldDirty: false });
-      }
-      if (ps.starterSlot !== undefined) {
-        setValue(`playerStats.${index}.starterSlot` as any, undefined as any, { shouldDirty: false });
-      }
-    });
-  }, [teamId, derivedBenchMinutes, (watchedPlayerStats || []).map((ps: any) => `${ps?.teamId}:${ps?.role}:${ps?.starterSlot}`).join(','), setValue]);
+  }, [teamId, (watchedPlayerStats || []).map((ps: any) => ps?.starterSlot).join(','), setValue]);
 
   const handleAddPlayer = (playerId: string, role: 'starter' | 'sub') => {
     const player = allPlayers.find(p => p.id === playerId);

@@ -37,15 +37,12 @@ type NavItem = {
 export default function AdminHomePage() {
   const { user } = useAuth();
   const { clubInfo } = useClub();
-  const { activeCareer } = useCareer();
   const uid = user?.uid;
-  // データパスはアクティブCareerのclubUidを優先（auth uid は旧Careerルートを指すため不可）
-  const clubUid = activeCareer?.clubUid || uid || null;
   const clubId = clubInfo?.id || user?.clubId || uid || null;
   const [teamState, setTeamState] = useState<{ uid: string; id: string | null } | null>(null);
   const [draftState, setDraftState] = useState<{ uid: string; count: number } | null>(null);
-  const mainTeamId = teamState?.uid === clubUid ? teamState?.id : null;
-  const draftNewsCount = draftState?.uid === clubUid ? draftState?.count || 0 : 0;
+  const mainTeamId = teamState?.uid === uid ? teamState?.id : null;
+  const draftNewsCount = draftState?.uid === uid ? draftState?.count || 0 : 0;
   const isPro = user?.plan === "pro";
   const adsenseClient = (process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "").trim();
   const adsenseSlot = (process.env.NEXT_PUBLIC_ADSENSE_SLOT_ADMIN_HOME || "").trim();
@@ -54,35 +51,33 @@ export default function AdminHomePage() {
 
   // Preserve the existing UID-based team lookup and single-team fallback.
   useEffect(() => {
-    if (!clubUid) return;
+    if (!uid) return;
     let cancelled = false;
     const publish = (id: string | null) => {
-      if (!cancelled) setTeamState({ uid: clubUid, id });
+      if (!cancelled) setTeamState({ uid, id });
     };
     const readMainTeam = (data: { mainTeamId?: unknown }) =>
       typeof data.mainTeamId === "string" ? data.mainTeamId.trim() : "";
     const run = async () => {
       try {
-        const profileRef = doc(db, "club_profiles", clubUid);
+        const profileRef = doc(db, "club_profiles", uid);
         const profile = await getDoc(profileRef);
         if (cancelled) return;
         const directId = profile.exists() ? readMainTeam(profile.data()) : "";
         if (directId) { publish(directId); return; }
-        const owners = uid
-          ? await getDocs(query(collection(db, "club_profiles"), where("ownerUid", "==", uid), where("clubUid", "==", clubUid), limit(1)))
-          : { empty: true, docs: [] as any[] };
+        const owners = await getDocs(query(collection(db, "club_profiles"), where("ownerUid", "==", uid), limit(1)));
         if (cancelled) return;
         const ownerId = owners.empty ? "" : readMainTeam(owners.docs[0].data());
         if (ownerId) { publish(ownerId); return; }
-        const teams = await getDocs(query(collection(db, `clubs/${clubUid}/teams`), limit(2)));
+        const teams = await getDocs(query(collection(db, `clubs/${uid}/teams`), limit(2)));
         if (cancelled) return;
         if (teams.size !== 1) { publish(null); return; }
         const id = teams.docs[0].id;
         publish(id);
         try {
-          const payload = { ownerUid: uid, clubUid, mainTeamId: id };
+          const payload = { ownerUid: uid, mainTeamId: id };
           await setDoc(profileRef, payload, { merge: true });
-          if (!owners.empty && owners.docs[0].id !== clubUid) {
+          if (!owners.empty && owners.docs[0].id !== uid) {
             await setDoc(owners.docs[0].ref, payload, { merge: true });
           }
         } catch {
@@ -92,22 +87,22 @@ export default function AdminHomePage() {
     };
     void run();
     return () => { cancelled = true; };
-  }, [clubUid, uid]);
+  }, [uid]);
 
   useEffect(() => {
-    if (!clubUid) return;
+    if (!uid) return;
     let cancelled = false;
     const run = async () => {
       try {
-        const snapshot = await getDocs(query(collection(db, `clubs/${clubUid}/news`), where("status", "==", "draft")));
-        if (!cancelled) setDraftState({ uid: clubUid!, count: snapshot.size });
+        const snapshot = await getDocs(query(collection(db, `clubs/${uid}/news`), where("status", "==", "draft")));
+        if (!cancelled) setDraftState({ uid, count: snapshot.size });
       } catch {
-        if (!cancelled) setDraftState({ uid: clubUid!, count: 0 });
+        if (!cancelled) setDraftState({ uid, count: 0 });
       }
     };
     void run();
     return () => { cancelled = true; };
-  }, [clubUid]);
+  }, [uid]);
 
   useEffect(() => {
     if (!showAd || adRequested.current) return;

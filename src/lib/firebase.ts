@@ -8,10 +8,7 @@ import { getStorage } from "firebase/storage";
 // ストレージ制限で結果が復元できない問題を回避するため。
 // PC の popup は従来通り web.app 直行の方が速いため、初期値はenvのまま。
 const SELF_AUTH_DOMAINS = new Set(['www.footchron.com', 'footchron.com']);
-const resolvedAuthDomain =
-  typeof window !== 'undefined' && SELF_AUTH_DOMAINS.has(window.location.hostname)
-    ? window.location.hostname
-    : process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+const resolvedAuthDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
 
 export function useSelfAuthDomainForRedirect(): void {
   const host = typeof window !== 'undefined' ? window.location.hostname : '';

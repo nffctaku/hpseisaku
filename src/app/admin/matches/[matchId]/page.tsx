@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCareer } from '@/contexts/CareerContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 import { z } from 'zod';
@@ -56,8 +55,6 @@ type MatchStatsFormValues = z.infer<typeof matchStatsSchema>;
 
 export default function MatchStatsPage() {
   const { user } = useAuth();
-  const { activeCareer, loading: careerLoading } = useCareer();
-  const clubUid = activeCareer?.clubUid;
   const params = useParams();
   const matchId = params.matchId as string;
 
@@ -76,20 +73,14 @@ export default function MatchStatsPage() {
   });
 
   useEffect(() => {
-    if (careerLoading) return;
-    if (!user || !clubUid || !matchId) {
-      setLoading(false);
-      return;
-    }
+    if (!user || !matchId) return;
 
-    let cancelled = false;
     const fetchMatchAndPlayers = async () => {
       setLoading(true);
       try {
         // Fetch match details
-        const matchDocRef = doc(db, `clubs/${clubUid}/matches`, matchId);
+        const matchDocRef = doc(db, `clubs/${user.clubUid}/matches`, matchId);
         const matchSnap = await getDoc(matchDocRef);
-        if (cancelled) return;
         if (matchSnap.exists()) {
           const data = matchSnap.data() as any;
           setMatch({ id: matchSnap.id, ...data } as Match);
@@ -111,9 +102,8 @@ export default function MatchStatsPage() {
         }
 
         // Fetch players
-        const playersColRef = collection(db, `clubs/${clubUid}/players`);
+        const playersColRef = collection(db, `clubs/${user.clubUid}/players`);
         const playersSnap = await getDocs(playersColRef);
-        if (cancelled) return;
         const playersData = playersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
         setPlayers(playersData);
         
@@ -124,23 +114,20 @@ export default function MatchStatsPage() {
         }
 
       } catch (error) {
-        if (!cancelled) console.error("Error fetching data: ", error);
+        console.error("Error fetching data: ", error);
       } finally {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       }
     };
 
     fetchMatchAndPlayers();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, clubUid, careerLoading, matchId, replace, form]);
+  }, [user, matchId, replace, form]);
 
   const handleFormSubmit: SubmitHandler<MatchStatsFormValues> = async (values) => {
-    if (!user || !clubUid || !matchId) return;
+    if (!user || !matchId) return;
     setSaving(true);
     try {
-      const matchDocRef = doc(db, `clubs/${clubUid}/matches`, matchId);
+      const matchDocRef = doc(db, `clubs/${user.clubUid}/matches`, matchId);
       const payload = {
         playerStats: values.playerStats.map((ps) => ({
           playerId: ps.playerId,

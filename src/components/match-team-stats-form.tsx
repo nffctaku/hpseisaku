@@ -1,7 +1,6 @@
 "use client";
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useCareer } from '@/contexts/CareerContext';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -92,10 +91,8 @@ const presetStatIds = presetStats.map(s => s.id);
 const lockedStatIds = [...defaultStatIds, ...presetStatIds];
 
 export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matchDocPath }: MatchTeamStatsFormProps) {
-  const { user } = useAuth();
-  const { activeCareer } = useCareer();
-  // データパスはアクティブCareerのclubUidを優先（auth uid は旧Careerルートを指すため不可）
-  const ownerUid = activeCareer?.clubUid || userId || user?.uid;
+  const { user, ownerUid: ownerUidFromContext } = useAuth();
+  const ownerUid = ownerUidFromContext || userId;
   const maxTeamStats = user?.plan === 'pro' ? 30 : 15;
   const [isSaving, setIsSaving] = useState(false);
   const [isTemplateLoading, setIsTemplateLoading] = useState(false);
