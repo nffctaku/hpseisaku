@@ -63,8 +63,14 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       }
     }
 
-    if (signingInRef.current) return;
+    console.log('[AuthButton] handleSignIn fired');
+    if (signingInRef.current) {
+      console.warn('[AuthButton] signingIn lock active, ignoring tap');
+      return;
+    }
     signingInRef.current = true;
+    // redirect開始がハングした場合に備え、一定時間でロックを自動解除する
+    setTimeout(() => { signingInRef.current = false; }, 20000);
 
     const snap = getAcquisitionSnapshot();
     void trackEvent("signup_cta_click", null, {
