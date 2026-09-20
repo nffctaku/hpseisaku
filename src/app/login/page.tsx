@@ -87,22 +87,23 @@ export default function LoginPage() {
     }
 
     // Android/PC: popupはユーザーのclick handler直下・state更新より先に呼ぶ
-    console.log("[LoginPage] calling signInWithPopup");
+    console.log("AUTH_READY", (auth.config as any).authDomain);
+    console.log("BEFORE_POPUP");
     let popupPromise: Promise<import("firebase/auth").UserCredential>;
     try {
       popupPromise = signInWithPopup(auth, provider);
-      console.log("[LoginPage] signInWithPopup called");
     } catch (e: any) {
-      console.error("[LoginPage] signInWithPopup threw synchronously", e);
+      console.error("POPUP_ERROR(sync)", e);
       signingInRef.current = false;
       window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
       return;
     }
     setSigningIn(true);
     try {
-      await popupPromise;
+      const result = await popupPromise;
+      console.log("POPUP_SUCCESS", result.user.uid);
     } catch (error: any) {
-      console.error("[LoginPage] Error signing in with popup", error);
+      console.error("POPUP_ERROR", error);
       if (
         error.code === "auth/cancelled-popup-request" ||
         error.code === "auth/popup-closed-by-user"
