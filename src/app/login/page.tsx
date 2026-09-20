@@ -10,7 +10,6 @@ import Image from "next/image";
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithCredential,
   signInWithPopup,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -75,42 +74,35 @@ export default function LoginPage() {
             setSigningIn(false);
             return;
           }
+          // SDKを介さずREST直接実行で失敗箇所を切り分け
           try {
-            const credential = GoogleAuthProvider.credential(resp.credential);
-            await signInWithCredential(auth, credential);
-            // 以降は onAuthStateChanged が /admin へ遷移
+            const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "";
+            const r = await fetch(
+              `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${apiKey}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  postBody: `id_token=${encodeURIComponent(resp.credential)}&providerId=google.com`,
+                  requestUri: "https://www.footchron.com",
+                  returnSecureToken: true,
+                  returnIdpCredential: true,
+                }),
+              }
+            );
+            const j: any = await r.json().catch(() => ({}));
+            setDiag(
+              `REST status=${r.status} msg=${j?.error?.message || `OK uid=${j?.localId || "?"}`}`
+            );
+            if (!r.ok) {
+              signingInRef.current = false;
+              setSigningIn(false);
+            }
           } catch (e: any) {
-            console.error("[LoginPage] signInWithCredential error", e);
+            console.error("[LoginPage] REST signInWithIdp error", e);
             signingInRef.current = false;
             setSigningIn(false);
-            // Firebase API疎通を直接確認（エラー応答でも到達=疎通OK）
-            const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "";
-            const probe = async (url: string) => {
-              try {
-                const r = await fetch(url, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: "{}",
-                });
-                return String(r.status);
-              } catch (err: any) {
-                return `FAIL(${err?.name}:${(err?.message || "").slice(0, 40)})`;
-              }
-            };
-            const sw = await navigator.serviceWorker
-              ?.getRegistrations()
-              .then((r) => r.length)
-              .catch(() => -1);
-            const it = await probe(
-              `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${apiKey}`
-            );
-            const st = await probe(
-              `https://securetoken.googleapis.com/v1/token?key=${apiKey}`
-            );
-            setDiag(
-              `DIAG err=${e.code || e.message} | it=${it} | st=${st} | sw=${sw ?? "?"} | domain=${(auth.config as any).authDomain}`
-            );
-            window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
+            setDiag(`REST FAIL(${e?.name}:${(e?.message || "").slice(0, 60)})`);
           }
         },
       });
