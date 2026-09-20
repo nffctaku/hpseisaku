@@ -10,13 +10,21 @@ import Image from "next/image";
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithRedirect,
+  signInWithCredential,
+  signInWithPopup,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
+// Firebase Google provider が使う Web OAuth client（handler の OAuth URL で確認済み）。
+// この client 宛の ID token は signInWithCredential で Firebase Auth に入れる。
+const GOOGLE_CLIENT_ID =
+  "37351204331-41dfdcurli5qh9a7vjbjjbmefjie7s8i.apps.googleusercontent.com";
+
 export default function LoginPage() {
   const [signingIn, setSigningIn] = useState(false);
+  const [mode, setMode] = useState<"pending" | "gis" | "custom">("pending");
   const signingInRef = useRef(false);
+  const gisRef = useRef<HTMLDivElement>(null);
 
   // ログイン済みになったら /admin へ遷移（redirect復帰時もここで拾う）
   useEffect(() => {
@@ -40,6 +48,59 @@ export default function LoginPage() {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
+  // mobile は GIS (Google Identity Services) 経路、それ以外は従来ボタン
+  useEffect(() => {
+    const ua = window.navigator.userAgent || "";
+    const inApp = /(Line|FBAN|FBAV|Instagram|MicroMessenger|Twitter)/i.test(ua);
+    const mobile =
+      /iPhone|iPad|iPod|Android/i.test(ua) ||
+      (/Macintosh/i.test(ua) && window.navigator.maxTouchPoints > 1);
+    setMode(mobile && !inApp ? "gis" : "custom");
+  }, []);
+
+  // GISボタン初期化: ID token → signInWithCredential（popup/redirect不使用）
+  useEffect(() => {
+    if (mode !== "gis" || !gisRef.current) return;
+    const init = () => {
+      const g = (window as any).google;
+      g.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (resp: { credential: string }) => {
+          signingInRef.current = true;
+          setSigningIn(true);
+          try {
+            const credential = GoogleAuthProvider.credential(resp.credential);
+            await signInWithCredential(auth, credential);
+            // 以降は onAuthStateChanged が /admin へ遷移
+          } catch (e: any) {
+            console.error("[LoginPage] signInWithCredential error", e);
+            signingInRef.current = false;
+            setSigningIn(false);
+            window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
+          }
+        },
+      });
+      g.accounts.id.renderButton(gisRef.current, {
+        type: "standard",
+        theme: "outline",
+        size: "large",
+        width: 234,
+        text: "signin_with",
+        locale: "ja",
+      });
+    };
+    if ((window as any).google?.accounts?.id) {
+      init();
+    } else {
+      const s = document.createElement("script");
+      s.src = "https://accounts.google.com/gsi/client";
+      s.async = true;
+      s.defer = true;
+      s.onload = init;
+      document.head.appendChild(s);
+    }
+  }, [mode]);
+
   const handleGoogleLogin = async () => {
     console.log("[LoginPage] Google login tapped");
     const ua = window.navigator.userAgent || "";
@@ -56,19 +117,17 @@ export default function LoginPage() {
 
     const provider = new GoogleAuthProvider();
     setSigningIn(true);
-    // signInWithRedirectのpromiseは設計上resolveしないためawaitしない
     try {
-      void signInWithRedirect(auth, provider).catch((e: any) => {
-        console.error("[LoginPage] Error signing in with redirect", e);
-        signingInRef.current = false;
-        setSigningIn(false);
-        window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
-      });
+      await signInWithPopup(auth, provider);
+      // 以降は onAuthStateChanged が /admin へ遷移
     } catch (e: any) {
-      console.error("[LoginPage] Error starting redirect", e);
+      console.error("[LoginPage] Error signing in with popup", e);
+      if (e?.code !== "auth/popup-closed-by-user" && e?.code !== "auth/cancelled-popup-request") {
+        window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
+      }
+    } finally {
       signingInRef.current = false;
       setSigningIn(false);
-      window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
     }
   };
 
@@ -92,6 +151,17 @@ export default function LoginPage() {
           Googleアカウントでログインすると、クラブや大会の管理を始められます。
         </p>
         <div className="mt-10 flex justify-center">
+          {mode === "gis" ? (
+            <div className="flex flex-col items-center">
+              <div ref={gisRef} className={signingIn ? "opacity-70 pointer-events-none" : ""} />
+              {signingIn && (
+                <div className="mt-3 flex items-center text-[13px] font-semibold text-gray-500">
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />
+                  ログイン中…
+                </div>
+              )}
+            </div>
+          ) : (
           <button
             type="button"
             onClick={handleGoogleLogin}
@@ -115,6 +185,7 @@ export default function LoginPage() {
               </>
             )}
           </button>
+          )}
         </div>
         <p className="mt-6 text-[12px] font-semibold leading-relaxed text-gray-400">
           ログインすることで
