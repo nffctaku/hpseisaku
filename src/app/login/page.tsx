@@ -23,6 +23,7 @@ const GOOGLE_CLIENT_ID =
 export default function LoginPage() {
   const [signingIn, setSigningIn] = useState(false);
   const [mode, setMode] = useState<"pending" | "gis" | "custom">("pending");
+  const [diag, setDiag] = useState("");
   const signingInRef = useRef(false);
   const gisRef = useRef<HTMLDivElement>(null);
 
@@ -68,6 +69,12 @@ export default function LoginPage() {
         callback: async (resp: { credential: string }) => {
           signingInRef.current = true;
           setSigningIn(true);
+          if (!resp?.credential) {
+            setDiag("DIAG no_id_token");
+            signingInRef.current = false;
+            setSigningIn(false);
+            return;
+          }
           try {
             const credential = GoogleAuthProvider.credential(resp.credential);
             await signInWithCredential(auth, credential);
@@ -76,6 +83,33 @@ export default function LoginPage() {
             console.error("[LoginPage] signInWithCredential error", e);
             signingInRef.current = false;
             setSigningIn(false);
+            // Firebase API疎通を直接確認（エラー応答でも到達=疎通OK）
+            const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "";
+            const probe = async (url: string) => {
+              try {
+                const r = await fetch(url, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: "{}",
+                });
+                return String(r.status);
+              } catch (err: any) {
+                return `FAIL(${err?.name}:${(err?.message || "").slice(0, 40)})`;
+              }
+            };
+            const sw = await navigator.serviceWorker
+              ?.getRegistrations()
+              .then((r) => r.length)
+              .catch(() => -1);
+            const it = await probe(
+              `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${apiKey}`
+            );
+            const st = await probe(
+              `https://securetoken.googleapis.com/v1/token?key=${apiKey}`
+            );
+            setDiag(
+              `DIAG err=${e.code || e.message} | it=${it} | st=${st} | sw=${sw ?? "?"} | domain=${(auth.config as any).authDomain}`
+            );
             window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
           }
         },
@@ -187,6 +221,9 @@ export default function LoginPage() {
           </button>
           )}
         </div>
+        {diag && (
+          <div className="mt-4 text-[11px] font-mono text-gray-500 break-all">{diag}</div>
+        )}
         <p className="mt-6 text-[12px] font-semibold leading-relaxed text-gray-400">
           ログインすることで
           <Link
