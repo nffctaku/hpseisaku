@@ -19,7 +19,12 @@ import { auth, useSelfAuthDomainForRedirect } from "@/lib/firebase";
 export default function LoginPage() {
   const [signingIn, setSigningIn] = useState(false);
   const [stage, setStage] = useState("");
+  const [hydrated, setHydrated] = useState(false);
   const signingInRef = useRef(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   // ログイン済みになったら /admin へ遷移（redirect復帰時もここで拾う）
   useEffect(() => {
@@ -149,6 +154,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f7f7f5] px-6 text-gray-900">
       <div className="w-full max-w-[360px] text-center">
+        <div className="mb-4 text-lg font-bold text-red-600">LOGIN_BUILD_41e9876</div>
+        {hydrated && (
+          <div className="mb-4 text-lg font-bold text-emerald-600">HYDRATED</div>
+        )}
         <div className="mx-auto mb-9 flex h-[68px] w-[68px] items-center justify-center rounded-2xl bg-white shadow-sm">
           <Image
             src="/favicon.png"
