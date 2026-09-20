@@ -10,7 +10,7 @@ import Image from "next/image";
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithCredential,
+  signInWithCustomToken,
   signInWithPopup,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -76,12 +76,40 @@ export default function LoginPage() {
             setSigningIn(false);
             return;
           }
+          // GIS ID token → REST signInWithIdp → Firebase ID token
+          // → サーバーでCustom Token発行 → signInWithCustomToken
           try {
-            const credential = GoogleAuthProvider.credential(resp.credential);
-            await signInWithCredential(auth, credential);
+            const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "";
+            const r = await fetch(
+              `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${apiKey}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  postBody: `id_token=${encodeURIComponent(resp.credential)}&providerId=google.com`,
+                  requestUri: "https://www.footchron.com",
+                  returnSecureToken: true,
+                  returnIdpCredential: true,
+                }),
+              }
+            );
+            const j: any = await r.json().catch(() => ({}));
+            if (!r.ok || !j?.idToken) {
+              throw new Error(`REST ${r.status} ${j?.error?.message || "no idToken"}`);
+            }
+            const ct = await fetch("/api/auth/custom-token", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ idToken: j.idToken }),
+            });
+            const ctj: any = await ct.json().catch(() => ({}));
+            if (!ct.ok || !ctj?.customToken) {
+              throw new Error(`CUSTOM_TOKEN ${ct.status} ${ctj?.error || "no token"}`);
+            }
+            await signInWithCustomToken(auth, ctj.customToken);
             // 以降は onAuthStateChanged が /admin へ遷移
           } catch (e: any) {
-            console.error("[LoginPage] signInWithCredential error", e);
+            console.error("[LoginPage] mobile sign-in error", e);
             signingInRef.current = false;
             setSigningIn(false);
             const logs = getNetLog();
