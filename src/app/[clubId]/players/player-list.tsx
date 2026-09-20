@@ -448,7 +448,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
             style={{ backgroundColor: 'var(--pc)' }}
           />
           {hasStats && (
-            <div className="hidden sm:grid absolute inset-x-0 bottom-0 p-2 pt-8 bg-gradient-to-t from-black/95 via-black/80 to-transparent grid-cols-3 gap-1 max-h-0 overflow-hidden opacity-0 group-hover:max-h-16 group-hover:opacity-100 transition-all duration-300">
+            <div className="hidden sm:grid absolute inset-x-0 bottom-0 p-2 pt-8 bg-gradient-to-t from-black/90 via-black/50 to-transparent grid-cols-3 gap-1 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
               <div className="text-center">
                 <div className="text-[10px] text-white/60">出場</div>
                 <div className={`text-[18px] font-black italic leading-none ${barlow.className}`} style={{ color: brightenColor(hex) }}>{stats.appearances}</div>
