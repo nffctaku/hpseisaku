@@ -14,6 +14,7 @@ import {
   signInWithPopup,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { getNetLog } from "@/lib/net-tap";
 
 // Firebase Google provider が使う Web OAuth client（handler の OAuth URL で確認済み）。
 // この client 宛の ID token は signInWithCredential で Firebase Auth に入れる。
@@ -75,23 +76,6 @@ export default function LoginPage() {
             setSigningIn(false);
             return;
           }
-          // SDKの失敗リクエストを捕捉: fetchをラップしてURL/status/bodyを記録
-          const logs: string[] = [];
-          const origFetch = window.fetch.bind(window);
-          window.fetch = async (input: any, init?: any) => {
-            const url = typeof input === "string" ? input : input?.url || "";
-            try {
-              const res = await origFetch(input, init);
-              if (!res.ok) {
-                const body = (await res.clone().text().catch(() => "")).slice(0, 200);
-                logs.push(`${res.status} ${url.slice(0, 100)} :: ${body}`);
-              }
-              return res;
-            } catch (err: any) {
-              logs.push(`FAIL ${url.slice(0, 100)} :: ${(err?.message || err || "").slice(0, 60)}`);
-              throw err;
-            }
-          };
           try {
             const credential = GoogleAuthProvider.credential(resp.credential);
             await signInWithCredential(auth, credential);
@@ -100,11 +84,10 @@ export default function LoginPage() {
             console.error("[LoginPage] signInWithCredential error", e);
             signingInRef.current = false;
             setSigningIn(false);
+            const logs = getNetLog();
             setDiag(
-              `err=${e.code || e.message} | ${logs.join(" || ") || "NO_FAILED_REQUEST"}`
+              `err=${e.code || e.message} | ${logs.slice(-4).join(" || ") || "NO_FAILED_REQUEST"}`
             );
-          } finally {
-            window.fetch = origFetch;
           }
         },
       });
