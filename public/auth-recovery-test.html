@@ -8,21 +8,42 @@
 <body>
   <p>firebaseLocalStorageDb リカバリー（この端末の破損した認証永続化DBだけを削除します。ユーザーデータには触れません）</p>
   <pre id="out"></pre>
-  <p>
+  <p id="golink" style="display:none;">
     <a href="/login" style="font-size:18px;font-weight:bold;">/login へ進む</a>
   </p>
-  <p style="font-size:12px;color:#666;">
-    DELETE_BLOCKED が出た場合: footchron.com を開いている他のタブをすべて閉じてから、このページを再読み込みしてください。
+  <p id="blockedhint" style="display:none;font-size:13px;color:#a00;">
+    footchron.com を開いている他のタブ・アプリ内ページを<strong>すべて閉じて</strong>ください。
+    閉じると削除が自動で進みます。閉じても進まない場合はこのページを再読み込みしてください。
   </p>
   <script>
     var el = document.getElementById("out");
     var out = function (s) { el.textContent += s + "\n"; };
+    var finished = false;
 
     out("DELETE_START");
     var req = indexedDB.deleteDatabase("firebaseLocalStorageDb");
-    req.onsuccess = function () { out("DELETE_SUCCESS"); };
-    req.onblocked = function () { out("DELETE_BLOCKED"); };
-    req.onerror = function () { out("DELETE_ERROR " + req.error); };
+
+    req.onsuccess = function () {
+      finished = true;
+      out("DELETE_SUCCESS");
+      document.getElementById("golink").style.display = "block";
+      document.getElementById("blockedhint").style.display = "none";
+    };
+    req.onblocked = function () {
+      out("DELETE_BLOCKED");
+      document.getElementById("blockedhint").style.display = "block";
+    };
+    req.onerror = function () {
+      finished = true;
+      out("DELETE_ERROR " + req.error);
+    };
+
+    setTimeout(function () {
+      if (!finished) {
+        out("DELETE_TIMEOUT");
+        document.getElementById("blockedhint").style.display = "block";
+      }
+    }, 10000);
   </script>
 </body>
 </html>
