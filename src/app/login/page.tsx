@@ -94,6 +94,24 @@ export default function LoginPage() {
             setDiag(
               `REST status=${r.status} msg=${j?.error?.message || `OK uid=${j?.localId || "?"}`}`
             );
+            // SDKが内部で呼ぶtelemetry系エンドポイントの疎通も確認
+            const probe = async (u: string) => {
+              try {
+                const pr = await fetch(u, { method: "POST", body: "{}" });
+                return String(pr.status);
+              } catch (pe: any) {
+                return `FAIL(${(pe?.message || pe?.name || "").slice(0, 30)})`;
+              }
+            };
+            const fid = await probe(
+              `https://firebaseinstallations.googleapis.com/v1/projects/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/installations`
+            );
+            const fl = await probe(
+              `https://firebaselogging.googleapis.com/v0cc/log/batch?format=json_proto3`
+            );
+            setDiag(
+              `REST status=${r.status} msg=${j?.error?.message || `OK uid=${j?.localId || "?"}`} | fid=${fid} | fl=${fl}`
+            );
             if (!r.ok) {
               signingInRef.current = false;
               setSigningIn(false);
