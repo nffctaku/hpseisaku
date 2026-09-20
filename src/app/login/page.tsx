@@ -185,6 +185,19 @@ export default function LoginPage() {
             （テスト）Googleページを別タブで開く
           </button>
         </div>
+        {/* 一時切り分け用: React onClickのみ（Firebase不使用）の最小テスト */}
+        <div className="mt-3 flex justify-center">
+          <button
+            type="button"
+            onClick={() => {
+              document.body.dataset.reactClick = "ok";
+              window.location.href = "https://accounts.google.com";
+            }}
+            className="text-[12px] font-semibold text-gray-400 underline underline-offset-2"
+          >
+            （テスト）React動作テスト
+          </button>
+        </div>
         {/* 一時切り分け用: JavaScriptを一切介さない純粋なHTMLリンク */}
         <div className="mt-3 flex justify-center">
           <a
