@@ -100,6 +100,31 @@ export async function seedFirebaseAuthUser(
   const db = await openAuthDb(onStage);
   onStage?.("IDB_OPEN_RESOLVED");
   try {
+    // Probe: write a minimal plain JSON record to the same store first.
+    // If this hangs, the store/transaction layer is broken; if it succeeds
+    // but the real put below hangs, the user record's structure is the cause.
+    await new Promise<void>((resolve) => {
+      onStage?.("IDB_PROBE_START");
+      const ptx = db.transaction(STORE_NAME, "readwrite");
+      ptx.oncomplete = () => {
+        onStage?.("IDB_PROBE_TX_OK");
+        resolve();
+      };
+      ptx.onerror = () => {
+        onStage?.("IDB_PROBE_TX_ERROR");
+        resolve();
+      };
+      ptx.onabort = () => {
+        onStage?.("IDB_PROBE_TX_ABORT");
+        resolve();
+      };
+      const preq = ptx.objectStore(STORE_NAME).put({
+        fbase_key: "firebase:seedProbe:ping",
+        value: { ok: true },
+      });
+      preq.onsuccess = () => onStage?.("IDB_PROBE_PUT_OK");
+      preq.onerror = () => onStage?.("IDB_PROBE_PUT_ERROR");
+    });
     await new Promise<void>((resolve, reject) => {
       onStage?.("IDB_TX_START");
       const tx = db.transaction(STORE_NAME, "readwrite");
