@@ -61,11 +61,13 @@ export default function LoginPage() {
     }, 20000);
 
     const provider = new GoogleAuthProvider();
-    const isMobileBrowser =
-      /iPhone|iPad|iPod|Android/i.test(ua) ||
+    // Android Chrome では redirect 起動が止まる障害があるため popup を使う。
+    // redirect は iPhone/iPad (Safari系) のみ維持。
+    const isIosMobile =
+      /iPhone|iPad|iPod/i.test(ua) ||
       (/Macintosh/i.test(ua) && window.navigator.maxTouchPoints > 1);
 
-    if (isMobileBrowser) {
+    if (isIosMobile) {
       // signInWithRedirectのpromiseは設計上resolveしないためawaitしない
       try {
         useSelfAuthDomainForRedirect();
