@@ -54,11 +54,6 @@ export default function LoginPage() {
 
     if (signingInRef.current) return;
     signingInRef.current = true;
-    setSigningIn(true);
-    setTimeout(() => {
-      signingInRef.current = false;
-      setSigningIn(false);
-    }, 20000);
 
     const provider = new GoogleAuthProvider();
     // Android Chrome では redirect 起動が止まる障害があるため popup を使う。
@@ -68,6 +63,11 @@ export default function LoginPage() {
       (/Macintosh/i.test(ua) && window.navigator.maxTouchPoints > 1);
 
     if (isIosMobile) {
+      setSigningIn(true);
+      setTimeout(() => {
+        signingInRef.current = false;
+        setSigningIn(false);
+      }, 20000);
       // signInWithRedirectのpromiseは設計上resolveしないためawaitしない
       try {
         useSelfAuthDomainForRedirect();
@@ -86,8 +86,21 @@ export default function LoginPage() {
       return;
     }
 
+    // Android/PC: popupはユーザーのclick handler直下・state更新より先に呼ぶ
+    console.log("[LoginPage] calling signInWithPopup");
+    let popupPromise: Promise<import("firebase/auth").UserCredential>;
     try {
-      await signInWithPopup(auth, provider);
+      popupPromise = signInWithPopup(auth, provider);
+      console.log("[LoginPage] signInWithPopup called");
+    } catch (e: any) {
+      console.error("[LoginPage] signInWithPopup threw synchronously", e);
+      signingInRef.current = false;
+      window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
+      return;
+    }
+    setSigningIn(true);
+    try {
+      await popupPromise;
     } catch (error: any) {
       console.error("[LoginPage] Error signing in with popup", error);
       if (
@@ -156,6 +169,20 @@ export default function LoginPage() {
                 Googleでログイン
               </>
             )}
+          </button>
+        </div>
+        {/* 一時切り分け用: window.open が実機で成立するかの確認ボタン */}
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            onClick={() => {
+              console.log("[LoginPage] window.open test tapped");
+              const w = window.open("https://accounts.google.com", "_blank");
+              console.log("[LoginPage] window.open result:", w ? "opened" : "blocked(null)");
+            }}
+            className="text-[12px] font-semibold text-gray-400 underline underline-offset-2"
+          >
+            （テスト）Googleページを別タブで開く
           </button>
         </div>
         <p className="mt-6 text-[12px] font-semibold leading-relaxed text-gray-400">
