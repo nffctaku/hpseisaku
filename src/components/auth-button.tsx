@@ -10,7 +10,7 @@ import {
   setSignupSource,
   trackEvent,
 } from "@/lib/analytics";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -36,18 +36,6 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const isAdmin = typeof pathname === "string" && pathname.startsWith("/admin");
   console.log('[AuthButton] render', { hasUser: !!user, user });
 
-  // signInWithRedirectのpromiseは設計上resolveしないため、redirect開始後に
-  // bfcacheから復帰した場合に備えてロックを必ず解除する
-  useEffect(() => {
-    const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) {
-        signingInRef.current = false;
-      }
-    };
-    window.addEventListener('pageshow', onPageShow);
-    return () => window.removeEventListener('pageshow', onPageShow);
-  }, []);
-
   const planLabel = user?.plan === 'pro' ? 'Pro' : 'Free';
   const planClassName = user?.plan === 'pro'
     ? 'bg-emerald-600/20 text-emerald-200 border-emerald-500/30'
@@ -63,14 +51,8 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       }
     }
 
-    console.log('[AuthButton] handleSignIn fired');
-    if (signingInRef.current) {
-      console.warn('[AuthButton] signingIn lock active, ignoring tap');
-      return;
-    }
+    if (signingInRef.current) return;
     signingInRef.current = true;
-    // redirect開始がハングした場合に備え、一定時間でロックを自動解除する
-    setTimeout(() => { signingInRef.current = false; }, 20000);
 
     const snap = getAcquisitionSnapshot();
     void trackEvent("signup_cta_click", null, {
@@ -89,12 +71,16 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
       // iOS等のサードパーティ制限を避けるよう自ドメインに切替える。
       // 注意: signInWithRedirectのpromiseは設計上resolveしない（画面遷移するため）。
       // awaitするとfinallyが走らずロックが残り、bfcache復帰後にボタンが
-      // 無反応になるため、awaitせずcatchのみ付ける
-      // （bfcache復帰時のロック解除はコンポーネントのpageshowリスナーで処理）。
+      // 無反応になるため、awaitせずcatchでエラー処理し、pageshowでロックを戻す。
+      const resetLockOnPageShow = (e: PageTransitionEvent) => {
+        if (e.persisted) {
+          signingInRef.current = false;
+          window.removeEventListener('pageshow', resetLockOnPageShow);
+        }
+      };
+      window.addEventListener('pageshow', resetLockOnPageShow);
       try {
         useSelfAuthDomainForRedirect();
-        console.log('AUTH_DOMAIN', (auth.config as any).authDomain);
-        console.log('BEFORE_REDIRECT');
         void signInWithRedirect(auth, provider).catch((e: any) => {
           console.error('[AuthButton] Error signing in with redirect', e);
           signingInRef.current = false;
@@ -131,8 +117,6 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
         // signInWithRedirectのpromiseは設計上resolveしない（画面遷移するため）。
         // awaitするとfinallyが走らずロックが残るので、awaitせずcatchのみ付ける。
         useSelfAuthDomainForRedirect();
-        console.log('AUTH_DOMAIN', (auth.config as any).authDomain);
-        console.log('BEFORE_REDIRECT');
         void signInWithRedirect(auth, provider).catch((e: any) => {
           console.error('[AuthButton] Error signing in with redirect fallback', e);
           signingInRef.current = false;

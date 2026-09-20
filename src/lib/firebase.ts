@@ -8,18 +8,12 @@ import { getStorage } from "firebase/storage";
 // ストレージ制限で結果が復元できない問題を回避するため。
 // PC の popup は従来通り web.app 直行の方が速いため、初期値はenvのまま。
 const SELF_AUTH_DOMAINS = new Set(['www.footchron.com', 'footchron.com']);
-const DEFAULT_AUTH_DOMAIN = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
-const resolvedAuthDomain = DEFAULT_AUTH_DOMAIN;
+const resolvedAuthDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
 
 export function useSelfAuthDomainForRedirect(): void {
-  // A/B切り分けのため一時無効化: 自ドメイン切替をやめ、
-  // redirect/iframe とも firebaseapp.com 直行に戻す。
-  // モバイルChromeでプロキシ経由iframeがハングする疑いを検証する。
-}
-
-export function restoreDefaultAuthDomain(): void {
-  if (DEFAULT_AUTH_DOMAIN) {
-    (auth.config as { authDomain: string }).authDomain = DEFAULT_AUTH_DOMAIN;
+  const host = typeof window !== 'undefined' ? window.location.hostname : '';
+  if (SELF_AUTH_DOMAINS.has(host)) {
+    (auth.config as { authDomain: string }).authDomain = host;
   }
 }
 

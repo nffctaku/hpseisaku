@@ -119,10 +119,29 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
-  // 未ログイン時は、管理画面の代わりにログイン画面を表示。
-  // Auth/Career/Profile の loading 完了を待たず即表示して
-  // ログインボタンをすぐ押せる状態にする（ログイン済みなら
-  // user 解決時に管理画面へ切り替わる）。
+  if (loading) {
+    return (
+      <div
+        className={
+          isPlainAdminPage
+            ? "min-h-screen flex flex-col items-center justify-center bg-white text-gray-900 px-4"
+            : "min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white px-4"
+        }
+      >
+        <Image
+          src="/favicon.png"
+          alt="読み込み中"
+          width={56}
+          height={56}
+          className="animate-pulse"
+          priority
+        />
+        <div className={isPlainAdminPage ? "mt-3 text-sm text-gray-600" : "mt-3 text-sm text-gray-300"}>読み込み中</div>
+      </div>
+    );
+  }
+
+  // 未ログイン時は、管理画面の代わりにログイン画面を表示
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f7f7f5] px-6 text-gray-900">
@@ -158,28 +177,6 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
             同意したものとみなされます
           </p>
         </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div
-        className={
-          isPlainAdminPage
-            ? "min-h-screen flex flex-col items-center justify-center bg-white text-gray-900 px-4"
-            : "min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white px-4"
-        }
-      >
-        <Image
-          src="/favicon.png"
-          alt="読み込み中"
-          width={56}
-          height={56}
-          className="animate-pulse"
-          priority
-        />
-        <div className={isPlainAdminPage ? "mt-3 text-sm text-gray-600" : "mt-3 text-sm text-gray-300"}>読み込み中</div>
       </div>
     );
   }
