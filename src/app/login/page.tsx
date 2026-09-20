@@ -26,6 +26,7 @@ export default function LoginPage() {
   const [signingIn, setSigningIn] = useState(false);
   const [mode, setMode] = useState<"pending" | "gis" | "custom">("pending");
   const [diag, setDiag] = useState("");
+  const [stage, setStage] = useState("");
   const signingInRef = useRef(false);
   const gisRef = useRef<HTMLDivElement>(null);
 
@@ -79,17 +80,25 @@ export default function LoginPage() {
           }
           // 1) まず通常経路: SDK Auth が通る環境(iPhone Safari等)はここで完了。
           //    迂回経路に健全環境を巻き込まないための capability 判定。
+          setStage("SDK_START");
           try {
             const credential = GoogleAuthProvider.credential(resp.credential);
             await Promise.race([
-              signInWithCredential(auth, credential),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("SDK_SIGNIN_TIMEOUT")), 15000)
+              signInWithCredential(auth, credential).then(
+                () => "ok" as const,
+                (err: any) => {
+                  throw err;
+                }
+              ),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("SDK_TIMEOUT")), 15000)
               ),
             ]);
             // 以降は onAuthStateChanged が /admin へ遷移
             return;
           } catch (sdkErr: any) {
+            const isTimeout = sdkErr?.message === "SDK_TIMEOUT";
+            setStage(isTimeout ? "SDK_TIMEOUT" : `SDK_FAIL ${sdkErr?.code || sdkErr?.message || sdkErr}`);
             console.warn(
               "[LoginPage] SDK credential sign-in unavailable, using REST+seed fallback",
               sdkErr?.code || sdkErr
@@ -98,6 +107,7 @@ export default function LoginPage() {
           // 2) SDK Auth が失敗する環境のみ迂回:
           //    REST signInWithIdp → SDK永続化領域へseed → リロードで初期化復元。
           try {
+            setStage("REST_START");
             const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "";
             const r = await fetch(
               `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${apiKey}`,
@@ -116,7 +126,11 @@ export default function LoginPage() {
             if (!r.ok || !j?.idToken) {
               throw new Error(`REST ${r.status} ${j?.error?.message || "no idToken"}`);
             }
+            setStage("REST_OK");
+            setStage("IDB_SEED_START");
             await seedFirebaseAuthUser(j, apiKey, auth.app.name);
+            setStage("IDB_SEED_OK");
+            setStage("RELOAD");
             // SDK初期化の永続化復元経路に拾わせるためフルリロード
             window.location.href = "/admin";
           } catch (e: any) {
@@ -237,6 +251,9 @@ export default function LoginPage() {
           </button>
           )}
         </div>
+        {stage && (
+          <div className="mt-4 text-[11px] font-mono text-gray-500 break-all">STAGE {stage}</div>
+        )}
         {diag && (
           <div className="mt-4 text-[11px] font-mono text-gray-500 break-all">{diag}</div>
         )}
