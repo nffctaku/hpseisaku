@@ -90,6 +90,7 @@ export default function LoginPage() {
     // Android/PC: popupはユーザーのclick handler直下・state更新より先に呼ぶ
     console.log("AUTH_READY", (auth.config as any).authDomain);
     console.log("BEFORE_POPUP");
+    setStage("BEFORE_FIREBASE_CALL");
     let popupPromise: Promise<import("firebase/auth").UserCredential>;
     try {
       popupPromise = signInWithPopup(auth, provider);
@@ -100,7 +101,7 @@ export default function LoginPage() {
       window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
       return;
     }
-    setStage('BEFORE_POPUP');
+    setStage("FIREBASE_CALL_RETURNED");
     setSigningIn(true);
     try {
       const result = await Promise.race([
