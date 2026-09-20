@@ -103,13 +103,20 @@ export default function LoginPage() {
     setStage('BEFORE_POPUP');
     setSigningIn(true);
     try {
-      const result = await popupPromise;
+      const result = await Promise.race([
+        popupPromise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("FIREBASE_POPUP_TIMEOUT")), 5000)
+        ),
+      ]);
       console.log("POPUP_SUCCESS", result.user.uid);
       setStage('POPUP_SUCCESS');
     } catch (error: any) {
       console.error("POPUP_ERROR", error);
       setStage('POPUP_ERROR ' + (error.code || error.message || error));
-      if (
+      if (error?.message === "FIREBASE_POPUP_TIMEOUT") {
+        // Firebase popup内部でハング。ボタンを押せる状態に戻す
+      } else if (
         error.code === "auth/cancelled-popup-request" ||
         error.code === "auth/popup-closed-by-user"
       ) {
