@@ -49,7 +49,8 @@ function openAuthDb(onStage?: (stage: string) => void): Promise<IDBDatabase> {
     };
     req.onsuccess = () => {
       onStage?.("IDB_OPEN_OK");
-      resolve(req.result);
+      const result = req.result;
+      resolve(result);
     };
   });
 }
@@ -97,6 +98,7 @@ export async function seedFirebaseAuthUser(
   };
 
   const db = await openAuthDb(onStage);
+  onStage?.("IDB_OPEN_RESOLVED");
   try {
     await new Promise<void>((resolve, reject) => {
       onStage?.("IDB_TX_START");
