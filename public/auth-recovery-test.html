@@ -3,47 +3,26 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>auth-recovery-test</title>
+  <title>auth-recovery</title>
 </head>
 <body>
-  <p>IndexedDB minimal probe on a BRAND-NEW db (firebaseLocalStorageDb is not touched; no Firebase, no app JS)</p>
+  <p>firebaseLocalStorageDb リカバリー（この端末の破損した認証永続化DBだけを削除します。ユーザーデータには触れません）</p>
   <pre id="out"></pre>
+  <p>
+    <a href="/login" style="font-size:18px;font-weight:bold;">/login へ進む</a>
+  </p>
+  <p style="font-size:12px;color:#666;">
+    DELETE_BLOCKED が出た場合: footchron.com を開いている他のタブをすべて閉じてから、このページを再読み込みしてください。
+  </p>
   <script>
     var el = document.getElementById("out");
     var out = function (s) { el.textContent += s + "\n"; };
 
-    out("NEWDB_OPEN_START");
-    var req = indexedDB.open("footchron-idb-probe-20260921", 1);
-    req.onerror = function () { out("NEWDB_OPEN_ERROR " + req.error); };
-    req.onblocked = function () { out("NEWDB_BLOCKED"); };
-    req.onupgradeneeded = function () {
-      out("NEWDB_UPGRADE");
-      try {
-        req.result.createObjectStore("test", { keyPath: "key" });
-      } catch (e) {
-        out("NEWDB_UPGRADE_ERR " + e);
-      }
-    };
-    req.onsuccess = function () {
-      out("NEWDB_OPEN_OK");
-      var db = req.result;
-      try {
-        out("NEWDB_TX_START");
-        var tx = db.transaction("test", "readwrite");
-        tx.oncomplete = function () { out("NEWDB_TX_COMPLETE"); };
-        tx.onerror = function () { out("NEWDB_TX_ERROR " + tx.error); };
-        tx.onabort = function () { out("NEWDB_TX_ABORT " + tx.error); };
-        out("NEWDB_PUT_START");
-        var p = tx.objectStore("test").put({
-          key: "probe",
-          value: { ok: true }
-        });
-        p.onsuccess = function () { out("NEWDB_PUT_SUCCESS"); };
-        p.onerror = function () { out("NEWDB_PUT_ERROR " + p.error); };
-      } catch (e) {
-        out("THROW " + e);
-      }
-    };
+    out("DELETE_START");
+    var req = indexedDB.deleteDatabase("firebaseLocalStorageDb");
+    req.onsuccess = function () { out("DELETE_SUCCESS"); };
+    req.onblocked = function () { out("DELETE_BLOCKED"); };
+    req.onerror = function () { out("DELETE_ERROR " + req.error); };
   </script>
 </body>
 </html>
