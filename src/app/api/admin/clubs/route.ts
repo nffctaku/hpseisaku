@@ -160,6 +160,18 @@ interface Summary {
   matches10Rate: number;
   matches50Rate: number;
   matches100Rate: number;
+  // Activation（Firebase Auth全件比）と Recording Depth（記録開始者比）の併記用
+  matchRegisteredUsers: number;
+  matchRegisteredRate: number;
+  match10Users: number;
+  match10Rate: number;
+  match10FromStartedRate: number;
+  match50Users: number;
+  match50Rate: number;
+  match50FromStartedRate: number;
+  match100Users: number;
+  match100Rate: number;
+  match100FromStartedRate: number;
   withPlayerImages10: number;
   withPlayerImages20: number;
   withTeamImages: number;
@@ -969,6 +981,25 @@ export async function GET(req: NextRequest) {
       matches10Rate: authTotal > 0 ? Math.round((matches10 / authTotal) * 1000) / 10 : 0,
       matches50Rate: authTotal > 0 ? Math.round((matches50 / authTotal) * 1000) / 10 : 0,
       matches100Rate: authTotal > 0 ? Math.round((matches100 / authTotal) * 1000) / 10 : 0,
+      // Activation = / Firebase Auth全件。Depth = / 記録開始者（1試合以上）。
+      matchRegisteredUsers: withMatches,
+      matchRegisteredRate:
+        authTotal > 0 ? Math.round((withMatches / authTotal) * 1000) / 10 : 0,
+      match10Users: matches10,
+      match10Rate:
+        authTotal > 0 ? Math.round((matches10 / authTotal) * 1000) / 10 : 0,
+      match10FromStartedRate:
+        withMatches > 0 ? Math.round((matches10 / withMatches) * 1000) / 10 : 0,
+      match50Users: matches50,
+      match50Rate:
+        authTotal > 0 ? Math.round((matches50 / authTotal) * 1000) / 10 : 0,
+      match50FromStartedRate:
+        withMatches > 0 ? Math.round((matches50 / withMatches) * 1000) / 10 : 0,
+      match100Users: matches100,
+      match100Rate:
+        authTotal > 0 ? Math.round((matches100 / authTotal) * 1000) / 10 : 0,
+      match100FromStartedRate:
+        withMatches > 0 ? Math.round((matches100 / withMatches) * 1000) / 10 : 0,
       withPlayerImages10,
       withPlayerImages20,
       withTeamImages,

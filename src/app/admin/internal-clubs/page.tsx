@@ -142,6 +142,17 @@ interface Summary {
   matches10Rate: number;
   matches50Rate: number;
   matches100Rate: number;
+  matchRegisteredUsers: number;
+  matchRegisteredRate: number;
+  match10Users: number;
+  match10Rate: number;
+  match10FromStartedRate: number;
+  match50Users: number;
+  match50Rate: number;
+  match50FromStartedRate: number;
+  match100Users: number;
+  match100Rate: number;
+  match100FromStartedRate: number;
   withPlayerImages10: number;
   withPlayerImages20: number;
   withTeamImages: number;
@@ -832,26 +843,26 @@ export default function InternalClubsPage() {
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 <SummaryCard
                   label="試合登録あり（UID・全Career合算）"
-                  value={summary.withMatches}
-                  sub={`${summary.withMatchesRate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
+                  value={summary.matchRegisteredUsers}
+                  sub={`全登録者比 ${summary.matchRegisteredRate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
                   label="10試合以上（UID・全Career合算）"
-                  value={summary.matches10}
-                  sub={`${summary.matches10Rate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
+                  value={summary.match10Users}
+                  sub={`全登録者比 ${summary.match10Rate}% / 記録開始者比 ${summary.match10FromStartedRate}%`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
                   label="50試合以上（UID・全Career合算）"
-                  value={summary.matches50}
-                  sub={`${summary.matches50Rate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
+                  value={summary.match50Users}
+                  sub={`全登録者比 ${summary.match50Rate}% / 記録開始者比 ${summary.match50FromStartedRate}%`}
                   color="text-amber-400"
                 />
                 <SummaryCard
                   label="100試合以上（UID・全Career合算）"
-                  value={summary.matches100}
-                  sub={`${summary.matches100Rate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
+                  value={summary.match100Users}
+                  sub={`全登録者比 ${summary.match100Rate}% / 記録開始者比 ${summary.match100FromStartedRate}%`}
                   color="text-fuchsia-400"
                 />
                 <SummaryCard
@@ -866,6 +877,32 @@ export default function InternalClubsPage() {
                   sub={`${summary.withTeamImagesRate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
                   color="text-emerald-400"
                 />
+              </div>
+
+              <div className="mt-3 rounded-xl border border-white/10 p-3">
+                <p className="mb-2 text-[11px] font-bold text-slate-300">
+                  試合記録ファネル（Activation = Firebase Auth比 / Depth = 記録開始者比）
+                </p>
+                <div className="space-y-1 text-[11px] text-slate-300">
+                  {[
+                    { label: "Firebase Auth", users: summary.authTotal ?? summary.total, all: "100%", started: null as string | null },
+                    { label: "試合登録あり", users: summary.matchRegisteredUsers, all: `${summary.matchRegisteredRate}%`, started: null },
+                    { label: "10試合以上", users: summary.match10Users, all: `${summary.match10Rate}%`, started: `${summary.match10FromStartedRate}%` },
+                    { label: "50試合以上", users: summary.match50Users, all: `${summary.match50Rate}%`, started: `${summary.match50FromStartedRate}%` },
+                    { label: "100試合以上", users: summary.match100Users, all: `${summary.match100Rate}%`, started: `${summary.match100FromStartedRate}%` },
+                  ].map((row, i) => (
+                    <div key={row.label}>
+                      {i > 0 && <div className="pl-2 text-slate-600">↓</div>}
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="font-semibold">{row.label}</span>
+                        <span className="font-mono">
+                          {row.users.toLocaleString()}人　全体 {row.all}
+                          {row.started !== null && `　開始者 ${row.started}`}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="mt-3 rounded-2xl border border-white/10 bg-[#0b1220] p-4">
