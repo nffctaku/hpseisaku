@@ -116,6 +116,8 @@ interface ProfileDiagnostics {
 
 interface Summary {
   total: number;
+  // Firebase Auth の実UID数（Source of Truth）。total は Analytics対象UID数。
+  authTotal: number;
   aggregatable: number;
   totalCareers: number;
   creatingCareers: number;
@@ -166,6 +168,25 @@ interface Summary {
   publicLegacyUsers: number;
   allNameUnsetCareerUsers: number;
   legacyNameUnsetUsers: number;
+}
+
+interface AuthDiagnostics {
+  totalAuthUsers: number;
+  analyticsUids: number;
+  unmatchedAuthUids: number;
+  coverageRate: number;
+  unmatchedBreakdown: {
+    withUsersDoc: number;
+    withActivityEvent: number;
+    googleProvider: number;
+    passwordProvider: number;
+    otherProvider: number;
+    noProvider: number;
+    neverSignedIn: number;
+    createdWithin7d: number;
+    createdWithin30d: number;
+    disabled: number;
+  };
 }
 
 interface FunnelSummary {
@@ -332,6 +353,7 @@ export default function InternalClubsPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [matchDiagnostics, setMatchDiagnostics] = useState<Record<string, { total: number; valid: number; friendly: number; invalid: number }> | null>(null);
   const [profileDiagnostics, setProfileDiagnostics] = useState<ProfileDiagnostics | null>(null);
+  const [authDiagnostics, setAuthDiagnostics] = useState<AuthDiagnostics | null>(null);
   const [authlessUids, setAuthlessUids] = useState<string[]>([]);
   const [funnelSummary, setFunnelSummary] = useState<FunnelSummary | null>(null);
   const [funnelRows, setFunnelRows] = useState<FunnelRow[]>([]);
@@ -373,12 +395,14 @@ export default function InternalClubsPage() {
           authlessUids: string[];
           matchDiagnostics: Record<string, { total: number; valid: number; friendly: number; invalid: number }>;
           profileDiagnostics?: ProfileDiagnostics;
+          authDiagnostics?: AuthDiagnostics;
         };
         setItems(clubsJson.clubs);
         setSummary(clubsJson.summary);
         setAuthlessUids(clubsJson.authlessUids);
         setMatchDiagnostics(clubsJson.matchDiagnostics);
         setProfileDiagnostics(clubsJson.profileDiagnostics || null);
+        setAuthDiagnostics(clubsJson.authDiagnostics || null);
 
         if (funnelRes.ok) {
           const funnelJson = (await funnelRes.json()) as {
@@ -540,7 +564,7 @@ export default function InternalClubsPage() {
   const consistency = useMemo(() => {
     if (!summary || !funnelSummary) return null;
     const rows = [
-      { key: "totalUsers", label: "総ユーザー", left: summary.total, right: funnelSummary.total },
+      { key: "totalUsers", label: "Analytics対象UID", left: summary.total, right: funnelSummary.total },
       { key: "paidPro", label: "Paid Pro", left: summary.paidPro, right: funnelSummary.isPaidPro },
       { key: "grantedPro", label: "Granted Pro", left: summary.grantedPro, right: funnelSummary.isGrantedPro },
       { key: "free", label: "Free", left: summary.free, right: funnelSummary.isFree },
@@ -713,10 +737,16 @@ export default function InternalClubsPage() {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               <SummaryCard
-                label="総ユーザー（Auth UID）"
+                label="Firebase Auth 総ユーザー"
+                value={summary.authTotal ?? summary.total}
+                sub={`Analytics対象 ${summary.total} / 未捕捉 ${Math.max((summary.authTotal ?? summary.total) - summary.total, 0)}`}
+                color="text-white"
+              />
+              <SummaryCard
+                label="Analytics対象UID"
                 value={summary.total}
                 sub={`Career保有 ${summary.usersWithCareers} / 旧形式Career無し ${summary.legacyUsers}`}
-                color="text-white"
+                color="text-sky-300"
               />
               <SummaryCard
                 label="有効Career数"
@@ -755,9 +785,40 @@ export default function InternalClubsPage() {
               <SummaryCard label="30日アクティブ（UID）" value={summary.active30} color="text-emerald-400" />
             </div>
 
+            {authDiagnostics && (
+              <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
+                <p className="mb-3 text-xs font-bold text-slate-300">Auth / Analytics 整合性</p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  <SummaryCard label="Firebase Auth" value={authDiagnostics.totalAuthUsers} color="text-white" />
+                  <SummaryCard label="Analytics対象" value={authDiagnostics.analyticsUids} color="text-sky-300" />
+                  <SummaryCard label="Analytics未捕捉" value={authDiagnostics.unmatchedAuthUids} color="text-amber-400" />
+                  <SummaryCard label="捕捉率" value={`${authDiagnostics.coverageRate}%`} color="text-emerald-400" />
+                </div>
+                <div className="mt-3 rounded-xl border border-white/10 p-3 text-[10px] text-slate-400">
+                  <p className="mb-1 font-bold text-slate-300">
+                    未捕捉 {authDiagnostics.unmatchedAuthUids} UID の内訳（Auth存在・club_profiles/careersドキュメントなし）
+                  </p>
+                  <p>
+                    Google {authDiagnostics.unmatchedBreakdown.googleProvider} /
+                    メール {authDiagnostics.unmatchedBreakdown.passwordProvider} /
+                    その他provider {authDiagnostics.unmatchedBreakdown.otherProvider} /
+                    provider不明 {authDiagnostics.unmatchedBreakdown.noProvider}
+                  </p>
+                  <p className="mt-1">
+                    usersドキュメントあり {authDiagnostics.unmatchedBreakdown.withUsersDoc} /
+                    活動イベントあり {authDiagnostics.unmatchedBreakdown.withActivityEvent} /
+                    最終ログインなし {authDiagnostics.unmatchedBreakdown.neverSignedIn} /
+                    7日以内作成 {authDiagnostics.unmatchedBreakdown.createdWithin7d} /
+                    30日以内作成 {authDiagnostics.unmatchedBreakdown.createdWithin30d} /
+                    disabled {authDiagnostics.unmatchedBreakdown.disabled}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-2xl border border-white/10 bg-[#111827] p-4">
               <p className="mb-3 text-xs font-bold text-slate-300">
-                利用状況（分母: 全 {summary.total} ユーザー。いずれかのCareerが条件を満たすUIDを1件計上・共有データルートは1回のみ）
+                利用状況（分母: Firebase Auth {summary.authTotal ?? summary.total} 人。いずれかのCareerが条件を満たすUIDを1件計上・共有データルートは1回のみ）
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 <SummaryCard label="7日Active（UID）" value={summary.active7} color="text-emerald-400" />
@@ -772,37 +833,37 @@ export default function InternalClubsPage() {
                 <SummaryCard
                   label="試合登録あり（UID・全Career合算）"
                   value={summary.withMatches}
-                  sub={`${summary.withMatchesRate}%（全 ${summary.total} ユーザー中）`}
+                  sub={`${summary.withMatchesRate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
                   label="10試合以上（UID・全Career合算）"
                   value={summary.matches10}
-                  sub={`${summary.matches10Rate}%（全 ${summary.total} ユーザー中）`}
+                  sub={`${summary.matches10Rate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
                   label="50試合以上（UID・全Career合算）"
                   value={summary.matches50}
-                  sub={`${summary.matches50Rate}%（全 ${summary.total} ユーザー中）`}
+                  sub={`${summary.matches50Rate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
                   color="text-amber-400"
                 />
                 <SummaryCard
                   label="100試合以上（UID・全Career合算）"
                   value={summary.matches100}
-                  sub={`${summary.matches100Rate}%（全 ${summary.total} ユーザー中）`}
+                  sub={`${summary.matches100Rate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
                   color="text-fuchsia-400"
                 />
                 <SummaryCard
                   label="選手画像20人以上（UID）"
                   value={summary.withPlayerImages20}
-                  sub={`${summary.withPlayerImages20Rate}%（全 ${summary.total} ユーザー中）`}
+                  sub={`${summary.withPlayerImages20Rate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
                   color="text-emerald-400"
                 />
                 <SummaryCard
                   label="チーム画像あり（UID）"
                   value={summary.withTeamImages}
-                  sub={`${summary.withTeamImagesRate}%（全 ${summary.total} ユーザー中）`}
+                  sub={`${summary.withTeamImagesRate}%（Firebase Auth ${summary.authTotal ?? summary.total} 人中）`}
                   color="text-emerald-400"
                 />
               </div>

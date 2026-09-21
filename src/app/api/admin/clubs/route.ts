@@ -134,6 +134,8 @@ interface ProfileDiagnostics {
 
 interface Summary {
   total: number;
+  // Firebase Auth の実UID数（Source of Truth）。total は Analytics対象UID数。
+  authTotal: number;
   aggregatable: number;
   totalCareers: number;
   creatingCareers: number;
@@ -200,14 +202,6 @@ function toIso(value: unknown): string | null {
   if (value instanceof Date) return value.toISOString();
   const d = new Date(String(value));
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    out.push(arr.slice(i, i + size));
-  }
-  return out;
 }
 
 // clubs/{clubUid}/... のパス第1セグメントを取り出す。
@@ -470,17 +464,61 @@ export async function GET(req: NextRequest) {
       ...Object.keys(profileIdsByOwner),
       ...careersByOwner.keys(),
     ]);
+
+    // Firebase Auth を全件取得（Source of Truth）。listUsersは1000件/ページのため
+    // nextPageToken がある限り全ページ取得する。Firestoreのドキュメント件数から
+    // Auth総数を推測しない。
+    const allAuthUsers: admin.auth.UserRecord[] = [];
+    let listUsersPageToken: string | undefined;
+    do {
+      const result = await auth.listUsers(1000, listUsersPageToken);
+      allAuthUsers.push(...result.users);
+      listUsersPageToken = result.pageToken;
+    } while (listUsersPageToken);
+
     const emailMap: Record<string, string> = {};
     const authUserUids = new Set<string>();
     const authLastSignInByUid: Record<string, string> = {};
-    for (const uidsBatch of chunk(Array.from(candidateUids), 100)) {
-      const result = await auth.getUsers(uidsBatch.map((uid) => ({ uid })));
-      for (const u of result.users) {
-        authUserUids.add(u.uid);
-        if (u.email) emailMap[u.uid] = u.email;
-        const lastSignInTime = (u.metadata as unknown as { lastSignInTime?: string }).lastSignInTime;
-        if (lastSignInTime) authLastSignInByUid[u.uid] = lastSignInTime;
+    for (const u of allAuthUsers) {
+      if (!candidateUids.has(u.uid)) continue;
+      authUserUids.add(u.uid);
+      if (u.email) emailMap[u.uid] = u.email;
+      const lastSignInTime = (u.metadata as unknown as { lastSignInTime?: string }).lastSignInTime;
+      if (lastSignInTime) authLastSignInByUid[u.uid] = lastSignInTime;
+    }
+
+    // Authには存在するがAnalytics対象集合（club_profiles/careersのowner）に
+    // 存在しないUIDの分類。個人情報は出さずカウントのみ。
+    const unmatchedBreakdown = {
+      withUsersDoc: 0,
+      withActivityEvent: 0,
+      googleProvider: 0,
+      passwordProvider: 0,
+      otherProvider: 0,
+      noProvider: 0,
+      neverSignedIn: 0,
+      createdWithin7d: 0,
+      createdWithin30d: 0,
+      disabled: 0,
+    };
+    for (const u of allAuthUsers) {
+      if (candidateUids.has(u.uid)) continue;
+      if (userDataByUid[u.uid]) unmatchedBreakdown.withUsersDoc++;
+      if (lastEventByOwner[u.uid]) unmatchedBreakdown.withActivityEvent++;
+      const providers = new Set(
+        (u.providerData || []).map((p) => p?.providerId).filter(Boolean)
+      );
+      if (providers.size === 0) unmatchedBreakdown.noProvider++;
+      else if (providers.has("google.com")) unmatchedBreakdown.googleProvider++;
+      else if (providers.has("password")) unmatchedBreakdown.passwordProvider++;
+      else unmatchedBreakdown.otherProvider++;
+      if (!u.metadata.lastSignInTime) unmatchedBreakdown.neverSignedIn++;
+      const createdMs = u.metadata.creationTime ? Date.parse(u.metadata.creationTime) : NaN;
+      if (!Number.isNaN(createdMs)) {
+        if (now - createdMs < 7 * 24 * 60 * 60 * 1000) unmatchedBreakdown.createdWithin7d++;
+        if (now - createdMs < 30 * 24 * 60 * 60 * 1000) unmatchedBreakdown.createdWithin30d++;
       }
+      if (u.disabled) unmatchedBreakdown.disabled++;
     }
 
     const profileDocById: Record<string, FirebaseFirestore.QueryDocumentSnapshot> = {};
@@ -893,8 +931,18 @@ export async function GET(req: NextRequest) {
       (c) => c.careerCount === 0 && c.allCareersNameUnset
     ).length;
 
+    const authTotal = allAuthUsers.length;
+    const authDiagnostics = {
+      totalAuthUsers: authTotal,
+      analyticsUids: total,
+      unmatchedAuthUids: Math.max(authTotal - total, 0),
+      coverageRate: authTotal > 0 ? Math.round((total / authTotal) * 1000) / 10 : 0,
+      unmatchedBreakdown,
+    };
+
     const summary: Summary = {
       total,
+      authTotal,
       aggregatable,
       totalCareers,
       creatingCareers,
@@ -915,22 +963,24 @@ export async function GET(req: NextRequest) {
       matches10,
       matches50,
       matches100,
-      withMatchesRate: total > 0 ? Math.round((withMatches / total) * 1000) / 10 : 0,
-      matches10Rate: total > 0 ? Math.round((matches10 / total) * 1000) / 10 : 0,
-      matches50Rate: total > 0 ? Math.round((matches50 / total) * 1000) / 10 : 0,
-      matches100Rate: total > 0 ? Math.round((matches100 / total) * 1000) / 10 : 0,
+      // 利用率系KPIの分母は Firebase Auth 総ユーザー（authTotal）。
+      // 全登録者に対する利用率を見る指標のため Analytics対象UID ではなく Auth全件を使う。
+      withMatchesRate: authTotal > 0 ? Math.round((withMatches / authTotal) * 1000) / 10 : 0,
+      matches10Rate: authTotal > 0 ? Math.round((matches10 / authTotal) * 1000) / 10 : 0,
+      matches50Rate: authTotal > 0 ? Math.round((matches50 / authTotal) * 1000) / 10 : 0,
+      matches100Rate: authTotal > 0 ? Math.round((matches100 / authTotal) * 1000) / 10 : 0,
       withPlayerImages10,
       withPlayerImages20,
       withTeamImages,
       withTeamImages5,
       withPlayerImages10Rate:
-        total > 0 ? Math.round((withPlayerImages10 / total) * 1000) / 10 : 0,
+        authTotal > 0 ? Math.round((withPlayerImages10 / authTotal) * 1000) / 10 : 0,
       withPlayerImages20Rate:
-        total > 0 ? Math.round((withPlayerImages20 / total) * 1000) / 10 : 0,
+        authTotal > 0 ? Math.round((withPlayerImages20 / authTotal) * 1000) / 10 : 0,
       withTeamImagesRate:
-        total > 0 ? Math.round((withTeamImages / total) * 1000) / 10 : 0,
+        authTotal > 0 ? Math.round((withTeamImages / authTotal) * 1000) / 10 : 0,
       withTeamImages5Rate:
-        total > 0 ? Math.round((withTeamImages5 / total) * 1000) / 10 : 0,
+        authTotal > 0 ? Math.round((withTeamImages5 / authTotal) * 1000) / 10 : 0,
       unavailableByReason: {},
       multiClubOwners,
       multiClubProfiles,
@@ -951,7 +1001,7 @@ export async function GET(req: NextRequest) {
       legacyNameUnsetUsers,
     };
 
-    return NextResponse.json({ summary, clubs, authlessUids, matchDiagnostics, profileDiagnostics: diag });
+    return NextResponse.json({ summary, clubs, authlessUids, matchDiagnostics, profileDiagnostics: diag, authDiagnostics });
   } catch (error) {
     console.error("[admin/clubs] error", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
