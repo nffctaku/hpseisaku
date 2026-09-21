@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { getEffectivePlanForUid, type EffectivePlan } from "@/lib/server-plan";
+import { getPlanLimit, getPlanTier } from "./plan-limits";
 import { pickFields, assertWithinBatchLimit } from "./career-copy-helpers";
 
 export interface CopyableSourceData {
@@ -274,6 +275,21 @@ export async function copyCareerData(
   if (copyPlayers && !isProPlan(plan)) {
     throw new Error("Freeでは選手を引き継げません");
   }
+
+  // チーム画像(logoUrl)のコピーには現行プラン上限を適用する。
+  // 既存Careerの画像はそのまま保持し、新規Careerへの持ち込みだけを制限する。
+  // 先着順で枠を消費する（mainチームが先に処理されるため自クラブ画像が優先される）。
+  // 上限超過分はteam自体はコピーし、logoUrlのみ外す。
+  const teamImageLimit = getPlanLimit("team_images_per_account", getPlanTier(plan.plan));
+  let logoBudget = teamImageLimit;
+  const takeLogoBudget = (url: unknown): url is string => {
+    if (typeof url !== "string" || !url.trim()) return false;
+    if (logoBudget > 0) {
+      logoBudget -= 1;
+      return true;
+    }
+    return false;
+  };
   if (copyPlayers && !validId(playerSourceSeasonId)) {
     throw new Error("選手を引き継ぐ場合はSeasonを選択してください");
   }
@@ -371,8 +387,12 @@ export async function copyCareerData(
     createdAt: now,
     updatedAt: now,
   };
-  if (copySettings && finalLogoUrl) {
-    newMainTeamData.logoUrl = finalLogoUrl;
+  const resolvedMainLogo =
+    copySettings && finalLogoUrl ? finalLogoUrl : newMainTeamData.logoUrl;
+  if (takeLogoBudget(resolvedMainLogo)) {
+    newMainTeamData.logoUrl = resolvedMainLogo;
+  } else {
+    delete newMainTeamData.logoUrl;
   }
   batchWrites.push({
     ref: db.collection(`clubs/${targetClubUid}/teams`).doc(newMainTeamId),
@@ -385,10 +405,14 @@ export async function copyCareerData(
     const oldTeamData = oldTeamSnap.data() as Record<string, unknown>;
     const newTeamId = newId();
     teamIdMap.set(oldTeamId, newTeamId);
+    const picked = pickFields(oldTeamData, TEAM_PROFILE_FIELDS);
+    if (!takeLogoBudget(picked.logoUrl)) {
+      delete picked.logoUrl;
+    }
     batchWrites.push({
       ref: db.collection(`clubs/${targetClubUid}/teams`).doc(newTeamId),
       data: {
-        ...pickFields(oldTeamData, TEAM_PROFILE_FIELDS),
+        ...picked,
         clubUid: targetClubUid,
         ownerUid: ownerId,
         createdAt: now,

@@ -499,18 +499,22 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
     if (isNewPhoto) {
       try {
-        const rosterSnap = await getDocs(collection(db, `clubs/${clubUid}/seasons/${selectedSeasonDash}/roster`));
+        // 判定母集団は /api/club/player-photos と同一（チーム内の画像登録済み選手数）
+        const playersSnap = await getDocs(collection(db, `clubs/${clubUid}/teams/${teamId}/players`));
         let count = 0;
-        rosterSnap.forEach((d) => {
+        playersSnap.forEach((d) => {
+          if (editingPlayer && d.id === editingPlayer.id) return;
           const p = d.data() as any;
-          const seasonUrl = typeof p?.seasonData?.[selectedSeasonDash]?.photoUrl === "string" ? p.seasonData[selectedSeasonDash].photoUrl.trim() : "";
-          const fallbackUrl = typeof p?.photoUrl === "string" ? p.photoUrl.trim() : "";
-          const url = seasonUrl || fallbackUrl;
-          if (url) count += 1;
+          const hasTop = typeof p?.photoUrl === "string" && p.photoUrl.trim().length > 0;
+          const sd = p?.seasonData && typeof p.seasonData === "object" ? p.seasonData : {};
+          const hasSeasonPhoto = Object.values(sd).some(
+            (v: any) => typeof v?.photoUrl === "string" && v.photoUrl.trim().length > 0
+          );
+          if (hasTop || hasSeasonPhoto) count += 1;
         });
 
         if (Number.isFinite(maxPlayerPhotos) && count >= maxPlayerPhotos) {
-          toast.error(`現在のプランでは選手画像は1シーズンあたり最大${maxPlayerPhotos}枚まで登録できます。`);
+          toast.error(`現在のプランでは選手画像は1チームあたり最大${maxPlayerPhotos}人まで登録できます。`);
           return;
         }
       } catch {
@@ -577,10 +581,11 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
       const seasonPayload: PlayerSeasonData = {
         number: valuesNormalized.number,
-        // 削除ケースでも旧URLを保持する（実削除は DELETE API が
-        // Cloudinary 削除成功後に全フィールドを一括クリアするため。
-        // ここで先に消すと API 失敗時に不整合になる）
-        photoUrl: nextPhotoTrim || prevPhotoTrim || undefined,
+        // photoUrl の新規・変更はここでは書かない。正規の書き手は
+        // /api/club/player-photos（上限判定後に書き込む）のみ。
+        // 既存URLは prevPhotoTrim で保持する（updateDoc の seasonData 置換で
+        // 画像が消えないため）。削除ケースも DELETE API が一括クリアする。
+        photoUrl: prevPhotoTrim || undefined,
         subName: (values as any).subName,
         position: valuesNormalized.position as any,
         mainPosition: (values as any).mainPosition,
