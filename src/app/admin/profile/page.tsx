@@ -9,6 +9,7 @@ import { useCareer } from "@/contexts/CareerContext";
 import { Button } from "@/components/ui/button";
 import { Shield, Plus, Check, ChevronRight, User as UserIcon } from "lucide-react";
 import { toast } from "sonner";
+import { getPlanTier } from "@/lib/plan-limits";
 
 function formatSeasonRange(start: string | null | undefined, latest: string | null | undefined): string {
   if (!start && !latest) return "未設定";
@@ -57,7 +58,7 @@ export default function ProfilePage() {
               <div className="text-xl font-bold text-gray-950">{user?.displayName || "ユーザー"}</div>
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
-                  {user?.plan === "pro" ? "Pro Member" : "Free Member"}
+                  {getPlanTier(user?.plan) !== "free" ? "Pro Member" : "Free Member"}
                 </span>
                 <span>{careers.length} Careers</span>
               </div>

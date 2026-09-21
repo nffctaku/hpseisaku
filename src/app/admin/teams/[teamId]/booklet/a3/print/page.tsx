@@ -13,6 +13,7 @@ import { ProPlanNotice } from "../../components/ProPlanNotice";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { PrintPageLayout, type TransferRow } from "./components/PrintPageLayout";
 import { formations } from "@/lib/formations";
+import { getPlanTier } from "@/lib/plan-limits";
 
 type StatRow = {
   season: string;
@@ -163,7 +164,7 @@ export default function TeamBookletA3PrintPage() {
 
   const { user } = useAuth();
   const { activeCareer } = useCareer();
-  const isPro = user?.plan === "pro";
+  const isPro = getPlanTier(user?.plan) !== "free";
 
   const [data, setData] = useState<BookletResponse | null>(null);
   const [loading, setLoading] = useState(false);

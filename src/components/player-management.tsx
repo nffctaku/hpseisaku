@@ -78,7 +78,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const { clubProfileId } = useClub();
   const clubUid = activeCareer?.clubUid || user?.clubUid || user?.uid;
   console.log("[PlayerManagement] render", { activeCareerId: activeCareer?.id, activeClubUid: activeCareer?.clubUid, userClubUid: user?.clubUid, userUid: user?.uid, computedClubUid: clubUid, teamId });
-  const isPro = user?.plan === "pro";
+  const isPro = getPlanTier(user?.plan) !== "free";
   const [players, setPlayers] = useState<Player[]>([]);
   const [legacyPlayers, setLegacyPlayers] = useState<Player[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);

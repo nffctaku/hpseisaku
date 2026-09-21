@@ -133,7 +133,7 @@ export default function NewsAdminPage() {
   const { activeCareer } = useCareer();
   // Data root must follow the active Career (ownerUid points at the old/pre-separation path).
   const clubUid = activeCareer?.clubUid || user?.uid;
-  const isPro = user?.plan === "pro";
+  const isPro = getPlanTier(user?.plan) !== "free";
   const [news, setNews] = useState<NewsListItem[]>([]);
   const [editingArticle, setEditingArticle] = useState<NewsListItem | null>(null);
   const [deletingArticle, setDeletingArticle] = useState<NewsListItem | null>(null);

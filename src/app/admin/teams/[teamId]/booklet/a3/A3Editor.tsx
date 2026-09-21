@@ -12,6 +12,7 @@ import { formations } from "@/lib/formations";
 import { useBookletData } from "./hooks/useBookletData";
 import { useStaffList } from "./hooks/useStaffList";
 import { A3EditorView } from "./components/A3EditorView";
+import { getPlanTier } from "@/lib/plan-limits";
 import type { ActiveKey, CoachInfo, LayoutState, SlotKey, StatRow, TransferRow } from "./types";
 
 export function A3Editor({
@@ -26,7 +27,7 @@ export function A3Editor({
 
   const { user } = useAuth();
   const { activeCareer } = useCareer();
-  const isPro = user?.plan === "pro";
+  const isPro = getPlanTier(user?.plan) !== "free";
 
   const { data, loading, error } = useBookletData(teamId, season, activeCareer?.clubUid || null);
 

@@ -48,7 +48,7 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
   const { activeCareer } = useCareer();
   // データパスはアクティブCareerのclubUidを優先（auth uid は旧Careerルートを指すため不可）
   const clubUid = activeCareer?.clubUid || user?.uid;
-  const isPro = user?.plan === "pro";
+  const isPro = getPlanTier(user?.plan) !== "free";
   const [staff, setStaff] = useState<Staff[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);

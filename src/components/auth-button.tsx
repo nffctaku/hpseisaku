@@ -26,6 +26,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useCareer } from "@/contexts/CareerContext";
 import { Shield, Plus, Settings, CreditCard, LogOut, ChevronRight, User } from 'lucide-react';
+import { getPlanTier } from '@/lib/plan-limits';
 
 export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const { user } = useAuth();
@@ -36,8 +37,8 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
   const isAdmin = typeof pathname === "string" && pathname.startsWith("/admin");
   console.log('[AuthButton] render', { hasUser: !!user, user });
 
-  const planLabel = user?.plan === 'pro' ? 'Pro' : 'Free';
-  const planClassName = user?.plan === 'pro'
+  const planLabel = getPlanTier(user?.plan) !== 'free' ? 'Pro' : 'Free';
+  const planClassName = getPlanTier(user?.plan) !== 'free'
     ? 'bg-emerald-600/20 text-emerald-200 border-emerald-500/30'
     : 'bg-slate-700/50 text-slate-200 border-slate-500/30';
 

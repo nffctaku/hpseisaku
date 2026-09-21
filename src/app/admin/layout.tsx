@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { useRouter, usePathname } from 'next/navigation';
+import { getPlanTier } from '@/lib/plan-limits';
 
 const barlowCondensed = Barlow_Condensed({
   subsets: ['latin'],
@@ -45,7 +46,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   const isSeasonRecordsPage = pathname.startsWith('/admin/club/history/seasons');
   const isSeasonRecordsRoot = pathname === '/admin/club/history/seasons';
 
-  const isPro = user?.plan === "pro";
+  const isPro = getPlanTier(user?.plan) !== "free";
   const proLockedPrefixes = [
     '/admin/club/history/players',
     '/admin/club/history/seasons',

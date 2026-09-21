@@ -94,6 +94,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const clubUidRef = useRef<string | undefined>(undefined);
   const activeCareerIdRef = useRef<string | undefined>(undefined);
 
+  // plan の Source of Truth はサーバー側の effective plan (/api/me/plan)。
+  // club_profiles には課金用stub docとCareer側docが混在するため、
+  // クライアントが単一profileの plan フィールドを参照すると誤判定になる。
+  const fetchEffectivePlan = async (authUser: User): Promise<string | null> => {
+    try {
+      const idToken = await authUser.getIdToken();
+      const res = await fetch('/api/me/plan', {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return typeof data?.plan === 'string' ? data.plan : null;
+    } catch {
+      return null;
+    }
+  };
+
   const applyUserOverrides = (uid: string, profile: Partial<UserProfile>) => {
     const base = {
       ...profile,
@@ -428,6 +445,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
           console.log('[AuthContext] Starting fetchUserProfile');
           await fetchUserProfile(authUser);
+          // profile.plan は参照しない。サーバーの effective plan で上書きする
+          // （課金stub doc と Career profile が分離しているため単一docでは判定不可）。
+          const effectivePlan = await fetchEffectivePlan(authUser);
+          if (effectivePlan && userRef.current) {
+            const updated = { ...userRef.current, plan: effectivePlan };
+            userRef.current = updated;
+            setUser(updated);
+          }
           lastUserProfileRef.current = userRef.current;
           if (loadingRef.current) {
             loadingRef.current = false;
@@ -559,6 +584,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(true);
       }
       await fetchUserProfile(currentUser);
+      const effectivePlan = await fetchEffectivePlan(currentUser);
+      if (effectivePlan && userRef.current) {
+        const updated = { ...userRef.current, plan: effectivePlan };
+        userRef.current = updated;
+        setUser(updated);
+      }
+      lastUserProfileRef.current = userRef.current;
       if (loadingRef.current) {
         loadingRef.current = false;
         setLoading(false);

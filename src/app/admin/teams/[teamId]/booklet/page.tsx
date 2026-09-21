@@ -21,6 +21,7 @@ import { toSlashSeason } from "@/lib/season";
 import { PrintPageLayout, type TransferRow as A3TransferRow } from "./a3/print/components/PrintPageLayout";
 import { createEmptyLayout, last5Seasons } from "./a3/lib/a3-layout";
 import { formations } from "@/lib/formations";
+import { getPlanTier } from "@/lib/plan-limits";
 import { A3Editor } from "./a3/A3Editor";
 
 export default function TeamBookletPage() {
@@ -32,7 +33,7 @@ export default function TeamBookletPage() {
 
   const { user } = useAuth();
   const { activeCareer, loading: careerLoading } = useCareer();
-  const isPro = user?.plan === "pro";
+  const isPro = getPlanTier(user?.plan) !== "free";
 
   // activeCareer.clubUid が唯一のデータ取得先
   const clubUid = activeCareer?.clubUid || null;

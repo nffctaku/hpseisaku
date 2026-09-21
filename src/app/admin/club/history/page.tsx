@@ -9,6 +9,7 @@ import { useCareer } from "@/contexts/CareerContext";
 import { useClub } from "@/contexts/ClubContext";
 import { fetchLegacyClubTitles } from "@/lib/trophy-migration";
 import { db } from "@/lib/firebase";
+import { getPlanTier } from "@/lib/plan-limits";
 import {
   collection,
   doc,
@@ -90,7 +91,7 @@ export default function ClubHistoryPage() {
   const [titleCount, setTitleCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const isPro = user?.plan === "pro";
+  const isPro = getPlanTier(user?.plan) !== "free";
 
   useEffect(() => {
     let cancelled = false;

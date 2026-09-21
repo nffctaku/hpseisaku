@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatsImageUploader } from '@/components/stats-image-uploader';
 import { StatsImageAnalysisResult } from '@/lib/stats-image-parser';
+import { getPlanTier } from '@/lib/plan-limits';
 
 const formSchema = z.object({
   teamStats: z.array(
@@ -96,7 +97,7 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
   const { activeCareer } = useCareer();
   // データパスはアクティブCareerのclubUidを優先（auth uid は旧Careerルートを指すため不可）
   const ownerUid = activeCareer?.clubUid || userId || user?.uid;
-  const maxTeamStats = user?.plan === 'pro' ? 30 : 15;
+  const maxTeamStats = getPlanTier(user?.plan) !== 'free' ? 30 : 15;
   const [isSaving, setIsSaving] = useState(false);
   const [isTemplateLoading, setIsTemplateLoading] = useState(false);
   const [isTemplateSaving, setIsTemplateSaving] = useState(false);

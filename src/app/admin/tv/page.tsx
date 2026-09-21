@@ -49,7 +49,7 @@ export default function TvAdminPage() {
   const { user } = useAuth();
   const { activeCareer } = useCareer();
   const clubUid = activeCareer?.clubUid || user?.uid;
-  const isPro = user?.plan === "pro";
+  const isPro = getPlanTier(user?.plan) !== "free";
   const [videos, setVideos] = useState<Video[]>([]);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [deletingVideo, setDeletingVideo] = useState<Video | null>(null);

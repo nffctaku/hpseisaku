@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { collection, doc, getDoc, getDocs, limit, query, setDoc, where } from "firebase/firestore";
 import { toast } from "sonner";
+import { getPlanTier } from "@/lib/plan-limits";
 import { FaXTwitter } from "react-icons/fa6";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -46,7 +47,7 @@ export default function AdminHomePage() {
   const [draftState, setDraftState] = useState<{ uid: string; count: number } | null>(null);
   const mainTeamId = teamState?.uid === clubUid ? teamState?.id : null;
   const draftNewsCount = draftState?.uid === clubUid ? draftState?.count || 0 : 0;
-  const isPro = user?.plan === "pro";
+  const isPro = getPlanTier(user?.plan) !== "free";
   const adsenseClient = (process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "").trim();
   const adsenseSlot = (process.env.NEXT_PUBLIC_ADSENSE_SLOT_ADMIN_HOME || "").trim();
   const showAd = Boolean(adsenseClient && adsenseSlot);
