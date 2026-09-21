@@ -14,8 +14,6 @@ import {
   signInWithPopup,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { getNetLog } from "@/lib/net-tap";
-import { seedFirebaseAuthUser } from "@/lib/firebase-auth-seed";
 
 // Firebase Google provider が使う Web OAuth client（handler の OAuth URL で確認済み）。
 // この client 宛の ID token は signInWithCredential で Firebase Auth に入れる。
@@ -25,8 +23,6 @@ const GOOGLE_CLIENT_ID =
 export default function LoginPage() {
   const [signingIn, setSigningIn] = useState(false);
   const [mode, setMode] = useState<"pending" | "gis" | "custom">("pending");
-  const [diag, setDiag] = useState("");
-  const [stage, setStage] = useState("");
   const signingInRef = useRef(false);
   const gisRef = useRef<HTMLDivElement>(null);
 
@@ -73,74 +69,24 @@ export default function LoginPage() {
           signingInRef.current = true;
           setSigningIn(true);
           if (!resp?.credential) {
-            setDiag("DIAG no_id_token");
             signingInRef.current = false;
             setSigningIn(false);
             return;
           }
-          // 1) まず通常経路: SDK Auth が通る環境(iPhone Safari等)はここで完了。
-          //    迂回経路に健全環境を巻き込まないための capability 判定。
-          setStage("SDK_START");
           try {
             const credential = GoogleAuthProvider.credential(resp.credential);
             await Promise.race([
-              signInWithCredential(auth, credential).then(
-                () => "ok" as const,
-                (err: any) => {
-                  throw err;
-                }
-              ),
+              signInWithCredential(auth, credential),
               new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error("SDK_TIMEOUT")), 15000)
+                setTimeout(() => reject(new Error("SDK_SIGNIN_TIMEOUT")), 15000)
               ),
             ]);
             // 以降は onAuthStateChanged が /admin へ遷移
-            return;
-          } catch (sdkErr: any) {
-            const isTimeout = sdkErr?.message === "SDK_TIMEOUT";
-            setStage(isTimeout ? "SDK_TIMEOUT" : `SDK_FAIL ${sdkErr?.code || sdkErr?.message || sdkErr}`);
-            console.warn(
-              "[LoginPage] SDK credential sign-in unavailable, using REST+seed fallback",
-              sdkErr?.code || sdkErr
-            );
-          }
-          // 2) SDK Auth が失敗する環境のみ迂回:
-          //    REST signInWithIdp → SDK永続化領域へseed → リロードで初期化復元。
-          try {
-            setStage("REST_START");
-            const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "";
-            const r = await fetch(
-              `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${apiKey}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  postBody: `id_token=${encodeURIComponent(resp.credential)}&providerId=google.com`,
-                  requestUri: "https://www.footchron.com",
-                  returnSecureToken: true,
-                  returnIdpCredential: true,
-                }),
-              }
-            );
-            const j: any = await r.json().catch(() => ({}));
-            if (!r.ok || !j?.idToken) {
-              throw new Error(`REST ${r.status} ${j?.error?.message || "no idToken"}`);
-            }
-            setStage("REST_OK");
-            setStage("IDB_SEED_START");
-            await seedFirebaseAuthUser(j, apiKey, auth.app.name, setStage);
-            setStage("IDB_SEED_OK");
-            setStage("RELOAD");
-            // SDK初期化の永続化復元経路に拾わせるためフルリロード
-            window.location.href = "/admin";
           } catch (e: any) {
             console.error("[LoginPage] mobile sign-in error", e);
             signingInRef.current = false;
             setSigningIn(false);
-            const logs = getNetLog();
-            setDiag(
-              `err=${e.code || e.message} | ${logs.slice(-4).join(" || ") || "NO_FAILED_REQUEST"}`
-            );
+            window.alert(`ログインエラー: ${e.message || e.code || "Unknown error"}`);
           }
         },
       });
@@ -166,7 +112,6 @@ export default function LoginPage() {
   }, [mode]);
 
   const handleGoogleLogin = async () => {
-    console.log("[LoginPage] Google login tapped");
     const ua = window.navigator.userAgent || "";
     const isInApp = /(Line|FBAN|FBAV|Instagram|MicroMessenger|Twitter)/i.test(ua);
     if (isInApp) {
@@ -251,12 +196,6 @@ export default function LoginPage() {
           </button>
           )}
         </div>
-        {stage && (
-          <div className="mt-4 text-[11px] font-mono text-gray-500 break-all">STAGE {stage}</div>
-        )}
-        {diag && (
-          <div className="mt-4 text-[11px] font-mono text-gray-500 break-all">{diag}</div>
-        )}
         <p className="mt-6 text-[12px] font-semibold leading-relaxed text-gray-400">
           ログインすることで
           <Link
