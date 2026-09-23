@@ -600,7 +600,7 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
     <Card className="mt-4 overflow-hidden rounded-3xl border-slate-700/70 bg-slate-950 text-slate-100 shadow-[0_18px_45px_rgba(15,23,42,0.35)]">
       <CardContent className="px-4 py-5 sm:px-6">
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <StatsImageUploader onAnalysisComplete={handleAnalysisComplete} embedded />
+          {/* 画像読み取りは確認フロー付きの MatchOcrPanel に移行（確認前の自動保存を廃止） */}
           <div className="grid grid-cols-[4rem_1fr_4rem_1.75rem] items-center gap-2 px-1 sm:grid-cols-[6rem_1fr_6rem_1.75rem]">
             <div className="flex justify-center">
               {match.homeTeamLogo && <img src={match.homeTeamLogo} alt={match.homeTeamName} className="h-8 w-8 object-contain" />}

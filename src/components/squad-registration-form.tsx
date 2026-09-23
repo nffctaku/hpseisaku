@@ -5,7 +5,7 @@ import { useForm, FormProvider, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { db } from '@/lib/firebase';
-import { collection, doc, getDoc, getDocs, setDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { Player, MatchDetails } from '@/types/match';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,8 +16,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCareer } from '@/contexts/CareerContext';
 import { PlayerStatsTable } from './player-stats-table';
 import { MatchEventsTable } from './match-events-table';
-import { mirrorDocsForEvent } from '@/lib/match-event-sync';
-import { recomputeTeamMinutes, healStaleTeamMinutes } from '@/lib/match-minutes';
+import { commitSquadSave, subEventsSignature, type SquadSaveSnapshot } from '@/lib/squad-save-merge';
+import { healStaleTeamMinutes } from '@/lib/match-minutes';
 import type { SubmitHandler } from 'react-hook-form';
 
 const formSchema = z.object({
@@ -45,9 +45,10 @@ const formSchema = z.object({
     .array(
       z.object({
         id: z.string(),
-        minute: z.coerce.number().min(0).max(145),
+        // 実データ上は number と "45+2" 等の文字列が混在するため両方許容
+        minute: z.union([z.coerce.number().min(0).max(145), z.string()]),
         teamId: z.string(),
-        type: z.enum(['goal', 'og', 'card', 'substitution', 'note']),
+        type: z.enum(['goal', 'og', 'card', 'substitution', 'note', 'pk_miss']),
         playerId: z.string().optional(),
         playerName: z.string().optional(),
         assistPlayerId: z.string().optional(),
@@ -59,24 +60,18 @@ const formSchema = z.object({
         outPlayerName: z.string().optional(),
         text: z.string().optional(),
         originalPlayerId: z.string().optional(),
+        goalKind: z.enum(['open', 'penalty', 'own_goal']).optional(),
+        playerLinkStatus: z.enum(['linked', 'name_only', 'needs_input']).optional(),
+        source: z.enum(['ocr', 'manual']).optional(),
+        assistStatus: z.enum(['unknown', 'none', 'set']).optional(),
+        needsConfirmation: z.boolean().optional(),
+        minuteText: z.string().optional(),
       })
     )
     .optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
-
-// Substitution-only signature used to detect event edits since the document was loaded.
-// When this changes in a form instance that has no PlayerStatsTable mounted (view="events"),
-// saveSquadData recomputes minutesPlayed so event edits always propagate to minutes.
-function subEventsSignature(events: any[]): string {
-  return JSON.stringify(
-    (events || [])
-      .filter((e: any) => e?.type === 'substitution')
-      .map((e: any) => [e.id, String(e.minute), e.teamId, e.outPlayerId, e.inPlayerId])
-      .sort()
-  );
-}
 
 interface SquadRegistrationFormProps {
   match: MatchDetails;
@@ -105,7 +100,9 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
    const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
    const autosaveReadyRef = useRef(false);
    const prevEventCountRef = useRef(0);
-   const loadedSubSigRef = useRef<string | null>(null);
+   // フォームロード時点のスナップショット。保存時に「ユーザーが変更した」と
+   // 「外部（OCR確定・別タブ）が変更した」を3方向マージで区別するために使う。
+   const loadedSnapshotRef = useRef<SquadSaveSnapshot | null>(null);
    const savingRef = useRef(false);
    const savedIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -414,7 +411,13 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
             awayFormation: data.awayFormation || match.awayFormation || '4-3-3',
           });
           prevEventCountRef.current = loadedEvents.length;
-          loadedSubSigRef.current = subEventsSignature(loadedEvents);
+          loadedSnapshotRef.current = {
+            events: loadedEvents,
+            playerStats: loadedStats,
+            homeFormation: data.homeFormation || match.homeFormation || '4-3-3',
+            awayFormation: data.awayFormation || match.awayFormation || '4-3-3',
+            customStatHeaders: data.customStatHeaders || [],
+          };
           if (healed) {
             await saveSquadData(methods.getValues(), { showToast: false });
           }
@@ -427,7 +430,13 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
             awayFormation: match.awayFormation || '4-3-3',
           });
           prevEventCountRef.current = 0;
-          loadedSubSigRef.current = subEventsSignature([]);
+          loadedSnapshotRef.current = {
+            events: [],
+            playerStats: [],
+            homeFormation: match.homeFormation || '4-3-3',
+            awayFormation: match.awayFormation || '4-3-3',
+            customStatHeaders: [],
+          };
         }
       } catch (error) {
         console.error("Error fetching match data:", error);
@@ -564,6 +573,12 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           outPlayerName,
           text,
           originalPlayerId,
+          goalKind,
+          playerLinkStatus,
+          source,
+          assistStatus,
+          needsConfirmation,
+          minuteText,
         } = ev;
 
         const base: any = { id, minute, teamId, type };
@@ -578,147 +593,93 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           base.playerId = playerId;
           const name = resolveEventPlayerName(playerId, playerName);
           if (name) base.playerName = name;
+        } else if (playerName) {
+          // 名前のみイベント（未紐づけ）は読み取り名を保持する
+          base.playerName = playerName;
         }
         if (assistPlayerId) {
           base.assistPlayerId = assistPlayerId;
           const assistName = resolveEventPlayerName(assistPlayerId, assistPlayerName);
           if (assistName) base.assistPlayerName = assistName;
+        } else if (assistPlayerName) {
+          base.assistPlayerName = assistPlayerName;
         }
         if (cardColor) base.cardColor = cardColor;
         if (inPlayerId) {
           base.inPlayerId = inPlayerId;
           const inName = resolveEventPlayerName(inPlayerId, inPlayerName);
           if (inName) base.inPlayerName = inName;
+        } else if (inPlayerName) {
+          base.inPlayerName = inPlayerName;
         }
         if (outPlayerId) {
           base.outPlayerId = outPlayerId;
           const outName = resolveEventPlayerName(outPlayerId, outPlayerName);
           if (outName) base.outPlayerName = outName;
+        } else if (outPlayerName) {
+          base.outPlayerName = outPlayerName;
         }
         if (text) base.text = text;
         const resolvedOriginal = originalPlayerId || resolveOriginalFromName(playerName);
         if (resolvedOriginal) base.originalPlayerId = resolvedOriginal;
+        // OCR拡張フィールドは通常保存・フォーム検証で消えないよう保持する
+        if (goalKind) base.goalKind = goalKind;
+        if (playerLinkStatus) base.playerLinkStatus = playerLinkStatus;
+        if (source) base.source = source;
+        if (assistStatus) base.assistStatus = assistStatus;
+        if (needsConfirmation !== undefined) base.needsConfirmation = needsConfirmation;
+        if (minuteText) base.minuteText = minuteText;
         return base;
       });
 
-      const payload = stripUndefinedDeep({
-        customStatHeaders: data.customStatHeaders,
-        playerStats: normalizedPlayerStats,
-        events: sanitizedEvents,
-        homeFormation: data.homeFormation,
-        awayFormation: data.awayFormation,
+      // 競合安全な保存: トランザクション内で最新ドキュメントと3方向マージ。
+      // - フォームの編集・削除はそのまま反映
+      // - 外部（OCR確定・別タブ）の追加・編集・削除を保持（無言上書きしない）
+      // - 双方変更の競合は通知する
+      // - 導出スタッツ・出場時間・カード集計・ミラー整合は commitSquadSave 内で完結
+      const result = await commitSquadSave(db, matchDocRef.path, {
+        form: {
+          events: sanitizedEvents,
+          playerStats: normalizedPlayerStats,
+          homeFormation: data.homeFormation,
+          awayFormation: data.awayFormation,
+          customStatHeaders: data.customStatHeaders,
+        },
+        loaded: loadedSnapshotRef.current || {
+          events: [],
+          playerStats: [],
+          customStatHeaders: [],
+        },
+        homeTeam: match.homeTeam,
+        awayTeam: match.awayTeam,
+        fallbackDuration: match.matchDuration,
+        playerNameToId,
       });
 
-      // Check if any event exceeds 90 minutes and automatically set matchDuration to 120
-      const hasEventBeyond90 = (data.events || []).some((ev: any) => {
-        const minute = ev.minute;
-        let baseMinute = 0;
-        
-        if (typeof minute === 'number') {
-          // Handle decimal representation (e.g., 45.001 for "45+1")
-          baseMinute = Math.floor(minute);
-        } else {
-          // Handle string representation (e.g., "45+1" or "95")
-          const minuteStr = String(minute);
-          if (minuteStr.includes('+')) {
-            const parts = minuteStr.split('+');
-            baseMinute = parseInt(parts[0], 10) || 0;
-          } else {
-            baseMinute = parseInt(minuteStr, 10) || 0;
-          }
+      // スナップショットを保存後の状態に更新（次回保存の基準）
+      loadedSnapshotRef.current = {
+        events: result.events,
+        playerStats: result.playerStats,
+        homeFormation: result.homeFormation,
+        awayFormation: result.awayFormation,
+        customStatHeaders: result.customStatHeaders,
+      };
+
+      // 外部変更を取り込んだ場合はフォーム表示も同期（古い値の再保存を防ぐ）
+      if (result.adoptedExternal) {
+        methods.setValue('events', result.events, { shouldDirty: false });
+        methods.setValue('playerStats', result.playerStats, { shouldDirty: false });
+        if (result.homeFormation !== undefined) {
+          methods.setValue('homeFormation', result.homeFormation, { shouldDirty: false });
         }
-        
-        return baseMinute > 90;
-      });
-
-      if (hasEventBeyond90) {
-        (payload as any).matchDuration = 120;
-      } else {
-        // If no events beyond 90, keep current matchDuration or default to 90
-        (payload as any).matchDuration = match.matchDuration || 90;
+        if (result.awayFormation !== undefined) {
+          methods.setValue('awayFormation', result.awayFormation, { shouldDirty: false });
+        }
+        methods.setValue('customStatHeaders', result.customStatHeaders, { shouldDirty: false });
       }
-
-      // If substitution events changed since load, recompute minutesPlayed.
-      // This covers form instances without a mounted PlayerStatsTable (view="events").
-      const nextSubSig = subEventsSignature(sanitizedEvents);
-      if (loadedSubSigRef.current !== null && nextSubSig !== loadedSubSigRef.current) {
-        let recomputed = normalizedPlayerStats;
-        const teamIds = new Set(recomputed.map((ps: any) => ps?.teamId).filter(Boolean));
-        teamIds.forEach((teamId) => {
-          recomputed = recomputeTeamMinutes(
-            recomputed,
-            sanitizedEvents,
-            teamId as string,
-            (payload as any).matchDuration || 90
-          );
-        });
-        (payload as any).playerStats = recomputed;
+      if (result.conflicts.length > 0) {
+        toast.warning(`保存しましたが、他の画面との競合がありました: ${result.conflicts.join(' / ')}`);
       }
-
-      // Count yellow and red cards from events and update team stats
-      const homeYellowCards = (data.events || []).filter((ev: any) => 
-        ev.type === 'card' && ev.teamId === match.homeTeam && ev.cardColor === 'yellow'
-      ).length;
-      const awayYellowCards = (data.events || []).filter((ev: any) => 
-        ev.type === 'card' && ev.teamId === match.awayTeam && ev.cardColor === 'yellow'
-      ).length;
-      const homeRedCards = (data.events || []).filter((ev: any) => 
-        ev.type === 'card' && ev.teamId === match.homeTeam && ev.cardColor === 'red'
-      ).length;
-      const awayRedCards = (data.events || []).filter((ev: any) => 
-        ev.type === 'card' && ev.teamId === match.awayTeam && ev.cardColor === 'red'
-      ).length;
-
-      // Update team stats with card counts
-      const existingTeamStats = match.teamStats || [];
-      const updatedTeamStats = existingTeamStats.map((stat: any) => {
-        if (stat.id === 'yellowCards' || stat.name === 'イエロー') {
-          return {
-            ...stat,
-            homeValue: homeYellowCards,
-            awayValue: awayYellowCards,
-          };
-        }
-        if (stat.id === 'redCards' || stat.name === 'レッド') {
-          return {
-            ...stat,
-            homeValue: homeRedCards,
-            awayValue: awayRedCards,
-          };
-        }
-        return stat;
-      });
-
-      (payload as any).teamStats = updatedTeamStats;
-
-      await setDoc(matchDocRef, payload, { merge: true });
-
-      const eventsColRef = collection(
-        db,
-        `${(matchDocPath || `clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}/matches/${match.id}`)}/events`
-      );
-
-      const desiredSubDocIds = new Set<string>();
-      const batch = writeBatch(db);
-
-      (sanitizedEvents || []).forEach((ev: any) => {
-        for (const m of mirrorDocsForEvent(ev)) {
-          desiredSubDocIds.add(m.id);
-          batch.set(doc(eventsColRef, m.id), m.data, { merge: true });
-        }
-      });
-
-      const existingEventsSnap = await getDocs(eventsColRef);
-      existingEventsSnap.docs.forEach((d) => {
-        const managed = d.id.startsWith('sub-') || d.id.startsWith('evt-');
-        if (managed && !desiredSubDocIds.has(d.id)) {
-          batch.delete(d.ref);
-        }
-      });
-
-      await batch.commit();
-
-      loadedSubSigRef.current = nextSubSig;
 
       if (showToast) toast.success('出場選手・スタッツ・イベントを更新しました。');
 

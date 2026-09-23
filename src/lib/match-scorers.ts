@@ -1,4 +1,5 @@
 import { MatchEvent } from "@/types/match";
+import { minuteSortValue } from "@/lib/match-minutes";
 
 const GOAL_TYPE_VALUES = [
   "goal",
@@ -28,17 +29,17 @@ export function isGoalEvent(event: MatchEvent | { type?: unknown; minute?: numbe
 
 export function getGoalEvents(events?: MatchEvent[]): MatchEvent[] {
   if (!events || events.length === 0) return [];
-  return [...events].filter(isGoalEvent).sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
+  return [...events].filter(isGoalEvent).sort((a, b) => minuteSortValue(a.minute) - minuteSortValue(b.minute));
 }
 
-function goalEventSuffix(event: MatchEvent): string {
+export function goalEventSuffix(event: MatchEvent): string {
   const t = normalizeEventType(event.type);
   if (t === "og" || t === "owngoal" || t === "own" || t === "og" || t === "ＯＧ" || t === "オウンゴール") return "（OG）";
   if (t === "pk" || t === "penalty" || t === "pen" || t === "ＰＫ") return "（PK）";
   // Some stores mark PK/OG as sub-type property rather than main type
   const raw = event as any;
-  if (raw?.isOwnGoal === true || raw?.ownGoal === true) return "（OG）";
-  if (raw?.isPenalty === true || raw?.penalty === true) return "（PK）";
+  if (raw?.isOwnGoal === true || raw?.ownGoal === true || raw?.goalKind === 'own_goal') return "（OG）";
+  if (raw?.isPenalty === true || raw?.penalty === true || raw?.goalKind === 'penalty') return "（PK）";
   return "";
 }
 
@@ -46,6 +47,35 @@ export function formatGoalScorersText(events?: MatchEvent[], emptyText = "得点
   const goals = getGoalEvents(events);
   if (goals.length === 0) return emptyText;
   return goals.map((e) => `${e.playerName || "不明"} ${e.minute}'${goalEventSuffix(e)}`).join("、");
+}
+
+// スコア下の得点者名を解決する（公開・管理画面で共通）。
+// 優先順位: 紐付き選手の登録名 → イベントに保存された playerName（未紐付け名）→ 空欄。
+export function resolveScorerName(
+  event: { playerId?: string; playerName?: string },
+  lookupName?: (playerId: string) => string | undefined
+): string {
+  if (event.playerId) {
+    const registered = lookupName?.(event.playerId);
+    if (registered) return registered;
+  }
+  return event.playerName || "";
+}
+
+// イベント一覧の選手名を解決する（公開・管理画面で共通）。
+// 優先順位: 紐付き選手の登録名 → イベントに保存された名前（未紐付けの自由入力名）→ なし。
+// custom_ プレフィックスIDは登録選手でないため保存名をそのまま使う。
+export function resolveEventPlayerName(
+  playerId: string | undefined,
+  savedName: string | undefined,
+  lookupName: (playerId: string) => string | undefined
+): string | undefined {
+  if (playerId) {
+    if (playerId.startsWith('custom_')) return savedName;
+    const registered = lookupName(playerId);
+    if (registered) return registered;
+  }
+  return savedName;
 }
 
 function getSideLabel(
@@ -102,14 +132,14 @@ export function isOwnGoalEvent(event: MatchEvent | { type?: unknown }): boolean 
   const t = normalizeEventType(event.type);
   if (["og", "owngoal", "own", "ＯＧ", "オウンゴール"].includes(t)) return true;
   const raw = event as any;
-  return raw?.isOwnGoal === true || raw?.ownGoal === true;
+  return raw?.isOwnGoal === true || raw?.ownGoal === true || raw?.goalKind === 'own_goal';
 }
 
 export function isPenaltyEvent(event: MatchEvent | { type?: unknown }): boolean {
   const t = normalizeEventType(event.type);
   if (["pk", "penalty", "pen", "ＰＫ"].includes(t)) return true;
   const raw = event as any;
-  return raw?.isPenalty === true || raw?.penalty === true;
+  return raw?.isPenalty === true || raw?.penalty === true || raw?.goalKind === 'penalty';
 }
 
 export function getMatchGoalSummary(

@@ -8,6 +8,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ClubFooter } from "@/components/club-footer";
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import { formatMinute } from "@/lib/formatMinute";
+import { minuteSortValue } from "@/lib/match-minutes";
+import { resolveScorerName, goalEventSuffix, resolveEventPlayerName } from "@/lib/match-scorers";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 const getFormationSlots = (formation: string) => {
@@ -870,28 +872,22 @@ export default async function MatchDetailPage({ params }: PageProps) {
           <div className="mx-auto mt-4 grid w-[320px] max-w-full grid-cols-2 gap-6 text-[11px] font-bold leading-relaxed text-white md:w-[420px] md:text-xs">
             <div className="space-y-0.5 text-right">
               {homeGoals.map((g) => {
-                const ev: any = g;
-                const nameFromEvent = ev.playerName as string | undefined;
-                const nameFromMeta = g.playerId ? playerMetaMap[g.playerId]?.name : undefined;
-                const nameFromStats = g.playerId ? playerNameMap.get(g.playerId) : undefined;
-                const label = nameFromMeta || nameFromEvent || nameFromStats || "G";
+                const label = resolveScorerName(g, (pid) => playerMetaMap[pid]?.name || playerNameMap.get(pid));
+                const suffix = goalEventSuffix(g);
                 return (
                   <div key={g.id}>
-                    {`${label} ${formatMinute(g.minute)}'`}
+                    {`${label ? `${label}${suffix} ` : ''}${formatMinute(g.minute)}'`}
                   </div>
                 );
               })}
             </div>
             <div className="space-y-0.5 text-left">
               {awayGoals.map((g) => {
-                const ev: any = g;
-                const nameFromEvent = ev.playerName as string | undefined;
-                const nameFromMeta = g.playerId ? playerMetaMap[g.playerId]?.name : undefined;
-                const nameFromStats = g.playerId ? playerNameMap.get(g.playerId) : undefined;
-                const label = nameFromMeta || nameFromEvent || nameFromStats || "G";
+                const label = resolveScorerName(g, (pid) => playerMetaMap[pid]?.name || playerNameMap.get(pid));
+                const suffix = goalEventSuffix(g);
                 return (
                   <div key={g.id}>
-                    {`${formatMinute(g.minute)}' ${label}`}
+                    {`${formatMinute(g.minute)}'${label ? ` ${label}${suffix}` : ''}`}
                   </div>
                 );
               })}
@@ -1056,7 +1052,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 {(() => {
                   const sorted = events
                     .slice()
-                    .sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
+                    .sort((a, b) => minuteSortValue(a.minute) - minuteSortValue(b.minute));
 
                   const renderTypeBadge = (ev: any) => {
                     if (ev.type === "goal") return "⚽";
@@ -1141,20 +1137,17 @@ export default async function MatchDetailPage({ params }: PageProps) {
                         const { ev, homeScore, awayScore } = row;
                         const isHome = ev.teamId === match.homeTeam;
 
-                        const resolveEventPlayerName = (id: string | undefined, savedName: string | undefined) => {
-                          if (!id) return undefined;
-                          if (id.startsWith('custom_')) return savedName;
-                          return playerNameMap.get(id) || savedName;
-                        };
+                        const resolveEventName = (id: string | undefined, savedName: string | undefined) =>
+                          resolveEventPlayerName(id, savedName, (pid) => playerNameMap.get(pid));
 
-                        const nameLabel = resolveEventPlayerName(ev.playerId, (ev as any).playerName) || "";
-                        const assist = resolveEventPlayerName((ev as any).assistPlayerId, (ev as any).assistPlayerName);
+                        const nameLabel = resolveEventName(ev.playerId, (ev as any).playerName) || "";
+                        const assist = resolveEventName((ev as any).assistPlayerId, (ev as any).assistPlayerName);
                         const assistId = (ev as any).assistPlayerId as string | undefined;
 
                         const outPlayerId = (ev as any).outPlayerId as string | undefined;
                         const inPlayerId = (ev as any).inPlayerId as string | undefined;
-                        const outName = resolveEventPlayerName(outPlayerId, (ev as any).outPlayerName);
-                        const inName = resolveEventPlayerName(inPlayerId, (ev as any).inPlayerName);
+                        const outName = resolveEventName(outPlayerId, (ev as any).outPlayerName);
+                        const inName = resolveEventName(inPlayerId, (ev as any).inPlayerName);
 
                         let label = "";
                         let detailLabel = "";

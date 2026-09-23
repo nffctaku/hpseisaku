@@ -15,10 +15,15 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Player, MatchDetails, MatchEvent } from '@/types/match';
 import { appendMatchEvent } from '@/lib/match-event-sync';
+import { MobilePickerModal, type PickerRequest } from '@/components/mobile-picker-modal';
 
 const eventFormSchema = z.object({
   type: z.enum(['goal', 'card', 'substitution']),
-  minute: z.coerce.number().min(0, "時間は0以上で入力してください。"),
+  // アディショナルタイム表現（"45+2"）も許容する
+  minute: z.union([
+    z.coerce.number().min(0, "時間は0以上で入力してください。"),
+    z.string().regex(/^\d{1,3}\+\d{1,2}$/, "例: 45+2 の形式で入力してください。"),
+  ]),
   teamId: z.string().min(1, "チームを選択してください。"),
   playerId: z.string().optional(),
   manualPlayerName: z.string().optional(),
@@ -62,13 +67,7 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
   const ownerUid = activeCareer?.clubUid || user?.uid;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [assistPlayerName, setAssistPlayerName] = useState('');
-  const [mobilePicker, setMobilePicker] = useState<null | {
-    title: string;
-    value: string;
-    options: Array<{ value: string; label: string }>;
-    onSelect: (value: string) => void;
-  }>(null);
-  const [pressedPickerValue, setPressedPickerValue] = useState<string | null>(null);
+  const [mobilePicker, setMobilePicker] = useState<PickerRequest | null>(null);
 
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventFormSchema) as any,
@@ -159,45 +158,7 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
   return (
     <Form {...form}>
       <form onSubmit={(form.handleSubmit as any)(onSubmit)} className="space-y-4">
-        {mobilePicker ? (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4 sm:hidden" onClick={() => setMobilePicker(null)}>
-            <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#f4f4f6] shadow-2xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex h-12 items-center justify-between border-b border-slate-300/80 bg-white px-4">
-                <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobilePicker(null)}>
-                  キャンセル
-                </button>
-                <div className="text-sm font-bold text-slate-500">{mobilePicker.title}</div>
-                <button type="button" className="text-base font-bold text-blue-500" onClick={() => setMobilePicker(null)}>
-                  完了
-                </button>
-              </div>
-              <div className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
-                {mobilePicker.options.map((option) => {
-                  const isPressed = pressedPickerValue === option.value;
-                  const isSelected = option.value === mobilePicker.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onPointerDown={() => setPressedPickerValue(option.value)}
-                      onClick={() => {
-                        setPressedPickerValue(option.value);
-                        window.setTimeout(() => {
-                          mobilePicker.onSelect(option.value);
-                          setMobilePicker(null);
-                          setPressedPickerValue(null);
-                        }, 140);
-                      }}
-                      className={`block h-14 w-full scroll-mt-[22vh] [scroll-snap-align:center] truncate rounded-xl text-center text-[22px] font-bold leading-[56px] transition-colors ${isPressed ? 'bg-blue-500/25 text-blue-700' : isSelected ? 'bg-blue-500/10 text-blue-600' : 'text-slate-400'}`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        ) : null}
+        <MobilePickerModal picker={mobilePicker} onClose={() => setMobilePicker(null)} mobileOnly />
         <FormField
           control={form.control}
           name="type"
@@ -235,7 +196,7 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
             <FormItem>
               <FormLabel>時間 (分)</FormLabel>
               <FormControl>
-                <Input type="number" placeholder="例: 21" {...field} />
+                <Input type="text" inputMode="numeric" placeholder="例: 21 または 45+2" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

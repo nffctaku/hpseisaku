@@ -68,6 +68,8 @@ export interface Player {
   id: string;
   name: string;
   subName?: string;
+  /** OCR読み取り名との対応表（ユーザー確認済みのみ登録） */
+  aliases?: string[];
   number: number;
   position: "GK" | "DF" | "MF" | "FW";
   mainPosition?: "ST" | "RW" | "LW" | "AM" | "RM" | "LM" | "CM" | "DM" | "CB" | "RB" | "LB" | "GK";

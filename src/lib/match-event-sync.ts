@@ -10,8 +10,7 @@
 
 import {
   doc,
-  getDoc,
-  writeBatch,
+  runTransaction,
   serverTimestamp,
   type Firestore,
 } from 'firebase/firestore';
@@ -19,8 +18,8 @@ import { recomputeTeamMinutes } from './match-minutes';
 
 export interface MatchEventInput {
   id: string;
-  type: 'goal' | 'card' | 'substitution' | 'note' | string;
-  minute: number;
+  type: 'goal' | 'card' | 'substitution' | 'note' | 'pk_miss' | string;
+  minute: number | string;
   teamId: string;
   playerId?: string;
   playerName?: string;
@@ -32,6 +31,12 @@ export interface MatchEventInput {
   outPlayerId?: string;
   outPlayerName?: string;
   text?: string;
+  goalKind?: 'open' | 'penalty' | 'own_goal';
+  playerLinkStatus?: 'linked' | 'name_only' | 'needs_input';
+  source?: 'ocr' | 'manual';
+  assistStatus?: 'unknown' | 'none' | 'set';
+  needsConfirmation?: boolean;
+  minuteText?: string;
 }
 
 // Firestore rejects undefined values — strip them recursively.
@@ -55,13 +60,13 @@ export function mirrorDocsForEvent(ev: MatchEventInput): { id: string; data: Rec
     if (ev.outPlayerId) {
       docs.push({
         id: `sub-${ev.id}-out`,
-        data: { ...base, type: 'sub_out', playerId: ev.outPlayerId, playerName: ev.outPlayerName || '' },
+        data: stripUndefined({ ...base, type: 'sub_out', playerId: ev.outPlayerId, playerName: ev.outPlayerName || '' }),
       });
     }
     if (ev.inPlayerId) {
       docs.push({
         id: `sub-${ev.id}-in`,
-        data: { ...base, type: 'sub_in', playerId: ev.inPlayerId, playerName: ev.inPlayerName || '' },
+        data: stripUndefined({ ...base, type: 'sub_in', playerId: ev.inPlayerId, playerName: ev.inPlayerName || '' }),
       });
     }
     return docs;
@@ -77,6 +82,12 @@ export function mirrorDocsForEvent(ev: MatchEventInput): { id: string; data: Rec
       assistPlayerName: ev.assistPlayerName,
       cardColor: ev.cardColor,
       text: ev.text,
+      goalKind: ev.goalKind,
+      playerLinkStatus: ev.playerLinkStatus,
+      source: ev.source,
+      assistStatus: ev.assistStatus,
+      needsConfirmation: ev.needsConfirmation,
+      minuteText: ev.minuteText,
     }),
   }];
 }
@@ -91,33 +102,39 @@ export function arrayEventIdFromMirrorDoc(docId: string): { eventId: string; kin
 }
 
 // Append an event to match.events (+ recompute minutesPlayed for substitutions)
-// and write its subcollection mirror docs in one batch.
+// and write its subcollection mirror docs in one transaction. Transactional so
+// concurrent writers (OCR confirm / event edit / autosave) don't lose updates.
 export async function appendMatchEvent(
   db: Firestore,
   matchPath: string,
   event: MatchEventInput
 ): Promise<void> {
   const matchRef = doc(db, matchPath);
-  const snap = await getDoc(matchRef);
-  const data = snap.data() || {};
-  const curEvents: Record<string, unknown>[] = Array.isArray(data.events) ? data.events : [];
-  const curStats: Record<string, unknown>[] = Array.isArray(data.playerStats) ? data.playerStats : [];
-  const duration = typeof data.matchDuration === 'number' ? data.matchDuration : 90;
-
-  const nextEvents = [...curEvents, stripUndefined(event)];
-  const payload: Record<string, unknown> = { events: nextEvents };
-
-  if (event.type === 'substitution') {
-    payload.playerStats = recomputeTeamMinutes(curStats, nextEvents, event.teamId, duration);
-  }
-
-  const batch = writeBatch(db);
-  batch.set(matchRef, payload, { merge: true });
   const eventsCol = `${matchPath}/events`;
-  for (const m of mirrorDocsForEvent(event)) {
-    batch.set(doc(db, eventsCol, m.id), m.data, { merge: true });
-  }
-  await batch.commit();
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(matchRef);
+    const data = snap.data() || {};
+    const curEvents: Record<string, unknown>[] = Array.isArray(data.events) ? data.events : [];
+    const curStats: Record<string, unknown>[] = Array.isArray(data.playerStats) ? data.playerStats : [];
+    const duration = typeof data.matchDuration === 'number' ? data.matchDuration : 90;
+
+    const cleanEvent = stripUndefined(event) as unknown as Record<string, unknown>;
+    // Idempotency: same event id already present → don't duplicate.
+    if (!curEvents.some((e) => e && e.id === cleanEvent.id)) {
+      curEvents.push(cleanEvent);
+    }
+    const payload: Record<string, unknown> = { events: curEvents };
+
+    if (event.type === 'substitution') {
+      payload.playerStats = recomputeTeamMinutes(curStats, curEvents, event.teamId, duration);
+    }
+
+    tx.set(matchRef, payload, { merge: true });
+    for (const m of mirrorDocsForEvent(event)) {
+      tx.set(doc(db, eventsCol, m.id), m.data, { merge: true });
+    }
+  });
 }
 
 // Delete an event by its mirror-doc id: removes the array entry (when linked),
@@ -132,32 +149,33 @@ export async function removeMatchEvent(
   const eventDocRef = doc(db, `${matchPath}/events/${mirrorDocId}`);
 
   if (!link) {
-    const batch = writeBatch(db);
-    batch.delete(eventDocRef);
-    await batch.commit();
+    await runTransaction(db, async (tx) => {
+      tx.delete(eventDocRef);
+    });
     return;
   }
 
   const matchRef = doc(db, matchPath);
-  const snap = await getDoc(matchRef);
-  const data = snap.data() || {};
-  const curEvents: Record<string, unknown>[] = Array.isArray(data.events) ? data.events : [];
-  const curStats: Record<string, unknown>[] = Array.isArray(data.playerStats) ? data.playerStats : [];
-  const duration = typeof data.matchDuration === 'number' ? data.matchDuration : 90;
 
-  const removed = curEvents.find((e) => e && e.id === link.eventId);
-  const nextEvents = curEvents.filter((e) => !(e && e.id === link.eventId));
-  const payload: Record<string, unknown> = { events: nextEvents };
-  if (removed?.type === 'substitution' && typeof removed.teamId === 'string') {
-    payload.playerStats = recomputeTeamMinutes(curStats, nextEvents, removed.teamId, duration);
-  }
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(matchRef);
+    const data = snap.data() || {};
+    const curEvents: Record<string, unknown>[] = Array.isArray(data.events) ? data.events : [];
+    const curStats: Record<string, unknown>[] = Array.isArray(data.playerStats) ? data.playerStats : [];
+    const duration = typeof data.matchDuration === 'number' ? data.matchDuration : 90;
 
-  const batch = writeBatch(db);
-  batch.set(matchRef, payload, { merge: true });
-  batch.delete(eventDocRef);
-  // Delete all sibling mirror docs belonging to the same array event.
-  batch.delete(doc(db, `${matchPath}/events/sub-${link.eventId}-out`));
-  batch.delete(doc(db, `${matchPath}/events/sub-${link.eventId}-in`));
-  batch.delete(doc(db, `${matchPath}/events/evt-${link.eventId}`));
-  await batch.commit();
+    const removed = curEvents.find((e) => e && e.id === link.eventId);
+    const nextEvents = curEvents.filter((e) => !(e && e.id === link.eventId));
+    const payload: Record<string, unknown> = { events: nextEvents };
+    if (removed?.type === 'substitution' && typeof removed.teamId === 'string') {
+      payload.playerStats = recomputeTeamMinutes(curStats, nextEvents, removed.teamId, duration);
+    }
+
+    tx.set(matchRef, payload, { merge: true });
+    tx.delete(eventDocRef);
+    // Delete all sibling mirror docs belonging to the same array event.
+    tx.delete(doc(db, `${matchPath}/events/sub-${link.eventId}-out`));
+    tx.delete(doc(db, `${matchPath}/events/sub-${link.eventId}-in`));
+    tx.delete(doc(db, `${matchPath}/events/evt-${link.eventId}`));
+  });
 }

@@ -9,6 +9,7 @@ import { Trash2, Plus, ArrowLeftRight, AlertCircle } from "lucide-react";
 import { FaFutbol } from "react-icons/fa";
 import { Player, MatchDetails } from "@/types/match";
 import { formatMinute } from "@/lib/formatMinute";
+import { minuteSortValue } from "@/lib/match-minutes";
 
 // 時間プルダウン用オプション
 // 表示順: 0..45, 45+1..45+10, 46..89, 90, 90+1..90+10, 91..104, 105+1..105+10, 106..119, 120, 120+1..120+10
@@ -73,7 +74,7 @@ interface MatchEventsTableProps {
 
 export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEventsTableProps) {
   const { control, watch, setValue, register } = useFormContext();
-  const { fields, prepend, remove } = useFieldArray({
+  const { fields, prepend, remove, update } = useFieldArray({
     control,
     name: "events",
   });
@@ -100,6 +101,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
     onSelect: (value: string) => void;
   }>(null);
   const [pressedPickerValue, setPressedPickerValue] = useState<string | null>(null);
+  const [editingEventIndex, setEditingEventIndex] = useState<number | null>(null);
 
   const playerMap = [...homePlayers, ...awayPlayers].reduce<Record<string, Player>>(
     (acc, p) => {
@@ -329,13 +331,30 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
       return null;
     };
 
+    // アシスト・紐づけ編集用
+    const isGoal = currentType === "goal" || (field as any).goalKind === 'penalty';
+    const isNameOnly = (field as any).playerLinkStatus === 'name_only' ||
+      (typeof field.playerId === 'string' && field.playerId.startsWith('custom_'));
+    const assistStatusVal = (field as any).assistStatus as string | undefined;
+    const editTeamPlayers = teamId === match.homeTeam ? homePlayers : awayPlayers;
+
+    const applyEdit = (patch: Record<string, unknown>) => {
+      const cur = watch(`events.${index}`) as any;
+      update(index, { ...cur, ...patch });
+    };
+
     const getEventDescription = () => {
       if (currentType === "goal") {
         const scorer = resolveEventName(field.playerId, field.playerName);
         const assist = resolveEventName(field.assistPlayerId, field.assistPlayerName);
         let text = scorer || "";
+        if ((field as any).goalKind === 'penalty') text += ' (PK)';
         if (assist) text += ` (${assist})`;
+        else if (assistStatusVal === 'none') text += ' [アシストなし]';
         return text;
+      } else if (currentType === 'pk_miss' as any) {
+        const kicker = resolveEventName(field.playerId, field.playerName);
+        return `${kicker || ''} (PK失敗)`;
       } else if (currentType === "card") {
         const player = resolveEventName(field.playerId, field.playerName);
         const cardColor = field.cardColor === "yellow" ? "イエロー" : "レッド";
@@ -355,35 +374,132 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
       return "";
     };
 
+    const isEditing = editingEventIndex === index;
+    const isPkGoal = isGoal && (field as any).goalKind === 'penalty';
+
     return (
-      <div
-        key={field.id}
-        className="flex items-center rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100"
-      >
-        {/* イベントアイコン */}
-        <div className="flex-shrink-0 mr-1">
-          {getEventIcon()}
+      <div key={field.id} className="rounded-xl border border-slate-700 bg-slate-900 text-slate-100">
+        <div className="flex items-center px-4 py-3">
+          {/* イベントアイコン */}
+          <div className="flex-shrink-0 mr-1">
+            {getEventIcon()}
+          </div>
+
+          {/* 時間とイベント内容 */}
+          <div className="flex items-center flex-1 min-w-0 overflow-hidden text-left">
+            <span className="mr-0 w-12 text-left text-sm font-medium text-slate-100">{formatMinute(minute)}</span>
+            <span className="text-sm text-slate-200">{getEventDescription()}</span>
+            {isNameOnly && (
+              <span className="ml-1 rounded bg-amber-500/20 px-1 text-[10px] text-amber-300">名前のみ</span>
+            )}
+          </div>
+
+          {/* チーム表示 */}
+          <div className="flex-shrink-0 text-left ml-1">
+            <span className="text-xs text-slate-500">
+              {teamId === match.homeTeam ? "(H)" : "(A)"}
+            </span>
+          </div>
+
+          {/* 編集ボタン（ゴール・名前のみイベント） */}
+          {(isGoal || isNameOnly || currentType === 'pk_miss' as any) && (
+            <div className="flex-shrink-0 ml-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setEditingEventIndex(isEditing ? null : index)}
+              >
+                <span className="text-xs text-slate-300">編集</span>
+              </Button>
+            </div>
+          )}
+
+          {/* 削除ボタン */}
+          <div className="flex-shrink-0 ml-1">
+            <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+              <Trash2 className="h-4 w-4 text-red-300" />
+            </Button>
+          </div>
         </div>
 
-        {/* 時間とイベント内容 */}
-        <div className="flex items-center flex-1 min-w-0 overflow-hidden text-left">
-          <span className="mr-0 w-12 text-left text-sm font-medium text-slate-100">{formatMinute(minute)}</span>
-          <span className="text-sm text-slate-200">{getEventDescription()}</span>
-        </div>
+        {/* 編集パネル */}
+        {isEditing && (
+          <div className="space-y-2 border-t border-slate-700/60 px-4 py-3">
+            {/* 名前のみ → 登録選手への紐づけ */}
+            {(isNameOnly || !field.playerId) && currentType !== 'substitution' && (
+              <div>
+                <div className="mb-1 text-[10px] text-slate-400">選手を登録メンバーに紐づけ</div>
+                <select
+                  className="h-8 w-full rounded bg-slate-800 text-xs text-slate-100"
+                  value={field.playerId && !String(field.playerId).startsWith('custom_') ? field.playerId : ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) {
+                      applyEdit({ playerId: field.playerId, playerLinkStatus: 'name_only' });
+                      return;
+                    }
+                    const p = editTeamPlayers.find((pl) => pl.id === v);
+                    applyEdit({
+                      playerId: v,
+                      playerName: p?.name || field.playerName,
+                      playerLinkStatus: 'linked',
+                    });
+                  }}
+                >
+                  <option value="">名前のみのまま（{resolveEventName(field.playerId, field.playerName) || '未入力'}）</option>
+                  {editTeamPlayers.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <div className="mt-1">
+                  <Input
+                    value={resolveEventName(field.playerId, field.playerName) || ''}
+                    onChange={(e) => applyEdit({ playerName: e.target.value })}
+                    placeholder="表示名を修正"
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+            )}
 
-        {/* チーム表示 */}
-        <div className="flex-shrink-0 text-left ml-1">
-          <span className="text-xs text-slate-500">
-            {teamId === match.homeTeam ? "(H)" : "(A)"}
-          </span>
-        </div>
-
-        {/* 削除ボタン */}
-        <div className="flex-shrink-0 ml-1">
-          <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
-            <Trash2 className="h-4 w-4 text-red-300" />
-          </Button>
-        </div>
+            {/* アシスト編集（ゴールのみ・PKには自動付与しない） */}
+            {isGoal && !isPkGoal && (
+              <div>
+                <div className="mb-1 text-[10px] text-slate-400">
+                  アシスト{assistStatusVal === 'unknown' || !assistStatusVal ? '（情報なし）' : ''}
+                </div>
+                <select
+                  className="h-8 w-full rounded bg-slate-800 text-xs text-slate-100"
+                  value={
+                    field.assistPlayerId && !String(field.assistPlayerId).startsWith('custom_')
+                      ? field.assistPlayerId
+                      : assistStatusVal === 'none' ? '__none__' : '__unknown__'
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === '__unknown__') {
+                      applyEdit({ assistPlayerId: undefined, assistPlayerName: undefined, assistStatus: 'unknown' });
+                    } else if (v === '__none__') {
+                      applyEdit({ assistPlayerId: undefined, assistPlayerName: undefined, assistStatus: 'none' });
+                    } else {
+                      const p = editTeamPlayers.find((pl) => pl.id === v);
+                      applyEdit({ assistPlayerId: v, assistPlayerName: p?.name, assistStatus: 'set' });
+                    }
+                  }}
+                >
+                  <option value="__unknown__">情報なし</option>
+                  <option value="__none__">アシストなし</option>
+                  {editTeamPlayers
+                    .filter((p) => p.id !== field.playerId)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -721,9 +837,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
             .sort((a, b) => {
               const eventA = watch(`events.${a.index}`) as any;
               const eventB = watch(`events.${b.index}`) as any;
-              const minuteA = eventA?.minute ?? 0;
-              const minuteB = eventB?.minute ?? 0;
-              return minuteA - minuteB;
+              return minuteSortValue(eventA?.minute ?? 0) - minuteSortValue(eventB?.minute ?? 0);
             })
             .map(({ field, index }) => renderEventRow(field, index))}
           {fields.length === 0 && (

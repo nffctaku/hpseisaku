@@ -14,9 +14,11 @@ import { MatchDetails, Player } from '@/types/match';
 import { toDashSeason, toSlashSeason } from '@/lib/season';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MatchTeamStatsForm } from '@/components/match-team-stats-form';
+import { MatchOcrCollapsible } from '@/components/match-ocr-panel';
 import { SquadRegistrationForm } from '@/components/squad-registration-form';
 import { MatchEventsPreview } from '@/components/match-events-preview';
 import { formatMinute } from '@/lib/formatMinute';
+import { resolveScorerName, goalEventSuffix } from '@/lib/match-scorers';
 
 export default function MatchAdminPage() {
   const { user } = useAuth();
@@ -38,6 +40,8 @@ export default function MatchAdminPage() {
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
   const [resolvedMatchDocPath, setResolvedMatchDocPath] = useState<string | null>(null);
   const [seasonId, setSeasonId] = useState<string | null>(null);
+  // OCR適用後に登録済みイベント一覧を再取得させるためのリマウントキー
+  const [eventsVersion, setEventsVersion] = useState(0);
   const [debugPanel, setDebugPanel] = useState<any>(null);
   const [competitionName, setCompetitionName] = useState<string>('');
   const [roundName, setRoundName] = useState<string>('');
@@ -557,6 +561,12 @@ export default function MatchAdminPage() {
     );
   }
 
+  // 得点者名の解決用（playerId -> 登録選手名）。未紐付けは resolveScorerName が
+  // イベントの playerName にフォールバックする。
+  const scorerNameLookup = new Map<string, string>(
+    [...homePlayers, ...awayPlayers].map((p) => [p.id, p.name])
+  );
+
   return (
     <div className="container mx-auto max-w-4xl py-6 sm:py-10">
       <div className="mb-4 flex items-center justify-between">
@@ -683,16 +693,10 @@ export default function MatchAdminPage() {
                 .filter((e: any) => e.teamId === match.homeTeam && (e.type === 'goal' || e.type === 'og'))
                 .sort((a: any, b: any) => (a.minute ?? 0) - (b.minute ?? 0))
                 .map((event: any) => {
-                  const getPlayerName = (playerId: string | undefined, playerName?: string) => {
-                    if (!playerId) return "";
-                    if (playerName) return playerName;
-                    const player = [...homePlayers, ...awayPlayers].find(p => p.id === playerId);
-                    return player?.name || "";
-                  };
-                  const scorer = getPlayerName(event.playerId, event.playerName);
+                  const scorer = resolveScorerName(event, (pid) => scorerNameLookup.get(pid));
                   return (
                     <div key={event.id} className="text-slate-300">
-                      {scorer} {formatMinute(event.minute)}'
+                      {scorer ? `${scorer}${goalEventSuffix(event)} ` : ''}{formatMinute(event.minute)}'
                     </div>
                   );
                 })
@@ -704,16 +708,10 @@ export default function MatchAdminPage() {
                     .filter((e: any) => e.teamId === match.awayTeam && (e.type === 'goal' || e.type === 'og'))
                     .sort((a: any, b: any) => (a.minute ?? 0) - (b.minute ?? 0))
                     .map((event: any) => {
-                      const getPlayerName = (playerId: string | undefined, playerName?: string) => {
-                        if (!playerId) return "";
-                        if (playerName) return playerName;
-                        const player = [...homePlayers, ...awayPlayers].find(p => p.id === playerId);
-                        return player?.name || "";
-                      };
-                      const scorer = getPlayerName(event.playerId, event.playerName);
+                      const scorer = resolveScorerName(event, (pid) => scorerNameLookup.get(pid));
                       return (
                         <div key={event.id} className="text-slate-300">
-                          {formatMinute(event.minute)}' {scorer}{event.type === 'og' ? ' (OG)' : ''}
+                          {formatMinute(event.minute)}'{scorer ? ` ${scorer}${goalEventSuffix(event)}` : ''}
                         </div>
                       );
                     })
@@ -750,16 +748,28 @@ export default function MatchAdminPage() {
           />
         </TabsContent>
         <TabsContent value="match-events">
-          <SquadRegistrationForm
-            match={match}
-            homePlayers={homePlayers}
-            awayPlayers={awayPlayers}
-            roundId={roundId as string}
-            competitionId={competitionId as string}
-            matchDocPath={resolvedMatchDocPath ?? undefined}
-            seasonId={seasonId ?? undefined}
-            view="events"
-          />
+          <div className="space-y-4">
+            {resolvedMatchDocPath && (
+              <MatchOcrCollapsible
+                match={match}
+                matchDocPath={resolvedMatchDocPath}
+                homePlayers={homePlayers}
+                awayPlayers={awayPlayers}
+                onApplied={() => setEventsVersion((v) => v + 1)}
+              />
+            )}
+            <SquadRegistrationForm
+              key={`events-${eventsVersion}`}
+              match={match}
+              homePlayers={homePlayers}
+              awayPlayers={awayPlayers}
+              roundId={roundId as string}
+              competitionId={competitionId as string}
+              matchDocPath={resolvedMatchDocPath ?? undefined}
+              seasonId={seasonId ?? undefined}
+              view="events"
+            />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

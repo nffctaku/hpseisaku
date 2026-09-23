@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MatchTeamStatsForm } from "@/components/match-team-stats-form";
+import { MatchOcrCollapsible } from "@/components/match-ocr-panel";
 import { SquadRegistrationForm } from "@/components/squad-registration-form";
 import { MatchEventsPreview } from "@/components/match-events-preview";
 import type { MatchDetails, Player, MatchEvent } from "@/types/match";
@@ -416,6 +417,14 @@ export default function FriendlyMatchAdminPage() {
         </TabsContent>
 
         <TabsContent value="match-events">
+          {matchDocPath && (
+            <MatchOcrCollapsible
+              match={match}
+              matchDocPath={matchDocPath}
+              homePlayers={homePlayers}
+              awayPlayers={awayPlayers}
+            />
+          )}
           <MatchEventsPreview match={match} homePlayers={homePlayers} awayPlayers={awayPlayers} />
         </TabsContent>
 

@@ -29,7 +29,7 @@ const LIMIT_TABLE: Record<LimitKey, Record<PlanTier, number>> = {
   player_photos_per_team: { free: 20, pro: Number.POSITIVE_INFINITY, officia: Number.POSITIVE_INFINITY },
   staff_per_season: { free: Number.POSITIVE_INFINITY, pro: Number.POSITIVE_INFINITY, officia: Number.POSITIVE_INFINITY },
   team_images_per_account: { free: 20, pro: Number.POSITIVE_INFINITY, officia: Number.POSITIVE_INFINITY },
-  ocr_per_month: { free: 5, pro: 150, officia: Number.POSITIVE_INFINITY },
+  ocr_per_month: { free: 15, pro: 300, officia: 300 },
 };
 
 export const getPlanLimit = (key: LimitKey, tier: PlanTier): number => {

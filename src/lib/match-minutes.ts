@@ -18,6 +18,14 @@ interface PlayerStatLike {
   [key: string]: unknown;
 }
 
+// "45+2" / 45.001 / "95" / 95 などの表現をソート・比較用の数値へ変換する。
+// minute は実データ上 number と string("90+3" 等) が混在するため必ずここを通す。
+export const minuteSortValue = (minute: unknown): number => {
+  if (typeof minute === 'number' && Number.isFinite(minute)) return minute;
+  const { base, stoppage } = parseMinute(minute);
+  return base + stoppage / 100;
+};
+
 const parseMinute = (minute: unknown): { base: number; stoppage: number } => {
   const minuteStr = typeof minute === 'string' ? minute : String(minute ?? '');
   if (minuteStr.includes('+')) {

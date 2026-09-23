@@ -5,6 +5,8 @@ export interface Player {
   position?: string;
   photoURL?: string;
   teamId?: string;
+  /** OCR読み取り名との対応表（ユーザー確認済みのみ登録） */
+  aliases?: string[];
 }
 
 export interface Team {
@@ -15,8 +17,8 @@ export interface Team {
 
 export interface MatchEvent {
   id: string;
-  type: 'goal' | 'card' | 'substitution' | 'note';
-  minute: number;
+  type: 'goal' | 'card' | 'substitution' | 'note' | 'pk_miss';
+  minute: number | string;
   teamId: string;
   playerId?: string;
   playerName?: string;
@@ -28,6 +30,19 @@ export interface MatchEvent {
   outPlayerId?: string;
   outPlayerName?: string;
   text?: string;
+  // OCR拡張フィールド（任意・既存データには存在しない）
+  /** ゴール種別: PK成功は type:'goal' + goalKind:'penalty' */
+  goalKind?: 'open' | 'penalty' | 'own_goal';
+  /** 選手名の紐づけ状態: linked=登録選手確定 / name_only=名前のみ / needs_input=要入力 */
+  playerLinkStatus?: 'linked' | 'name_only' | 'needs_input';
+  /** OCR由来フラグ（重複統合・再解析時の識別用） */
+  source?: 'ocr' | 'manual';
+  /** アシスト情報なし（未入力）と「アシストなし（確定）」を区別 */
+  assistStatus?: 'unknown' | 'none' | 'set';
+  /** イベント種別が未確定（要ユーザー確認） */
+  needsConfirmation?: boolean;
+  /** 原本の時刻表現（例: "45+2"）。minuteが数値化できない場合の保持用 */
+  minuteText?: string;
 }
 
 export interface CustomStat {

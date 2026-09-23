@@ -253,7 +253,7 @@ export function StatsImageUploader({ onAnalysisComplete, registeredTeams = [], e
               label="試合スタッツの自動読み取り"
               current={usedCount}
               limit={limit}
-              proLabel="150枚/月"
+              proLabel="300枚/月"
               sourcePage="stats-image-uploader"
             />
           )}

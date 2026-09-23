@@ -193,7 +193,7 @@ export default function PlanPage() {
                 <svg className="w-5 h-5 text-[#4b5563] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-sm text-[#6b7280]">スタッツ自動読み取り 月5枚まで</span>
+                <span className="text-sm text-[#6b7280]">スタッツ自動読み取り 月15枚まで</span>
               </li>
             </ul>
 
@@ -267,7 +267,7 @@ export default function PlanPage() {
                 <svg className="w-5 h-5 text-[#60a5fa] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="text-sm text-white">スタッツ自動読み取り 月150枚まで</span>
+                <span className="text-sm text-white">スタッツ自動読み取り 月300枚まで</span>
               </li>
             </ul>
 

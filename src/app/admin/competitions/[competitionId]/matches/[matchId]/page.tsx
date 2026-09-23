@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCareer } from '@/contexts/CareerContext';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy, collectionGroup } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy } from "firebase/firestore";
 import { Loader2, LifeBuoy, Square, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
 import { FaFutbol } from 'react-icons/fa';
 import Image from 'next/image';
@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EventForm } from '@/components/event-form';
 import { SquadRegistrationForm } from '@/components/squad-registration-form';
+import { MatchOcrCollapsible } from '@/components/match-ocr-panel';
 import { MatchTeamStatsForm } from '@/components/match-team-stats-form';
 import { removeMatchEvent } from '@/lib/match-event-sync';
 import { MatchDetails, Player, MatchEvent } from '@/types/match';
@@ -75,24 +76,70 @@ export default function MatchAdminPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const matchesGroupRef = collectionGroup(db, 'matches');
-        const q = query(matchesGroupRef, where("id", "==", matchId));
-        const querySnapshot = await getDocs(q);
+        // collectionGroup('matches') は現行の Firestore ルールでは評価できないため、
+        // public_match_index → ラウンド走査 → レガシーパスの順でパスを解決する。
+        let matchPath: string | null = null;
+        let matchDoc: any = null;
+
+        try {
+          const idxSnap = await getDocs(query(
+            collection(db, `clubs/${ownerUid}/public_match_index`),
+            where("matchId", "==", matchId)
+          ));
+          const row = idxSnap.docs.find((d) => {
+            const data = d.data() as any;
+            return typeof data?.roundId === "string" && data.roundId && data.competitionId === competitionId;
+          });
+          const indexedRoundId = row?.data()?.roundId as string | undefined;
+          if (indexedRoundId) {
+            const p = `clubs/${ownerUid}/competitions/${competitionId}/rounds/${indexedRoundId}/matches/${matchId}`;
+            const s = await getDoc(doc(db, p));
+            if (s.exists()) {
+              matchPath = p;
+              matchDoc = s;
+            }
+          }
+        } catch (e) {
+          console.warn("public_match_index lookup failed; falling back to round scan:", e);
+        }
+
+        if (!matchDoc) {
+          const roundsSnap = await getDocs(collection(db, `clubs/${ownerUid}/competitions/${competitionId}/rounds`));
+          for (const r of roundsSnap.docs) {
+            const p = `clubs/${ownerUid}/competitions/${competitionId}/rounds/${r.id}/matches/${matchId}`;
+            const s = await getDoc(doc(db, p));
+            if (s.exists()) {
+              matchPath = p;
+              matchDoc = s;
+              break;
+            }
+          }
+        }
+
+        if (!matchDoc) {
+          const legacyPath = `clubs/${ownerUid}/matches/${matchId}`;
+          const s = await getDoc(doc(db, legacyPath));
+          if (s.exists()) {
+            matchPath = legacyPath;
+            matchDoc = s;
+          }
+        }
+
         if (cancelled) return;
 
-        const matchDoc = querySnapshot.docs.find((d) => d.ref.path.startsWith(`clubs/${ownerUid}/`));
-        if (!matchDoc) {
+        if (!matchDoc || !matchPath) {
           console.log("No such document in this career's scope!");
           setMatch(null);
           setLoading(false);
           return;
         }
 
-        const matchPath = matchDoc.ref.path;
         const pathSegments = matchPath.split('/');
-        const roundId = pathSegments[pathSegments.length - 3];
+        const roundId = pathSegments.includes('rounds')
+          ? pathSegments[pathSegments.length - 3]
+          : ((matchDoc.data() as any)?.roundId as string | undefined);
 
-        setResolvedMatchDocPath(matchDoc.ref.path);
+        setResolvedMatchDocPath(matchPath);
 
         const matchData = { 
           id: matchDoc.id, 
@@ -279,8 +326,28 @@ export default function MatchAdminPage() {
           />
         </TabsContent>
         <TabsContent value="match-events">
+          {resolvedMatchDocPath && (
+            <div className="mt-4">
+              <MatchOcrCollapsible
+                match={match}
+                matchDocPath={resolvedMatchDocPath}
+                homePlayers={homePlayers}
+                awayPlayers={awayPlayers}
+              />
+            </div>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-4">
-            <div className="lg:col-span-2">
+            <div className="lg:order-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>イベントを追加</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <EventForm homePlayers={homePlayers} awayPlayers={awayPlayers} match={match} matchDocPath={resolvedMatchDocPath ?? undefined} />
+                </CardContent>
+              </Card>
+            </div>
+            <div className="lg:col-span-2 lg:order-1">
               <h3 className="text-2xl font-bold mb-4">タイムライン</h3>
               <div className="space-y-4">
                 {events.length > 0 ? (
@@ -306,16 +373,6 @@ export default function MatchAdminPage() {
                   <p className="text-muted-foreground">まだイベントがありません。</p>
                 )}
               </div>
-            </div>
-            <div>
-              <Card>
-                <CardHeader>
-                  <CardTitle>イベントを追加</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <EventForm homePlayers={homePlayers} awayPlayers={awayPlayers} match={match} matchDocPath={resolvedMatchDocPath ?? undefined} />
-                </CardContent>
-              </Card>
             </div>
           </div>
         </TabsContent>
