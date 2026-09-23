@@ -409,6 +409,7 @@ export default function ClubPageContent({
           />
           <ClubHomePattern1
             clubName={clubInfo.profile?.clubName || ""}
+            logoUrl={clubInfo.profile?.logoUrl || null}
             news={listNews}
             videos={videos}
             nextMatch={clubInfo.nextMatch}

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { NewsImage } from "@/components/news-image";
 import { NewsArticle } from "@/types/news";
 import { MatchDetails } from "@/types/match";
 import { format } from "date-fns";
@@ -15,6 +16,7 @@ interface Video {
 
 interface ClubHomePattern1Props {
   clubName: string;
+  logoUrl?: string | null;
   news: NewsArticle[];
   videos: Video[];
   nextMatch: MatchDetails | null;
@@ -31,7 +33,7 @@ function resolvePublishedDate(value: any): Date | null {
   return null;
 }
 
-function NewsGrid({ news }: { news: NewsArticle[] }) {
+function NewsGrid({ news, logoUrl }: { news: NewsArticle[]; logoUrl?: string | null }) {
   const items = news.slice(0, 6);
   if (items.length === 0) return null;
 
@@ -52,12 +54,13 @@ function NewsGrid({ news }: { news: NewsArticle[] }) {
               href={`/news/${item.id}`}
               className="flex gap-3 p-3 md:p-4 hover:bg-muted/60 transition-colors"
             >
-              <div className="relative w-24 h-16 md:w-32 md:h-20 flex-shrink-0">
-                <Image
-                  src={item.imageUrl || "/no-image.png"}
+              <div className="relative w-24 h-16 md:w-32 md:h-20 flex-shrink-0 bg-muted/40 rounded-sm overflow-hidden">
+                <NewsImage
+                  src={item.imageUrl}
+                  logoUrl={logoUrl}
                   alt={item.title}
-                  fill
                   className="object-cover"
+                  fallbackClassName="object-contain p-2"
                 />
               </div>
               <div className="flex flex-col justify-center gap-1 min-w-0">
@@ -222,6 +225,7 @@ function MatchesStrip({ recentMatches, upcomingMatches }: { recentMatches: Match
 
 export function ClubHomePattern1({
   clubName,
+  logoUrl,
   news,
   videos,
   nextMatch,
@@ -235,7 +239,7 @@ export function ClubHomePattern1({
 
   return (
     <div className="bg-background text-foreground">
-      <NewsGrid news={news} />
+      <NewsGrid news={news} logoUrl={logoUrl} />
       <VideosRow videos={videos} />
       <NextMatchHero match={nextMatch} />
       <MatchesStrip recentMatches={recentMatches} upcomingMatches={upcomingMatches} />

@@ -1,8 +1,8 @@
 import { db } from '@/lib/firebase/admin';
 import { NewsArticle } from '@/types/news';
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import { headers } from 'next/headers';
+import { NewsImage } from '@/components/news-image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { format } from 'date-fns';
@@ -70,22 +70,21 @@ async function getOtherNews(clubId: string, currentNewsId: string, limit: number
   return items;
 }
 
- function OtherNewsCard({ article, clubId }: { article: NewsArticle; clubId: string }) {
+ function OtherNewsCard({ article, clubId, logoUrl }: { article: NewsArticle; clubId: string; logoUrl?: string | null }) {
    const publishedDate = article.publishedAt?.toDate ? article.publishedAt.toDate() : null;
 
    return (
      <Link href={`/${clubId}/news/${article.id}`} className="block group">
        <div className="bg-white text-gray-900 rounded-lg overflow-hidden shadow-md h-full flex flex-col border">
-         {article.imageUrl && (
-           <div className="relative w-full aspect-video bg-muted">
-             <Image
-               src={toCloudinaryPadded16x9(article.imageUrl, 1200)}
-               alt={article.title}
-               fill
-               className="object-contain"
-             />
-           </div>
-         )}
+         <div className="relative w-full aspect-video bg-muted">
+           <NewsImage
+             src={toCloudinaryPadded16x9(article.imageUrl || "", 1200)}
+             logoUrl={logoUrl}
+             alt={article.title}
+             className="object-contain"
+             fallbackClassName="object-contain p-6"
+           />
+         </div>
          <div className="p-4 flex-grow flex flex-col">
            <div className="flex items-center text-xs text-muted-foreground mb-2">
              {publishedDate ? format(publishedDate, 'yyyy年M月d日', { locale: ja }) : ''}
@@ -153,6 +152,8 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ cl
     notFound();
   }
 
+  const resolved = await resolvePublicClubProfile(clubId);
+  const logoUrl = (resolved?.profileData?.logoUrl as string | undefined) || null;
   const publishedDate = article.publishedAt?.toDate ? article.publishedAt.toDate() : null;
   const otherNews = await getOtherNews(clubId, newsId, 3);
 
@@ -165,13 +166,14 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ cl
           </Link>
         </div>
 
-        {article.imageUrl && (
+        {(article.imageUrl || logoUrl) && (
           <div className="relative w-full aspect-video bg-gray-800 rounded-lg overflow-hidden mb-6">
-            <Image
-              src={toCloudinaryPadded16x9(article.imageUrl, 1600)}
+            <NewsImage
+              src={toCloudinaryPadded16x9(article.imageUrl || "", 1600)}
+              logoUrl={logoUrl}
               alt={article.title}
-              fill
               className="object-contain"
+              fallbackClassName="object-contain p-10"
               priority
             />
           </div>
@@ -214,7 +216,7 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ cl
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {otherNews.map((n) => (
-                <OtherNewsCard key={n.id} article={n} clubId={clubId} />
+                <OtherNewsCard key={n.id} article={n} clubId={clubId} logoUrl={logoUrl} />
               ))}
             </div>
           </div>

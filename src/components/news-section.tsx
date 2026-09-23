@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { NewsImage } from "@/components/news-image";
 import { format } from 'date-fns';
 import { CalendarDays } from "lucide-react";
 import { NewsArticle } from '@/types/news';
@@ -97,11 +97,12 @@ export function NewsSection({ news, clubId, fallbackLogoUrl, colorTheme = 'dark'
                 className={`group block min-w-0 rounded-xl border p-0 overflow-hidden shadow-sm ${isDark ? 'border-white/10 bg-[#101116]' : 'border-slate-100 bg-white'} ${isFallback ? 'pointer-events-none' : ''}`}
               >
                 <div className={`relative aspect-[16/9] overflow-hidden rounded-t-xl ring-1 ${isDark ? 'bg-[#17181d] ring-white/10' : 'bg-white ring-slate-100'}`}>
-                  <Image
-                    src={isFallback ? (item.imageUrl || "/favicon.png") : toCloudinaryPadded16x9(item.imageUrl || "/no-image.png", 1200, 'q_90')}
-                    alt={item.imageUrl ? item.title : "No image available"}
-                    fill
+                  <NewsImage
+                    src={isFallback ? item.imageUrl : toCloudinaryPadded16x9(item.imageUrl || "", 1200, 'q_90')}
+                    logoUrl={fallbackLogoUrl}
+                    alt={item.title}
                     className={isFallback ? "object-contain p-8" : "object-cover transition-transform duration-300 group-hover:scale-105"}
+                    fallbackClassName="object-contain p-8"
                     sizes="(min-width: 768px) 25vw, 50vw"
                     quality={90}
                   />
