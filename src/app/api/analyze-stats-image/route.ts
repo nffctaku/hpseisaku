@@ -43,12 +43,14 @@ interface LegacyAnalyzeImageRequest {
   image: string;
   imageType?: string;
   prompt?: string;
+  careerId?: string | null;
   registeredTeams?: Array<{ id: string; name: string }>;
 }
 
 interface MultiImageRequest {
   analysisId: string; // 冪等キー（クライアント生成。再送はこれで重複排除）
   matchId?: string | null;
+  careerId?: string | null;
   images: Array<{
     image: string;
     imageType?: string;
@@ -173,9 +175,10 @@ async function analyzeOneImage(params: {
   isPaid: boolean;
   isGranted: boolean;
   matchId?: string | null;
+  careerId?: string | null;
   registeredTeams: Array<{ id: string; name: string }>;
 }): Promise<ImageResult> {
-  const { uid, image, imageType, kind, prompt, reservationKey, analysisId, imageIndex, monthKey, limit, plan, planTier, isPaid, isGranted, matchId, registeredTeams } = params;
+  const { uid, image, imageType, kind, prompt, reservationKey, analysisId, imageIndex, monthKey, limit, plan, planTier, isPaid, isGranted, matchId, careerId, registeredTeams } = params;
 
   // --- 画像バリデーション ---
   if (!isAllowedImageType(imageType)) {
@@ -223,6 +226,7 @@ async function analyzeOneImage(params: {
     await recordOcrMeasurement({
       userId: uid,
       matchId,
+      careerId,
       analysisId,
       imageIndex,
       imageKind: kind,
@@ -280,7 +284,7 @@ async function analyzeOneImage(params: {
   }
 
   // --- 消費確定 + 結果キャッシュ（冪等再送用） ---
-  await finalizeOcrSlot({ uid, reservationKey, usable: true, plan, monthKey });
+  await finalizeOcrSlot({ uid, reservationKey, usable: true, plan, monthKey, limit });
   await measure('success', true);
   try {
     await ocrAnalysisDocRef(uid, analysisId).set(
@@ -364,12 +368,23 @@ export async function POST(req: NextRequest) {
           isPaid,
           isGranted,
           matchId: multi.matchId ?? null,
+          careerId: typeof multi.careerId === 'string' && multi.careerId ? multi.careerId : null,
           registeredTeams,
         });
         results.push(r);
 
         // 上限到達以降の画像は全てlimitで返す（予約しない）
         if (r.status === 'limit') {
+          try {
+            await db.collection('analyticsEvents').add({
+              eventName: 'plan_limit_reached',
+              userId: uid,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              properties: { uid, limitType: 'ocr', currentCount, limit, plan, sourcePage: 'analyze-stats-image' },
+            });
+          } catch (e) {
+            console.warn('[API] plan_limit_reached event failed', e);
+          }
           for (let j = i + 1; j < multi.images.length; j++) {
             const restIdx =
               typeof multi.images[j].index === 'number' && Number.isInteger(multi.images[j].index) && (multi.images[j].index as number) >= 0
@@ -431,6 +446,7 @@ export async function POST(req: NextRequest) {
       isPaid,
       isGranted,
       matchId: null,
+      careerId: typeof legacy.careerId === 'string' && legacy.careerId ? legacy.careerId : null,
       registeredTeams,
     });
 

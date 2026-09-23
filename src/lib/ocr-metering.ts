@@ -8,6 +8,7 @@ import { db, admin } from '@/lib/firebase/admin';
 export interface OcrMeasurement {
   userId: string;
   matchId?: string | null;
+  careerId?: string | null;
   analysisId: string;
   imageIndex: number;
   imageKind: 'team_stats' | 'ratings' | 'events' | 'unknown';

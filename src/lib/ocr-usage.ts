@@ -43,6 +43,7 @@ export interface UsageDocData {
   resv?: Record<string, number>; // reservationKey -> expiresAtMs（有効予約のみ）
   done?: Record<string, number>; // reservationKey -> consumedAtMs（確定済み）
   plan?: string;
+  capReachedAt?: unknown; // 月間上限へ初めて到達した時刻（Analytics用・追加書き込みのみ）
   updatedAt?: unknown;
 }
 
@@ -166,8 +167,10 @@ export async function finalizeOcrSlot(params: {
   noInfo?: boolean;
   plan: string;
   monthKey: string;
+  /** 指定時、確定後countがlimitに到達した月のみ capReachedAt を記録（初回到達のみ） */
+  limit?: number;
 }): Promise<FinalizeStatus> {
-  const { uid, reservationKey, usable, noInfo, plan, monthKey } = params;
+  const { uid, reservationKey, usable, noInfo, plan, monthKey, limit } = params;
   const now = Date.now();
 
   return db.runTransaction(async (tx) => {
@@ -191,10 +194,16 @@ export async function finalizeOcrSlot(params: {
       consecutiveEmpty = 0;
       const count = (Number(usageData.count) || 0) + 1;
       tx.update(usageRef, new admin.firestore.FieldPath('resv', reservationKey), admin.firestore.FieldValue.delete());
+      const reachedCap =
+        typeof limit === 'number' &&
+        Number.isFinite(limit) &&
+        count >= limit &&
+        usageData.capReachedAt === undefined;
       tx.update(usageRef, {
         count,
         done: { [reservationKey]: now },
         plan,
+        ...(reachedCap ? { capReachedAt: admin.firestore.FieldValue.serverTimestamp() } : {}),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
       tx.set(rateRef, { consecutiveEmpty }, { merge: true });

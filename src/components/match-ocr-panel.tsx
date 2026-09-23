@@ -13,6 +13,7 @@ import { UploadCloud, X, Loader2, AlertCircle, RotateCcw, ChevronDown, ChevronUp
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { auth } from '@/lib/firebase';
+import { trackEvent } from '@/lib/analytics';
 import { ProPaywall } from '@/components/pro-paywall';
 import { OcrReviewPanel, type OcrImageResultItem } from '@/components/ocr-review-panel';
 import type { MatchDetails, Player } from '@/types/match';
@@ -75,7 +76,7 @@ export function MatchOcrPanel({
   usage = null,
   onUsageChange,
 }: MatchOcrPanelProps) {
-  const { user } = useAuth();
+  const { user, activeCareerId } = useAuth();
   const [pending, setPending] = useState<PendingImage[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [outcomes, setOutcomes] = useState<ImageOutcome[] | null>(null);
@@ -88,6 +89,8 @@ export function MatchOcrPanel({
   const [cooldownSec, setCooldownSec] = useState(0);
   const [zoomedUrl, setZoomedUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // 同一解析でレビュー表示イベントを多重送信しないためのフラグ
+  const reviewOpenedTrackedRef = useRef('');
 
   // クールダウンカウントダウン
   useEffect(() => {
@@ -203,6 +206,7 @@ const fileToBase64 = (file: File): Promise<string> =>
         body: JSON.stringify({
           analysisId: id,
           matchId: match.id,
+          careerId: activeCareerId ?? null,
           images,
           registeredTeams,
         }),
@@ -249,6 +253,16 @@ const fileToBase64 = (file: File): Promise<string> =>
       }
       const anyCooldown = data.results.find((r: any) => r.status === 'cooldown' && r.retryAfterSec);
       if (anyCooldown) setCooldownSec(anyCooldown.retryAfterSec);
+      if (mapped.some((r) => r.ok && r.result) && reviewOpenedTrackedRef.current !== id) {
+        reviewOpenedTrackedRef.current = id;
+        void trackEvent('ocr_review_opened', user?.uid ?? null, {
+          analysisId: id,
+          matchId: match.id,
+          careerId: activeCareerId ?? null,
+          imageCount: targets.length,
+          okCount: mapped.filter((r) => r.ok && r.result).length,
+        });
+      }
       setPending([]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : '画像解析に失敗しました';
@@ -420,7 +434,16 @@ const fileToBase64 = (file: File): Promise<string> =>
               awayPlayers={awayPlayers}
               results={okResults}
               analysisId={analysisId}
-              onApplied={() => { reset(); onApplied?.(); }}
+              onApplied={() => {
+                void trackEvent('ocr_review_confirmed', user?.uid ?? null, {
+                  analysisId,
+                  matchId: match.id,
+                  careerId: activeCareerId ?? null,
+                  imageCount: okResults.length,
+                });
+                reset();
+                onApplied?.();
+              }}
               onCancel={reset}
             />
           ) : (

@@ -13,6 +13,26 @@ interface SourceMetrics {
   paid: number;
 }
 
+interface OcrAnalytics {
+  users: { all: number; d7: number; d30: number };
+  images: { all: number; d7: number; d30: number };
+  attemptedImages: { all: number; d7: number; d30: number };
+  planUsers: { free: number; paidPro: number; grantedPro: number };
+  avgImages: { free: number | null; paidPro: number | null };
+  caps: {
+    freeReached: number;
+    freeReachRate: number | null;
+    proGte50: number;
+    proGte150: number;
+    proGte250: number;
+    proReached: number;
+  };
+  depth: { once: number; twoPlus: number; fivePlus: number };
+  funnel: { reviewed: number; applied: number };
+  matchCross: { any: number; gte10: number; gte50: number; gte100: number; active7: number; active30: number };
+  conversion: { formerFreeNowPaidPro: number; formerFreeCapNowPaidPro: number };
+}
+
 interface AnalyticsData {
   cohort: "tracked" | "all";
   total: number;
@@ -30,6 +50,17 @@ interface AnalyticsData {
   trackedCount: number;
   preTrackingCount: number;
   preTrackingActiveCount: number;
+  ocr?: OcrAnalytics | null;
+}
+
+function StatCell({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: string }) {
+  return (
+    <div className="rounded-lg bg-[#0b1220] p-3 text-center">
+      <p className="text-[10px] text-slate-400">{label}</p>
+      <p className={`text-lg font-black ${accent ?? "text-white"}`}>{value}</p>
+      {sub && <p className="text-[10px] text-slate-500">{sub}</p>}
+    </div>
+  );
 }
 
 function cvr(numerator: number, denominator: number): string {
@@ -228,6 +259,63 @@ export default function InternalAnalyticsPage() {
               ))}
           </div>
         </section>
+
+        {data.ocr && (
+          <section className="rounded-2xl border border-white/10 bg-[#111827] p-4 sm:p-6">
+            <h2 className="mb-4 text-sm font-bold text-slate-300">画像自動読み取り β</h2>
+
+            <div className="grid grid-cols-3 gap-3">
+              <StatCell label="累計利用" value={data.ocr.users.all} sub="UID" accent="text-emerald-400" />
+              <StatCell label="7日利用" value={data.ocr.users.d7} sub="UID" accent="text-emerald-400" />
+              <StatCell label="30日利用" value={data.ocr.users.d30} sub="UID" accent="text-emerald-400" />
+              <StatCell label="累計画像" value={data.ocr.images.all} sub="枚" />
+              <StatCell label="7日画像" value={data.ocr.images.d7} sub="枚" />
+              <StatCell label="30日画像" value={data.ocr.images.d30} sub="枚" />
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-3 border-t border-white/10 pt-4">
+              <StatCell label="Free" value={data.ocr.planUsers.free} sub="UID" />
+              <StatCell label="Paid Pro" value={data.ocr.planUsers.paidPro} sub="UID" accent="text-emerald-400" />
+              <StatCell label="Granted Pro" value={data.ocr.planUsers.grantedPro} sub="UID" accent="text-amber-400" />
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 sm:grid-cols-5">
+              <StatCell
+                label="Free 15枚到達"
+                value={data.ocr.caps.freeReached}
+                sub={data.ocr.caps.freeReachRate != null ? `到達率 ${(data.ocr.caps.freeReachRate * 100).toFixed(1)}%` : undefined}
+                accent="text-amber-400"
+              />
+              <StatCell label="Pro 50+" value={data.ocr.caps.proGte50} sub="UID" />
+              <StatCell label="Pro 150+" value={data.ocr.caps.proGte150} sub="UID" />
+              <StatCell label="Pro 250+" value={data.ocr.caps.proGte250} sub="UID" />
+              <StatCell label="Pro 300" value={data.ocr.caps.proReached} sub="UID" accent="text-rose-400" />
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 sm:grid-cols-4">
+              <StatCell label="利用深度 1回のみ" value={data.ocr.depth.once} sub="UID" />
+              <StatCell label="2回以上" value={data.ocr.depth.twoPlus} sub="UID" />
+              <StatCell label="5回以上" value={data.ocr.depth.fivePlus} sub="UID" />
+              <StatCell label="確認画面まで" value={data.ocr.funnel.reviewed} sub={`→ 試合反映 ${data.ocr.funnel.applied}`} accent="text-emerald-400" />
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 sm:grid-cols-3">
+              <StatCell label="試合登録あり" value={data.ocr.matchCross.any} sub="UID" />
+              <StatCell label="10/50/100試合以上" value={`${data.ocr.matchCross.gte10}/${data.ocr.matchCross.gte50}/${data.ocr.matchCross.gte100}`} sub="UID" />
+              <StatCell label="7日/30日アクティブ" value={`${data.ocr.matchCross.active7}/${data.ocr.matchCross.active30}`} sub="UID" accent="text-emerald-400" />
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4">
+              <StatCell label="元Free → 現在Paid Pro" value={data.ocr.conversion.formerFreeNowPaidPro} sub="UID" accent="text-amber-400" />
+              <StatCell label="うち15枚到達経験あり" value={data.ocr.conversion.formerFreeCapNowPaidPro} sub="UID" accent="text-amber-400" />
+            </div>
+
+            <div className="mt-4 border-t border-white/10 pt-3 text-[10px] leading-relaxed text-slate-500">
+              <p>※ 画像数は月間枠を消費した枚数（Free15/Pro300の上限管理と同一）。AI呼出到達は{data.ocr.attemptedImages.all}枚（失敗・読取不可含む）。</p>
+              <p>※ 確認画面/試合反映・上限到達日時・CareerIDは計測開始日以降の記録。Free平均{data.ocr.avgImages.free != null ? data.ocr.avgImages.free.toFixed(1) : "-"}枚 / Pro平均{data.ocr.avgImages.paidPro != null ? data.ocr.avgImages.paidPro.toFixed(1) : "-"}枚。</p>
+            </div>
+          </section>
+        )}
 
         <section className="rounded-2xl border border-white/10 bg-[#111827] p-4 sm:p-6">
           <h2 className="mb-4 text-sm font-bold text-slate-300">サンプルページ</h2>
