@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { db } from "@/lib/firebase/admin";
 import { notFound } from "next/navigation";
 import Image from "next/image";
@@ -1054,13 +1055,20 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     .slice()
                     .sort((a, b) => minuteSortValue(a.minute) - minuteSortValue(b.minute));
 
-                  const renderTypeBadge = (ev: any) => {
+                  const renderTypeBadge = (ev: any): ReactNode => {
+                    const cardIcon = (color: "yellow" | "red") => (
+                      <span
+                        className={`mt-[2px] inline-block h-3 w-2 rounded-[1px] shadow-sm ${
+                          color === "yellow" ? "bg-yellow-400" : "bg-red-500"
+                        }`}
+                      />
+                    );
                     if (ev.type === "goal") return "⚽";
                     if (ev.type === "og") return "OG";
-                    if (ev.type === "yellow") return "Y";
-                    if (ev.type === "red") return "R";
+                    if (ev.type === "yellow") return cardIcon("yellow");
+                    if (ev.type === "red") return cardIcon("red");
                     if (ev.type === "sub_in" || ev.type === "sub_out") return "⇄";
-                    if (ev.type === "card") return ev.cardColor === "red" ? "R" : "Y";
+                    if (ev.type === "card") return cardIcon(ev.cardColor === "red" ? "red" : "yellow");
                     if (ev.type === "substitution") return "⇄";
                     if (ev.type === "note") return "✎";
                     return "";
