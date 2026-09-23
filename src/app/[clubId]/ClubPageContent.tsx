@@ -275,7 +275,24 @@ export default function ClubPageContent({
       }
     }, [allRecentMatches]);
 
-    const renderHomePanelContent = () => (
+    const renderHomePanelContent = () => {
+      const hasLeagueCompetition = (clubInfo.competitions || []).some((c: any) => c?.format !== 'cup');
+      const resultsList = (
+        <MatchResultsList
+          matches={allRecentMatches}
+          clubSlug={clubId}
+          rounds={rounds}
+          selectedRoundIndex={selectedRoundIndex}
+          onRoundChange={setSelectedRoundIndex}
+          colorTheme={homeColorTheme}
+        />
+      );
+
+      if (!hasLeagueCompetition) {
+        return <div className="space-y-3">{resultsList}</div>;
+      }
+
+      return (
       <div className="space-y-3">
         <div className={`grid grid-cols-2 rounded-full p-1 text-sm font-bold ${isDarkHomeTheme ? 'bg-white/10 text-slate-400' : 'bg-gray-100 text-gray-500'}`}>
           <button
@@ -296,17 +313,11 @@ export default function ClubPageContent({
         {homePanel === 'standings' ? (
           <LeagueTable clubId={clubId} competitions={clubInfo.competitions || []} minCardOnMobile colorTheme={homeColorTheme} />
         ) : (
-          <MatchResultsList
-            matches={allRecentMatches}
-            clubSlug={clubId}
-            rounds={rounds}
-            selectedRoundIndex={selectedRoundIndex}
-            onRoundChange={setSelectedRoundIndex}
-            colorTheme={homeColorTheme}
-          />
+          resultsList
         )}
       </div>
-    );
+      );
+    };
 
     if (isLoading) {
       return (

@@ -28,6 +28,7 @@ type Competition = {
   name?: string;
   season?: string;
   showOnHome?: boolean;
+  format?: string;
 };
 
 type Standing = {
@@ -201,7 +202,10 @@ function LatestMatches({ clubId, matches, upcomingMatch, mainTeamId, accentColor
 }
 
 function LeagueTablePreview({ clubId, competitions, mainTeamId, clubName, accentColor }: { clubId: string; competitions: Competition[]; mainTeamId?: string | null; clubName: string; accentColor: string }) {
-  const selectedCompetition = useMemo(() => competitions.find((c) => c.showOnHome) || competitions[0], [competitions]);
+  const selectedCompetition = useMemo(() => {
+    const eligible = competitions.filter((c) => c.format !== 'cup');
+    return eligible.find((c) => c.showOnHome) || eligible[0];
+  }, [competitions]);
   const [rows, setRows] = useState<Standing[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(Boolean(selectedCompetition));

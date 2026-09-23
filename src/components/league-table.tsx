@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, doc, getDoc } from 'firebase/firestore';
 import {
@@ -18,6 +18,8 @@ interface Competition {
   id: string;
   name: string;
   ownerUid: string;
+  format?: string;
+  showOnHome?: boolean;
 }
 
 type RankLabelColor = "green" | "red" | "orange" | "blue" | "yellow";
@@ -69,6 +71,10 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
   const [loading, setLoading] = useState(true);
   const [rankLabels, setRankLabels] = useState<RankLabelRule[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const eligibleCompetitions = useMemo(
+    () => (competitions || []).filter((c) => c.format !== 'cup'),
+    [competitions]
+  );
 
   const fetchStandingsViaPublicApi = async (clubIdArg: string, competitionId: string) => {
     const res = await fetch(
@@ -94,7 +100,8 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
   };
 
   useEffect(() => {
-    if (!competitions || competitions.length === 0) {
+    if (eligibleCompetitions.length === 0) {
+      setStandings([]);
       setLoading(false);
       setErrorMessage(null);
       return;
@@ -105,8 +112,8 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
       setErrorMessage(null);
       try {
         const selectedComp =
-          (competitions.find((c) => (c as any).showOnHome) as Competition | undefined) ||
-          competitions[0];
+          eligibleCompetitions.find((c) => c.showOnHome) ||
+          eligibleCompetitions[0];
         if (!selectedComp) return;
 
         // Public pages (unauthenticated) should not read Firestore directly.
@@ -374,14 +381,10 @@ export function LeagueTable({ competitions, clubId, variant = 'home', minCardOnM
     };
 
     fetchStandings();
-  }, [competitions, clubId]);
+  }, [eligibleCompetitions, clubId]);
 
-  if (!competitions || competitions.length === 0) {
-    return (
-      <div className={`p-4 rounded-2xl text-center shadow-sm border ${isDark ? 'bg-[#101116] text-slate-400 border-white/10' : 'bg-white text-muted-foreground border-black/10'}`}>
-        <p>表示できる大会がありません。</p>
-      </div>
-    );
+  if (eligibleCompetitions.length === 0) {
+    return null;
   }
 
   return (
