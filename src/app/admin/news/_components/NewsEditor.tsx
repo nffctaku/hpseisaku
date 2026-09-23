@@ -574,8 +574,9 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
                       <div className="flex items-start gap-2 rounded-lg border border-purple-500/20 bg-[#6D4AFF]/15 p-3 text-[13px] text-purple-100">
                         <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-purple-300" />
                         <div className="space-y-1 leading-relaxed">
-                          <p className="font-bold">現在、AI試合記事生成を無料開放中！</p>
-                          <p>今後は利用回数に上限を設け、Proプラン向けに提供する予定です。</p>
+                          <p className="font-bold">AI記事生成機能は現在β版です</p>
+                          <p>現在、β版のAI利用枠上限に達している場合、記事生成に一時的に制限がございます。</p>
+                          <p>利用枠の更新後、順次ご利用いただけるようになります。</p>
                         </div>
                       </div>
                       <label className="text-sm font-semibold text-slate-200">試合を選択</label>
