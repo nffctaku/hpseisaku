@@ -1,11 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { ADMIN_UID } from "@/lib/admin-config";
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { jstDayKey, jstDayShift, type AuthSignupAggregate } from "@/lib/admin-analytics/auth-signups";
 
 interface SourceMetrics {
   signups: number;
@@ -51,6 +62,7 @@ interface AnalyticsData {
   preTrackingCount: number;
   preTrackingActiveCount: number;
   ocr?: OcrAnalytics | null;
+  authGrowth?: AuthSignupAggregate | null;
 }
 
 function StatCell({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: string }) {
@@ -66,6 +78,140 @@ function StatCell({ label, value, sub, accent }: { label: string; value: string 
 function cvr(numerator: number, denominator: number): string {
   if (denominator === 0) return "0%";
   return `${((numerator / denominator) * 100).toFixed(1)}%`;
+}
+
+function AuthGrowthSection({ data }: { data: AuthSignupAggregate }) {
+  const [period, setPeriod] = useState<"7" | "30" | "all">("30");
+
+  const chartData = useMemo(() => {
+    const countByDate = new Map(data.series.map((d) => [d.date, d.count]));
+    const cumByDate = new Map(data.series.map((d) => [d.date, d.cumulative]));
+    const today = jstDayKey(Date.now());
+    const startDay =
+      period === "7"
+        ? jstDayShift(today, -6)
+        : period === "30"
+          ? jstDayShift(today, -29)
+          : (data.series[0]?.date ?? today);
+
+    const days: { label: string; count: number; cumulative: number }[] = [];
+    let lastCum = 0;
+    for (let d = startDay; d <= today && days.length < 4000; d = jstDayShift(d, 1)) {
+      lastCum = cumByDate.get(d) ?? lastCum;
+      days.push({
+        label: `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`,
+        count: countByDate.get(d) ?? 0,
+        cumulative: lastCum,
+      });
+    }
+    return days;
+  }, [data, period]);
+
+  const s = data.summary;
+  const deltaText =
+    s.deltaPct7vsPrev7 === null
+      ? "—"
+      : `${s.deltaPct7vsPrev7 >= 0 ? "+" : ""}${(s.deltaPct7vsPrev7 * 100).toFixed(1)}%`;
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-[#111827] p-4 sm:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-bold text-slate-300">新規登録ユーザー推移</h2>
+        <div className="flex gap-1">
+          {(["7", "30", "all"] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                period === p
+                  ? "bg-emerald-400 text-[#06111f]"
+                  : "border border-white/20 text-slate-300 hover:bg-white/5"
+              }`}
+            >
+              {p === "all" ? "全期間" : `${p}日`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+        <StatCell label="総登録" value={s.total} sub="UID" accent="text-white" />
+        <StatCell label="今日" value={s.today} sub="新規" accent="text-emerald-400" />
+        <StatCell label="昨日" value={s.yesterday} sub="新規" />
+        <StatCell label="直近7日" value={s.last7} sub={`1日平均 ${s.avgPerDay7.toFixed(1)}`} accent="text-emerald-400" />
+        <StatCell label="直近30日" value={s.last30} sub="新規" />
+        <StatCell label="前7日" value={s.prev7} sub="新規" />
+        <StatCell
+          label="7日比較"
+          value={deltaText}
+          sub={s.deltaPct7vsPrev7 === null ? "前7日0件" : `${s.last7 - s.prev7 >= 0 ? "+" : ""}${s.last7 - s.prev7}人`}
+          accent={s.deltaPct7vsPrev7 === null ? "text-slate-400" : s.deltaPct7vsPrev7 >= 0 ? "text-emerald-400" : "text-rose-400"}
+        />
+      </div>
+
+      <div className="mt-5 h-64 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
+            <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: "#94a3b8", fontSize: 10 }}
+              tickLine={false}
+              axisLine={{ stroke: "#334155" }}
+              interval="preserveStartEnd"
+              minTickGap={24}
+            />
+            <YAxis
+              yAxisId="left"
+              tick={{ fill: "#94a3b8", fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              allowDecimals={false}
+              width={36}
+            />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tick={{ fill: "#fbbf24", fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+              allowDecimals={false}
+              width={40}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "#0b1220",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: 8,
+                fontSize: 12,
+              }}
+              labelStyle={{ color: "#94a3b8" }}
+              formatter={(value, name) => [
+                `${value ?? 0}人`,
+                name === "count" ? "新規登録" : "累計登録",
+              ]}
+            />
+            <Bar yAxisId="left" dataKey="count" fill="#34d399" radius={[3, 3, 0, 0]} maxBarSize={28} />
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="cumulative"
+              stroke="#fbbf24"
+              strokeWidth={2}
+              dot={false}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="mt-3 border-t border-white/10 pt-3 text-[10px] leading-relaxed text-slate-500">
+        <p>※ 棒: 日別新規登録 / 線: 累計登録（Firebase Auth metadata.creationTime・JST日付基準・disabled含む）</p>
+        {data.missingCreationTime > 0 && (
+          <p className="text-amber-400">※ creationTime未取得: {data.missingCreationTime}件（日別集計から除外）</p>
+        )}
+      </div>
+    </section>
+  );
 }
 
 export default function InternalAnalyticsPage() {
@@ -199,6 +345,8 @@ export default function InternalAnalyticsPage() {
             </p>
           )}
         </div>
+
+        {data.authGrowth && <AuthGrowthSection data={data.authGrowth} />}
 
         <section className="rounded-2xl border border-white/10 bg-[#111827] p-4 sm:p-6">
           <h2 className="mb-4 text-sm font-bold text-slate-300">ファネル</h2>

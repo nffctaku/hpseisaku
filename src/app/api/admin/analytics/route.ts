@@ -20,6 +20,7 @@ import {
   computeEffectivePlanFromData,
   resolvePathOwnerUid,
 } from "@/lib/admin-analytics/career-mapping";
+import { aggregateAuthSignups, type AuthSignupAggregate } from "@/lib/admin-analytics/auth-signups";
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function normalizeSource(source: unknown): string {
@@ -335,6 +336,26 @@ export async function GET(req: NextRequest) {
       console.warn("[admin/analytics] ocr section failed", e);
     }
 
+    // Firebase Auth 登録ユーザー推移（Source of Truth = metadata.creationTime）
+    // listUsers は1000件/ページ。全件取得して JST 日別集計する（このリクエスト内の唯一の全件取得）。
+    let authGrowth: AuthSignupAggregate | null = null;
+    try {
+      const authRecords: { uid: string; creationMs: number | null }[] = [];
+      let pageToken: string | undefined;
+      do {
+        const result = await auth.listUsers(1000, pageToken);
+        for (const u of result.users) {
+          const creationTime = (u.metadata as unknown as { creationTime?: string }).creationTime;
+          const ms = creationTime ? new Date(creationTime).getTime() : NaN;
+          authRecords.push({ uid: u.uid, creationMs: Number.isFinite(ms) ? ms : null });
+        }
+        pageToken = result.pageToken;
+      } while (pageToken);
+      authGrowth = aggregateAuthSignups(authRecords, Date.now());
+    } catch (e) {
+      console.warn("[admin/analytics] auth growth section failed", e);
+    }
+
     return NextResponse.json({
       cohort: trackedOnly ? "tracked" : "all",
       trackedCount,
@@ -342,6 +363,7 @@ export async function GET(req: NextRequest) {
       preTrackingActiveCount,
       ...metrics,
       ocr,
+      authGrowth,
     });
   } catch (error) {
     console.error("[admin/analytics] error", error);
