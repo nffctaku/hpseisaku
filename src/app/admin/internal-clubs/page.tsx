@@ -736,12 +736,20 @@ export default function InternalClubsPage() {
       <div className="mx-auto max-w-6xl space-y-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-xl font-black tracking-tight sm:text-2xl">ユーザーHP 一覧</h1>
-          <Link
-            href="/admin/internal-analytics"
-            className="text-sm font-bold text-emerald-400 hover:text-emerald-300"
-          >
-            ← 内部 Analytics に戻る
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/admin/internal-updates"
+              className="text-sm font-bold text-emerald-400 hover:text-emerald-300"
+            >
+              お知らせ管理 →
+            </Link>
+            <Link
+              href="/admin/internal-analytics"
+              className="text-sm font-bold text-emerald-400 hover:text-emerald-300"
+            >
+              ← 内部 Analytics に戻る
+            </Link>
+          </div>
         </div>
 
         {summary && (

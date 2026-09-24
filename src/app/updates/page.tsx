@@ -1,63 +1,19 @@
 import Link from "next/link";
+import { listPublishedUpdates } from "@/lib/updates-server";
+import { categoryClassName, mergeUpdates } from "@/lib/updates";
 
-const updates = [
-  {
-    date: "2026.08.03",
-    category: "改善",
-    categoryClassName: "bg-blue-500/15 text-blue-300",
-    title: "トップページのモバイル表示を改善",
-    description: "UIを一新しました。",
-    href: "",
-  },
-  {
-    date: "2026.07.22",
-    category: "改善",
-    categoryClassName: "bg-blue-500/15 text-blue-300",
-    title: "トップページUI改善",
-    description: "モバイル用トップヒーロー画像を新しい画像に差し替え。2枚目と3枚目の画像を自動スライド形式に変更。「無料で始める」ボタンのデザイン変更（青色、横長化）。",
-    href: "",
-  },
-  {
-    date: "2026.07.21",
-    category: "修正",
-    categoryClassName: "bg-rose-500/15 text-rose-300",
-    title: "公開ページの選手スタッツ集計の修正",
-    description: "管理画面で入力した手動スタッツが公開ページで正しく反映されるよう修正。getPlayer.tsのマージロジックを改善。",
-    href: "",
-  },
-  {
-    date: "2026.07.20",
-    category: "改善",
-    categoryClassName: "bg-blue-500/15 text-blue-300",
-    title: "管理画面UI一貫性改善",
-    description: "クラブ情報設定ページの完全再設計。SNSリンクタブの再設計。友好試合管理ページの再設計。A3選手名鑑エディターの大幅改善。",
-    href: "",
-  },
-  {
-    date: "2026.07.28",
-    category: "新機能",
-    categoryClassName: "bg-emerald-500/15 text-emerald-300",
-    title: "選手名鑑の出力機能をリリースしました",
-    description: "選手プロフィール・スタッフ・写真をまとめた名鑑を、管理画面から直接出力できるようになりました。",
-    href: "",
-  },
-  {
-    date: "2026.07.10",
-    category: "改善",
-    categoryClassName: "bg-blue-500/15 text-blue-300",
-    title: "レーダーチャートの項目をカスタマイズできるようになりました",
-    description: "表示するスタッフ項目を大会ごとに自由に設定できるようになりました。",
-    href: "",
-  },
-];
+export const dynamic = "force-dynamic";
 
-const itemsPerPage = 3;
+const itemsPerPage = 5;
 
 type UpdatesPageProps = {
   searchParams?: Promise<{ page?: string }>;
 };
 
 export default async function UpdatesPage({ searchParams }: UpdatesPageProps) {
+  const published = await listPublishedUpdates().catch(() => []);
+  const updates = mergeUpdates(published);
+
   const resolvedSearchParams = searchParams ? await searchParams : { page: undefined };
   const currentPage = Math.min(
     Math.max(Number(resolvedSearchParams?.page ?? "1") || 1, 1),
@@ -89,7 +45,7 @@ export default async function UpdatesPage({ searchParams }: UpdatesPageProps) {
                 <time className="font-mono text-sm text-sky-300/55">{update.date}</time>
                 <div>
                   <div className="mb-5">
-                    <span className={`inline-flex rounded-full px-4 py-1 text-sm font-black ${update.categoryClassName}`}>
+                    <span className={`inline-flex rounded-full px-4 py-1 text-sm font-black ${categoryClassName(update.category)}`}>
                       {update.category}
                     </span>
                   </div>
@@ -103,12 +59,12 @@ export default async function UpdatesPage({ searchParams }: UpdatesPageProps) {
               </article>
             );
 
-            return update.href ? (
-              <a key={`${update.date}-${update.title}`} href={update.href} target="_blank" rel="noreferrer" className="block hover:bg-slate-900/30">
-                {content}
-              </a>
+            return update.legacy ? (
+              <div key={update.id}>{content}</div>
             ) : (
-              <div key={`${update.date}-${update.title}`}>{content}</div>
+              <Link key={update.id} href={`/updates/${update.id}`} className="block hover:bg-slate-900/30">
+                {content}
+              </Link>
             );
           })}
         </div>

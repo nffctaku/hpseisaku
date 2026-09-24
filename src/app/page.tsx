@@ -2,11 +2,24 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { setSignupSource, trackEvent } from "@/lib/analytics";
+import { categoryClassName, mergeUpdates, type UpdateItem } from "@/lib/updates";
 
 export default function LandingPage() {
   const [openFeatureImage, setOpenFeatureImage] = useState<string | null>(null);
+  const [newsItems, setNewsItems] = useState<UpdateItem[]>([]);
+
+  useEffect(() => {
+    fetch("/api/public/updates", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.ok && Array.isArray(data.items)) setNewsItems(data.items);
+      })
+      .catch(() => {});
+  }, []);
+
+  const mergedUpdates = useMemo(() => mergeUpdates(newsItems).slice(0, 5), [newsItems]);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -104,79 +117,38 @@ export default function LandingPage() {
               </div>
 
               <div className="divide-y divide-slate-800/90 border-y border-slate-800/90">
-                <article className="grid gap-3 py-4 sm:grid-cols-[120px_1fr] sm:gap-7 sm:py-8">
-                  <time className="font-mono text-xs text-emerald-300/55 sm:text-sm">2026.09.07</time>
-                  <div>
-                    <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black bg-emerald-500/15 text-emerald-300 sm:px-3 sm:py-1 sm:text-xs">
-                      新機能
-                    </span>
-                    <h3 className="mt-2 text-sm font-black leading-snug tracking-[-0.03em] text-white sm:mt-3 sm:text-lg sm:text-xl">
-                      管理画面の分析管理機能にバランス・ヒートマップ表示を追加
-                    </h3>
-                    <p className="mt-2 text-xs font-medium leading-6 text-slate-400 sm:mt-3 sm:text-sm sm:leading-7 sm:text-base">
-                      試合の得点・失点を時間帯別に比較できる「バランス」表示と、色の濃さで傾向を把握できる「ヒートマップ」表示を追加しました。
-                    </p>
-                    <div className="relative mt-4 aspect-[16/9] w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900">
-                      <Image src="/ヒートマップアップデート.png" alt="得点/失点の時間帯分析 バランス・ヒートマップ" fill className="object-contain" sizes="(max-width: 768px) 100vw, 800px" />
-                    </div>
-                  </div>
-                </article>
-                <article className="grid gap-3 py-4 sm:grid-cols-[120px_1fr] sm:gap-7 sm:py-8">
-                  <time className="font-mono text-xs text-emerald-300/55 sm:text-sm">2026.08.12</time>
-                  <div>
-                    <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black bg-emerald-500/15 text-emerald-300 sm:px-3 sm:py-1 sm:text-xs">
-                      大型アップデート
-                    </span>
-                    <h3 className="mt-2 text-sm font-black leading-snug tracking-[-0.03em] text-white sm:mt-3 sm:text-lg sm:text-xl">
-                      FootChron アップデートのお知らせ
-                    </h3>
-                    <p className="mt-2 text-xs font-medium leading-6 text-slate-400 sm:mt-3 sm:text-sm sm:leading-7 sm:text-base">
-                      パフォーマンス改善と不具合修正を中心にアップデートを行いました。分析ダッシュボードの動作速度改善、リーグ表での順位履歴表示不具合修正、選手詳細ページのパラメーターグラフ改善、総合値推移グラフの見やすさ向上、試合スタッツのゴール・アシスト表示改善など。
-                    </p>
-                  </div>
-                </article>
-                <article className="grid gap-3 py-4 sm:grid-cols-[120px_1fr] sm:gap-7 sm:py-8">
-                  <time className="font-mono text-xs text-sky-300/55 sm:text-sm">2026.08.03</time>
-                  <div>
-                    <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black bg-blue-500/15 text-blue-300 sm:px-3 sm:py-1 sm:text-xs">
-                      改善
-                    </span>
-                    <h3 className="mt-2 text-sm font-black leading-snug tracking-[-0.03em] text-white sm:mt-3 sm:text-lg sm:text-xl">
-                      トップページのモバイル表示を改善
-                    </h3>
-                    <p className="mt-2 text-xs font-medium leading-6 text-slate-400 sm:mt-3 sm:text-sm sm:leading-7 sm:text-base">
-                      UIを一新しました。
-                    </p>
-                  </div>
-                </article>
-                <article className="grid gap-3 py-4 sm:grid-cols-[120px_1fr] sm:gap-7 sm:py-8">
-                  <time className="font-mono text-xs text-sky-300/55 sm:text-sm">2026.07.28</time>
-                  <div>
-                    <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black bg-emerald-500/15 text-emerald-300 sm:px-3 sm:py-1 sm:text-xs">
-                      新機能
-                    </span>
-                    <h3 className="mt-2 text-sm font-black leading-snug tracking-[-0.03em] text-white sm:mt-3 sm:text-lg sm:text-xl">
-                      選手名鑑の出力機能をリリースしました
-                    </h3>
-                    <p className="mt-2 text-xs font-medium leading-6 text-slate-400 sm:mt-3 sm:text-sm sm:leading-7 sm:text-base">
-                      選手プロフィール・スタッフ・写真をまとめた名鑑を、管理画面から直接出力できるようになりました。
-                    </p>
-                  </div>
-                </article>
-                <article className="grid gap-3 py-4 sm:grid-cols-[120px_1fr] sm:gap-7 sm:py-8">
-                  <time className="font-mono text-xs text-sky-300/55 sm:text-sm">2026.07.10</time>
-                  <div>
-                    <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black bg-blue-500/15 text-blue-300 sm:px-3 sm:py-1 sm:text-xs">
-                      改善
-                    </span>
-                    <h3 className="mt-2 text-sm font-black leading-snug tracking-[-0.03em] text-white sm:mt-3 sm:text-lg sm:text-xl">
-                      レーダーチャートの項目をカスタマイズできるようになりました
-                    </h3>
-                    <p className="mt-2 text-xs font-medium leading-6 text-slate-400 sm:mt-3 sm:text-sm sm:leading-7 sm:text-base">
-                      表示するスタッフ項目を大会ごとに自由に設定できるようになりました。
-                    </p>
-                  </div>
-                </article>
+                {mergedUpdates.map((update, index) => {
+                  const article = (
+                    <article className="grid gap-3 py-4 sm:grid-cols-[120px_1fr] sm:gap-7 sm:py-8">
+                      <time className={`font-mono text-xs sm:text-sm ${index === 0 ? "text-emerald-300/55" : "text-sky-300/55"}`}>
+                        {update.date}
+                      </time>
+                      <div>
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black sm:px-3 sm:py-1 sm:text-xs ${categoryClassName(update.category)}`}>
+                          {update.category}
+                        </span>
+                        <h3 className="mt-2 text-sm font-black leading-snug tracking-[-0.03em] text-white sm:mt-3 sm:text-lg sm:text-xl">
+                          {update.title}
+                        </h3>
+                        <p className="mt-2 text-xs font-medium leading-6 text-slate-400 sm:mt-3 sm:text-sm sm:leading-7 sm:text-base">
+                          {update.description}
+                        </p>
+                        {update.imageUrl ? (
+                          <div className="relative mt-4 aspect-[16/9] w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900">
+                            <Image src={update.imageUrl} alt={update.title} fill className="object-contain" sizes="(max-width: 768px) 100vw, 800px" />
+                          </div>
+                        ) : null}
+                      </div>
+                    </article>
+                  );
+                  return update.legacy ? (
+                    <div key={update.id}>{article}</div>
+                  ) : (
+                    <Link key={update.id} href={`/updates/${update.id}`} className="block transition-colors hover:bg-slate-900/30">
+                      {article}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           </div>

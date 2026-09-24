@@ -291,12 +291,20 @@ export default function InternalAnalyticsPage() {
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <h1 className="text-xl font-black tracking-tight sm:text-2xl">内部 Analytics</h1>
-          <Link
-            href="/admin/internal-clubs"
-            className="text-sm font-bold text-emerald-400 hover:text-emerald-300"
-          >
-            ユーザーHP 一覧 →
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/admin/internal-updates"
+              className="text-sm font-bold text-emerald-400 hover:text-emerald-300"
+            >
+              お知らせ管理 →
+            </Link>
+            <Link
+              href="/admin/internal-clubs"
+              className="text-sm font-bold text-emerald-400 hover:text-emerald-300"
+            >
+              ユーザーHP 一覧 →
+            </Link>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-[#111827] p-4 sm:p-6">
