@@ -419,7 +419,7 @@ export async function GET(request: NextRequest) {
         id: d.id,
         ownerId: data.ownerId ?? uid,
         clubUid: data.clubUid ?? d.id,
-        name: data.name ?? resolvedClubName ?? d.id,
+        name: typeof data.name === "string" ? data.name : "",
         clubId: (typeof profile.clubId === "string" && profile.clubId) || null,
         gameTitle: data.gameTitle ?? "FC26",
         clubName: resolvedClubName,

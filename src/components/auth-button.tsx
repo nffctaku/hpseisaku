@@ -182,7 +182,7 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-bold text-emerald-400">{activeCareer.gameTitle}</div>
+                    <div className="truncate text-sm font-bold text-emerald-400">{activeCareer.name.trim() || "名称未設定"}</div>
                     <div className="truncate text-xs text-slate-300">{activeCareer.clubName}</div>
                   </div>
                 </div>
@@ -219,9 +219,9 @@ export function AuthButton({ isMobile = false }: { isMobile?: boolean }) {
                       ) : (
                         <Shield className="h-4 w-4 text-slate-400" />
                       )}
-                      <span className="min-w-0 flex-1 truncate text-sm">
-                        <span className="mr-1.5 text-xs text-slate-400">{c.gameTitle}</span>
-                        {c.clubName}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm">{c.name.trim() || "名称未設定"}</span>
+                        <span className="block truncate text-xs text-slate-400">{c.clubName}</span>
                       </span>
                     </div>
                   </DropdownMenuItem>
