@@ -34,6 +34,42 @@ export function toDashSeason(season: string): string {
   return season;
 }
 
+export function seasonKeyCandidates(season: string): string[] {
+  return Array.from(
+    new Set(
+      [season, toSlashSeason(season), toDashSeason(season)].filter(
+        (v): v is string => typeof v === "string" && v.trim().length > 0
+      )
+    )
+  );
+}
+
+export function normalizeSeasonNumber(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v.trim()))) {
+    return Number(v.trim());
+  }
+  return null;
+}
+
+// seasonData[season].number を取り出す。レガシーの配列形式は index 0 が背番号。
+export function resolveSeasonScopedNumber(seasonData: unknown, seasonKeys: string[]): number | null {
+  if (!seasonData || typeof seasonData !== "object") return null;
+  const sd = seasonData as Record<string, unknown>;
+  for (const key of seasonKeys) {
+    const entry = sd[key];
+    const raw =
+      Array.isArray(entry)
+        ? entry[0]
+        : entry && typeof entry === "object"
+          ? (entry as Record<string, unknown>).number
+          : undefined;
+    const n = normalizeSeasonNumber(raw);
+    if (n !== null) return n;
+  }
+  return null;
+}
+
 export function generateSeasonOptions(): string[] {
   const now = new Date();
   const year = now.getFullYear();

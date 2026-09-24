@@ -10,6 +10,7 @@ import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { PartnerStripClient } from "@/components/partner-strip-client";
 import { SeasonPerformance } from "@/components/season-performance";
+import { resolveSeasonScopedNumber, seasonKeyCandidates } from "@/lib/season";
 
 function parseColorToRgb(input: string): { r: number; g: number; b: number } | null {
   const v = input.trim();
@@ -235,8 +236,10 @@ function PublicPlayerStatsView({
         const sd = (seasonData as any)?.[selectedSeason];
         const seasonManual = normalizeRows((sd as any)?.manualCompetitionStats);
         const legacyManual = normalizeRows(p.manualCompetitionStats);
+        const seasonNumber = resolveSeasonScopedNumber(seasonData, seasonKeyCandidates(selectedSeason));
         return {
           ...p,
+          number: seasonNumber ?? p.number,
           manualCompetitionStats: seasonManual.length > 0 ? seasonManual : legacyManual,
         };
       }

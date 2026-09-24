@@ -4,7 +4,7 @@ import { PlayerList } from "./player-list";
 import { getMatchStatsForPlayers, MatchRecord } from "./lib/get-match-stats";
 import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
-import { toDashSeason, toSlashSeason } from "@/lib/season";
+import { toDashSeason, toSlashSeason, resolveSeasonScopedNumber, normalizeSeasonNumber } from "@/lib/season";
 import { pickPlayerPhotoUrl } from "@/lib/player-photo";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 import { lightenColor } from "@/lib/utils";
@@ -156,6 +156,7 @@ async function getPlayersData(
   let rosterPlayerIdSet: Set<string> | null = null;
   let rosterTeamIdByPlayerId: Map<string, string> | null = null;
   let rosterPhotoByPlayerId: Map<string, string> | null = null;
+  let rosterNumberByPlayerId: Map<string, number> | null = null;
   if (activeSeasonDashForRoster) {
     try {
       const rosterSnap = await db.collection(`clubs/${baseClubDocId}/seasons/${activeSeasonDashForRoster}/roster`).get();
@@ -203,6 +204,17 @@ async function getPlayersData(
               return teamId ? ([d.id, teamId] as const) : null;
             })
             .filter((x): x is readonly [string, string] => Boolean(x))
+        );
+        rosterNumberByPlayerId = new Map(
+          effectiveDocs
+            .map((d) => {
+              const data = d.data() as any;
+              const n =
+                resolveSeasonScopedNumber(data?.seasonData, seasonKeyCandidates) ??
+                normalizeSeasonNumber(data?.number);
+              return n !== null ? ([d.id, n] as const) : null;
+            })
+            .filter((x): x is readonly [string, number] => x !== null)
         );
       }
     } catch (e) {
@@ -439,6 +451,15 @@ async function getPlayersData(
   if (counts) {
     counts.afterPublishedPlayers = filteredPlayers.length;
   }
+
+  // 表示中シーズンの背番号に差し替える（seasonData → 同シーズンroster → 選手doc直下の順）
+  filteredPlayers = filteredPlayers.map((p: any) => {
+    const seasonNumber =
+      resolveSeasonScopedNumber(p?.seasonData, activeSeasonKeys) ??
+      rosterNumberByPlayerId?.get(String(p?.id || "")) ??
+      null;
+    return seasonNumber === null ? p : { ...p, number: seasonNumber };
+  });
 
   // 背番号でソート（重複しても一旦そのまま）
   filteredPlayers.sort((a, b) => (a.number || 0) - (b.number || 0));

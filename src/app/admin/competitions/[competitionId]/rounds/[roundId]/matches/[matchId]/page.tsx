@@ -11,7 +11,7 @@ import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { MatchDetails, Player } from '@/types/match';
-import { toDashSeason, toSlashSeason } from '@/lib/season';
+import { toDashSeason, toSlashSeason, resolveSeasonScopedNumber, normalizeSeasonNumber } from '@/lib/season';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MatchTeamStatsForm } from '@/components/match-team-stats-form';
 import { MatchOcrCollapsible } from '@/components/match-ocr-panel';
@@ -364,7 +364,14 @@ export default function MatchAdminPage() {
 
               const fromTeam = teamPlayersById.get(d.id);
               if (fromTeam) {
-                byId.set(d.id, { ...fromTeam, teamId: fromTeam.teamId ?? tid ?? teamId } as Player);
+                const seasonNumber =
+                  resolveSeasonScopedNumber(data?.seasonData, seasonKeyCandidates) ??
+                  normalizeSeasonNumber(data?.number);
+                byId.set(d.id, {
+                  ...fromTeam,
+                  number: (seasonNumber ?? (fromTeam as any).number) as any,
+                  teamId: fromTeam.teamId ?? tid ?? teamId,
+                } as Player);
                 return;
               }
               return;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { resolveSeasonScopedNumber, seasonKeyCandidates } from "@/lib/season";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -331,22 +332,28 @@ export function SeasonPerformance({
   const playerGoalRanking = useMemo(() => {
     if (!players || !aggregatedStats) return [];
 
+    const seasonKeys = seasonKeyCandidates(selectedSeason || "");
     const ranked = players.map((p) => {
       const stats = aggregatedStats[p.id] || { goals: 0, minutes: 0 };
       const goalsPer90 = stats.minutes > 0 ? (stats.goals / stats.minutes) * 90 : 0;
-      return { player: p, goals: stats.goals, goalsPer90 };
+      const seasonNumber = resolveSeasonScopedNumber((p as any)?.seasonData, seasonKeys);
+      const player = seasonNumber !== null ? { ...p, number: seasonNumber } : p;
+      return { player, goals: stats.goals, goalsPer90 };
     }).filter((item) => item.goals > 0).sort((a, b) => b.goals - a.goals).slice(0, 5);
 
     return ranked.map((item, index) => ({ ...item, rank: index + 1 }));
-  }, [players, aggregatedStats, selectedCompetitionId]);
+  }, [players, aggregatedStats, selectedCompetitionId, selectedSeason]);
 
   // 選手のアシストランキングを計算（トップ5）
   const playerAssistRanking = useMemo(() => {
     if (!players || !aggregatedStats) return [];
 
+    const seasonKeys = seasonKeyCandidates(selectedSeason || "");
     const ranking = players
-      .map((player) => {
-        const stats = aggregatedStats[player.id];
+      .map((p) => {
+        const stats = aggregatedStats[p.id];
+        const seasonNumber = resolveSeasonScopedNumber((p as any)?.seasonData, seasonKeys);
+        const player = seasonNumber !== null ? { ...p, number: seasonNumber } : p;
         return {
           player,
           assists: stats?.assists || 0,
@@ -364,7 +371,7 @@ export function SeasonPerformance({
       }));
 
     return ranking;
-  }, [players, aggregatedStats, selectedCompetitionId]);
+  }, [players, aggregatedStats, selectedCompetitionId, selectedSeason]);
 
   const totalMatches = currentSeasonStats.wins + currentSeasonStats.draws + currentSeasonStats.losses;
   const winPercent = totalMatches > 0 ? (currentSeasonStats.wins / totalMatches) * 100 : 0;

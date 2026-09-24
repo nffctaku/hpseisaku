@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/lib/firebase/admin";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
+import { resolveSeasonScopedNumber, normalizeSeasonNumber, seasonKeyCandidates } from "@/lib/season";
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -269,6 +270,30 @@ export async function GET(request: NextRequest, context: { params: Promise<{ clu
     for (const item of playersByTeamRows) {
       playersByTeam.set(item.teamId, item.rows);
       players.push(...item.rows);
+    }
+
+    // 選択シーズンの背番号を反映（seasonData → 対象シーズンのroster → 選手doc直下の順）
+    if (seasonParam && seasonParam !== 'all') {
+      try {
+        const seasonKeys = seasonKeyCandidates(seasonParam);
+        const rosterSnap = await db.collection(`clubs/${ownerUid}/seasons/${toDashSeason(seasonParam)}/roster`).get();
+        const rosterNumberByPlayerId = new Map<string, number>();
+        for (const d of rosterSnap.docs) {
+          const data = d.data() as any;
+          const n =
+            resolveSeasonScopedNumber(data?.seasonData, seasonKeys) ??
+            normalizeSeasonNumber(data?.number);
+          if (n !== null) rosterNumberByPlayerId.set(d.id, n);
+        }
+        for (const p of players) {
+          const n =
+            resolveSeasonScopedNumber(p?.seasonData, seasonKeys) ??
+            rosterNumberByPlayerId.get(String(p?.id || ""));
+          if (n !== null) p.number = n;
+        }
+      } catch {
+        // ignore
+      }
     }
 
     // Use cached aggregated stats if present (but still return matches for UI computations)

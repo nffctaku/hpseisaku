@@ -12,6 +12,7 @@ import { formatMinute } from "@/lib/formatMinute";
 import { minuteSortValue } from "@/lib/match-minutes";
 import { resolveScorerName, goalEventSuffix, resolveEventPlayerName } from "@/lib/match-scorers";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
+import { resolveSeasonScopedNumber, normalizeSeasonNumber, seasonKeyCandidates, toDashSeason } from "@/lib/season";
 
 const getFormationSlots = (formation: string) => {
   const lines = formation
@@ -85,6 +86,28 @@ async function getMatchDetail(
   const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
   if (!ownerUid) return null;
 
+  // 対象シーズンの roster コレクションのみを参照し、背番号のフォールバックマップを作る
+  // 優先順位は他画面と共通: 選手docのseasonData → 同シーズンroster → 選手doc直下
+  const fetchRosterNumberMap = async (season: string): Promise<Map<string, number>> => {
+    const map = new Map<string, number>();
+    const dash = season ? toDashSeason(season) : "";
+    if (!dash) return map;
+    try {
+      const keys = seasonKeyCandidates(season);
+      const snap = await db.collection(`clubs/${ownerUid}/seasons/${dash}/roster`).get();
+      for (const d of snap.docs) {
+        const rd = d.data() as any;
+        const n =
+          resolveSeasonScopedNumber(rd?.seasonData, keys) ??
+          normalizeSeasonNumber(rd?.number);
+        if (n !== null) map.set(d.id, n);
+      }
+    } catch {
+      // ignore
+    }
+    return map;
+  };
+
   // Friendly/Practice single match
   if (competitionId === 'friendly' || competitionId === 'practice') {
     const friendlyRef = db.doc(`clubs/${ownerUid}/friendly_matches/${matchId}`);
@@ -94,6 +117,10 @@ async function getMatchDetail(
 
       const compId = (data.competitionId as string) === 'practice' ? 'practice' : competitionId;
       const compName = data.competitionName || (compId === 'practice' ? '練習試合' : '親善試合');
+
+      const matchSeason = typeof data.season === "string" ? data.season.trim() : "";
+      const seasonKeys = matchSeason ? seasonKeyCandidates(matchSeason) : [];
+      const rosterNumbers = await fetchRosterNumberMap(matchSeason);
 
       const fetchTeamData = async (teamId: string | undefined) => {
         if (!teamId) return null;
@@ -113,7 +140,10 @@ async function getMatchDetail(
           const pd = d.data() as any;
           return {
             id: d.id,
-            number: Number(pd.number) || 0,
+            number:
+              resolveSeasonScopedNumber(pd?.seasonData, seasonKeys) ??
+              rosterNumbers.get(d.id) ??
+              (Number(pd.number) || 0),
             position: pd.position,
             photoUrl: pd.photoUrl || pd.photoURL,
             name: pd.name,
@@ -192,10 +222,21 @@ async function getMatchDetail(
       return teamDoc.exists ? teamDoc.data() as any : null;
     };
 
-    const [homeTeamData, awayTeamData] = await Promise.all([
+    const [homeTeamData, awayTeamData, compDoc, roundDoc] = await Promise.all([
       fetchTeamData(data.homeTeam),
       fetchTeamData(data.awayTeam),
+      db.doc(`clubs/${ownerUid}/competitions/${competitionId}`).get(),
+      db.doc(`clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}`).get(),
     ]);
+
+    // 試合の所属シーズン: match.season → round.season → competition.season
+    const matchSeason =
+      (typeof data.season === "string" && data.season.trim()) ||
+      (roundDoc.exists ? String((roundDoc.data() as any)?.season || "").trim() : "") ||
+      (compDoc.exists ? String((compDoc.data() as any)?.season || "").trim() : "") ||
+      "";
+    const seasonKeys = matchSeason ? seasonKeyCandidates(matchSeason) : [];
+    const rosterNumbers = await fetchRosterNumberMap(matchSeason);
 
     const fetchTeamPlayers = async (teamId: string | undefined) => {
       if (!teamId) return [] as { id: string; number: number; position?: string; photoUrl?: string; name?: string }[];
@@ -204,7 +245,10 @@ async function getMatchDetail(
         const pd = d.data() as any;
         return {
           id: d.id,
-          number: Number(pd.number) || 0,
+          number:
+            resolveSeasonScopedNumber(pd?.seasonData, seasonKeys) ??
+            rosterNumbers.get(d.id) ??
+            (Number(pd.number) || 0),
           position: pd.position,
           photoUrl: pd.photoUrl || pd.photoURL,
           name: pd.name,
@@ -233,17 +277,11 @@ async function getMatchDetail(
     // 大会名・ラウンド名がマッチドキュメントに無ければ、元のコレクションから補完
     let competitionName = data.competitionName as string | undefined;
     let roundName = data.roundName as string | undefined;
-    if (!competitionName || !roundName) {
-      const [compDoc, roundDoc] = await Promise.all([
-        !competitionName ? db.doc(`clubs/${ownerUid}/competitions/${competitionId}`).get() : Promise.resolve(null as any),
-        !roundName ? db.doc(`clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}`).get() : Promise.resolve(null as any),
-      ]);
-      if (!competitionName && compDoc && compDoc.exists) {
-        competitionName = (compDoc.data() as any).name;
-      }
-      if (!roundName && roundDoc && roundDoc.exists) {
-        roundName = (roundDoc.data() as any).name;
-      }
+    if (!competitionName && compDoc.exists) {
+      competitionName = (compDoc.data() as any).name;
+    }
+    if (!roundName && roundDoc.exists) {
+      roundName = (roundDoc.data() as any).name;
     }
 
     const match: MatchDetails = {
@@ -297,10 +335,30 @@ async function getMatchDetail(
     return teamDoc.exists ? teamDoc.data() as any : null;
   };
 
-  const [homeTeamData, awayTeamData] = await Promise.all([
+  const flatCompId = (typeof data.competitionId === "string" && data.competitionId) || competitionId;
+  const flatRoundId = (typeof data.roundId === "string" && data.roundId) || roundId;
+  const isRealCompPath =
+    flatCompId !== "friendly" && flatCompId !== "practice" && flatRoundId !== "single";
+
+  const [homeTeamData, awayTeamData, compDoc, roundDoc] = await Promise.all([
     fetchTeamData(data.homeTeam),
     fetchTeamData(data.awayTeam),
+    isRealCompPath
+      ? db.doc(`clubs/${ownerUid}/competitions/${flatCompId}`).get()
+      : Promise.resolve(null as any),
+    isRealCompPath
+      ? db.doc(`clubs/${ownerUid}/competitions/${flatCompId}/rounds/${flatRoundId}`).get()
+      : Promise.resolve(null as any),
   ]);
+
+  // 試合の所属シーズン: match.season → round.season → competition.season
+  const matchSeason =
+    (typeof data.season === "string" && data.season.trim()) ||
+    (roundDoc?.exists ? String((roundDoc.data() as any)?.season || "").trim() : "") ||
+    (compDoc?.exists ? String((compDoc.data() as any)?.season || "").trim() : "") ||
+    "";
+  const seasonKeys = matchSeason ? seasonKeyCandidates(matchSeason) : [];
+  const rosterNumbers = await fetchRosterNumberMap(matchSeason);
 
   const fetchTeamPlayers = async (teamId: string | undefined) => {
     if (!teamId) return [] as { id: string; number: number; position?: string; photoUrl?: string; name?: string }[];
@@ -309,7 +367,10 @@ async function getMatchDetail(
       const pd = d.data() as any;
       return {
         id: d.id,
-        number: Number(pd.number) || 0,
+        number:
+          resolveSeasonScopedNumber(pd?.seasonData, seasonKeys) ??
+          rosterNumbers.get(d.id) ??
+          (Number(pd.number) || 0),
         position: pd.position,
         photoUrl: pd.photoUrl || pd.photoURL,
         name: pd.name,
@@ -338,17 +399,11 @@ async function getMatchDetail(
   // 大会名・ラウンド名の補完
   let competitionName = data.competitionName as string | undefined;
   let roundName = data.roundName as string | undefined;
-  if (!competitionName) {
-    const compDoc = await db.doc(`clubs/${ownerUid}/competitions/${competitionId}`).get();
-    if (compDoc.exists) {
-      competitionName = (compDoc.data() as any).name;
-    }
+  if (!competitionName && compDoc?.exists) {
+    competitionName = (compDoc.data() as any).name;
   }
-  if (!roundName) {
-    const roundDoc = await db.doc(`clubs/${ownerUid}/competitions/${competitionId}/rounds/${roundId}`).get();
-    if (roundDoc.exists) {
-      roundName = (roundDoc.data() as any).name;
-    }
+  if (!roundName && roundDoc?.exists) {
+    roundName = (roundDoc.data() as any).name;
   }
 
   const match: MatchDetails = {
