@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublishedUpdate } from "@/lib/updates-server";
@@ -48,15 +47,9 @@ export default async function UpdateDetailPage({ params }: Props) {
         </div>
 
         {item.imageUrl ? (
-          <div className="relative mb-10 aspect-[16/9] w-full overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
-            <Image
-              src={item.imageUrl}
-              alt={item.title}
-              fill
-              className="object-contain"
-              sizes="(max-width: 896px) 100vw, 896px"
-              priority
-            />
+          <div className="mb-10 w-full overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item.imageUrl} alt={item.title} className="h-auto w-full" />
           </div>
         ) : null}
 

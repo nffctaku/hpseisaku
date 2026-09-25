@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
 import { ADMIN_UIDS } from "@/lib/admin-config";
 import { UPDATE_CATEGORIES, categoryClassName, type UpdateItem, type UpdateStatus } from "@/lib/updates";
-import { ImageUploader } from "@/components/image-uploader";
+import { ImageAttachment } from "@/components/image-attachment";
 import { UpdateBody } from "@/components/update-body";
 import { Loader2, Plus, Eye, EyeOff, Pencil, Trash2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
@@ -62,6 +62,7 @@ export default function InternalUpdatesPage() {
   const [listLoading, setListLoading] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [imgBusy, setImgBusy] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -104,7 +105,10 @@ export default function InternalUpdatesPage() {
     });
 
   const save = async (status: UpdateStatus) => {
-    if (saving) return;
+    if (saving || imgBusy) {
+      if (imgBusy) toast.error("画像のアップロードが完了してから保存してください。");
+      return;
+    }
     setSaving(true);
     try {
       const payload = { ...form, status, id: undefined };
@@ -203,7 +207,7 @@ export default function InternalUpdatesPage() {
   }
 
   const inputCls =
-    "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none";
+    "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none";
   const editingPublished = form.id && form.status === "published";
 
   return (
@@ -277,12 +281,7 @@ export default function InternalUpdatesPage() {
 
           <div>
             <label className="mb-1 block text-xs font-bold text-gray-600">画像（任意）</label>
-            <ImageUploader value={form.imageUrl} onChange={(url) => set("imageUrl", url)} cropWidth={1200} cropHeight={675} cropTitle="お知らせ画像をトリミング" />
-            {form.imageUrl ? (
-              <button type="button" onClick={() => set("imageUrl", "")} className="mt-1 text-xs font-bold text-rose-500 underline">
-                画像を解除
-              </button>
-            ) : null}
+            <ImageAttachment value={form.imageUrl} onChange={(url) => set("imageUrl", url)} onBusyChange={setImgBusy} />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -299,7 +298,7 @@ export default function InternalUpdatesPage() {
           <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || imgBusy}
               onClick={() => save("draft")}
               className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-black text-gray-700 hover:bg-gray-100 disabled:opacity-50"
             >
@@ -307,7 +306,7 @@ export default function InternalUpdatesPage() {
             </button>
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || imgBusy}
               onClick={() => save("published")}
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-50"
             >

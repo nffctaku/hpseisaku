@@ -49,7 +49,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ImageUploader } from "@/components/image-uploader";
+import { ImageAttachment } from "@/components/image-attachment";
 import { Bold, Heading, List, Link as LinkIcon, Loader2, Sparkles, Eye, Save, Send, X } from "lucide-react";
 import { MatchDetails } from "@/types/match";
 import { NewsArticle, NewsCreationMethod } from "@/types/news";
@@ -153,6 +153,7 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiLoaded, setAiLoaded] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [imgBusy, setImgBusy] = useState(false);
   const [previewArticle, setPreviewArticle] = useState<Partial<NewsArticle> | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -439,6 +440,10 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
   };
 
   const onSave = async (status: "draft" | "published") => {
+    if (imgBusy) {
+      toast.error("画像のアップロードが完了してから保存してください。");
+      return;
+    }
     if (status === "published") {
       const ok = await form.trigger();
       if (!ok) {
@@ -537,7 +542,7 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
                     variant="outline"
                     size="sm"
                     onClick={openPreview}
-                    className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 shrink-0"
+                    className="mr-8 border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 shrink-0"
                   >
                     <Eye className="mr-2 h-4 w-4" />
                     プレビュー
@@ -813,12 +818,10 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
                     <FormItem>
                       <FormLabel className="text-slate-200">記事画像</FormLabel>
                       <FormControl>
-                        <ImageUploader
+                        <ImageAttachment
                           value={field.value || ""}
                           onChange={field.onChange}
-                          cropWidth={1600}
-                          cropHeight={900}
-                          cropTitle="ニュース画像をトリミング"
+                          onBusyChange={setImgBusy}
                           preparedImages={PREPARED_IMAGES}
                         />
                       </FormControl>
@@ -897,7 +900,7 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
                     type="button"
                     variant="outline"
                     onClick={() => onSave("draft")}
-                    disabled={isSaving || (mode === "ai" && !aiGenerated)}
+                    disabled={isSaving || imgBusy || (mode === "ai" && !aiGenerated)}
                     className="flex-1 border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
                   >
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -906,7 +909,7 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
                   <Button
                     type="button"
                     onClick={() => onSave("published")}
-                    disabled={isSaving || (mode === "ai" && !aiGenerated)}
+                    disabled={isSaving || imgBusy || (mode === "ai" && !aiGenerated)}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                   >
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
@@ -949,13 +952,13 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
           </DialogHeader>
           <div className="max-h-[70vh] overflow-y-auto p-1">
             {previewArticle?.imageUrl && (
-              <div className="relative w-full aspect-video mb-6 overflow-hidden rounded-lg bg-slate-900">
-                <Image
-                src={previewArticle.imageUrl}
-                alt={previewArticle.title || ""}
-                fill
-                className="object-contain"
-              />
+              <div className="mb-6 w-full overflow-hidden rounded-lg bg-slate-900">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewArticle.imageUrl}
+                  alt={previewArticle.title || ""}
+                  className="h-auto w-full"
+                />
               </div>
             )}
             <h1 className="text-2xl font-bold mb-4">{previewArticle?.title || "（無題）"}</h1>
@@ -967,11 +970,6 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
               <div className="whitespace-pre-wrap text-slate-200">{previewArticle?.content || ""}</div>
             )}
           </div>
-          <DialogFooter>
-            <Button type="button" onClick={() => setPreviewOpen(false)} className="bg-slate-800 hover:bg-slate-700 text-white">
-              閉じる
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

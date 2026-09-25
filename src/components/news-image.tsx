@@ -57,3 +57,28 @@ export function NewsImage({
     />
   );
 }
+
+// 元画像の縦横比を維持して全体を表示する版（詳細ページ用）
+export function NewsImageNatural({ src, logoUrl, alt, className }: Pick<NewsImageProps, "src" | "logoUrl" | "alt" | "className">) {
+  const candidates = useMemo(() => {
+    const list: string[] = [];
+    if (src) list.push(src);
+    if (logoUrl) list.push(logoUrl);
+    list.push("/favicon.png");
+    return list;
+  }, [src, logoUrl]);
+
+  const [idx, setIdx] = useState(0);
+  const safeIdx = Math.min(idx, candidates.length - 1);
+  const isFallback = safeIdx > 0 || !src;
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={candidates[safeIdx]}
+      alt={isFallback ? "No image available" : alt}
+      className={className ?? "w-full h-auto"}
+      onError={() => setIdx((v) => v + 1)}
+    />
+  );
+}

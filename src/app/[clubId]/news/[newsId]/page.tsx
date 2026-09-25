@@ -2,7 +2,7 @@ import { db } from '@/lib/firebase/admin';
 import { NewsArticle } from '@/types/news';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
-import { NewsImage } from '@/components/news-image';
+import { NewsImage, NewsImageNatural } from '@/components/news-image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { format } from 'date-fns';
@@ -19,6 +19,13 @@ function toCloudinaryPadded16x9(url: string, width: number) {
     '/image/upload/',
     `/image/upload/c_pad,ar_16:9,w_${width},b_auto,f_auto,q_auto/`
   );
+}
+
+// 元の縦横比を維持したまま幅だけ制限する
+function toCloudinaryLimitWidth(url: string, width: number) {
+  if (!url) return url;
+  if (!url.includes('/image/upload/')) return url;
+  return url.replace('/image/upload/', `/image/upload/c_limit,w_${width},f_auto,q_auto/`);
 }
 
 async function getArticle(clubId: string, newsId: string): Promise<NewsArticle | null> {
@@ -169,14 +176,12 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ cl
         </div>
 
         {(article.imageUrl || logoUrl) && (
-          <div className="relative w-full aspect-video bg-gray-800 rounded-lg overflow-hidden mb-6">
-            <NewsImage
-              src={toCloudinaryPadded16x9(article.imageUrl || "", 1600)}
+          <div className="w-full bg-gray-800 rounded-lg overflow-hidden mb-6">
+            <NewsImageNatural
+              src={article.imageUrl ? toCloudinaryLimitWidth(article.imageUrl, 1600) : null}
               logoUrl={logoUrl}
               alt={article.title}
-              className="object-contain"
-              fallbackClassName="object-contain p-10"
-              priority
+              className="w-full h-auto"
             />
           </div>
         )}
