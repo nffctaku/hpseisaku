@@ -17,6 +17,7 @@ export interface StreakNumbers {
   wins: number;
   losses: number;
   unbeaten: number;
+  winless: number;
 }
 
 export interface StreakContext {
@@ -65,6 +66,10 @@ export interface MatchContext {
   opponentScore: number;
   selfResult: Result;
   recent5SameCompetition: RecentMatchContext[];
+  /** 同一大会で前回勝利してからの試合数（今回を含む。直近30試合を上限に遡り、実際に勝利が見つかった場合のみ値を入れる） */
+  matchesSinceLastWinSameCompetition: number | null;
+  /** 前回勝利の検索が上限まで尽きた（30試合遡っても勝利なし=「◯試合ぶり」の具体的数字を断定できない） */
+  previousWinSearchExhausted: boolean;
   sameCompetitionStreak: StreakContext | null;
   officialStreak: StreakContext | null;
   table: TableContext | null;
@@ -143,11 +148,12 @@ function countConsecutive(results: Result[], fromIndex: number, predicate: (r: R
 
 function streakAtEnd(results: Result[]): StreakNumbers {
   const idx = results.length - 1;
-  if (idx < 0) return { wins: 0, losses: 0, unbeaten: 0 };
+  if (idx < 0) return { wins: 0, losses: 0, unbeaten: 0, winless: 0 };
   return {
     wins: countConsecutive(results, idx, (r) => r === "win"),
     losses: countConsecutive(results, idx, (r) => r === "loss"),
     unbeaten: countConsecutive(results, idx, (r) => r !== "loss"),
+    winless: countConsecutive(results, idx, (r) => r !== "win"),
   };
 }
 
@@ -336,6 +342,23 @@ export async function getMatchContextForAi(
     .map((m) => getResultForTeam(m, mainTeamId))
     .filter((r): r is Result => r !== null);
 
+  // 同一大会で前回勝利してからの試合数（新しい順に最大30試合まで遡る）
+  // 見つからない場合は「◯試合ぶり」の数字を断定できないため null + exhausted フラグで返す
+  const FIRST_WIN_LOOKBACK = 30;
+  let matchesSinceLastWinSameCompetition: number | null = null;
+  let previousWinSearchExhausted = false;
+  {
+    const desc = [...ownResultsSameComp].reverse().slice(0, FIRST_WIN_LOOKBACK);
+    let n = 0;
+    let found = false;
+    for (const r of desc) {
+      if (r === "win") { found = true; break; }
+      n++;
+    }
+    if (found && n >= 1) matchesSinceLastWinSameCompetition = n + 1;
+    else if (!found) previousWinSearchExhausted = true;
+  }
+
   const sameCompetitionStreak = buildStreaks(
     ownResultsSameComp,
     targetResult,
@@ -403,6 +426,8 @@ export async function getMatchContextForAi(
     opponentScore,
     selfResult: targetResult,
     recent5SameCompetition,
+    matchesSinceLastWinSameCompetition,
+    previousWinSearchExhausted,
     sameCompetitionStreak,
     officialStreak,
     table,

@@ -276,6 +276,129 @@ function streakAfterJson(streakCtx: StreakContext | null) {
   return { type, count, scope: after.scope };
 }
 
+function buildNarrativeFacts(match: MatchDetails, context: MatchContext) {
+  const duration = match.matchDuration || 90;
+  const selfId = context.selfTeamId;
+  const streakCtx = context.sameCompetitionStreak || context.officialStreak;
+
+  // 止めた連続記録（2連勝/2連敗以上のみ。「1連敗」は日本語として不自然でニュース価値もない）
+  let streakStopped: string | null = null;
+  if (streakCtx && streakCtx.before.losses >= 2 && streakCtx.after.losses === 0) {
+    streakStopped = `${streakCtx.before.losses}連敗`;
+  } else if (streakCtx && streakCtx.before.wins >= 2 && streakCtx.after.wins === 0) {
+    streakStopped = `${streakCtx.before.wins}連勝`;
+  }
+
+  // 今回を含む同一大会の連続記録（連勝/連敗/無敗は2試合〜、未勝利は3試合〜のみ返す）
+  const after = streakCtx?.after;
+  let currentCompetitionStreak: string | null = null;
+  if (after && after.wins >= 2) currentCompetitionStreak = `${after.wins}連勝`;
+  else if (after && after.losses >= 2) currentCompetitionStreak = `${after.losses}連敗`;
+  else if (after && after.winless >= 3) currentCompetitionStreak = `${after.winless}試合未勝利`;
+  else if (after && after.unbeaten >= 2) currentCompetitionStreak = `${after.unbeaten}試合無敗`;
+
+  // 得点経過から逆転・決勝点を算出
+  const goalEvents = getGoalEvents(match.events)
+    .slice()
+    .sort((a, b) => (Number(a.minute) || 0) - (Number(b.minute) || 0));
+  let selfGoals = 0;
+  let oppGoals = 0;
+  let trailed = false;
+  let winningGoalMinute: number | null = null;
+  for (const e of goalEvents) {
+    const creditedToSelf = e.teamId === selfId ? !isOwnGoalEvent(e) : isOwnGoalEvent(e);
+    if (creditedToSelf) selfGoals++;
+    else oppGoals++;
+    if (selfGoals < oppGoals) trailed = true;
+    if (selfGoals > oppGoals) winningGoalMinute = Number(e.minute) || null;
+  }
+  const comebackWin = context.selfResult === "win" && trailed;
+  const lateWinner =
+    context.selfResult === "win" && winningGoalMinute != null && winningGoalMinute >= Math.max(80, duration - 10);
+
+  // 何試合ぶりの勝利か（同一大会の過去試合を前回勝利まで遡る。match-context側で最大30試合）
+  const firstWinInMatches =
+    context.selfResult === "win" ? context.matchesSinceLastWinSameCompetition : null;
+
+  // 最高評価選手・チームセーブ
+  const rated = (match.playerStats || []).filter(
+    (p) => p.teamId === selfId && typeof p.rating === "number" && p.playerName
+  );
+  const top = rated.sort((a, b) => b.rating - a.rating)[0];
+  const topRatedPlayer = top ? { name: top.playerName, rating: top.rating } : null;
+
+  // セーブはチーム単位のスタッツのため、GK個人の記録としては断定しない
+  const savesStat = (match.teamStats || []).find(
+    (s) => s.name === "セーブ" || s.name.toLowerCase() === "saves"
+  );
+  const savesRaw = savesStat ? (context.selfIsHome ? savesStat.homeValue : savesStat.awayValue) : undefined;
+  const savesParsed = parseStatValue(savesRaw);
+  const teamSaves = typeof savesParsed === "number" ? savesParsed : null;
+
+  // ---- 記事候補イベント（keyEvents全量とは別に、ニュース価値のあるものだけ）----
+  // 退場・PK失敗・投入選手が後の得点に絡んだ交代のみ。通常のイエロー・普通の交代は含めない
+  const notableEvents: { type: string; minute: number | string; team: string; description: string }[] = [];
+  for (const e of match.events || []) {
+    const team = e.teamId === selfId ? context.selfTeamName : context.opponentTeamName;
+    if (e.type === "card" && e.cardColor === "red") {
+      notableEvents.push({ type: "red_card", minute: e.minute, team, description: `${e.playerName || team}が退場` });
+    } else if (e.type === "pk_miss") {
+      notableEvents.push({ type: "pk_miss", minute: e.minute, team, description: `${team}がPKを失敗` });
+    } else if (e.type === "substitution" && e.inPlayerName) {
+      const subMinute = Number(e.minute) || 0;
+      const involved = goalEvents
+        .filter((g) => (Number(g.minute) || 0) > subMinute)
+        .some((g) => g.playerName === e.inPlayerName || g.assistPlayerName === e.inPlayerName);
+      if (involved) {
+        notableEvents.push({ type: "impact_sub", minute: e.minute, team, description: `${e.inPlayerName}が投入後に得点に絡んだ` });
+      }
+    }
+  }
+
+  // ---- 記事候補スタッツ（閾値を超えた特徴的なものだけ）----
+  // 45〜55%のポゼッション・母数の少ない精度系・平凡な評価点は含めない
+  const notableStats: string[] = [];
+  const findStat = (names: string[]) =>
+    (match.teamStats || []).find((s) => names.includes(s.name.toLowerCase().replace(/\s+/g, "")));
+  const poss = findStat(["ボール支配率", "possession", "支配率"]);
+  if (poss) {
+    const selfP = Number(parseStatValue(context.selfIsHome ? poss.homeValue : poss.awayValue)) || 0;
+    const oppP = Number(parseStatValue(context.selfIsHome ? poss.awayValue : poss.homeValue)) || 0;
+    if (Math.abs(selfP - oppP) >= 15) {
+      notableStats.push(`ボール支配率 自クラブ${selfP}% / 相手${oppP}%`);
+    }
+  }
+  const shots = findStat(["シュート", "shots"]);
+  if (shots) {
+    const selfSh = Number(parseStatValue(context.selfIsHome ? shots.homeValue : shots.awayValue)) || 0;
+    const oppSh = Number(parseStatValue(context.selfIsHome ? shots.awayValue : shots.homeValue)) || 0;
+    if (Math.abs(selfSh - oppSh) >= 8) {
+      notableStats.push(`シュート数 自クラブ${selfSh}本 / 相手${oppSh}本`);
+    }
+  }
+  if (teamSaves != null && teamSaves >= 5) {
+    notableStats.push(`チーム${teamSaves}セーブ`);
+  }
+  if (topRatedPlayer && topRatedPlayer.rating >= 8.5) {
+    notableStats.push(`${topRatedPlayer.name}がチーム最高評価${topRatedPlayer.rating}`);
+  }
+
+  return {
+    cleanSheet: context.opponentScore === 0,
+    streakStopped,
+    currentCompetitionStreak,
+    lateWinner,
+    comebackWin,
+    firstWinInMatches,
+    scorerAgainstFormerClub: null,
+    topRatedPlayer,
+    teamSaves,
+    goalkeeperSaves: null,
+    notableEvents,
+    notableStats,
+  };
+}
+
 function buildInputJson(match: MatchDetails, context: MatchContext, memo?: string): unknown {
   const streakCtx = context.sameCompetitionStreak || context.officialStreak;
   const streakBefore = streakJson(streakCtx, context.selfResult);
@@ -294,6 +417,20 @@ function buildInputJson(match: MatchDetails, context: MatchContext, memo?: strin
     isPenalty: isPenaltyEvent(e),
   }));
 
+  // 交代・カード・PK失敗などの非ゴールイベント（記事の具体的な出来事として利用）
+  const keyEvents = (match.events || [])
+    .filter((e) => e.type === "substitution" || e.type === "card" || e.type === "pk_miss")
+    .sort((a, b) => (Number(a.minute) || 0) - (Number(b.minute) || 0))
+    .map((e) => ({
+      type: e.type,
+      minute: e.minute,
+      team: e.teamId === context.selfTeamId ? context.selfTeamName : context.opponentTeamName,
+      player: e.playerName || undefined,
+      cardColor: e.cardColor || undefined,
+      in: e.inPlayerName || undefined,
+      out: e.outPlayerName || undefined,
+    }));
+
   const stats = buildStats(match, context.selfIsHome);
 
   const recentMatches = context.recent5SameCompetition.map((r) => ({
@@ -307,6 +444,7 @@ function buildInputJson(match: MatchDetails, context: MatchContext, memo?: strin
   return {
     selfTeam: context.selfTeamName,
     selfTeamShortName: shortName(context.clubName || context.selfTeamName),
+    narrativeFacts: buildNarrativeFacts(match, context),
     opponentTeam: context.opponentTeamName,
     venue: context.selfIsHome ? "home" : "away",
     selfScore: context.selfScore,
@@ -316,6 +454,7 @@ function buildInputJson(match: MatchDetails, context: MatchContext, memo?: strin
     round: match.roundName || "",
     matchDate: formatDate(match.matchDate),
     goals,
+    keyEvents,
     streakBefore,
     streakAfter,
     context: {
@@ -331,8 +470,39 @@ function buildInputJson(match: MatchDetails, context: MatchContext, memo?: strin
   };
 }
 
-function buildPrompt(match: MatchDetails, context: MatchContext, memo?: string): string {
+// 本文末尾に固定フォーマットで付与する得点者一覧（AIには生成させない）
+// 自クラブの得点のみ。0得点確定なら「なし」、得点したのに得点者未登録なら欄自体を出さない
+function buildScorersBlock(match: MatchDetails, context: MatchContext): string {
+  const selfId = context.selfTeamId;
+  const selfGoalEvents = getGoalEvents(match.events)
+    .filter((e) => (e.teamId === selfId ? !isOwnGoalEvent(e) : isOwnGoalEvent(e)))
+    .sort((a, b) => (Number(a.minute) || 0) - (Number(b.minute) || 0));
+
+  if (selfGoalEvents.length === 0) {
+    return context.selfScore === 0 ? "【得点者】\nなし" : "";
+  }
+  const lines = selfGoalEvents.map((e) => {
+    const min = e.minute ?? e.minuteText ?? "";
+    const tag = `${isOwnGoalEvent(e) ? " (OG)" : ""}${isPenaltyEvent(e) ? " (PK)" : ""}`;
+    return `${min ? `${min}' ` : ""}${e.playerName || "不明"}${tag}`;
+  });
+  return ["【得点者】", ...lines].join("\n");
+}
+
+function buildPrompt(match: MatchDetails, context: MatchContext, memo?: string, length: "short" | "standard" = "standard"): string {
   const inputJson = JSON.stringify(buildInputJson(match, context, memo), null, 2);
+  const lengthRules =
+    length === "short"
+      ? `【記事の長さ：short】
+・本文を200〜300文字程度にする（末尾に自動付与される得点者欄は文字数に含めない）
+・主要テーマは1〜2個
+・補足的なスタッツやイベントは原則省略
+・簡潔に事実をまとめる`
+      : `【記事の長さ：standard】
+・本文を400〜600文字程度にする（末尾に自動付与される得点者欄は文字数に含めない）
+・主要テーマは2〜4個
+・notableEvents / notableStats / シーズン文脈を必要に応じて使用する
+・ただし文字数を埋めるための一般論や推測は禁止`;
 
   return `あなたはサッカークラブ公式サイトの編集者です。
 提供された試合データだけを使用し、自クラブ視点の日本語記事を作成してください。
@@ -347,6 +517,7 @@ function buildPrompt(match: MatchDetails, context: MatchContext, memo?: string):
 ・得点者情報の未登録と無得点を区別する
 ・事実が少ない場合は文章を短くする
 ・同じ内容を言い換えて繰り返さない
+・記事は今回の試合の事実だけで締める。次戦・今後・期待・意気込みへの言及は一切禁止
 
 【記事の構成】
 1. タイトル
@@ -368,13 +539,45 @@ function buildPrompt(match: MatchDetails, context: MatchContext, memo?: string):
 「フォレスト、フラムに4－1快勝　連敗を2で止める」
 
 【本文】
-・300〜600文字を目安にする
-・データが少なければ150〜300文字でもよい
 ・クラブ公式ニュースとして自然で読みやすい文体にする
 ・選手名、クラブ名の表記を記事内で統一する
 ・一文を長くしすぎず、2〜4段落に分ける
 ・ひと言メモがある場合は、その内容を記事へ自然に反映する
 ・ひと言メモを事実データより優先しない
+
+${lengthRules}
+
+【編集判断】
+記事は「利用可能なデータをできるだけ多く紹介するもの」ではない。
+編集者として、その試合を象徴する重要な事実だけを選択する。
+
+・記事の中心テーマは原則2〜3個まで
+・重要度の低いデータは、存在していても積極的に省略する
+・文字数を満たすために情報を追加してはいけない
+・指定された文字数より短くても、記事として完結していれば問題ない
+・得点者一覧は本文末尾に自動付与されるため、本文中に「得点者」欄や得点者リストを作らない
+
+【原則として記事に書かない】
+・通常のイエローカード
+・試合結果に直接影響していない通常の選手交代
+・45〜55%程度のポゼッション
+・母数が少ない場合のシュート精度などの割合スタッツ
+・特徴的ではない選手評価点
+・単なる直近5試合の成績
+
+【優先して記事に使用する】
+・決勝点、同点弾、逆転弾
+・連勝、連敗ストップ、◯試合ぶりの勝利
+・クリーンシート
+・退場、PK、負傷など試合に大きく影響したイベント
+・明確に突出したスタッツ
+・ユーザーのひと言メモ
+・その試合固有の選手記録
+
+【表現ルール】
+・「戦力を維持した」「安定感を示した」「重要な勝利となった」など、事実から直接確認できない評価表現は禁止
+・順位変動は、試合前後の順位データが存在するときだけ書く
+・「接戦」「激闘」など、スタッツ等の裏付けがない断定評価は使わない
 
 【連勝・連敗】
 ・試合前の記録と試合後の記録を混同しない
@@ -393,6 +596,55 @@ function buildPrompt(match: MatchDetails, context: MatchContext, memo?: string):
 ・自クラブ名、対戦相手、大会名、節、試合結果を自然に含める
 ・検索キーワードを不自然に繰り返さない
 ・ゲーム内の記録の場合、現実の試合と誤認されない表現にする
+
+【記事の見どころ】
+・narrativeFacts と「ひと言メモ」を、記事の見どころを判断する主要情報として使用する
+・構造化された試合データとひと言メモが矛盾する場合は、構造化データを優先する
+・ひと言メモにのみ存在する事実は、ユーザー提供情報として記事に使用してよい
+・入力されたすべての情報を書く必要はない
+・最もニュース価値の高い1〜3個の事実を選び、それを中心に記事を構成する
+
+【テーマ選択の優先順位】
+1. 勝敗を決めた出来事
+2. 連勝・連敗の開始／終了
+3. ◯試合ぶりの勝利
+4. 逆転勝利
+5. 終盤の決勝点
+6. 選手の特筆すべき記録
+7. クリーンシート
+8. ひと言メモの重要トピック
+9. 順位・重要試合
+10. 特徴的なスタッツ
+11. 直近成績
+
+【narrativeFacts の各項目】
+・null / false / 空の項目は記事に一切書かない
+・cleanSheet が true なら無失点（クリーンシート）に触れてよい
+・streakStopped がある場合は止めた連続記録として扱う（例: "2連敗" → 「2連敗を止めた」）
+・currentCompetitionStreak は今回を含む同一大会の連続記録（例: "3連勝" / "4試合無敗" / "5試合未勝利"）。大会別の記録なので、別大会や全体の記録とは混同しない
+・lateWinner が true なら終盤の決勝点として強調してよい
+・comebackWin が true なら逆転勝利として扱ってよい
+・firstWinInMatches が数値なら「◯試合ぶりの勝利」と表現してよい
+・topRatedPlayer があれば最高評価の選手として名前と評価点を紹介してよい
+・teamSaves が数値なら「チームとして◯本のシュートを防いだ」程度の扱いに留め、特定GKの個人記録と断定しない
+・goalkeeperSaves が {player, saves} の形式であれば「その選手が◯セーブを記録」と書いてよい。null の場合はGK個人のセーブ数を記事に書かない
+・scorerAgainstFormerClub に選手名があれば古巣戦での得点として扱ってよい
+・notableEvents / notableStats は編集部が選定した「記事候補」のイベント・スタッツ。優先して記事に使用する
+・keyEvents は試合の全イベント記録。通常のイエローカード・普通の交代が含まれるが、原則として記事には書かない
+
+【締め方】
+・最終段落で今後の展望・意気込みを創作しない
+・以下のような汎用的な締め文・展望表現は一切使わない：
+  「今後の巻き返しが期待される」「さらなる改善が期待される」「改善を目指す」
+  「さらなる成長が期待される」「前進の兆しを見せた」「手応えを感じた」
+  「次戦に向けて弾みをつけたい」「弾みをつける」「次戦に期待」
+  「今後の戦いに注目したい」「今後に期待」「ここから調子を上げていきたい」
+・具体的な展望データがなければ、今回の試合の事実で記事を終える（例: 「シティを無得点に抑え、連敗を3で止めた。」）
+・記事に十分な事実がなければ、2段落程度で終了してよい。水増ししない
+
+【禁止表現】
+・「1連敗」「1連勝」という表現は使わない（日本語として不自然）。1試合だけの記録は「前節の敗戦」「前節の勝利」等で表現する
+・「2試合未勝利」程度の短い未勝利記録は記事の主要テーマにしない（3試合以上の未勝利なら扱ってよい）
 
 【出力】
 JSONだけを返してください。
@@ -414,6 +666,27 @@ function validateGeneratedDraft(title: string, content: string, context: MatchCo
   const before = streak?.before;
   const after = streak?.after;
   const has = (patterns: string[]) => patterns.some((p) => text.includes(p));
+
+  // 汎用的な締め文・展望表現の検出（全結果共通）
+  const GENERIC_CLOSER_PATTERNS: { re: RegExp; label: string }[] = [
+    { re: /さらなる改善|改善を目指|改善が期待|さらなる成長|成長が期待/, label: "改善・成長系" },
+    { re: /弾みをつけ|弾みに/, label: "弾み系" },
+    { re: /今後の試合[でに]|今後に期待|今後の戦いに注目|今後の活躍/, label: "今後系" },
+    { re: /次戦に向け|次戦に期待|次回の試合/, label: "次戦系" },
+    { re: /巻き返しが期待|巻き返しを図|巻き返しを狙/, label: "巻き返し系" },
+    { re: /調子を上げ|波に乗りたい|波に乗って/, label: "調子系" },
+    { re: /前進の兆し|光明を見出|手応えを感じ|収穫となった|収穫を得た/, label: "兆し・収穫系" },
+    { re: /重要な勝利|重要な一勝|大きな勝利とな|価値ある勝利/, label: "重要勝利系" },
+    { re: /安定感を示|戦力を維持|地力を見せ|存在感を示/, label: "抽象評価系" },
+    { re: /順位を上げ|順位が上昇|順位を上昇|浮上した|順位を抜い/, label: "順位変動系" },
+  ];
+  const closerHit = GENERIC_CLOSER_PATTERNS.find((p) => p.re.test(text));
+  if (closerHit) {
+    return { ok: false, reason: `汎用的な締め・展望表現がある（${closerHit.label}）` };
+  }
+  if (/1連敗|1連勝/.test(text)) {
+    return { ok: false, reason: "「1連敗」「1連勝」の表現がある" };
+  }
 
   if (result === "win") {
     if (has(["敗戦", "敗北", "負けた", "敗れた", "喫した", "敗局"])) {
@@ -440,8 +713,37 @@ function validateGeneratedDraft(title: string, content: string, context: MatchCo
       }
     }
   } else if (result === "draw") {
-    if (has(["勝利", "敗戦", "敗北", "負けた", "敗れた"])) {
-      return { ok: false, reason: "引き分けなのに勝敗を示す表現がある" };
+    // 「今回の試合で勝った／負けた」と断定する表現だけをNGにする。
+    // 「勝」「敗」単体や「連敗を止めた」「勝利には届かなかった」は誤検知になるため含めない
+    const DRAW_CONTRADICTION_PATTERNS: { re: RegExp; label: string }[] = [
+      { re: /勝利(?:した|を収めた|を飾った|を挙げた|を上げた|を手に)/, label: "勝利した系" },
+      { re: /白星(?:を挙げた|を飾った|を収めた)/, label: "白星系" },
+      { re: /勝ち切った|勝ちを収めた|勝ち越した/, label: "勝ち切った系" },
+      { re: /勝点3(?:を獲得|を手に|を加え)/, label: "勝点3獲得" },
+      { re: /相手を下した|下して/, label: "相手を下した" },
+      { re: /敗れた|敗戦を喫した|敗戦となった|敗北を喫した|敗北した/, label: "敗れた系" },
+      { re: /黒星(?:を喫した|となった|がついた)/, label: "黒星系" },
+      { re: /相手に屈した|屈した/, label: "屈した系" },
+    ];
+    const hit = DRAW_CONTRADICTION_PATTERNS.find((p) => p.re.test(text));
+    if (hit) {
+      return { ok: false, reason: `引き分けなのに勝敗を示す表現がある（${hit.label}）` };
+    }
+    // スコア+勝敗断定は「今回の試合スコア」に限定（「前節2-1で勝利」等の過去試合記述は許可）
+    const scoreRe = new RegExp(
+      `${context.selfScore}\\s*[-－]\\s*${context.opponentScore}で(?:勝利|敗戦|勝ち|負け)` +
+        `|${context.opponentScore}\\s*[-－]\\s*${context.selfScore}で(?:勝利|敗戦|勝ち|負け)`
+    );
+    if (scoreRe.test(text)) {
+      return { ok: false, reason: "引き分けなのに勝敗を示す表現がある（スコア+勝敗断定）" };
+    }
+    if (before && after) {
+      if (before.losses > 0 && after.losses === 0 && has(["連敗を喫", "連敗が続", "連敗は続", "連敗を重ね", "連敗となった"])) {
+        return { ok: false, reason: "引き分けで連敗が止まった試合なのに連敗が続いている表現がある" };
+      }
+      if (before.wins > 0 && after.wins === 0 && has(["連勝を伸ば", "連勝継続", "連勝を重ね"])) {
+        return { ok: false, reason: "連勝が止まった試合なのに連勝が続いている表現がある" };
+      }
     }
   }
 
@@ -547,6 +849,7 @@ export async function POST(request: NextRequest) {
     const matchId =
       typeof body.matchId === "string" ? body.matchId : typeof body.matchId === "number" ? String(body.matchId) : "";
     const memo = typeof body.memo === "string" ? body.memo : "";
+    const length: "short" | "standard" = body.length === "short" ? "short" : "standard";
 
     const clubUid = await getActiveClubUid(uid);
 
@@ -568,16 +871,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "自クラブの mainTeamId が設定されていないため、文脈を取得できません。" }, { status: 400 });
     }
 
-    const prompt = buildPrompt(match, context, memo);
-    const result = await callOpenAI(prompt);
+    const basePrompt = buildPrompt(match, context, memo, length);
 
-    const validation = validateGeneratedDraft(result.title, result.content, context);
-    if (!validation.ok) {
-      console.error("[draft POST] generated draft contradiction:", validation.reason);
-      return NextResponse.json({ error: `生成された文章に矛盾が検出されたため返却できません: ${validation.reason}` }, { status: 500 });
+    // 検証失敗時は不合格理由をフィードバックして1回だけ自動再生成する
+    let result: { title: string; content: string; description?: string } | null = null;
+    let lastReason = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const prompt =
+        attempt === 0
+          ? basePrompt
+          : `${basePrompt}\n\n【重要：前回の出力は不合格でした】\n不合格理由: ${lastReason}\n今回の試合の事実だけで構成し、展望・期待・意気込みの表現は一切使わず、事実で記事を終えてください。`;
+      const generated = await callOpenAI(prompt);
+      const validation = validateGeneratedDraft(generated.title, generated.content, context);
+      if (validation.ok) {
+        result = generated;
+        break;
+      }
+      lastReason = validation.reason || "unknown";
+      console.error(`[draft POST] generated draft contradiction (attempt ${attempt + 1}):`, {
+        reason: validation.reason,
+        selfResult: context.selfResult,
+        title: generated.title,
+        body: generated.content,
+      });
     }
 
-    return NextResponse.json({ ok: true, ...result });
+    if (!result) {
+      return NextResponse.json({ error: `生成された文章に問題が検出されたため返却できません: ${lastReason}` }, { status: 500 });
+    }
+
+    // 得点者一覧はAI生成ではなく構造化データから本文末尾に付与する
+    const scorersBlock = buildScorersBlock(match, context);
+    const content = scorersBlock ? `${result.content}\n\n${scorersBlock}` : result.content;
+
+    return NextResponse.json({ ok: true, title: result.title, content, description: result.description });
   } catch (error) {
     console.error("[draft POST] error", error);
     const message = error instanceof Error ? error.message : "下書き生成に失敗しました。";

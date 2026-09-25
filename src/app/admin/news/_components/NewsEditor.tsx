@@ -148,6 +148,7 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
   const [selectedCompetition, setSelectedCompetition] = useState<string>("all");
   const [selectedMatchId, setSelectedMatchId] = useState<string>("");
   const [aiMemo, setAiMemo] = useState("");
+  const [aiLength, setAiLength] = useState<"short" | "standard">("standard");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiMatchesLoading, setAiMatchesLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -366,6 +367,7 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
           roundId: selectedMatch.roundId,
           matchId: selectedMatch.id,
           memo: aiMemo,
+          length: aiLength,
         }),
       });
       const raw: unknown = await res.json().catch(() => ({ error: "レスポンスの解析に失敗しました" }));
@@ -675,6 +677,28 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
                         {matchSummary(selectedMatch)}
                       </div>
                     )}
+                    <FormItem>
+                      <FormLabel className="text-slate-200">本文の長さ</FormLabel>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          { key: "standard", label: "標準（〜600字）" },
+                          { key: "short", label: "短め（〜300字）" },
+                        ] as const).map((o) => (
+                          <button
+                            key={o.key}
+                            type="button"
+                            onClick={() => setAiLength(o.key)}
+                            className={`rounded-lg px-2 py-2 text-xs font-bold transition ${
+                              aiLength === o.key
+                                ? "bg-indigo-600 text-white"
+                                : "bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-700"
+                            }`}
+                          >
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                    </FormItem>
                     <FormItem>
                       <FormLabel className="text-slate-200">ひと言メモ（任意）</FormLabel>
                       <FormControl>
