@@ -1,5 +1,6 @@
 import { db } from "@/lib/firebase/admin";
 import { expandSeasonVariants } from "../[playerId]/design-test/lib/season";
+import { deriveEventPlayerCounts, buildNameToIdFromStats } from "@/lib/match-event-stats";
 
 export interface MatchRecord {
   season: string;
@@ -102,6 +103,34 @@ export async function getMatchStatsForPlayers(
           byPlayer.set(pid, s);
         }
 
+        // heal-on-read: playerStats 行の導出値が古い／イベント対象選手の行がない
+        // 既存データを救済するため、events から導出値を計算する。
+        // 格納値は一切書き換えず、表示集計では max(stored, derived) を使う
+        // （手入力値を減らさない）。
+        const evs = Array.isArray(m?.events) ? (m.events as any[]) : [];
+        const matchDuration = typeof m?.matchDuration === "number" ? m.matchDuration : 90;
+        const evDerived =
+          evs.length > 0
+            ? deriveEventPlayerCounts(evs, buildNameToIdFromStats(ps), matchDuration)
+            : null;
+
+        // playerStats 行を持たないがイベントに登場する対象選手（行なし選手）
+        if (evDerived) {
+          for (const pid of evDerived.involved) {
+            if (pid.startsWith("custom_") || !idSet.has(pid) || byPlayer.has(pid)) continue;
+            byPlayer.set(pid, {
+              playerId: pid,
+              teamId: evDerived.teamIdByPlayer.get(pid) || "",
+              minutesPlayed: evDerived.subMinutes.get(pid) ?? 0,
+              goals: evDerived.goals.get(pid) ?? 0,
+              assists: evDerived.assists.get(pid) ?? 0,
+              yellowCards: evDerived.yellowCards.get(pid) ?? 0,
+              redCards: evDerived.redCards.get(pid) ?? 0,
+              __healedFromEvents: true,
+            });
+          }
+        }
+
         const isActiveSeason =
           activeVariants && activeVariants.has(compSeasonRaw);
 
@@ -150,13 +179,20 @@ export async function getMatchStatsForPlayers(
           const assists = Number(s?.assists);
           const assistsVal = Number.isFinite(assists) ? assists : null;
 
+          // heal-on-read: イベント導出値と格納値の大きい方を採用
+          // （手入力の上乗せ値を消さず、欠落したイベント分を補完する）
+          const effGoals = Math.max(goalsVal ?? 0, evDerived?.goals.get(pid) ?? 0);
+          const effAssists = Math.max(assistsVal ?? 0, evDerived?.assists.get(pid) ?? 0);
+          // minutes>0 またはイベント登場（得点/交代等）を出場とみなす
+          const played = (minutes ?? 0) > 0 || (evDerived?.involved.has(pid) ?? false);
+
           const entry = stats.get(pid);
           if (!entry) continue;
 
-          if (isActiveSeason && (minutes ?? 0) > 0) {
-            entry.stats.appearances += 1;
-            entry.stats.goals += goalsVal ?? 0;
-            entry.stats.assists += assistsVal ?? 0;
+          if (isActiveSeason) {
+            if (played) entry.stats.appearances += 1;
+            entry.stats.goals += effGoals;
+            entry.stats.assists += effAssists;
           }
 
           entry.matches.push({
@@ -173,8 +209,8 @@ export async function getMatchStatsForPlayers(
             scoreAway,
             result,
             minutesPlayed: minutes,
-            goals: goalsVal,
-            assists: assistsVal,
+            goals: effGoals,
+            assists: effAssists,
           });
         }
       }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/firebase/admin";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
+import { deriveEventPlayerCounts, buildNameToIdFromStats } from "@/lib/match-event-stats";
 
 function toSlashSeason(season: string): string {
   if (!season) return season;
@@ -345,17 +346,30 @@ async function computeStats(ownerUid: string, playerId: string, playerData: any,
     for (const matchData of matchesByRound.flat()) {
       const playerStats = Array.isArray((matchData as any)?.playerStats) ? (matchData as any).playerStats : [];
       const playerStat = playerStats.find((s: any) => s?.playerId === playerId);
-      if (!playerStat) continue;
 
-      const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
+      // heal-on-read: events から導出値を計算し max(stored, derived) で補完。
+      // playerStats 行が無くてもイベントに登場していれば集計対象にする。
+      const events = Array.isArray(matchData?.events) ? matchData.events : [];
+      const derived = events.length
+        ? deriveEventPlayerCounts(events, buildNameToIdFromStats(playerStats))
+        : null;
+      const involved = derived?.involved.has(playerId) ?? false;
+      if (!playerStat && !involved) continue;
+
+      const minutesPlayed = Number(playerStat?.minutesPlayed) || 0;
+      const derivedGoals = derived?.goals.get(playerId) ?? 0;
+      const derivedAssists = derived?.assists.get(playerId) ?? 0;
+      const derivedYellow = derived?.yellowCards.get(playerId) ?? 0;
+      const derivedRed = derived?.redCards.get(playerId) ?? 0;
+
       aggregatedStats.minutes += minutesPlayed;
-      aggregatedStats.yellowCards += Number(playerStat.yellowCards) || 0;
-      aggregatedStats.redCards += Number(playerStat.redCards) || 0;
-      aggregatedStats.appearances += minutesPlayed > 0 ? 1 : 0;
-      aggregatedStats.goals += Number(playerStat.goals) || 0;
-      aggregatedStats.assists += Number(playerStat.assists) || 0;
+      aggregatedStats.yellowCards += Math.max(Number(playerStat?.yellowCards) || 0, derivedYellow);
+      aggregatedStats.redCards += Math.max(Number(playerStat?.redCards) || 0, derivedRed);
+      aggregatedStats.appearances += minutesPlayed > 0 || involved ? 1 : 0;
+      aggregatedStats.goals += Math.max(Number(playerStat?.goals) || 0, derivedGoals);
+      aggregatedStats.assists += Math.max(Number(playerStat?.assists) || 0, derivedAssists);
 
-      const rating = Number(playerStat.rating);
+      const rating = Number(playerStat?.rating);
       if (Number.isFinite(rating) && rating > 0) {
         aggregatedStats.ratingSum += rating;
         aggregatedStats.ratingCount += 1;
@@ -478,15 +492,22 @@ async function computeSeasonSummaries(ownerUid: string, playerId: string, roster
         const matchData = matchDoc.data() as any;
         const playerStats = Array.isArray(matchData?.playerStats) ? matchData.playerStats : [];
         const playerStat = playerStats.find((s: any) => s?.playerId === playerId);
-        if (!playerStat) continue;
 
-        const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
-        const goals = Number(playerStat.goals) || 0;
-        const assists = Number(playerStat.assists) || 0;
-        const rating = Number(playerStat.rating);
+        // heal-on-read（computeStats と同規則）
+        const events = Array.isArray(matchData?.events) ? matchData.events : [];
+        const derived = events.length
+          ? deriveEventPlayerCounts(events, buildNameToIdFromStats(playerStats))
+          : null;
+        const involved = derived?.involved.has(playerId) ?? false;
+        if (!playerStat && !involved) continue;
+
+        const minutesPlayed = Number(playerStat?.minutesPlayed) || 0;
+        const goals = Math.max(Number(playerStat?.goals) || 0, derived?.goals.get(playerId) ?? 0);
+        const assists = Math.max(Number(playerStat?.assists) || 0, derived?.assists.get(playerId) ?? 0);
+        const rating = Number(playerStat?.rating);
 
         const seasonAgg = getSeasonAgg(compSeason);
-        seasonAgg.matches += minutesPlayed > 0 ? 1 : 0;
+        seasonAgg.matches += minutesPlayed > 0 || involved ? 1 : 0;
         seasonAgg.goals += goals;
         seasonAgg.assists += assists;
         if (Number.isFinite(rating) && rating > 0) {
@@ -495,7 +516,7 @@ async function computeSeasonSummaries(ownerUid: string, playerId: string, roster
         }
 
         const compAgg = getCompetitionAgg(seasonAgg, comp.id, comp.name, comp.logoUrl ?? undefined);
-        compAgg.matches += minutesPlayed > 0 ? 1 : 0;
+        compAgg.matches += minutesPlayed > 0 || involved ? 1 : 0;
         compAgg.goals += goals;
         compAgg.assists += assists;
         if (Number.isFinite(rating) && rating > 0) {

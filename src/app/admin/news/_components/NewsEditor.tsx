@@ -66,7 +66,16 @@ const formSchema = z
       .union([z.string().url({ message: "無効なURLです。" }), z.literal("")])
       .optional(),
     publishedAt: z.date(),
-    imageUrl: z.string().url({ message: "無効なURLです。" }).optional(),
+    // 空（画像なし）・用意画像などの "/" 始まり相対パス・絶対URLを許可。
+    // 以前は .url() のみで "" と "/画像.jpg" が両方弾かれ、画像なし／用意画像の
+    // 記事が「入力不足」エラーで公開できなかった。
+    imageUrl: z
+      .union([
+        z.string().url({ message: "無効なURLです。" }),
+        z.string().regex(/^\//, { message: "無効なURLです。" }),
+        z.literal(""),
+      ])
+      .optional(),
     featuredInHero: z.boolean().optional(),
     status: z.enum(["draft", "published"]).optional(),
   })
@@ -174,6 +183,10 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
       status: "published",
     },
   });
+
+  // AIモードで生成が未成功でも、本文を手入力済みなら保存/公開を許可する
+  const watchedContent = form.watch("content");
+  const aiPublishBlocked = mode === "ai" && !aiGenerated && !(watchedContent || "").trim();
 
   const resetToArticle = () => {
     if (editingArticle) {
@@ -449,7 +462,21 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
     if (status === "published") {
       const ok = await form.trigger();
       if (!ok) {
-        toast.error("公開するにはタイトルと本文（または外部URL）を入力してください。");
+        // どの項目で弾かれたか具体的に出す（「入力不足」の一律表示だと
+        // 画像URLや公開日の不備が分からないため）
+        const errs = form.formState.errors;
+        const messages = [
+          errs.title?.message,
+          errs.category?.message,
+          errs.noteUrl?.message,
+          errs.imageUrl?.message,
+          errs.publishedAt?.message,
+        ].filter((m): m is string => typeof m === "string" && m.length > 0);
+        toast.error(
+          messages.length > 0
+            ? `入力内容を確認してください: ${messages.join(" / ")}`
+            : "公開するにはタイトルと本文（または外部URL）を入力してください。"
+        );
         return;
       }
     } else {
@@ -891,7 +918,12 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
                           <Input
                             type="date"
                             value={format(field.value, "yyyy-MM-dd")}
-                            onChange={(e) => field.onChange(new Date(e.target.value))}
+                            // 空入力（クリア）は Invalid Date になり z.date() で
+                            // 公開が弾かれるため、空のときは現在値を維持する
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v) field.onChange(new Date(v));
+                            }}
                             className="bg-slate-950 border-slate-700 text-white"
                           />
                         </FormControl>
@@ -924,7 +956,7 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
                     type="button"
                     variant="outline"
                     onClick={() => onSave("draft")}
-                    disabled={isSaving || imgBusy || (mode === "ai" && !aiGenerated)}
+                    disabled={isSaving || imgBusy || aiPublishBlocked}
                     className="flex-1 border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
                   >
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -933,7 +965,7 @@ export function NewsEditor({ open, onOpenChange, editingArticle, clubUid, initia
                   <Button
                     type="button"
                     onClick={() => onSave("published")}
-                    disabled={isSaving || imgBusy || (mode === "ai" && !aiGenerated)}
+                    disabled={isSaving || imgBusy || aiPublishBlocked}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                   >
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}

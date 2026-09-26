@@ -15,6 +15,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { recomputeTeamMinutes } from './match-minutes';
+import { deriveEventPlayerCounts, buildNameToIdFromStats } from './match-event-stats';
 
 export interface MatchEventInput {
   id: string;
@@ -50,6 +51,28 @@ const stripUndefined = <T>(v: T): T => {
     return out as T;
   }
   return v;
+};
+
+// イベント配列から得点/アシスト/カードを導出し、既存の playerStats 行へ反映する。
+// commitSquadSave（選手登録フォーム保存）/ applyOcrResults（OCR確定）と同一規則。
+// 実装は src/lib/match-event-stats.ts に集約（公開集計の heal-on-read と共有）。
+// ※ minutesPlayed はここでは触らない（交代イベント時のみ recomputeTeamMinutes を併用）。
+export const recomputeDerivedEventStats = (
+  playerStats: Record<string, unknown>[],
+  events: Record<string, unknown>[]
+): Record<string, unknown>[] => {
+  const d = deriveEventPlayerCounts(events, buildNameToIdFromStats(playerStats));
+  return (playerStats || []).map((ps) =>
+    typeof ps?.playerId === 'string'
+      ? {
+          ...ps,
+          goals: d.goals.get(ps.playerId) ?? 0,
+          assists: d.assists.get(ps.playerId) ?? 0,
+          yellowCards: d.yellowCards.get(ps.playerId) ?? 0,
+          redCards: d.redCards.get(ps.playerId) ?? 0,
+        }
+      : ps
+  );
 };
 
 // Mirror doc descriptors for one array event.
@@ -126,9 +149,13 @@ export async function appendMatchEvent(
     }
     const payload: Record<string, unknown> = { events: curEvents };
 
+    // ゴール/カード等の追加でも公開SQUAD集計が参照する playerStats を更新する。
+    // （従来は交代の出場時間のみ更新しており、得点者がSQUADに反映されなかった）
+    let nextStats = recomputeDerivedEventStats(curStats, curEvents);
     if (event.type === 'substitution') {
-      payload.playerStats = recomputeTeamMinutes(curStats, curEvents, event.teamId, duration);
+      nextStats = recomputeTeamMinutes(nextStats, curEvents, event.teamId, duration);
     }
+    payload.playerStats = nextStats;
 
     tx.set(matchRef, payload, { merge: true });
     for (const m of mirrorDocsForEvent(event)) {
@@ -167,9 +194,12 @@ export async function removeMatchEvent(
     const removed = curEvents.find((e) => e && e.id === link.eventId);
     const nextEvents = curEvents.filter((e) => !(e && e.id === link.eventId));
     const payload: Record<string, unknown> = { events: nextEvents };
+    // 削除でも導出スタッツを再計算（ゴール削除→得点減算、カード削除→警告減算）
+    let nextStats = recomputeDerivedEventStats(curStats, nextEvents);
     if (removed?.type === 'substitution' && typeof removed.teamId === 'string') {
-      payload.playerStats = recomputeTeamMinutes(curStats, nextEvents, removed.teamId, duration);
+      nextStats = recomputeTeamMinutes(nextStats, nextEvents, removed.teamId, duration);
     }
+    payload.playerStats = nextStats;
 
     tx.set(matchRef, payload, { merge: true });
     tx.delete(eventDocRef);
