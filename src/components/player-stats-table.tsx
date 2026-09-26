@@ -483,6 +483,20 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
         return;
       }
 
+      if (otherIndex !== -1 && existingInSlotIndex === -1) {
+        // ベンチ登録済みの選手を空きスタメン枠へ昇格する。
+        // 交代INイベントがある選手はその出場分を、なければフル出場とする。
+        const otherRow = watch(`playerStats.${otherIndex}`) as Record<string, unknown> | undefined;
+        const promotedMinutes = derivedBenchMinutes.get(nextPlayerId) ?? matchDuration;
+        update(otherIndex, {
+          ...otherRow,
+          role: 'starter',
+          starterSlot: slot,
+          minutesPlayed: promotedMinutes,
+        });
+        return;
+      }
+
       toast.warning('同じ選手を複数枠に登録することはできません。');
       return;
     }
@@ -522,6 +536,10 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     const slotField = starters.find((f) => (f as any).starterSlot === slot);
     const currentPlayerId = (slotField as any)?.playerId || '';
     const hasEvents = Array.isArray(watchedEvents) && watchedEvents.length > 0;
+    // イベント記録後も「空きスロットへの選手登録」は許可する。
+    // ロックするのは登録済み選手の入れ替え・削除のみ
+    // （交代イベントが登録済み選手を参照するため、既存枠の変更を防ぐ）。
+    const slotLocked = hasEvents && Boolean(currentPlayerId);
     const options = sortedAllPlayers.filter((p) => {
       const isCurrentPlayer = p.id === currentPlayerId;
       const isBench = bench.some(b => (b as any).playerId === p.id || b.id === p.id);
@@ -566,7 +584,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
         style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
       >
         <div className="relative flex w-[62px] flex-col items-center gap-0.5 overflow-visible sm:w-[82px]">
-          {!hasEvents ? (
+          {!slotLocked ? (
             <button
               type="button"
               onClick={() => setMobilePicker({
@@ -581,7 +599,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
               })}
               className="absolute inset-0 z-20 h-full w-full opacity-0 sm:hidden"
               aria-label="選手を選択"
-              disabled={hasEvents}
+              disabled={slotLocked}
             />
           ) : null}
           <div className="relative h-auto w-full overflow-visible border-0 bg-transparent p-0 [&>svg]:hidden">
@@ -632,7 +650,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                 {player ? player.name : pos.label}
               </div>
             </div>
-            {!hasEvents ? (
+            {!slotLocked ? (
               <select
                 value={currentPlayerId || NONE_SELECT_VALUE}
                 onChange={(e) => {
@@ -640,7 +658,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                   if (val === currentPlayerId) return;
                   setStarterSlotPlayer(slot, val);
                 }}
-                disabled={hasEvents}
+                disabled={slotLocked}
                 className="hidden absolute inset-0 z-20 h-full w-full border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0 sm:block"
                 aria-label="選手を選択"
               >
@@ -928,7 +946,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
         </div>
         <div className="border-t border-slate-700/80 bg-[#142033] px-4 py-4 sm:px-5">
           {Array.isArray(watchedEvents) && watchedEvents.length > 0 ? (
-            <p className="text-center text-xs font-semibold text-amber-400">⚠️ 試合イベントの記録後は入れ替え不可</p>
+            <p className="text-center text-xs font-semibold text-amber-400">⚠️ イベント記録後は登録済み選手の入れ替え・削除不可（空き枠への登録は可）</p>
           ) : (
             <p className="hidden text-center text-sm font-semibold text-slate-500 sm:block">タップで選手を追加 / 削除</p>
           )}
