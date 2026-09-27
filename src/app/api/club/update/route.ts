@@ -283,7 +283,7 @@ export async function POST(request: Request) {
     }
 
     if (homeLayout === 'default' || homeLayout === 'pattern1' || homeLayout === 'pattern2') {
-      updateData.homeLayout = homeLayout;
+      updateData.homeLayout = homeLayout === 'pattern1' ? 'pattern2' : homeLayout;
     }
 
     // Ensure clubId is preserved in the update

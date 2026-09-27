@@ -25,7 +25,7 @@ export default function AdminDesignPage() {
   const [homeBgColor, setHomeBgColor] = useState<string>("");
   const [homeColorTheme, setHomeColorTheme] = useState<'dark' | 'light'>('light');
   const [headerLayout, setHeaderLayout] = useState<'center' | 'left'>('left');
-  const [homeLayout, setHomeLayout] = useState<'default' | 'pattern1' | 'pattern2'>('default');
+  const [homeLayout, setHomeLayout] = useState<'default' | 'pattern2'>('default');
   const [savingLayout, setSavingLayout] = useState(false);
   const isSavingRef = useRef(false);
 
@@ -79,7 +79,7 @@ export default function AdminDesignPage() {
             setHeaderLayout(data.headerLayout);
           }
           if (data.homeLayout === "default" || data.homeLayout === "pattern1" || data.homeLayout === "pattern2") {
-            setHomeLayout(data.homeLayout);
+            setHomeLayout(data.homeLayout === "pattern1" ? "pattern2" : data.homeLayout);
           }
         } else {
           console.log("[admin/design] No profile data found by doc ID, trying clubId field query", clubId);
@@ -96,7 +96,7 @@ export default function AdminDesignPage() {
               setHeaderLayout(data.headerLayout);
             }
             if (data.homeLayout === "default" || data.homeLayout === "pattern1" || data.homeLayout === "pattern2") {
-              setHomeLayout(data.homeLayout);
+              setHomeLayout(data.homeLayout === "pattern1" ? "pattern2" : data.homeLayout);
             }
           } else {
             console.log("[admin/design] No profile data found at all", clubId);
@@ -160,7 +160,7 @@ export default function AdminDesignPage() {
                 setHeaderLayout(data.headerLayout);
               }
               if (data.homeLayout === "default" || data.homeLayout === "pattern1" || data.homeLayout === "pattern2") {
-                setHomeLayout(data.homeLayout);
+                setHomeLayout(data.homeLayout === "pattern1" ? "pattern2" : data.homeLayout);
               }
             }
           }

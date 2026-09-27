@@ -16,7 +16,6 @@ import { PartnerStripClient } from "@/components/partner-strip-client";
 import { MatchResultsList, MatchSection } from "@/components/match-section";
 import type { MatchDetails } from "@/types/match";
 import { Loader2 } from "lucide-react";
-import { ClubHomePattern1 } from "@/components/club-home-pattern1";
 import { ClubHomePattern2 } from "@/components/club-home-pattern2";
 
 export default function ClubPageContent({
@@ -95,7 +94,7 @@ export default function ClubPageContent({
       ? clubInfo.profile.headerLayout
       : 'left';
     const homeLayout = (clubInfo.profile?.homeLayout === 'pattern1' || clubInfo.profile?.homeLayout === 'pattern2')
-      ? clubInfo.profile.homeLayout
+      ? 'pattern2'
       : 'default';
     const isDarkHomeTheme = homeColorTheme === 'dark';
     const mainTextColor = homeBgColor ? contrastColor : (isDarkHomeTheme ? '#FFFFFF' : '#000000');
@@ -390,42 +389,6 @@ export default function ClubPageContent({
             competitions={clubInfo.competitions || []}
             mainTeamId={clubInfo.profile?.mainTeamId || null}
             players={(clubInfo as any).players || []}
-          />
-          <PartnerStripClient clubId={clubId} />
-          <ClubFooter
-            clubId={clubId}
-            clubName={clubInfo.profile?.clubName || ""}
-            gameTeamUsage={Boolean((clubInfo as any).profile?.gameTeamUsage)}
-            sponsors={clubInfo.profile?.sponsors || []}
-            snsLinks={clubInfo.profile?.snsLinks || {}}
-            legalPages={clubInfo.profile?.legalPages || []}
-          />
-        </main>
-      );
-    }
-
-    if (homeLayout === 'pattern1') {
-      return (
-        <main
-          className="min-h-screen bg-background text-foreground"
-          style={{ '--club-color': clubColor, '--club-text-color': contrastColor } as React.CSSProperties}
-        >
-          <ClubHeader
-            clubId={clubId}
-            clubName={clubInfo.profile?.clubName || ""}
-            logoUrl={clubInfo.profile?.logoUrl || null}
-            headerBackgroundColor={homeBgColor}
-            headerLayout={headerLayout}
-            snsLinks={clubInfo.profile?.snsLinks || {}}
-          />
-          <ClubHomePattern1
-            clubName={clubInfo.profile?.clubName || ""}
-            logoUrl={clubInfo.profile?.logoUrl || null}
-            news={listNews}
-            videos={videos}
-            nextMatch={clubInfo.nextMatch}
-            recentMatches={recentMatches}
-            upcomingMatches={(clubInfo as any).upcomingMatches || []}
           />
           <PartnerStripClient clubId={clubId} />
           <ClubFooter

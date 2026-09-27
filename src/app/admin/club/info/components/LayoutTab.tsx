@@ -10,8 +10,8 @@ export function LayoutTab(props: {
   setHomeColorTheme: (v: 'dark' | 'light') => void;
   headerLayout: 'center' | 'left';
   setHeaderLayout: (v: 'center' | 'left') => void;
-  homeLayout: 'default' | 'pattern1' | 'pattern2';
-  setHomeLayout: (v: 'default' | 'pattern1' | 'pattern2') => void;
+  homeLayout: 'default' | 'pattern2';
+  setHomeLayout: (v: 'default' | 'pattern2') => void;
 }) {
   const { homeBgColor, setHomeBgColor, homeColorTheme, setHomeColorTheme, headerLayout, setHeaderLayout, homeLayout, setHomeLayout } = props;
 
@@ -43,11 +43,10 @@ export function LayoutTab(props: {
 
       <div className="space-y-2">
         <Label>トップページレイアウト</Label>
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2">
           {[
-            { value: 'default' as const, label: '標準', description: 'ヒーロー・ニュース・試合結果' },
-            { value: 'pattern1' as const, label: 'パターン1', description: 'NEWS・動画・試合のブロック' },
-            { value: 'pattern2' as const, label: 'クラブストーリー', description: '直近3試合・順位表・選手名鑑をすっきり表示' },
+            { value: 'pattern2' as const, label: 'パターン①', description: '直近3試合・順位表・選手名鑑をすっきり表示' },
+            { value: 'default' as const, label: 'パターン②', description: 'ヒーロー・ニュース・試合結果' },
           ].map((item) => (
             <button
               key={item.value}
