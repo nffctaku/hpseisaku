@@ -20,6 +20,11 @@ import {
   computeEffectivePlanFromData,
   type AdminCareer,
 } from "@/lib/admin-analytics/career-mapping";
+import {
+  evaluateUserStage,
+  ONBOARDING_STAGES,
+  type OnboardingStage,
+} from "@/lib/admin-analytics/onboarding-stage";
 
 const ANALYTICS_DAYS = 30;
 
@@ -99,6 +104,10 @@ interface ClubListItem {
   profileCount: number;
   unmatchedProfileCount: number;
   careers: CareerItem[];
+  // 登録後の利用段階（全Auth UIDで判定。詳細は stageUsers を参照）
+  registeredAt: string | null;
+  stage: OnboardingStage;
+  stageFields: StageFields;
   activeDetail: {
     lastActivityAt: number;
     eventAt: number;
@@ -130,6 +139,37 @@ interface ProfileDiagnostics {
     active30Users: number;
     usageUsers: number;
   };
+}
+
+// 登録後の利用段階（ユーザー一覧の各行に付与する補助フィールド）
+interface StageFields {
+  stage: OnboardingStage;
+  stageUsedCareerId: string | null;
+  stageUsedCareerName: string | null;
+  stageUsedCareerIsLegacyRoot: boolean;
+  stageHasTeam: boolean;
+  stagePlayerCount: number;
+  stageHasCompetition: boolean;
+  scheduledMatchCount: number;
+  resultMatchCount: number;
+  stageNotes: string[];
+}
+
+interface StageUserRow extends StageFields {
+  uid: string;
+  email: string | null;
+  registeredAt: string | null;
+  registeredMs: number | null;
+  hasCompetition: boolean;
+  plan: 'pro' | 'officia' | 'free';
+  lastActivityAt: number;
+  inAnalytics: boolean;
+}
+
+interface StageSummary {
+  population: number;
+  computedAt: string;
+  counts: Record<OnboardingStage, number>;
 }
 
 interface Summary {
@@ -336,6 +376,10 @@ export async function GET(req: NextRequest) {
     }
 
     const matchCountByClub: Record<string, number> = {};
+    // 結果記録済み = scoreHome/scoreAway が両方number（作成時・日程のみは null）。
+    // friendly_matches も同一基準で数える（単発試合を利用経路から除外しない）。
+    const resultCountByClub: Record<string, number> = {};
+    const scheduledCountByClub: Record<string, number> = {};
     // matchDiagnostics は clubUid→uid 解決後の uid 単位で保持する
     const matchDiagnostics: Record<string, MatchDiagnostic> = {};
 
@@ -354,6 +398,13 @@ export async function GET(req: NextRequest) {
       };
       if (isValid) {
         matchCountByClub[clubUid] = (matchCountByClub[clubUid] || 0) + 1;
+        const recorded =
+          typeof data.scoreHome === 'number' && typeof data.scoreAway === 'number';
+        if (recorded) {
+          resultCountByClub[clubUid] = (resultCountByClub[clubUid] || 0) + 1;
+        } else {
+          scheduledCountByClub[clubUid] = (scheduledCountByClub[clubUid] || 0) + 1;
+        }
       }
     };
 
@@ -449,6 +500,7 @@ export async function GET(req: NextRequest) {
 
     const mainTeamMap = new Map<string, Record<string, unknown>>();
     const teamStatsByClub: Record<string, { count: number; imageCount: number }> = {};
+    const teamsByRoot: Record<string, { id: string; isMain: boolean }[]> = {};
     for (const d of teamsSnap.docs) {
       const parts = d.ref.path.split("/");
       if (
@@ -463,6 +515,10 @@ export async function GET(req: NextRequest) {
       if (!validTeam(data)) continue;
 
       mainTeamMap.set(`${clubUid}/${d.id}`, data);
+      (teamsByRoot[clubUid] = teamsByRoot[clubUid] || []).push({
+        id: d.id,
+        isMain: data.isMain === true,
+      });
 
       const prev = teamStatsByClub[clubUid] || { count: 0, imageCount: 0 };
       teamStatsByClub[clubUid] = {
@@ -491,12 +547,17 @@ export async function GET(req: NextRequest) {
     const emailMap: Record<string, string> = {};
     const authUserUids = new Set<string>();
     const authLastSignInByUid: Record<string, string> = {};
+    const authEmailByUid: Record<string, string> = {};
+    const authRegisteredMsByUid: Record<string, number | null> = {};
     for (const u of allAuthUsers) {
+      if (u.email) authEmailByUid[u.uid] = u.email;
+      const createdMs = u.metadata.creationTime ? Date.parse(u.metadata.creationTime) : NaN;
+      authRegisteredMsByUid[u.uid] = Number.isNaN(createdMs) ? null : createdMs;
+      const lastSignInTime = (u.metadata as unknown as { lastSignInTime?: string }).lastSignInTime;
+      if (lastSignInTime) authLastSignInByUid[u.uid] = lastSignInTime;
       if (!candidateUids.has(u.uid)) continue;
       authUserUids.add(u.uid);
       if (u.email) emailMap[u.uid] = u.email;
-      const lastSignInTime = (u.metadata as unknown as { lastSignInTime?: string }).lastSignInTime;
-      if (lastSignInTime) authLastSignInByUid[u.uid] = lastSignInTime;
     }
 
     // Authには存在するがAnalytics対象集合（club_profiles/careersのowner）に
@@ -534,9 +595,146 @@ export async function GET(req: NextRequest) {
     }
 
     const profileDocById: Record<string, FirebaseFirestore.QueryDocumentSnapshot> = {};
+    const profileByRoot = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
     for (const d of profilesSnap.docs) {
       profileDocById[d.id] = d;
+      profileByRoot.set(d.id, d);
+      const cu = d.data()?.clubUid;
+      if (typeof cu === "string" && cu.trim() && !profileByRoot.has(cu.trim())) {
+        profileByRoot.set(cu.trim(), d);
+      }
     }
+
+    // ---- 登録後の利用段階判定（全Auth UID対象） ----
+    // 自チーム解決: clubs/{root}/teams には対戦相手チームも同居するため、
+    // 自チームは career-copy.ts resolveMainTeamId と同じ優先順位で特定する。
+    //   1) profile.mainTeamId が指すチーム  2) isMain===true  3) doc.id===clubUid（旧形式）
+    //   4) 有効なチームが1件のみ → 自チームと推定（assumed）
+    //   5) 複数チームあり目印なし → 特定不能（ambiguous）
+    const ownTeamByRoot = new Map<string, { ids: Set<string>; ambiguous: boolean; assumed: boolean }>();
+    for (const [root, teams] of Object.entries(teamsByRoot)) {
+      const own = new Set<string>();
+      const mt = profileByRoot.get(root)?.data()?.mainTeamId;
+      if (typeof mt === "string" && teams.some((t) => t.id === mt)) own.add(mt);
+      for (const t of teams) {
+        if (t.isMain) own.add(t.id);
+        if (t.id === root) own.add(t.id);
+      }
+      if (own.size > 0) {
+        ownTeamByRoot.set(root, { ids: own, ambiguous: false, assumed: false });
+      } else if (teams.length === 1) {
+        ownTeamByRoot.set(root, { ids: new Set([teams[0].id]), ambiguous: false, assumed: true });
+      } else if (teams.length > 1) {
+        ownTeamByRoot.set(root, { ids: own, ambiguous: true, assumed: false });
+      }
+    }
+    // 自チーム配下の選手数（対戦相手チームの選手を含めない）
+    const ownTeamInfo = (root: string) => {
+      const res = ownTeamByRoot.get(root);
+      const ids = res?.ids ?? new Set<string>();
+      let playerCount = 0;
+      for (const id of ids) {
+        playerCount += playerStatsByClub[`${root}/${id}`]?.count ?? 0;
+      }
+      return {
+        ownTeamCount: ids.size,
+        ownTeamAmbiguous: res?.ambiguous ?? false,
+        ownTeamAssumed: res?.assumed ?? false,
+        playerCount,
+      };
+    };
+
+    const sumOverRoots = (roots: Iterable<string>, table: Record<string, number>) => {
+      let n = 0;
+      const seen = new Set<string>();
+      for (const r of roots) {
+        if (seen.has(r)) continue; // 共有データルートの二重計上防止
+        seen.add(r);
+        n += table[r] || 0;
+      }
+      return n;
+    };
+
+    const stageForUid = (uid: string): { fields: StageFields; hasCompetition: boolean } => {
+      try {
+        const allCareers = careersByOwner.get(uid) || [];
+        const profileIds = profileIdsByOwner[uid] || [];
+        const evaluated = allCareers.filter((c) => c.status !== 'creating');
+        const careers = evaluated.map((c) => {
+          const oti = ownTeamInfo(c.clubUid);
+          return {
+            careerId: c.id,
+            name: c.name,
+            clubUid: c.clubUid,
+            status: c.status,
+            ownTeamCount: oti.ownTeamCount,
+            ownTeamAmbiguous: oti.ownTeamAmbiguous,
+            ownTeamAssumed: oti.ownTeamAssumed,
+            playerCount: oti.playerCount,
+          };
+        });
+
+        // 試合数の集計範囲は既存仕様と同一: 評価対象CareerのclubUid（重複除去）、
+        // Careerを全く持たない場合のみ uid 直下の旧形式ルートを数える。
+        const roots = new Set<string>(evaluated.map((c) => c.clubUid));
+        if (allCareers.length === 0) roots.add(uid);
+
+        const resultMatchCount = sumOverRoots(roots, resultCountByClub);
+        const scheduledMatchCount = sumOverRoots(roots, scheduledCountByClub);
+        const hasCompetition = sumOverRoots(roots, competitionCountByClub) > 0;
+
+        const legacyRoot =
+          allCareers.length === 0
+            ? ownTeamInfo(uid)
+            : null;
+
+        const r = evaluateUserStage({
+          hasCareerDoc: allCareers.length > 0,
+          hasProfileDoc: profileIds.length > 0,
+          careers,
+          legacyRoot,
+          resultMatchCount,
+          scheduledMatchCount,
+        });
+
+        const notes = [...r.notes];
+        if (evaluated.length !== allCareers.length) notes.push('作成中Careerを含む（段階評価は除外）');
+        const sharedRoots = evaluated.some((c) => (careersByClubUid.get(c.clubUid) || []).length > 1);
+        if (sharedRoots) notes.push('共有データルートあり（件数は1回のみ計上）');
+
+        return {
+          fields: {
+            stage: r.stage,
+            stageUsedCareerId: r.usedCareerId,
+            stageUsedCareerName: r.usedCareerName,
+            stageUsedCareerIsLegacyRoot: r.usedCareerIsLegacyRoot,
+            stageHasTeam: r.hasTeam,
+            stagePlayerCount: r.stagePlayerCount,
+            stageHasCompetition: hasCompetition,
+            scheduledMatchCount,
+            resultMatchCount,
+            stageNotes: notes,
+          },
+          hasCompetition,
+        };
+      } catch {
+        return {
+          fields: {
+            stage: 'undeterminable',
+            stageUsedCareerId: null,
+            stageUsedCareerName: null,
+            stageUsedCareerIsLegacyRoot: false,
+            stageHasTeam: false,
+            stagePlayerCount: 0,
+            stageHasCompetition: false,
+            scheduledMatchCount: 0,
+            resultMatchCount: 0,
+            stageNotes: ['段階判定に失敗'],
+          },
+          hasCompetition: false,
+        };
+      }
+    };
 
     // ---- ユーザー行（1 Auth UID = 1行）の構築 ----
     const clubs: ClubListItem[] = Array.from(candidateUids).map((ownerUid) => {
@@ -719,6 +917,9 @@ export async function GET(req: NextRequest) {
 
       const usageLevel = calcUsageLevel(pCount, cCount, mCount);
 
+      const { fields: stageFields } = stageForUid(ownerUid);
+      const registeredMs = authRegisteredMsByUid[ownerUid] ?? null;
+
       return {
         id: ownerUid,
         clubName,
@@ -798,6 +999,9 @@ export async function GET(req: NextRequest) {
         profileCount: profileIds.length,
         unmatchedProfileCount: unmatchedProfiles,
         careers: careerItems,
+        registeredAt: registeredMs !== null ? new Date(registeredMs).toISOString() : null,
+        stage: stageFields.stage,
+        stageFields,
       };
     });
 
@@ -944,6 +1148,45 @@ export async function GET(req: NextRequest) {
     ).length;
 
     const authTotal = allAuthUsers.length;
+
+    // ---- 登録後の利用段階（全Auth UID、Analytics対象外も含む） ----
+    const stageCounts = Object.fromEntries(
+      ONBOARDING_STAGES.map((s) => [s, 0])
+    ) as Record<OnboardingStage, number>;
+    const stageUsers: StageUserRow[] = allAuthUsers.map((u) => {
+      const uid = u.uid;
+      const { fields, hasCompetition } = stageForUid(uid);
+      stageCounts[fields.stage] += 1;
+      const profileDocs = (profileIdsByOwner[uid] || [])
+        .map((id) => profileDocById[id])
+        .filter(Boolean)
+        .map((d) => d.data() as Record<string, unknown>);
+      const { lastActivityAt } = computeLastActivityForUid({
+        userData: userDataByUid[uid],
+        authLastSignInAt: authLastSignInByUid[uid],
+        profileDocs,
+        lastEventAt: lastEventByOwner[uid],
+        now,
+      });
+      const registeredMs = authRegisteredMsByUid[uid] ?? null;
+      return {
+        uid,
+        email: authEmailByUid[uid] || null,
+        registeredAt: registeredMs !== null ? new Date(registeredMs).toISOString() : null,
+        registeredMs,
+        ...fields,
+        hasCompetition,
+        plan: computeEffectivePlanFromData(userDataByUid[uid], profileDocs).plan,
+        lastActivityAt: lastActivityAt ?? 0,
+        inAnalytics: candidateUids.has(uid),
+      };
+    });
+    const stageSummary: StageSummary = {
+      population: authTotal,
+      computedAt: new Date(now).toISOString(),
+      counts: stageCounts,
+    };
+
     const authDiagnostics = {
       totalAuthUsers: authTotal,
       analyticsUids: total,
@@ -1032,7 +1275,7 @@ export async function GET(req: NextRequest) {
       legacyNameUnsetUsers,
     };
 
-    return NextResponse.json({ summary, clubs, authlessUids, matchDiagnostics, profileDiagnostics: diag, authDiagnostics });
+    return NextResponse.json({ summary, clubs, authlessUids, matchDiagnostics, profileDiagnostics: diag, authDiagnostics, stageSummary, stageUsers });
   } catch (error) {
     console.error("[admin/clubs] error", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

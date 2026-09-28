@@ -38,8 +38,16 @@ const fixtureSchema = z.object({
   awayTeam: z.string(),
   homeTeamId: z.string(),
   awayTeamId: z.string(),
-  scoreHome: z.coerce.number().int().min(0).optional(),
-  scoreAway: z.coerce.number().int().min(0).optional(),
+  // 空入力('' / null / undefined)は未入力として扱う。z.coerce.number()は''を0に
+  // 変換してしまうため、先にpreprocessで除外する（結果未記録の試合に0-0が入るのを防ぐ）
+  scoreHome: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().int().min(0).optional()
+  ),
+  scoreAway: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().int().min(0).optional()
+  ),
 });
 
 const scheduleSchema = z.object({
@@ -351,10 +359,16 @@ export default function SchedulePage() {
           const existingMatchSnap = await getDocs(q);
 
           const matchData = {
-            ...fixture,
+            homeTeam: fixture.homeTeam,
+            awayTeam: fixture.awayTeam,
+            homeTeamId: fixture.homeTeamId,
+            awayTeamId: fixture.awayTeamId,
             competitionId,
             season: competition?.season,
             matchDate: Timestamp.fromDate(new Date(fixture.matchDate as string)),
+            // 未入力はnull（undefinedはFirestoreが拒否し、0は結果記録済みと誤判定される）
+            scoreHome: fixture.scoreHome ?? null,
+            scoreAway: fixture.scoreAway ?? null,
           };
 
           if (existingMatchSnap.empty) {

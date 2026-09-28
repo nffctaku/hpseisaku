@@ -7,6 +7,18 @@ import { Loader2, Info, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { ADMIN_UID } from "@/lib/admin-config";
+import {
+  ONBOARDING_STAGES,
+  ONBOARDING_STAGE_LABELS,
+  AGE_BUCKETS,
+  AGE_BUCKET_LABELS,
+  PLAYER_BUCKETS,
+  PLAYER_BUCKET_LABELS,
+  ageBucket,
+  playerBucket,
+  type OnboardingStage,
+  type AgeBucket,
+} from "@/lib/admin-analytics/onboarding-stage";
 
 const PAGE_SIZE = 30;
 
@@ -88,6 +100,9 @@ interface ClubItem {
   profileCount: number;
   unmatchedProfileCount: number;
   careers: CareerItem[];
+  registeredAt?: string | null;
+  stage?: OnboardingStage;
+  stageFields?: StageFields;
   activeDetail: {
     eventAt: number;
     userAt: number;
@@ -180,6 +195,38 @@ interface Summary {
   allNameUnsetCareerUsers: number;
   legacyNameUnsetUsers: number;
 }
+
+interface StageFields {
+  stage: OnboardingStage;
+  stageUsedCareerId: string | null;
+  stageUsedCareerName: string | null;
+  stageUsedCareerIsLegacyRoot: boolean;
+  stageHasTeam: boolean;
+  stagePlayerCount: number;
+  stageHasCompetition: boolean;
+  scheduledMatchCount: number;
+  resultMatchCount: number;
+  stageNotes: string[];
+}
+
+interface StageUserRow extends StageFields {
+  uid: string;
+  email: string | null;
+  registeredAt: string | null;
+  registeredMs: number | null;
+  hasCompetition: boolean;
+  plan: "pro" | "officia" | "free";
+  lastActivityAt: number;
+  inAnalytics: boolean;
+}
+
+interface StageSummary {
+  population: number;
+  computedAt: string;
+  counts: Record<OnboardingStage, number>;
+}
+
+type AgeFilterValue = "all" | "ge7d" | AgeBucket;
 
 interface AuthDiagnostics {
   totalAuthUsers: number;
@@ -370,6 +417,8 @@ export default function InternalClubsPage() {
   const [funnelRows, setFunnelRows] = useState<FunnelRow[]>([]);
   const [monetizationFunnel, setMonetizationFunnel] = useState<MonetizationFunnel | null>(null);
   const [potentialProUsers, setPotentialProUsers] = useState<Record<string, number> | null>(null);
+  const [stageSummary, setStageSummary] = useState<StageSummary | null>(null);
+  const [stageUsers, setStageUsers] = useState<StageUserRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
 
@@ -382,7 +431,12 @@ export default function InternalClubsPage() {
   const [careerFilter, setCareerFilter] = useState<CareerFilter>("all");
   const [diagFilter, setDiagFilter] = useState<DiagFilter>("all");
   const [levelFilter, setLevelFilter] = useState<LevelFilter>("all");
+  const [stageFilter, setStageFilter] = useState<OnboardingStage | "all">("all");
+  const [ageFilter, setAgeFilter] = useState<AgeFilterValue>("all");
+  const [regFrom, setRegFrom] = useState("");
+  const [regTo, setRegTo] = useState("");
   const [page, setPage] = useState(0);
+  const [stagePage, setStagePage] = useState(0);
   const [expandedUids, setExpandedUids] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -407,6 +461,8 @@ export default function InternalClubsPage() {
           matchDiagnostics: Record<string, { total: number; valid: number; friendly: number; invalid: number }>;
           profileDiagnostics?: ProfileDiagnostics;
           authDiagnostics?: AuthDiagnostics;
+          stageSummary?: StageSummary;
+          stageUsers?: StageUserRow[];
         };
         setItems(clubsJson.clubs);
         setSummary(clubsJson.summary);
@@ -414,6 +470,8 @@ export default function InternalClubsPage() {
         setMatchDiagnostics(clubsJson.matchDiagnostics);
         setProfileDiagnostics(clubsJson.profileDiagnostics || null);
         setAuthDiagnostics(clubsJson.authDiagnostics || null);
+        setStageSummary(clubsJson.stageSummary || null);
+        setStageUsers(clubsJson.stageUsers || []);
 
         if (funnelRes.ok) {
           const funnelJson = (await funnelRes.json()) as {
@@ -596,6 +654,7 @@ export default function InternalClubsPage() {
   }, [summary, funnelSummary]);
 
   const authItems = useMemo(() => items.filter((c) => c.authExists), [items]);
+  const itemByUid = useMemo(() => new Map(items.map((c) => [c.ownerUid, c])), [items]);
 
   const proDiffUsers = useMemo(() => {
     if (funnelRows.length === 0) return [];
@@ -650,6 +709,66 @@ export default function InternalClubsPage() {
       .map(([uid, d]) => ({ uid, ...d }))
       .sort((a, b) => b.total - a.total);
   }, [matchDiagnostics, authItems]);
+
+  // ---- 登録後の利用段階: 経過日数・登録日範囲フィルタ適用後の母集団 ----
+  const stageFilteredUsers = useMemo(() => {
+    const now = Date.now();
+    // 日付入力は JST の暦日として解釈する
+    const fromMs = regFrom ? new Date(`${regFrom}T00:00:00+09:00`).getTime() : null;
+    const toMs = regTo ? new Date(`${regTo}T23:59:59.999+09:00`).getTime() : null;
+    return stageUsers.filter((u) => {
+      const b = ageBucket(u.registeredMs, now);
+      if (ageFilter === "ge7d") {
+        if (!(b === "d7_14" || b === "d14_30" || b === "d30plus")) return false;
+      } else if (ageFilter !== "all" && b !== ageFilter) {
+        return false;
+      }
+      if (fromMs !== null && (u.registeredMs === null || u.registeredMs < fromMs)) return false;
+      if (toMs !== null && (u.registeredMs === null || u.registeredMs > toMs)) return false;
+      return true;
+    });
+  }, [stageUsers, ageFilter, regFrom, regTo]);
+
+  const stageCounts = useMemo(() => {
+    const c = Object.fromEntries(ONBOARDING_STAGES.map((s) => [s, 0])) as Record<OnboardingStage, number>;
+    for (const u of stageFilteredUsers) c[u.stage] += 1;
+    return c;
+  }, [stageFilteredUsers]);
+
+  const stageListUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let out = stageFilteredUsers;
+    if (stageFilter !== "all") out = out.filter((u) => u.stage === stageFilter);
+    if (q) {
+      out = out.filter(
+        (u) =>
+          u.uid.toLowerCase().includes(q) ||
+          (u.email && u.email.toLowerCase().includes(q)) ||
+          (u.stageUsedCareerName && u.stageUsedCareerName.toLowerCase().includes(q))
+      );
+    }
+    return [...out].sort((a, b) => (b.registeredMs ?? 0) - (a.registeredMs ?? 0));
+  }, [stageFilteredUsers, stageFilter, search]);
+
+  const stageListPageCount = Math.max(1, Math.ceil(stageListUsers.length / PAGE_SIZE));
+  const stageListPaginated = stageListUsers.slice(stagePage * PAGE_SIZE, (stagePage + 1) * PAGE_SIZE);
+
+  const stageAux = useMemo(() => {
+    const pb = Object.fromEntries(PLAYER_BUCKETS.map((b) => [b, 0])) as Record<string, number>;
+    let comp = 0, scheduledOnly = 0, r50 = 0, r100 = 0;
+    for (const u of stageFilteredUsers) {
+      pb[playerBucket(u.stagePlayerCount)] += 1;
+      if (u.hasCompetition) comp += 1;
+      if (u.scheduledMatchCount > 0 && u.resultMatchCount === 0) scheduledOnly += 1;
+      if (u.resultMatchCount >= 50) r50 += 1;
+      if (u.resultMatchCount >= 100) r100 += 1;
+    }
+    return { playerBuckets: pb, hasCompetition: comp, scheduledOnly, results50: r50, results100: r100 };
+  }, [stageFilteredUsers]);
+
+  useEffect(() => {
+    setStagePage(0);
+  }, [stageFilter, ageFilter, regFrom, regTo, search]);
 
   useEffect(() => {
     setPage(0);
@@ -976,6 +1095,202 @@ export default function InternalClubsPage() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {stageSummary && stageUsers.length > 0 && (
+          <div className="rounded-2xl border border-white/10 bg-[#111827] p-4 space-y-4">
+            <div>
+              <p className="text-xs font-bold text-slate-300">登録後の利用段階（母集団: Firebase Auth 全 {stageFilteredUsers.length} UID）</p>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                初期設定段階は最も進んだCareerで判定し、試合結果件数は全Career合算（共有データルートは1回のみ）。
+                表示は保存データから確認できる現在の利用状態であり「離脱」を意味しません。
+                結果記録済み = scoreHome/scoreAway が両方記録済みの試合（日程のみは含まない・単発試合も含む）。
+                自チーム = profile.mainTeamId / isMain / 旧形式IDで特定したチーム。対戦相手チームとその選手は含みません。
+                複数チームあり自チームを特定できない場合は「判定不能」、チーム1件のみの場合は自チームと推定します。
+                人数はUID単位。集計時刻 {formatDateTime(stageSummary.computedAt)}（JST基準）。
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={ageFilter}
+                onChange={(e) => setAgeFilter(e.target.value as AgeFilterValue)}
+                className="rounded-lg border border-white/10 bg-[#0b1220] px-3 py-2 text-sm text-white"
+                title="Firebase Auth登録日時からの経過時間で絞り込み"
+              >
+                <option value="all">登録からの経過: 全ユーザー</option>
+                {AGE_BUCKETS.map((b) => (
+                  <option key={b} value={b}>{AGE_BUCKET_LABELS[b]}</option>
+                ))}
+                <option value="ge7d">7日以上経過（まとめ）</option>
+              </select>
+              <label className="flex items-center gap-1 text-[11px] text-slate-400">
+                登録日(JST)
+                <input type="date" value={regFrom} onChange={(e) => setRegFrom(e.target.value)} className="rounded-lg border border-white/10 bg-[#0b1220] px-2 py-1.5 text-sm text-white" />
+              </label>
+              <label className="flex items-center gap-1 text-[11px] text-slate-400">
+                〜
+                <input type="date" value={regTo} onChange={(e) => setRegTo(e.target.value)} className="rounded-lg border border-white/10 bg-[#0b1220] px-2 py-1.5 text-sm text-white" />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+              {ONBOARDING_STAGES.map((s) => {
+                const count = stageCounts[s] ?? 0;
+                const rate = stageFilteredUsers.length > 0 ? Math.round((count / stageFilteredUsers.length) * 1000) / 10 : null;
+                const active = stageFilter === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStageFilter(active ? "all" : s)}
+                    className={`rounded-2xl border p-3 text-center transition ${
+                      active ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-[#0b1220] hover:border-white/25"
+                    }`}
+                  >
+                    <p className="text-[10px] text-slate-400">{ONBOARDING_STAGE_LABELS[s]}</p>
+                    <p className={`text-lg font-black tabular-nums ${s === "undeterminable" ? "text-amber-400" : "text-white"}`}>{count}</p>
+                    <p className="text-[10px] text-slate-500">{rate === null ? "—" : `${rate}%`}</p>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-500">
+              合計 {Object.values(stageCounts).reduce((a, b) => a + b, 0)} / 母集団 {stageFilteredUsers.length} UID
+              （各UIDはいずれか1段階にのみ分類・判定不能も含めて一致することを確認済み）
+            </p>
+
+            <div className="rounded-xl border border-white/10 p-3">
+              <p className="mb-2 text-[11px] font-bold text-slate-300">補助集計（段階分類と重複する指標）</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 text-center">
+                {PLAYER_BUCKETS.map((b) => (
+                  <div key={b} className="rounded-lg border border-white/10 bg-[#0b1220] p-2">
+                    <p className="text-[10px] text-slate-400">選手 {PLAYER_BUCKET_LABELS[b]}</p>
+                    <p className="text-sm font-black text-white">{stageAux.playerBuckets[b] ?? 0}</p>
+                  </div>
+                ))}
+                <div className="rounded-lg border border-white/10 bg-[#0b1220] p-2">
+                  <p className="text-[10px] text-slate-400">大会あり</p>
+                  <p className="text-sm font-black text-white">{stageAux.hasCompetition}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-[#0b1220] p-2">
+                  <p className="text-[10px] text-slate-400">日程あり・結果なし</p>
+                  <p className="text-sm font-black text-white">{stageAux.scheduledOnly}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-[#0b1220] p-2">
+                  <p className="text-[10px] text-slate-400">結果50件以上</p>
+                  <p className="text-sm font-black text-white">{stageAux.results50}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-[#0b1220] p-2">
+                  <p className="text-[10px] text-slate-400">結果100件以上</p>
+                  <p className="text-sm font-black text-white">{stageAux.results100}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-[#0b1220] p-2">
+                  <p className="text-[10px] text-slate-400">判定不能</p>
+                  <p className="text-sm font-black text-amber-400">{stageCounts.undeterminable ?? 0}</p>
+                </div>
+              </div>
+              <p className="mt-2 text-[10px] text-slate-500">選手数は段階判定に使用したCareerの自チーム選手のみ。大会は必須ステップではなく単発試合経路も含めます。</p>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[11px] font-bold text-slate-300">
+                  該当ユーザー一覧{stageFilter !== "all" ? `（${ONBOARDING_STAGE_LABELS[stageFilter]}）` : ""}: {stageListUsers.length} UID
+                </p>
+                <p className="text-[10px] text-slate-500">{stagePage + 1}/{stageListPageCount} ページ</p>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-white/10">
+                <table className="w-full text-left text-[11px] text-slate-300">
+                  <thead className="bg-[#0b1220] text-slate-400">
+                    <tr>
+                      <th className="px-2 py-2">UID</th>
+                      <th className="px-2 py-2">登録日時(JST)/経過</th>
+                      <th className="px-2 py-2">段階</th>
+                      <th className="px-2 py-2">判定Career</th>
+                      <th className="px-2 py-2 text-center">自チーム</th>
+                      <th className="px-2 py-2 text-right">選手</th>
+                      <th className="px-2 py-2 text-center">大会</th>
+                      <th className="px-2 py-2 text-right">日程</th>
+                      <th className="px-2 py-2 text-right">結果</th>
+                      <th className="px-2 py-2">プラン</th>
+                      <th className="px-2 py-2">最終利用</th>
+                      <th className="px-2 py-2">注意</th>
+                      <th className="px-2 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stageListPaginated.map((u) => {
+                      const elapsedDays = u.registeredMs !== null ? Math.floor((Date.now() - u.registeredMs) / 86400000) : null;
+                      const item = itemByUid.get(u.uid);
+                      return (
+                        <tr key={u.uid} className="border-t border-white/5">
+                          <td className="px-2 py-2 font-mono text-slate-400">
+                            <div>{u.uid.slice(0, 10)}…</div>
+                            {u.email && <div className="text-[10px] text-slate-500">{u.email}</div>}
+                          </td>
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            {u.registeredAt ? (
+                              <>
+                                {formatDateTime(u.registeredAt)}
+                                <span className="text-slate-500">{elapsedDays !== null ? `（${elapsedDays}日）` : ""}</span>
+                              </>
+                            ) : "不明"}
+                          </td>
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${u.stage === "undeterminable" ? "bg-amber-500/20 text-amber-400" : "bg-sky-500/20 text-sky-300"}`}>
+                              {ONBOARDING_STAGE_LABELS[u.stage]}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2">
+                            {u.stageUsedCareerIsLegacyRoot ? "（旧形式ルート）" : (u.stageUsedCareerName || u.stageUsedCareerId || "—")}
+                          </td>
+                          <td className="px-2 py-2 text-center">{u.stageHasTeam ? "有" : "無"}</td>
+                          <td className="px-2 py-2 text-right">{u.stagePlayerCount}</td>
+                          <td className="px-2 py-2 text-center">{u.hasCompetition ? "有" : "無"}</td>
+                          <td className="px-2 py-2 text-right">{u.scheduledMatchCount}</td>
+                          <td className="px-2 py-2 text-right font-bold">{u.resultMatchCount}</td>
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            {u.plan === "pro" ? "Paid Pro" : u.plan === "officia" ? "Granted Pro" : "Free"}
+                          </td>
+                          <td className="px-2 py-2 whitespace-nowrap">
+                            {u.lastActivityAt > 0 ? new Date(u.lastActivityAt).toLocaleString("ja-JP", { hour12: false }) : "不明"}
+                          </td>
+                          <td className="px-2 py-2 max-w-40 text-[10px] text-slate-500">
+                            {u.stageNotes.join(" / ") || "—"}
+                            {!u.inAnalytics && <div>（Analytics対象外）</div>}
+                          </td>
+                          <td className="px-2 py-2">
+                            {item && (
+                              <button
+                                type="button"
+                                onClick={() => setSearch(u.uid)}
+                                className="rounded bg-white/10 px-2 py-1 text-[10px] font-bold text-emerald-300 hover:bg-white/20"
+                              >
+                                一覧へ
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {stageListPaginated.length === 0 && (
+                      <tr><td colSpan={13} className="px-3 py-6 text-center text-slate-500">該当ユーザーなし（0件。取得失敗ではありません）</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {stageListPageCount > 1 && (
+                <div className="mt-2 flex items-center justify-center gap-2">
+                  <button type="button" disabled={stagePage === 0} onClick={() => setStagePage((p) => p - 1)} className="rounded-lg border border-white/10 bg-[#0b1220] px-3 py-1 text-xs text-white disabled:opacity-40">前へ</button>
+                  <button type="button" disabled={stagePage >= stageListPageCount - 1} onClick={() => setStagePage((p) => p + 1)} className="rounded-lg border border-white/10 bg-[#0b1220] px-3 py-1 text-xs text-white disabled:opacity-40">次へ</button>
+                </div>
+              )}
+              <p className="mt-2 text-[10px] text-slate-500">
+                「最終利用」は既存一覧と同じ定義（イベント・ログイン・プロフィール日時の採用値）。段階到達日時は保持していないため停滞日数は表示しません。
+              </p>
             </div>
           </div>
         )}
@@ -1343,6 +1658,20 @@ export default function InternalClubsPage() {
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${levelBadgeClasses(c.usageLevel)}`}>
                           {levelLabel(c.usageLevel)}
                         </span>
+                        {c.stage && (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              c.stage === "undeterminable" ? "bg-amber-500/20 text-amber-400" : "bg-sky-500/20 text-sky-300"
+                            }`}
+                            title={
+                              c.stageFields
+                                ? `結果${c.stageFields.resultMatchCount} / 日程${c.stageFields.scheduledMatchCount} / 選手${c.stageFields.stagePlayerCount}${c.stageFields.stageNotes.length ? ` / ${c.stageFields.stageNotes.join('・')}` : ''}`
+                                : undefined
+                            }
+                          >
+                            {ONBOARDING_STAGE_LABELS[c.stage]}
+                          </span>
+                        )}
                         <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[10px] font-bold text-sky-400">
                           Career {c.careerCount}
                           {c.creatingCareerCount > 0 ? `（作成中${c.creatingCareerCount}）` : ""}
