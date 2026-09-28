@@ -32,13 +32,13 @@ const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:rin
 
 type NavItem = {
   href: string; label: string; icon: LucideIcon;
-  disabled?: boolean; badge?: string; external?: boolean;
+  disabled?: boolean; disabledNote?: string; badge?: string; external?: boolean;
 };
 
 export default function AdminHomePage() {
   const { user } = useAuth();
   const { clubInfo } = useClub();
-  const { activeCareer } = useCareer();
+  const { activeCareer, careers, loading: careersLoading } = useCareer();
   const uid = user?.uid;
   // データパスはアクティブCareerのclubUidを優先（auth uid は旧Careerルートを指すため不可）
   const clubUid = activeCareer?.clubUid || uid || null;
@@ -48,6 +48,8 @@ export default function AdminHomePage() {
   const mainTeamId = teamState?.uid === clubUid ? teamState?.id : null;
   const draftNewsCount = draftState?.uid === clubUid ? draftState?.count || 0 : 0;
   const isPro = getPlanTier(user?.plan) !== "free";
+  const activeCareerCount = careers.filter((c) => c.status !== "deleted").length;
+  const careerFull = !careersLoading && activeCareerCount >= MAX_CAREERS;
   const adsenseClient = (process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "").trim();
   const adsenseSlot = (process.env.NEXT_PUBLIC_ADSENSE_SLOT_ADMIN_HOME || "").trim();
   const showAd = Boolean(adsenseClient && adsenseSlot);
@@ -185,6 +187,7 @@ export default function AdminHomePage() {
     ] },
     { title: "アカウント", color: "#f59e0b", items: [
       { href: "/admin/plan", label: "プラン", icon: CreditCard },
+      { href: "/admin/careers/new", label: "新しいCareer", icon: FolderPlus, disabled: careerFull, disabledNote: "上限（3件）" },
       { href: "https://docs.google.com/forms/d/e/1FAIpQLSeu1Yb6hQUtAwdHbrIlaxIL3F_mBgvhDy1KPdAqz728tERXMw/viewform", label: "問合せ", icon: Mail, external: true },
     ] },
   ];
@@ -221,8 +224,6 @@ export default function AdminHomePage() {
 
         <FirstStepsCard />
 
-        <NewCareerCard />
-
         <nav aria-label="管理メニュー" className="space-y-5">
           {sections.map((section) => <Section key={section.title} {...section} />)}
         </nav>
@@ -257,44 +258,6 @@ function FirstStepsCard() {
       </button>
       {isOpen && <TutorialModal onClose={() => setIsOpen(false)} />}
     </>
-  );
-}
-
-function NewCareerCard() {
-  const { careers, loading } = useCareer();
-  const activeCount = careers.filter((c) => c.status !== "deleted").length;
-  const isFull = !loading && activeCount >= MAX_CAREERS;
-
-  const body = (
-    <>
-      <span className="flex min-w-0 items-center gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-400/30 bg-emerald-400/10" aria-hidden="true">
-          <FolderPlus className="h-4 w-4 text-emerald-400" />
-        </span>
-        <span className="flex min-w-0 flex-col items-start leading-tight">
-          <span className="text-xs font-semibold text-white">新しいCareerを作成</span>
-          <span className="text-[10px] font-normal text-slate-400">新作開始や別チーム用に、新しい記録を追加できます。</span>
-          <span className="text-[10px] font-normal text-emerald-300/80">最大3件まで。選手の基本情報は作成時に引き継げます。</span>
-        </span>
-      </span>
-      {isFull ? (
-        <span className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold text-slate-400">作成上限（3件）</span>
-      ) : (
-        <span className={`flex shrink-0 items-center gap-1 rounded-lg bg-[#1fd760] px-3 py-1.5 text-[10px] font-bold text-[#080c14] transition group-hover:bg-[#17c054]`}>
-          作成する<ChevronRight className="h-3 w-3" aria-hidden="true" />
-        </span>
-      )}
-    </>
-  );
-
-  const baseClass = `group mb-5 flex w-full items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-[#111d2e] px-4 py-3 ${FOCUS}`;
-  if (isFull) {
-    return <div aria-disabled="true" className={`${baseClass} opacity-80`}>{body}</div>;
-  }
-  return (
-    <Link href="/admin/careers/new" className={`${baseClass} transition hover:bg-white/5`}>
-      {body}
-    </Link>
   );
 }
 
@@ -534,7 +497,7 @@ function Section({ title, items, color }: { title: string; items: NavItem[]; col
             {item.badge && <span className="absolute right-1 top-1 rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">{item.badge}</span>}
             <span className="flex h-11 w-11 items-center justify-center rounded-xl border" style={{ borderColor: `${color}33` }}><Icon className="h-5 w-5" style={{ color, strokeWidth: 1.8 }} aria-hidden="true" /></span>
             <span className="text-center text-sm font-semibold leading-tight">{item.label}</span>
-            {item.disabled && <span className="text-[10px] text-slate-400">Pro対象</span>}
+            {item.disabled && <span className="text-[10px] text-slate-400">{item.disabledNote ?? "Pro対象"}</span>}
           </>;
           const className = `relative flex min-h-28 flex-col items-center justify-center gap-3 rounded-2xl border border-transparent px-2 py-5 ${FOCUS}`;
           if (item.disabled) return <div key={item.label} aria-disabled="true" className={`${className} opacity-60`}>{content}</div>;
