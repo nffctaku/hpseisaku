@@ -1109,6 +1109,7 @@ export default function InternalClubsPage() {
                 結果記録済み = scoreHome/scoreAway が両方記録済みの試合（日程のみは含まない・単発試合も含む）。
                 自チーム = profile.mainTeamId / isMain / 旧形式IDで特定したチーム。対戦相手チームとその選手は含みません。
                 複数チームあり自チームを特定できない場合は「判定不能」、チーム1件のみの場合は自チームと推定します。
+                スコア0-0も数値が記録されていれば結果記録済みとして計上します（0-0のみを理由に除外していません）。
                 人数はUID単位。集計時刻 {formatDateTime(stageSummary.computedAt)}（JST基準）。
               </p>
             </div>
