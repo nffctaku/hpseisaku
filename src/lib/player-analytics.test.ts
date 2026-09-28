@@ -3,12 +3,7 @@ import assert from "node:assert/strict";
 import {
   classifyPlayerTeamKind,
   classifySaveFailureCode,
-  shouldRecordFirstPlayerCreatedAt,
 } from "./player-analytics-core";
-
-const MEASURE = 1_700_000_000_000;
-const AFTER_REG = MEASURE + 1_000;
-const BEFORE_REG = MEASURE - 1_000;
 
 const base = {
   mainTeamId: null as string | null,
@@ -73,75 +68,6 @@ test("存在しないチームは判定不能", () => {
   assert.deepEqual(
     classifyPlayerTeamKind({ ...base, thisTeamExists: false, teamCount: 1 }),
     { kind: "unknown", assumed: false }
-  );
-});
-
-test("firstPlayerCreatedAt: 計測後登録・初観測・UID全体1件のみ → 記録", () => {
-  assert.equal(
-    shouldRecordFirstPlayerCreatedAt({
-      wasFirstObserved: true,
-      registeredAtMs: AFTER_REG,
-      measurementStartMs: MEASURE,
-      ownPlayerTotalAfterCreate: 1,
-    }),
-    true
-  );
-});
-
-test("firstPlayerCreatedAt: 全削除後の再作成（初観測ではない）→ 記録しない", () => {
-  assert.equal(
-    shouldRecordFirstPlayerCreatedAt({
-      wasFirstObserved: false,
-      registeredAtMs: AFTER_REG,
-      measurementStartMs: MEASURE,
-      ownPlayerTotalAfterCreate: 1,
-    }),
-    false
-  );
-});
-
-test("firstPlayerCreatedAt: 別Careerに既存選手（合計>1）→ 記録しない", () => {
-  assert.equal(
-    shouldRecordFirstPlayerCreatedAt({
-      wasFirstObserved: true,
-      registeredAtMs: AFTER_REG,
-      measurementStartMs: MEASURE,
-      ownPlayerTotalAfterCreate: 3,
-    }),
-    false
-  );
-});
-
-test("firstPlayerCreatedAt: 計測開始前登録ユーザー → 記録しない（過去は証明不能）", () => {
-  assert.equal(
-    shouldRecordFirstPlayerCreatedAt({
-      wasFirstObserved: true,
-      registeredAtMs: BEFORE_REG,
-      measurementStartMs: MEASURE,
-      ownPlayerTotalAfterCreate: 1,
-    }),
-    false
-  );
-});
-
-test("firstPlayerCreatedAt: 登録日時不明・カウント失敗 → 記録しない", () => {
-  assert.equal(
-    shouldRecordFirstPlayerCreatedAt({
-      wasFirstObserved: true,
-      registeredAtMs: null,
-      measurementStartMs: MEASURE,
-      ownPlayerTotalAfterCreate: 1,
-    }),
-    false
-  );
-  assert.equal(
-    shouldRecordFirstPlayerCreatedAt({
-      wasFirstObserved: true,
-      registeredAtMs: AFTER_REG,
-      measurementStartMs: MEASURE,
-      ownPlayerTotalAfterCreate: null,
-    }),
-    false
   );
 });
 

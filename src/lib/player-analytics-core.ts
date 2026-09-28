@@ -43,24 +43,6 @@ export function classifyPlayerTeamKind(f: TeamKindFacts): ResolvedTeamKind {
   return { kind: "unknown", assumed: false };
 }
 
-// firstPlayerCreatedAt（真の初回登録日時）を記録してよいかの判定。
-// 保証できないケース（計測前登録ユーザー・計測後の削除→再作成・別Careerに既存選手）
-// はすべて false になり、firstObservedPlayerCreatedAt のみが残る。
-export function shouldRecordFirstPlayerCreatedAt(params: {
-  // 今回の作成が「計測開始後に初めて観測した作成成功」か
-  wasFirstObserved: boolean;
-  registeredAtMs: number | null;
-  measurementStartMs: number;
-  // UID全体（全Career＋旧形式ルート）の自チーム選手数（今回作成分を含む。失敗時null）
-  ownPlayerTotalAfterCreate: number | null;
-}): boolean {
-  if (!params.wasFirstObserved) return false;
-  if (params.registeredAtMs === null || params.registeredAtMs < params.measurementStartMs) {
-    return false;
-  }
-  return params.ownPlayerTotalAfterCreate === 1;
-}
-
 // Firestore/HTTP のエラーを、生メッセージを含まない安定コードに分類する。
 export function classifySaveFailureCode(error: unknown): string {
   const code = (error as { code?: unknown })?.code;

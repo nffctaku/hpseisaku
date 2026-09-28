@@ -1,11 +1,9 @@
 "use client";
 
 import { collection, doc, getDoc, getDocs, type Firestore } from "firebase/firestore";
-import { trackEvent, setActivationOnce, setFirstObservedPlayerCreateOnce } from "@/lib/analytics";
-import { PLAYER_OPS_MEASUREMENT_START_AT } from "@/lib/analytics-constants";
+import { trackEvent, setFirstObservedPlayerCreateOnce } from "@/lib/analytics";
 import {
   classifyPlayerTeamKind,
-  shouldRecordFirstPlayerCreatedAt,
   type ResolvedTeamKind,
 } from "@/lib/player-analytics-core";
 
@@ -17,7 +15,6 @@ export {
   type PlayerTeamKind,
   type ResolvedTeamKind,
   type TeamKindFacts,
-  shouldRecordFirstPlayerCreatedAt,
 } from "@/lib/player-analytics-core";
 
 export type PlayerAnalyticsEventName =
@@ -104,97 +101,20 @@ export async function resolvePlayerTeamKind(
   }
 }
 
-// UIDが持つ全データルート（全CareerのclubUid＋旧形式のuid直下）の自チーム選手数を合計。
-// 別Careerの選手を見落とさないためUID単位で評価する。1ルートでも読み取りに
-// 失敗したら証明不能とみなし null を返す。
-export async function countOwnTeamPlayersAcrossRoots(
-  firestore: Firestore,
-  uid: string,
-  careerClubUids: string[]
-): Promise<number | null> {
-  const roots = Array.from(new Set([uid, ...careerClubUids.filter(Boolean)]));
-  let total = 0;
+// 自チームへの新規選手保存成功時に呼ぶ記録。
+// 「計測開始後に初めて観測した自チーム選手の作成成功日時」を
+// users/{uid}.playerOpsMeasurement.firstObservedPlayerCreatedAt に記録する。
+// - トランザクションで「未設定なら設定、設定済みなら上書きしない」
+// - 書き込みが失敗しても次回の作成成功時に再度試行される
+//   （過去の失敗した作成日時そのものは復元できない点に注意）
+// - 既存の activation.firstPlayerCreatedAt には一切書き込まない
+//   （真の初回登録日時は過去分を含めて保証できないため）
+// 戻り値: 今回新規設定できたか（既存値がある/失敗時は false）
+export async function recordFirstObservedPlayerCreate(uid: string): Promise<boolean> {
   try {
-    for (const root of roots) {
-      const profileSnap = await getDoc(doc(firestore, "club_profiles", root));
-      const mainTeamId = profileSnap.exists()
-        ? (profileSnap.data() as Record<string, unknown>).mainTeamId
-        : undefined;
-
-      const teamsSnap = await getDocs(collection(firestore, `clubs/${root}/teams`));
-      const teamIds: string[] = [];
-      let mainCount = 0;
-      for (const d of teamsSnap.docs) {
-        teamIds.push(d.id);
-        if ((d.data() as Record<string, unknown>).isMain === true) mainCount += 1;
-      }
-
-      const ownTeamIds = teamIds.filter(
-        (id) =>
-          classifyPlayerTeamKind({
-            mainTeamId: typeof mainTeamId === "string" ? mainTeamId : null,
-            thisTeamExists: true,
-            thisTeamIsMain: teamsSnap.docs.some(
-              (d) => d.id === id && (d.data() as Record<string, unknown>).isMain === true
-            ),
-            teamId: id,
-            clubUid: root,
-            teamCount: teamIds.length,
-            mainCount,
-          }).kind === "own"
-      );
-
-      for (const teamId of ownTeamIds) {
-        const playersSnap = await getDocs(
-          collection(firestore, `clubs/${root}/teams/${teamId}/players`)
-        );
-        total += playersSnap.size;
-      }
-    }
-    return total;
-  } catch {
-    return null;
-  }
-}
-
-// 自チームへの新規選手保存成功時に呼ぶ活性化記録。
-// - firstObservedPlayerCreatedAt: 計測開始後に初めて観測した作成成功（全ユーザーで記録可）
-// - firstPlayerCreatedAt: 「真の初回」を保証できる場合のみ
-//     * 登録日時が計測開始以降（= それ以前の作成歴が存在し得ない）
-//     * 今回が初観測（firstObserved をこのトランザクションで新規設定できた）
-//       → 計測後に作成→全削除→再作成のケースは firstObserved 既存により除外される
-//     * UID全体の全ルートの自チーム選手が今回作成の1件のみ
-// いずれの判定も失敗しても保存処理には影響させない（呼び出し側で握り潰す）。
-// 戻り値: firstPlayerCreatedAt を今回新規設定したか
-export async function recordOwnPlayerCreateMeasurement(params: {
-  firestore: Firestore;
-  uid: string;
-  careerClubUids: string[];
-  registeredAtMs: number | null;
-}): Promise<boolean> {
-  const { firestore, uid, careerClubUids, registeredAtMs } = params;
-  try {
-    const wasFirstObserved = await setFirstObservedPlayerCreateOnce(uid);
-    const ownPlayerTotal =
-      wasFirstObserved &&
-      registeredAtMs !== null &&
-      registeredAtMs >= PLAYER_OPS_MEASUREMENT_START_AT.getTime()
-        ? await countOwnTeamPlayersAcrossRoots(firestore, uid, careerClubUids)
-        : null;
-    // 保存直後なので「今回作成分」を含む。1 = これが真の初回
-    if (
-      shouldRecordFirstPlayerCreatedAt({
-        wasFirstObserved,
-        registeredAtMs,
-        measurementStartMs: PLAYER_OPS_MEASUREMENT_START_AT.getTime(),
-        ownPlayerTotalAfterCreate: ownPlayerTotal,
-      })
-    ) {
-      return await setActivationOnce(uid, "firstPlayerCreatedAt");
-    }
-    return false;
+    return await setFirstObservedPlayerCreateOnce(uid);
   } catch (e) {
-    console.warn("[player-analytics] recordOwnPlayerCreateMeasurement failed", e);
+    console.warn("[player-analytics] recordFirstObservedPlayerCreate failed", e);
     return false;
   }
 }

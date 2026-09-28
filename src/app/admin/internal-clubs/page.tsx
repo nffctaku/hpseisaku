@@ -1341,6 +1341,8 @@ export default function InternalClubsPage() {
                 「人数」はUID単位の重複排除、「件数」はイベント数・訪問数・操作数・試行数です。
                 途中の未観測は操作継続中・ブラウザ終了・計測漏れ等を含むため「離脱」と断定しません。
                 別イベントの人数同士を割った転換率は算出していません。
+                初回選手作成は users.playerOpsMeasurement.firstObservedPlayerCreatedAt（計測開始後に初めて観測した自チーム選手の作成成功）として記録します。
+                過去の初回登録日時は保証できないため activation.firstPlayerCreatedAt には書き込みません。
               </p>
             </div>
 

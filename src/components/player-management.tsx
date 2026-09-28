@@ -9,7 +9,7 @@ import { trackEvent } from "@/lib/analytics";
 import {
   classifySaveFailureCode,
   newAnalyticsId,
-  recordOwnPlayerCreateMeasurement,
+  recordFirstObservedPlayerCreate,
   resolvePlayerTeamKind,
   trackPlayerEvent,
   type PlayerCreateMethod,
@@ -84,7 +84,7 @@ interface PlayerManagementProps {
 
 export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementProps) {
   const { user } = useAuth();
-  const { activeCareer, careers } = useCareer();
+  const { activeCareer } = useCareer();
   const { clubProfileId } = useClub();
   const clubUid = activeCareer?.clubUid || user?.clubUid || user?.uid;
   console.log("[PlayerManagement] render", { activeCareerId: activeCareer?.id, activeClubUid: activeCareer?.clubUid, userClubUid: user?.clubUid, userUid: user?.uid, computedClubUid: clubUid, teamId });
@@ -924,20 +924,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const created = await addDoc(playersColRef, (createPayload || {}) as any);
         savedPlayerId = created.id;
 
-        // firstPlayerCreatedAt は「真の初回」を保証できる場合のみ記録する
-        // （計測開始以降の登録＋今回が初観測＋UID全体の自チーム選手が1件のみ）。
-        // 保証できないユーザーには firstObservedPlayerCreatedAt のみ記録される。
+        // 「計測開始後に初めて観測した自チーム選手の作成成功」を記録する。
+        // 既存値は上書きせず、書き込み失敗時は次回作成成功で再試行される。
+        // activation.firstPlayerCreatedAt には書き込まない（真の初回は保証不能）。
         // 対戦相手・判定不能チームでは記録しない。
         if (user?.uid && teamKindRef.current === "own") {
-          const registeredAtMs = user.metadata?.creationTime
-            ? new Date(user.metadata.creationTime).getTime()
-            : null;
-          const first = await recordOwnPlayerCreateMeasurement({
-            firestore: db,
-            uid: user.uid,
-            careerClubUids: careers.map((c) => c.clubUid).filter(Boolean),
-            registeredAtMs: Number.isFinite(registeredAtMs) ? registeredAtMs : null,
-          });
+          const first = await recordFirstObservedPlayerCreate(user.uid);
           if (first) {
             void trackEvent('player_create_first', user.uid, {
               profileId: clubUid,
