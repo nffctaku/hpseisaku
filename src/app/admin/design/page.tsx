@@ -9,10 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, limit, query, where, doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { LayoutTab } from "@/app/admin/club/info/components/LayoutTab";
 import {
-  ArrowLeftRight, Calendar, ChevronDown, ChevronRight, Flag, Handshake,
+  ArrowLeftRight, Calendar, ChevronRight, Flag, Handshake,
   Home, LayoutGrid, LineChart, ListOrdered, Monitor, Newspaper, Pencil,
   Settings, Shield, Tv, Users,
 } from "lucide-react";
@@ -20,7 +20,7 @@ import { toast } from "sonner";
 
 export default function AdminDesignPage() {
   const { user, refreshUserProfile } = useAuth();
-  const { clubInfo } = useClub();
+  const { clubInfo, clubProfileId } = useClub();
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [homeBgColor, setHomeBgColor] = useState<string>("");
   const [homeColorTheme, setHomeColorTheme] = useState<'dark' | 'light'>('light');
@@ -42,7 +42,7 @@ export default function AdminDesignPage() {
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      const clubId = user?.uid;
+      const clubId = clubProfileId;
       if (!clubId) return;
       try {
         const res = await fetch(`/api/public/club/${encodeURIComponent(clubId)}/menu-settings`, {
@@ -65,12 +65,11 @@ export default function AdminDesignPage() {
           }
         }
 
-        const profilesRef = collection(db, "club_profiles");
         const docRef = doc(db, "club_profiles", clubId);
         const docSnap = await getDoc(docRef);
         if (!cancelled && docSnap.exists()) {
           const data = docSnap.data() as any;
-          console.log("[admin/design] Loaded profile data by doc ID", { clubId, headerLayout: data.headerLayout, homeBgColor: data.homeBgColor, homeColorTheme: data.homeColorTheme });
+          console.log("[admin/design] Loaded profile data by doc ID", { clubUid: clubId, headerLayout: data.headerLayout, homeBgColor: data.homeBgColor, homeColorTheme: data.homeColorTheme });
           setHomeBgColor(data.homeBgColor || "");
           if (data.homeColorTheme === "dark" || data.homeColorTheme === "light") {
             setHomeColorTheme(data.homeColorTheme);
@@ -82,25 +81,7 @@ export default function AdminDesignPage() {
             setHomeLayout(data.homeLayout === "pattern1" ? "pattern2" : data.homeLayout);
           }
         } else {
-          console.log("[admin/design] No profile data found by doc ID, trying clubId field query", clubId);
-          // Fallback: try querying by clubId field
-          const profilesSnap = await getDocs(query(profilesRef, where("clubId", "==", clubId), limit(1)));
-          if (!cancelled && !profilesSnap.empty) {
-            const data = profilesSnap.docs[0].data() as any;
-            console.log("[admin/design] Loaded profile data by clubId field", { clubId, headerLayout: data.headerLayout, homeBgColor: data.homeBgColor, homeColorTheme: data.homeColorTheme });
-            setHomeBgColor(data.homeBgColor || "");
-            if (data.homeColorTheme === "dark" || data.homeColorTheme === "light") {
-              setHomeColorTheme(data.homeColorTheme);
-            }
-            if (data.headerLayout === "center" || data.headerLayout === "left") {
-              setHeaderLayout(data.headerLayout);
-            }
-            if (data.homeLayout === "default" || data.homeLayout === "pattern1" || data.homeLayout === "pattern2") {
-              setHomeLayout(data.homeLayout === "pattern1" ? "pattern2" : data.homeLayout);
-            }
-          } else {
-            console.log("[admin/design] No profile data found at all", clubId);
-          }
+          console.log("[admin/design] No profile data found", { clubUid: clubId });
         }
       } catch {
         // ignore
@@ -110,7 +91,7 @@ export default function AdminDesignPage() {
     return () => {
       cancelled = true;
     };
-  }, [clubInfo?.id]);
+  }, [clubProfileId]);
 
   const save = async (payload: Record<string, any>) => {
     if (!auth.currentUser) {
@@ -143,13 +124,13 @@ export default function AdminDesignPage() {
           console.log("[admin/design] /api/club/update ok (json)", JSON.stringify(okJson));
 
           // Reload data from Firestore after successful save to ensure consistency
-          const clubIdForReload = user?.uid;
+          const clubIdForReload = clubProfileId;
           if (clubIdForReload) {
             const docRef = doc(db, "club_profiles", clubIdForReload);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
               const data = docSnap.data() as any;
-              console.log("[admin/design] Reloaded profile data", { clubId: clubIdForReload, headerLayout: data.headerLayout, homeBgColor: data.homeBgColor, homeColorTheme: data.homeColorTheme });
+              console.log("[admin/design] Reloaded profile data", { clubUid: clubIdForReload, headerLayout: data.headerLayout, homeBgColor: data.homeBgColor, homeColorTheme: data.homeColorTheme });
               if (typeof data.homeBgColor === "string") {
                 setHomeBgColor(data.homeBgColor);
               }
@@ -258,25 +239,6 @@ export default function AdminDesignPage() {
           </Card>
 
           <div className="space-y-4">
-            <Card className="border-white/10 bg-white/[0.03]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <Monitor className="h-5 w-5 text-sky-400" aria-hidden="true" />
-                  表示レイアウト
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex w-full items-center justify-between rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
-                  標準レイアウト
-                  <ChevronDown className="h-4 w-4 text-slate-400" aria-hidden="true" />
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  現在は標準レイアウトのみ利用できます。今後プランに応じてレイアウトが追加される予定です。
-                </p>
-                <div className="mt-4">{saveButton}</div>
-              </CardContent>
-            </Card>
-
             <Card className="border-white/10 bg-white/[0.03]">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from 'react';
+import { Check, Plus } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { HexColorInput, HexColorPicker } from 'react-colorful';
 
@@ -14,6 +16,19 @@ export function LayoutTab(props: {
   setHomeLayout: (v: 'default' | 'pattern2') => void;
 }) {
   const { homeBgColor, setHomeBgColor, homeColorTheme, setHomeColorTheme, headerLayout, setHeaderLayout, homeLayout, setHomeLayout } = props;
+  const [customColorOpen, setCustomColorOpen] = useState(false);
+
+  const presetColors = [
+    { value: '#ffffff', label: 'ホワイト' },
+    { value: '#0b1f3b', label: 'ネイビー' },
+    { value: '#60a5fa', label: 'ブルー' },
+    { value: '#facc15', label: 'イエロー' },
+    { value: '#ef4444', label: 'レッド' },
+    { value: '#7f1d1d', label: 'ワイン' },
+    { value: '#16a34a', label: 'グリーン' },
+  ];
+  const effectiveBgColor = homeBgColor || '#ffffff';
+  const isCustomColor = Boolean(homeBgColor) && !presetColors.some((c) => c.value === effectiveBgColor);
 
   return (
     <div className="space-y-4">
@@ -91,68 +106,87 @@ export function LayoutTab(props: {
 
       <div className="space-y-2">
         <Label htmlFor="homeBgColor">HPトップ背景色</Label>
-        <p className="text-xs text-muted-foreground mb-1">下の色をクリックして選択できます。</p>
-        <div className="flex flex-wrap gap-3 items-center">
-          {[
-            '#ffffff',
-            '#0b1f3b',
-            '#60a5fa',
-            '#facc15',
-            '#ef4444',
-            '#7f1d1d',
-            '#16a34a',
-          ].map((color) => (
-            <button
-              key={color}
-              type="button"
-              onClick={() => setHomeBgColor(color)}
-              className={`w-8 h-8 rounded-full border transition-transform ${
-                homeBgColor === color ? 'ring-2 ring-primary scale-110' : 'hover:scale-105'
-              }`}
-              style={{ backgroundColor: color }}
-              aria-label={color}
-            />
-          ))}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground ml-2">
-            <span>現在の色:</span>
-            <div className="w-10 h-6 rounded border" style={{ backgroundColor: homeBgColor || '#ffffff' }} />
-          </div>
+        <p className="text-xs text-muted-foreground">クラブのHPトップ全体の背景色を設定します。</p>
+        <div className="grid grid-cols-2 gap-2">
+          {presetColors.map((item) => {
+            const selected = !isCustomColor && effectiveBgColor === item.value;
+            return (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => setHomeBgColor(item.value)}
+                className={`flex items-center gap-2 rounded-md border px-3 py-2.5 text-left transition-colors ${
+                  selected
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-border bg-white hover:bg-gray-50'
+                }`}
+              >
+                <span
+                  className="h-5 w-5 shrink-0 rounded border border-black/10"
+                  style={{ backgroundColor: item.value }}
+                />
+                <span className="flex-1 text-sm font-medium text-gray-900">{item.label}</span>
+                {selected && <Check className="h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" />}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setCustomColorOpen(true)}
+            className={`flex items-center gap-2 rounded-md border px-3 py-2.5 text-left transition-colors ${
+              isCustomColor
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-border bg-white hover:bg-gray-50'
+            }`}
+          >
+            {isCustomColor ? (
+              <span
+                className="h-5 w-5 shrink-0 rounded border border-black/10"
+                style={{ backgroundColor: effectiveBgColor }}
+              />
+            ) : (
+              <Plus className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+            )}
+            <span className="flex-1 text-sm font-medium text-gray-900">カスタム</span>
+            {isCustomColor && <Check className="h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" />}
+          </button>
         </div>
 
-        <details className="rounded-md border bg-white/60 p-3">
-          <summary className="cursor-pointer text-sm text-gray-900">色を細かく調整（任意）</summary>
-          <div className="mt-3 grid gap-3">
-            <div className="w-full max-w-sm rounded-md border bg-white p-3">
-              <HexColorPicker color={homeBgColor || '#ffffff'} onChange={setHomeBgColor} />
-            </div>
+        <div>
+          <button
+            type="button"
+            onClick={() => setCustomColorOpen((v) => !v)}
+            className="flex items-center gap-1 text-sm text-gray-900"
+          >
+            <span aria-hidden="true">{customColorOpen ? '▾' : '▸'}</span>
+            カスタムカラーの詳細設定（任意）
+          </button>
+          {customColorOpen && (
+            <div className="mt-3 grid gap-3 rounded-md border bg-white/60 p-3">
+              <div className="w-full max-w-sm rounded-md border bg-white p-3">
+                <HexColorPicker color={effectiveBgColor} onChange={setHomeBgColor} />
+              </div>
 
-            <div className="flex items-center gap-2">
-              <div
-                className="h-9 w-9 rounded border"
-                style={{ backgroundColor: homeBgColor || '#ffffff' }}
-                aria-label="現在の色"
-              />
-              <div className="flex-1">
-                <HexColorInput
-                  color={homeBgColor || '#ffffff'}
-                  onChange={setHomeBgColor}
-                  prefixed
-                  className="h-9 w-full rounded-md border bg-white px-3 text-sm text-gray-900"
+              <div className="flex items-center gap-2">
+                <div
+                  className="h-9 w-9 rounded border"
+                  style={{ backgroundColor: effectiveBgColor }}
+                  aria-label="現在の色"
                 />
+                <div className="flex-1">
+                  <HexColorInput
+                    color={effectiveBgColor}
+                    onChange={setHomeBgColor}
+                    prefixed
+                    className="h-9 w-full rounded-md border bg-white px-3 text-sm text-gray-900"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">通常は上の色をクリックするだけでOKです。</p>
-        </details>
+          )}
+        </div>
 
-        <p className="text-xs text-muted-foreground">クラブのHPトップ全体の背景色を変更できます。未選択の場合は標準の背景色になります。</p>
-      </div>
-      <div className="space-y-2 pt-4 border-t">
-        <Label htmlFor="layoutType">表示レイアウト</Label>
-        <div className="w-full rounded-md border bg-white text-gray-900 px-3 py-2 text-sm">標準レイアウト</div>
-        <p className="text-xs text-muted-foreground">
-          現在は標準レイアウトのみ利用できます。今後プランに応じてレイアウトが追加される予定です。
-        </p>
+        <p className="text-xs text-muted-foreground">未選択の場合は標準の背景色になります。</p>
       </div>
     </div>
   );
