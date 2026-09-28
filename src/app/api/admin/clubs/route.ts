@@ -327,11 +327,11 @@ export async function GET(req: NextRequest) {
         .where("createdAt", ">=", since)
         .orderBy("createdAt", "desc")
         .get(),
-      // 選手登録操作計測（player_*）。30日窓ではなく計測開始以降を全件取得する
+      // 選手登録操作計測（player_*）。複合インデックスを要しないよう
+      // eventName の in のみで取得し、createdAt は集計側でフィルタする
       db
         .collection("analyticsEvents")
         .where("eventName", "in", [...PLAYER_OPS_EVENT_NAMES])
-        .where("createdAt", ">=", admin.firestore.Timestamp.fromDate(PLAYER_OPS_MEASUREMENT_START_AT))
         .get(),
     ]);
 
