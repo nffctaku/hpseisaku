@@ -18,6 +18,7 @@ export interface MatchRecord {
   minutesPlayed: number | null;
   goals: number | null;
   assists: number | null;
+  rating: number | null;
 }
 
 export interface PlayerStatsWithRecords {
@@ -178,6 +179,8 @@ export async function getMatchStatsForPlayers(
           const goalsVal = Number.isFinite(goals) ? goals : null;
           const assists = Number(s?.assists);
           const assistsVal = Number.isFinite(assists) ? assists : null;
+          const rating = Number(s?.rating);
+          const ratingVal = Number.isFinite(rating) && rating > 0 ? rating : null;
 
           // heal-on-read: イベント導出値と格納値の大きい方を採用
           // （手入力の上乗せ値を消さず、欠落したイベント分を補完する）
@@ -211,6 +214,7 @@ export async function getMatchStatsForPlayers(
             minutesPlayed: minutes,
             goals: effGoals,
             assists: effAssists,
+            rating: ratingVal,
           });
         }
       }

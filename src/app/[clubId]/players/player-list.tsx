@@ -46,6 +46,8 @@ const positionNames: Record<string, string> = {
 interface Player {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   number: number;
   position: string;
   photoUrl?: string;
@@ -635,9 +637,11 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                 <PositionMap mainPosition={player.mainPosition} subPositions={player.subPositions} />
               </div>
             ) : null}
-            <div className="absolute bottom-5 left-5 z-10">
-              <div className="text-2xl font-black leading-none" style={{ color: posTextColor }}>#{player.number}</div>
-              <div className="text-2xl sm:text-[2.6rem] font-black leading-none text-white mt-1">{player.name}</div>
+            <div className={`absolute bottom-5 left-5 z-10 ${player.mainPosition || (Array.isArray(player.subPositions) && player.subPositions.length > 0) ? 'right-24' : 'right-5'}`}>
+              <div className="text-2xl font-black leading-none" style={{ color: posTextColor, textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>#{player.number}</div>
+              <div className="truncate text-[1.8rem] sm:text-[2.8rem] font-black leading-none text-white mt-1" style={{ textShadow: '0 1px 8px rgba(0,0,0,0.8)' }}>
+                {[player.firstName, player.lastName].filter(Boolean).join(' ') || player.name}
+              </div>
               {player.subName ? <div className="mt-0.5 text-sm font-semibold text-white/80">{player.subName}</div> : null}
             </div>
           </div>
@@ -648,7 +652,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
-                className={`flex-1 py-3 text-sm font-bold text-center transition-colors ${i === 0 ? '' : ''}`}
+                className={`flex-1 py-2 text-[13px] font-bold text-center transition-colors ${i === 0 ? '' : ''}`}
                 style={{
                   color: tab === t ? posTextColor : 'rgba(255,255,255,0.38)',
                   borderBottom: tab === t ? `0.5px solid ${mainAccent}` : '0.5px solid transparent',
@@ -906,61 +910,76 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
             )}
 
             {tab === 'stats' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 divide-x divide-white/[0.07] rounded-xl border bg-white/[0.04] py-2.5" style={{ borderColor: `${mainAccent}15` }}>
                   {summaryItems.map((s) => (
-                    <div key={s.label} className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-3 text-center" style={{ borderColor: `${mainAccent}15` }}>
-                      <div className={`text-2xl font-black italic leading-none ${barlow.className}`} style={{ color: posTextColor }}>{s.value}</div>
-                      <div className="text-[10px] text-[#9CA3AF] mt-1">{s.label}</div>
+                    <div key={s.label} className="text-center">
+                      <div className={`text-xl font-black italic leading-none ${barlow.className}`} style={{ color: posTextColor }}>{s.value}</div>
+                      <div className="text-[10px] text-[#9CA3AF] mt-0.5">{s.label}</div>
                     </div>
                   ))}
                 </div>
                 {player.matchRecords && player.matchRecords.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="divide-y divide-white/5 border-y border-white/5">
                     {player.matchRecords.map((r, idx) => {
                       const myScore = r.ha === '(A)' ? r.scoreAway : r.scoreHome;
                       const oppScore = r.ha === '(A)' ? r.scoreHome : r.scoreAway;
                       const scoreText = typeof myScore === 'number' && typeof oppScore === 'number' ? `${myScore}-${oppScore}` : '-';
                       const resultColor = MATCH_RESULT_COLORS[r.result] ?? 'rgba(255,255,255,0.4)';
+                      const resultLabel = r.result === 'W' ? '勝' : r.result === 'D' ? '分' : r.result === 'L' ? '負' : '−';
                       const isBench = r.minutesPlayed === 0;
-                      const minutesDisplay = isBench ? 'B' : (r.minutesPlayed ?? '−');
-                      const minutesLabel = isBench ? '' : (r.minutesPlayed == null ? '' : '分');
-                      const haLabel = r.ha === '(A)' ? 'A' : r.ha === '(H)' ? 'H' : String(r.ha || '').replace(/[()]/g, '');
+                      const dateParts = String(r.matchDate || '').split(/[-/.]/).filter(Boolean);
+                      const dateObj = dateParts.length >= 3 ? new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2])) : null;
+                      const dow = dateObj && Number.isFinite(dateObj.getTime()) ? `（${'日月火水木金土'[dateObj.getDay()]}）` : '';
+                      const shortDate = dateParts.length >= 3 ? `${Number(dateParts[1])}/${Number(dateParts[2])}${dow}` : (r.matchDate || '—');
+                      const compLabel = r.competitionName;
                       return (
-                        <div key={idx} className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex min-w-0 flex-1 items-start gap-2">
-                              <div
-                                className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[9px] font-black"
-                                style={{ color: resultColor, backgroundColor: `${resultColor}22` }}
+                        <div key={idx} className="flex items-center gap-1.5 py-2.5 text-sm">
+                          <div className="w-[84px] flex-shrink-0 leading-tight">
+                            <div className="text-[11px] font-medium text-white/70">{shortDate}</div>
+                            {compLabel ? <div className="truncate text-[10px] font-normal text-white/45">{compLabel}</div> : null}
+                            {r.roundName ? <div className="truncate text-[9px] font-normal text-white/30">{r.roundName}</div> : null}
+                          </div>
+                          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                            {r.opponentTeamLogo ? (
+                              <img
+                                src={r.opponentTeamLogo}
+                                alt={r.opponentName}
+                                className="h-5 w-5 rounded-full object-cover flex-shrink-0"
+                              />
+                            ) : null}
+                            <div className="truncate text-[13px] font-medium text-white">{r.opponentName}</div>
+                          </div>
+                          <div className="flex flex-shrink-0 items-center gap-1.5">
+                            <span
+                              className="flex h-[18px] min-w-[18px] items-center justify-center rounded px-1 text-[10px] font-black"
+                              style={{ color: resultColor, backgroundColor: `${resultColor}22` }}
+                            >
+                              {resultLabel}
+                            </span>
+                            <span className="text-[15px] font-semibold leading-none text-white">{scoreText}</span>
+                          </div>
+                          <div className="flex w-[58px] flex-shrink-0 items-baseline justify-end gap-1 text-[11px]">
+                            {isBench ? (
+                              <span className="text-white/30 font-medium">ベンチ</span>
+                            ) : (
+                              <>
+                                <span><span className="font-bold" style={{ color: posTextColor }}>{r.minutesPlayed ?? '−'}</span><span className="text-white/30">'</span></span>
+                                <span><span className={(r.goals ?? 0) >= 1 ? 'font-semibold' : 'font-normal'} style={{ color: (r.goals ?? 0) >= 1 ? posTextColor : 'rgba(255,255,255,0.3)' }}>{r.goals ?? 0}</span><span className="text-white/30">G</span></span>
+                                <span><span className={(r.assists ?? 0) >= 1 ? 'font-semibold' : 'font-normal'} style={{ color: (r.assists ?? 0) >= 1 ? posTextColor : 'rgba(255,255,255,0.3)' }}>{r.assists ?? 0}</span><span className="text-white/30">A</span></span>
+                              </>
+                            )}
+                          </div>
+                          <div className="flex w-[30px] flex-shrink-0 justify-center">
+                            {typeof r.rating === 'number' ? (
+                              <span
+                                className={`min-w-[30px] rounded px-1 py-0.5 text-center text-[10px] font-semibold leading-none ${r.rating >= 7 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-orange-500/15 text-orange-400'}`}
                               >
-                                {r.result}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  {r.opponentTeamLogo ? (
-                                    <img
-                                      src={r.opponentTeamLogo}
-                                      alt={r.opponentName}
-                                      className="h-5 w-5 rounded-full object-cover flex-shrink-0"
-                                    />
-                                  ) : null}
-                                  <div className="truncate text-base font-black text-white">{r.opponentName}</div>
-                                </div>
-                                <div className="mt-0.5 truncate text-[10px] font-normal tracking-tight text-white/30">{r.matchDate || '日付不明'} · {r.competitionName}{r.roundName ? ` · ${r.roundName}` : ''}</div>
-                              </div>
-                            </div>
-                            <div className="flex flex-shrink-0 flex-col items-end gap-2">
-                              <div className="flex items-center gap-5">
-                                <span className="rounded-md bg-white/[0.08] px-2 py-0.5 text-[10px] font-black text-white/35">{haLabel}</span>
-                                <span className={`text-lg font-black italic leading-none text-white ${barlow.className}`}>{scoreText}</span>
-                              </div>
-                              <div className="flex items-baseline gap-2 text-xs font-black">
-                                <span><span style={{ color: posTextColor }}>{minutesDisplay}</span><span className="ml-0.5 text-white/35">{minutesLabel}</span></span>
-                                <span><span style={{ color: (r.goals ?? 0) >= 1 ? posTextColor : 'rgba(255,255,255,0.35)' }}>{r.goals ?? 0}</span><span className="ml-0.5 text-white/35">G</span></span>
-                                <span><span style={{ color: (r.assists ?? 0) >= 1 ? posTextColor : 'rgba(255,255,255,0.35)' }}>{r.assists ?? 0}</span><span className="ml-0.5 text-white/35">A</span></span>
-                              </div>
-                            </div>
+                                {r.rating.toFixed(1)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-white/20 leading-none">-</span>
+                            )}
                           </div>
                         </div>
                       );
