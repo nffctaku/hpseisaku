@@ -25,6 +25,12 @@ import {
   ONBOARDING_STAGES,
   type OnboardingStage,
 } from "@/lib/admin-analytics/onboarding-stage";
+import {
+  aggregatePlayerOps,
+  PLAYER_OPS_EVENT_NAMES,
+  type PlayerOpsEventRow,
+} from "@/lib/admin-analytics/player-ops";
+import { PLAYER_OPS_MEASUREMENT_START_AT } from "@/lib/analytics-constants";
 
 const ANALYTICS_DAYS = 30;
 
@@ -305,6 +311,7 @@ export async function GET(req: NextRequest) {
       matchesSnap,
       friendlySnap,
       eventsSnap,
+      playerOpsSnap,
     ] = await Promise.all([
       db.collection("club_profiles").get(),
       db.collection("users").get(),
@@ -319,6 +326,12 @@ export async function GET(req: NextRequest) {
         .collection("analyticsEvents")
         .where("createdAt", ">=", since)
         .orderBy("createdAt", "desc")
+        .get(),
+      // 選手登録操作計測（player_*）。30日窓ではなく計測開始以降を全件取得する
+      db
+        .collection("analyticsEvents")
+        .where("eventName", "in", [...PLAYER_OPS_EVENT_NAMES])
+        .where("createdAt", ">=", admin.firestore.Timestamp.fromDate(PLAYER_OPS_MEASUREMENT_START_AT))
         .get(),
     ]);
 
@@ -1187,6 +1200,35 @@ export async function GET(req: NextRequest) {
       counts: stageCounts,
     };
 
+    // ---- 選手登録操作計測（player_* イベント、計測開始以降） ----
+    // userId が clubUid の過去/他経路イベントは owner uid へ解決する
+    const playerOpsRows: PlayerOpsEventRow[] = [];
+    for (const d of playerOpsSnap.docs) {
+      const data = d.data() as Record<string, unknown>;
+      const rawUserId = typeof data.userId === "string" ? data.userId : null;
+      const createdAt = data.createdAt;
+      let ms: number | null = null;
+      if (createdAt instanceof admin.firestore.Timestamp) {
+        ms = createdAt.toMillis();
+      } else if (createdAt instanceof Date) {
+        ms = createdAt.getTime();
+      } else if (typeof createdAt === "string" || typeof createdAt === "number") {
+        const t = new Date(createdAt).getTime();
+        if (!Number.isNaN(t)) ms = t;
+      }
+      playerOpsRows.push({
+        eventName: typeof data.eventName === "string" ? data.eventName : "",
+        userId: rawUserId ? ownerByClubUid.get(rawUserId) || rawUserId : null,
+        createdAtMs: ms,
+        properties: (data.properties as Record<string, unknown>) || {},
+      });
+    }
+    const playerOps = {
+      measurementStartAt: PLAYER_OPS_MEASUREMENT_START_AT.toISOString(),
+      computedAt: new Date(now).toISOString(),
+      ...aggregatePlayerOps(playerOpsRows, PLAYER_OPS_MEASUREMENT_START_AT.getTime()),
+    };
+
     const authDiagnostics = {
       totalAuthUsers: authTotal,
       analyticsUids: total,
@@ -1275,7 +1317,7 @@ export async function GET(req: NextRequest) {
       legacyNameUnsetUsers,
     };
 
-    return NextResponse.json({ summary, clubs, authlessUids, matchDiagnostics, profileDiagnostics: diag, authDiagnostics, stageSummary, stageUsers });
+    return NextResponse.json({ summary, clubs, authlessUids, matchDiagnostics, profileDiagnostics: diag, authDiagnostics, stageSummary, stageUsers, playerOps });
   } catch (error) {
     console.error("[admin/clubs] error", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

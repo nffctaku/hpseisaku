@@ -220,6 +220,38 @@ export async function setActivationOnce(
   }
 }
 
+// 「計測開始後に初めて観測した新規選手保存成功日時」。
+// firstPlayerCreatedAt（真の初回登録日時）とは意味が異なるため別フィールドに記録する。
+// 計測開始前に選手を作成していたユーザーでも「初めて観測した日時」として正直に記録できる。
+// 既存値は上書きしない。戻り値は「今回新規設定したか」。
+export async function setFirstObservedPlayerCreateOnce(uid: string): Promise<boolean> {
+  const ref = doc(db, "users", uid);
+  try {
+    let didSet = false;
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(ref);
+      const data = snap.exists()
+        ? (snap.data() as Record<string, Record<string, unknown>>)
+        : undefined;
+      const existing = data?.playerOpsMeasurement?.firstObservedPlayerCreatedAt;
+      if (existing) {
+        didSet = false;
+        return;
+      }
+      transaction.set(
+        ref,
+        { playerOpsMeasurement: { firstObservedPlayerCreatedAt: serverTimestamp() } },
+        { mergeFields: ["playerOpsMeasurement.firstObservedPlayerCreatedAt"] }
+      );
+      didSet = true;
+    });
+    return didSet;
+  } catch (e) {
+    console.warn("[analytics] setFirstObservedPlayerCreateOnce failed", e);
+    return false;
+  }
+}
+
 export async function setSubscriptionPro(uid: string): Promise<boolean> {
   const ref = doc(db, "users", uid);
   try {

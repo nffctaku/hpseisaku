@@ -226,6 +226,38 @@ interface StageSummary {
   counts: Record<OnboardingStage, number>;
 }
 
+interface PlayerOpsStageCounts {
+  uniqueUsers: number;
+  eventCount: number;
+}
+
+interface PlayerOpsFunnel {
+  pageView: PlayerOpsStageCounts;
+  createStart: PlayerOpsStageCounts;
+  saveAttempt: PlayerOpsStageCounts;
+  saveSuccess: PlayerOpsStageCounts;
+  saveFailed: PlayerOpsStageCounts;
+}
+
+interface PlayerOps {
+  measurementStartAt: string;
+  computedAt: string;
+  totalEvents: number;
+  all: PlayerOpsFunnel;
+  ownTeam: PlayerOpsFunnel;
+  eventCountByTeamKind: Record<string, number>;
+  unobserved: {
+    visitsWithoutCreateStart: number;
+    opsStartedWithoutAttempt: number;
+    attemptsWithoutOutcome: number;
+    totalAttempts: number;
+    totalOperationsStarted: number;
+    totalVisits: number;
+  };
+  failures: { failureCode: string; failurePoint: string; count: number; uniqueUsers: number }[];
+  photoSyncFailed: PlayerOpsStageCounts;
+}
+
 type AgeFilterValue = "all" | "ge7d" | AgeBucket;
 
 interface AuthDiagnostics {
@@ -418,6 +450,7 @@ export default function InternalClubsPage() {
   const [monetizationFunnel, setMonetizationFunnel] = useState<MonetizationFunnel | null>(null);
   const [potentialProUsers, setPotentialProUsers] = useState<Record<string, number> | null>(null);
   const [stageSummary, setStageSummary] = useState<StageSummary | null>(null);
+  const [playerOps, setPlayerOps] = useState<PlayerOps | null>(null);
   const [stageUsers, setStageUsers] = useState<StageUserRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
@@ -463,6 +496,7 @@ export default function InternalClubsPage() {
           authDiagnostics?: AuthDiagnostics;
           stageSummary?: StageSummary;
           stageUsers?: StageUserRow[];
+          playerOps?: PlayerOps;
         };
         setItems(clubsJson.clubs);
         setSummary(clubsJson.summary);
@@ -472,6 +506,7 @@ export default function InternalClubsPage() {
         setAuthDiagnostics(clubsJson.authDiagnostics || null);
         setStageSummary(clubsJson.stageSummary || null);
         setStageUsers(clubsJson.stageUsers || []);
+        setPlayerOps(clubsJson.playerOps || null);
 
         if (funnelRes.ok) {
           const funnelJson = (await funnelRes.json()) as {
@@ -1293,6 +1328,116 @@ export default function InternalClubsPage() {
                 「最終利用」は既存一覧と同じ定義（イベント・ログイン・プロフィール日時の採用値）。段階到達日時は保持していないため停滞日数は表示しません。
               </p>
             </div>
+          </div>
+        )}
+
+        {playerOps && (
+          <div className="rounded-2xl border border-white/10 bg-[#111827] p-4 space-y-4">
+            <div>
+              <p className="text-xs font-bold text-slate-300">選手登録の操作計測（player_* イベント）</p>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                計測開始 {formatDateTime(playerOps.measurementStartAt)} 以降のイベントのみ集計（集計時刻 {formatDateTime(playerOps.computedAt)}）。
+                計測開始前の行動はイベントが存在しないため復元できません。登録日とは別の基準日です。
+                「人数」はUID単位の重複排除、「件数」はイベント数・訪問数・操作数・試行数です。
+                途中の未観測は操作継続中・ブラウザ終了・計測漏れ等を含むため「離脱」と断定しません。
+                別イベントの人数同士を割った転換率は算出していません。
+              </p>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-white/10">
+              <table className="w-full text-left text-[11px] text-slate-300">
+                <thead className="bg-[#0b1220] text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2">段階</th>
+                    <th className="px-3 py-2 text-right">全操作 人数(UID)</th>
+                    <th className="px-3 py-2 text-right">全操作 件数</th>
+                    <th className="px-3 py-2 text-right">自チーム 人数(UID)</th>
+                    <th className="px-3 py-2 text-right">自チーム 件数</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(
+                    [
+                      ["画面表示", "pageView"],
+                      ["入力開始", "createStart"],
+                      ["保存試行", "saveAttempt"],
+                      ["保存成功", "saveSuccess"],
+                      ["保存失敗", "saveFailed"],
+                    ] as const
+                  ).map(([label, key]) => (
+                    <tr key={key} className="border-t border-white/5">
+                      <td className="px-3 py-2">{label}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{playerOps.all[key].uniqueUsers}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-400">{playerOps.all[key].eventCount}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-emerald-300">{playerOps.ownTeam[key].uniqueUsers}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-400">{playerOps.ownTeam[key].eventCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10px] text-slate-500">
+              teamKind内訳（イベント件数）: 自チーム {playerOps.eventCountByTeamKind.own ?? 0} /
+              対戦相手 {playerOps.eventCountByTeamKind.opponent ?? 0} /
+              判定不能 {playerOps.eventCountByTeamKind.unknown ?? 0}
+              {playerOps.photoSyncFailed.eventCount > 0 &&
+                `　・選手保存成功後の写真同期失敗: ${playerOps.photoSyncFailed.eventCount}件（${playerOps.photoSyncFailed.uniqueUsers}人。作成自体は成功扱い）`}
+            </p>
+
+            <div className="rounded-xl border border-white/10 p-3">
+              <p className="mb-2 text-[11px] font-bold text-slate-300">未観測の遷移（ID突合。操作継続中・計測漏れの可能性を含む）</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 text-center">
+                <div className="rounded-lg border border-white/10 bg-[#0b1220] p-2">
+                  <p className="text-[10px] text-slate-400">画面訪問→入力開始が未観測</p>
+                  <p className="text-sm font-black text-white">
+                    {playerOps.unobserved.visitsWithoutCreateStart}
+                    <span className="ml-1 text-[10px] font-normal text-slate-500">/ 訪問 {playerOps.unobserved.totalVisits}</span>
+                  </p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-[#0b1220] p-2">
+                  <p className="text-[10px] text-slate-400">入力開始→保存試行が未観測</p>
+                  <p className="text-sm font-black text-white">
+                    {playerOps.unobserved.opsStartedWithoutAttempt}
+                    <span className="ml-1 text-[10px] font-normal text-slate-500">/ 操作 {playerOps.unobserved.totalOperationsStarted}</span>
+                  </p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-[#0b1220] p-2">
+                  <p className="text-[10px] text-slate-400">保存試行→成功/失敗が未観測</p>
+                  <p className="text-sm font-black text-white">
+                    {playerOps.unobserved.attemptsWithoutOutcome}
+                    <span className="ml-1 text-[10px] font-normal text-slate-500">/ 試行 {playerOps.unobserved.totalAttempts}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {playerOps.failures.length > 0 && (
+              <div className="rounded-xl border border-white/10 p-3">
+                <p className="mb-2 text-[11px] font-bold text-slate-300">保存失敗の内訳（試行件数）</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px] text-slate-300">
+                    <thead className="text-slate-400">
+                      <tr>
+                        <th className="px-2 py-1">失敗箇所</th>
+                        <th className="px-2 py-1">分類コード</th>
+                        <th className="px-2 py-1 text-right">試行件数</th>
+                        <th className="px-2 py-1 text-right">人数(UID)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {playerOps.failures.map((f) => (
+                        <tr key={`${f.failurePoint}:${f.failureCode}`} className="border-t border-white/5">
+                          <td className="px-2 py-1">{f.failurePoint}</td>
+                          <td className="px-2 py-1 font-mono">{f.failureCode}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{f.count}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{f.uniqueUsers}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -56,6 +56,10 @@ interface PlayerFormProps {
   isEdit?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
   onClose?: () => void;
+  // 計測用: 入力検証（zod）より前に保存試行を通知する。例外を投げてはいけない。
+  onSaveAttempt?: () => void;
+  // 計測用: zod 検証失敗時に通知する。
+  onSaveInvalid?: () => void;
 }
 
 export function PlayerForm({
@@ -69,6 +73,8 @@ export function PlayerForm({
   isEdit = false,
   onDirtyChange,
   onClose,
+  onSaveAttempt,
+  onSaveInvalid,
 }: PlayerFormProps) {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"profile" | "params" | "stats">("profile");
@@ -354,6 +360,11 @@ export function PlayerForm({
   };
 
   const onError = (errors: any) => {
+    try {
+      onSaveInvalid?.();
+    } catch {
+      // 計測失敗でフォーム処理を止めない
+    }
     const first = findFirstErrorPath(errors);
     if (first) {
       const mapped = getSectionForPath(first);
@@ -482,7 +493,15 @@ export function PlayerForm({
     <Form {...form}>
       <form
         id={formId}
-        onSubmit={form.handleSubmit(handleSubmit, onError)}
+        onSubmit={(e) => {
+          // 検証前に保存試行を記録する（計測失敗は送信を妨げない）
+          try {
+            onSaveAttempt?.();
+          } catch {
+            // ignore
+          }
+          void form.handleSubmit(handleSubmit, onError)(e);
+        }}
         className="grid h-full grid-rows-[auto_1fr_auto] overflow-hidden"
       >
         <header className="flex items-center justify-between border-b border-[#334155] bg-[#0C1422] px-4 py-3">

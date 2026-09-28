@@ -5,7 +5,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCareer } from "@/contexts/CareerContext";
 import { useClub } from "@/contexts/ClubContext";
 import { auth, db } from "@/lib/firebase";
-import { setActivationOnce, trackEvent } from "@/lib/analytics";
+import { trackEvent } from "@/lib/analytics";
+import {
+  classifySaveFailureCode,
+  newAnalyticsId,
+  recordOwnPlayerCreateMeasurement,
+  resolvePlayerTeamKind,
+  trackPlayerEvent,
+  type PlayerCreateMethod,
+  type PlayerSaveFailurePoint,
+  type PlayerTeamKind,
+} from "@/lib/player-analytics";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { pickPlayerPhotoUrl } from "@/lib/player-photo";
 import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
@@ -74,7 +84,7 @@ interface PlayerManagementProps {
 
 export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementProps) {
   const { user } = useAuth();
-  const { activeCareer } = useCareer();
+  const { activeCareer, careers } = useCareer();
   const { clubProfileId } = useClub();
   const clubUid = activeCareer?.clubUid || user?.clubUid || user?.uid;
   console.log("[PlayerManagement] render", { activeCareerId: activeCareer?.id, activeClubUid: activeCareer?.clubUid, userClubUid: user?.clubUid, userUid: user?.uid, computedClubUid: clubUid, teamId });
@@ -97,6 +107,108 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const [playerUsage, setPlayerUsage] = useState<{ current: number; limit: number; plan: string } | null>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const wasDialogOpenRef = useRef(false);
+
+  // --- 選手登録の操作計測（analyticsEvents の player_* イベント） ---
+  // visitId: この画面表示の相関ID。operationId: 新規作成操作の相関ID。
+  // attemptId: 保存試行の相関ID（再試行は別ID）。
+  const visitIdRef = useRef<string>(newAnalyticsId());
+  const pageViewKeyRef = useRef<string>("");
+  const teamKindRef = useRef<PlayerTeamKind>("unknown");
+  const teamAssumedRef = useRef(false);
+  const createOpRef = useRef<{ id: string; startSent: boolean } | null>(null);
+  const saveAttemptRef = useRef<{ id: string; operationId: string; method: PlayerCreateMethod; terminalSent: boolean } | null>(null);
+
+  const playerEventBase = (method: PlayerCreateMethod): Record<string, unknown> => ({
+    clubUid: clubUid || null,
+    careerId: activeCareer?.id ?? null,
+    teamId,
+    teamKind: teamKindRef.current,
+    teamAssumed: teamAssumedRef.current || undefined,
+    method,
+    visitId: visitIdRef.current,
+  });
+
+  const emitSaveTerminal = (
+    eventName: "player_save_success" | "player_save_failed",
+    extra: Record<string, unknown> = {}
+  ) => {
+    const att = saveAttemptRef.current;
+    if (!att || att.terminalSent) return;
+    att.terminalSent = true;
+    trackPlayerEvent(eventName, user?.uid ?? null, {
+      ...playerEventBase(att.method),
+      operationId: att.operationId,
+      attemptId: att.id,
+      ...extra,
+    });
+  };
+
+  const emitSaveFailed = (
+    failurePoint: PlayerSaveFailurePoint,
+    failureCode: string,
+    extra: Record<string, unknown> = {}
+  ) => emitSaveTerminal("player_save_failed", { failurePoint, failureCode, ...extra });
+
+  // 対象チームが解決され選手管理画面が表示された時に1回だけ記録
+  useEffect(() => {
+    if (!clubUid || !teamId || !user?.uid) return;
+    const key = `${clubUid}|${teamId}`;
+    if (pageViewKeyRef.current === key) return;
+    pageViewKeyRef.current = key;
+    // 対象チームが変わった場合は別訪問として新しい visitId を発行する
+    visitIdRef.current = newAnalyticsId();
+    void (async () => {
+      const resolved = await resolvePlayerTeamKind(db, clubUid, teamId);
+      teamKindRef.current = resolved.kind;
+      teamAssumedRef.current = resolved.assumed;
+      trackPlayerEvent("player_page_view", user.uid, {
+        clubUid,
+        careerId: activeCareer?.id ?? null,
+        teamId,
+        teamKind: resolved.kind,
+        teamAssumed: resolved.assumed || undefined,
+        visitId: visitIdRef.current,
+      });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clubUid, teamId, user?.uid]);
+
+  // 新規選手フォームで最初に入力を変更した時（操作ごとに1回）
+  const handleFormDirtyChange = (dirty: boolean) => {
+    setIsFormDirty(dirty);
+    if (editingPlayer || !dirty) return;
+    const op = createOpRef.current;
+    if (!op || op.startSent) return;
+    op.startSent = true;
+    trackPlayerEvent("player_create_start", user?.uid ?? null, {
+      ...playerEventBase("manual_form"),
+      operationId: op.id,
+    });
+  };
+
+  // 新規選手の保存試行（zod検証前）。再試行は別 attemptId。
+  const handleSaveAttempt = () => {
+    if (editingPlayer) return;
+    if (!createOpRef.current) {
+      createOpRef.current = { id: newAnalyticsId(), startSent: false };
+    }
+    saveAttemptRef.current = {
+      id: newAnalyticsId(),
+      operationId: createOpRef.current.id,
+      method: "manual_form",
+      terminalSent: false,
+    };
+    trackPlayerEvent("player_save_attempt", user?.uid ?? null, {
+      ...playerEventBase("manual_form"),
+      operationId: createOpRef.current.id,
+      attemptId: saveAttemptRef.current.id,
+    });
+  };
+
+  const handleSaveInvalid = () => {
+    if (editingPlayer) return;
+    emitSaveFailed("form_validation", "schema_invalid");
+  };
 
   useEffect(() => {
     if (wasDialogOpenRef.current && !isDialogOpen && !isConfirmOpen) {
@@ -457,12 +569,14 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const handleFormSubmit = async (values: PlayerFormValues) => {
     if (!clubUid || !teamId) return;
     if (!selectedSeason) {
+      emitSaveFailed("validation", "no_season");
       toast.error("シーズンが選択されていません。");
       return;
     }
 
     const normalizedPosition = normalizeBasePosition((values as any)?.position);
     if (!normalizedPosition) {
+      emitSaveFailed("validation", "invalid_position");
       toast.error("ポジションが不正です（GK/DF/MF/FW から選択してください）。");
       return;
     }
@@ -514,6 +628,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         });
 
         if (Number.isFinite(maxPlayerPhotos) && count >= maxPlayerPhotos) {
+          emitSaveFailed("plan_limit", "player_photo_limit");
           toast.error(`現在のプランでは選手画像は1チームあたり最大${maxPlayerPhotos}人まで登録できます。`);
           return;
         }
@@ -809,10 +924,22 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const created = await addDoc(playersColRef, (createPayload || {}) as any);
         savedPlayerId = created.id;
 
-        if (clubUid) {
-          const first = await setActivationOnce(clubUid, 'firstPlayerCreatedAt');
+        // firstPlayerCreatedAt は「真の初回」を保証できる場合のみ記録する
+        // （計測開始以降の登録＋今回が初観測＋UID全体の自チーム選手が1件のみ）。
+        // 保証できないユーザーには firstObservedPlayerCreatedAt のみ記録される。
+        // 対戦相手・判定不能チームでは記録しない。
+        if (user?.uid && teamKindRef.current === "own") {
+          const registeredAtMs = user.metadata?.creationTime
+            ? new Date(user.metadata.creationTime).getTime()
+            : null;
+          const first = await recordOwnPlayerCreateMeasurement({
+            firestore: db,
+            uid: user.uid,
+            careerClubUids: careers.map((c) => c.clubUid).filter(Boolean),
+            registeredAtMs: Number.isFinite(registeredAtMs) ? registeredAtMs : null,
+          });
           if (first) {
-            void trackEvent('player_create_first', clubUid, {
+            void trackEvent('player_create_first', user.uid, {
               profileId: clubUid,
               ownerUid: clubUid,
               clubProfileId: clubProfileId || null,
@@ -849,9 +976,29 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         );
       }
 
+      // 選手docとrosterの保存が完了した時点で作成成功とみなす。
+      // 後続の写真同期失敗で「保存失敗」にしない（補助イベントで分離記録）。
+      if (!editingPlayer) {
+        emitSaveTerminal("player_save_success", { successCount: 1, failureCount: 0 });
+        createOpRef.current = null;
+      }
+
       if (savedPlayerId) {
         await invalidatePlayerStatsCache(savedPlayerId);
-        await syncPhotoIfNeeded(savedPlayerId);
+        try {
+          await syncPhotoIfNeeded(savedPlayerId);
+        } catch (photoError) {
+          if (!editingPlayer) {
+            const att = saveAttemptRef.current;
+            trackPlayerEvent("player_photo_sync_failed", user?.uid ?? null, {
+              ...playerEventBase(att?.method ?? "manual_form"),
+              operationId: att?.operationId ?? undefined,
+              attemptId: att?.id ?? undefined,
+              failureCode: classifySaveFailureCode(photoError),
+            });
+          }
+          toast.warning("選手は保存されましたが、画像の同期に失敗しました。");
+        }
       }
 
       toast.success("保存しました。", {
@@ -860,6 +1007,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       setIsDialogOpen(false);
       setEditingPlayer(null);
     } catch (error) {
+      emitSaveFailed("write", classifySaveFailureCode(error));
       const code = (error as any)?.code;
       const message = (error as any)?.message;
       console.error("Error saving player:", error);
@@ -943,6 +1091,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     }
     setIsDialogOpen(false);
     setEditingPlayer(null);
+    createOpRef.current = null;
+    saveAttemptRef.current = null;
   };
 
   const handleClose = () => handleDialogOpenChange(false);
@@ -952,6 +1102,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       toast.error(`現在のプランでは1チームあたり選手は最大${maxPlayers}人まで登録できます。`);
       return;
     }
+    // 新規作成操作の開始（再オープンは別operationId）
+    createOpRef.current = { id: newAnalyticsId(), startSent: false };
+    saveAttemptRef.current = null;
     setEditingPlayer(null);
     setIsDialogOpen(true);
   };
@@ -961,6 +1114,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       toast.error(`現在のプランでは1チームあたり選手は最大${maxPlayers}人まで登録できます。`);
       return;
     }
+    // CSV一括作成も別の作成操作として扱う（入力開始イベントはフォーム入力の
+    // みを対象とするためここでは送らない）
+    createOpRef.current = { id: newAnalyticsId(), startSent: false };
+    saveAttemptRef.current = null;
     setCsvFileName("");
     setCsvPreview([]);
     setIsCsvDialogOpen(true);
@@ -1141,11 +1298,30 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
   const handleImportCsv = async () => {
     if (!clubUid || !teamId) return;
+
+    // 保存試行（検証前）。CSVはボタン押下が試行の起点。
+    if (!createOpRef.current) {
+      createOpRef.current = { id: newAnalyticsId(), startSent: false };
+    }
+    saveAttemptRef.current = {
+      id: newAnalyticsId(),
+      operationId: createOpRef.current.id,
+      method: "bulk_csv",
+      terminalSent: false,
+    };
+    trackPlayerEvent("player_save_attempt", user?.uid ?? null, {
+      ...playerEventBase("bulk_csv"),
+      operationId: createOpRef.current.id,
+      attemptId: saveAttemptRef.current.id,
+    });
+
     if (!selectedSeason) {
+      emitSaveFailed("validation", "no_season");
       toast.error('シーズンが選択されていません。');
       return;
     }
     if (!csvPreview || csvPreview.length === 0) {
+      emitSaveFailed("validation", "no_csv");
       toast.error('CSVが選択されていません。');
       return;
     }
@@ -1153,11 +1329,13 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     // エラー行をスキップして正常な行のみを抽出
     const validRows = csvPreview.filter((p) => !p.error).map((p) => p.data).filter(Boolean);
     if (validRows.length === 0) {
+      emitSaveFailed("validation", "no_valid_rows");
       toast.error('取り込み対象のデータがありません。エラーがある行のみです。');
       return;
     }
 
     if (Number.isFinite(maxPlayers) && filteredPlayers.length + validRows.length > maxPlayers) {
+      emitSaveFailed("plan_limit", "player_limit");
       toast.error(`現在のプランでは1チームあたり選手は最大${maxPlayers}人まで登録できます。`);
       return;
     }
@@ -1220,6 +1398,11 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       await Promise.all(ids.map((id) => invalidatePlayerStatsCache(id)));
 
       const errorCount = csvPreview.filter((p) => p.error).length;
+      emitSaveTerminal("player_save_success", {
+        successCount: validRows.length,
+        failureCount: errorCount,
+      });
+      createOpRef.current = null;
       if (errorCount > 0) {
         toast.success(`${validRows.length}人の選手を追加しました（${errorCount}件はエラーのためスキップされました）。`);
       } else {
@@ -1229,6 +1412,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       setCsvPreview([]);
       setCsvFileName("");
     } catch (e: any) {
+      emitSaveFailed("write", classifySaveFailureCode(e), {
+        successCount: 0,
+        failureCount: validRows.length,
+      });
       toast.error(e?.message || 'CSVインポートに失敗しました。');
     } finally {
       setImportingCsv(false);
@@ -1400,8 +1587,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                   playerId={editingPlayer?.id ?? null}
                   teamId={teamId}
                   isEdit={!!editingPlayer}
-                  onDirtyChange={setIsFormDirty}
+                  onDirtyChange={handleFormDirtyChange}
                   onClose={handleClose}
+                  onSaveAttempt={handleSaveAttempt}
+                  onSaveInvalid={handleSaveInvalid}
                 />
               </DialogContent>
             </Dialog>
@@ -1733,6 +1922,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                 setIsConfirmOpen(false);
                 setIsDialogOpen(false);
                 setEditingPlayer(null);
+                createOpRef.current = null;
+                saveAttemptRef.current = null;
               }}
               className="bg-[#1FD760] text-[#08111F] hover:bg-[#17c054]"
             >
