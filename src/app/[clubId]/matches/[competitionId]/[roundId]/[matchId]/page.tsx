@@ -13,6 +13,8 @@ import { minuteSortValue } from "@/lib/match-minutes";
 import { resolveScorerName, goalEventSuffix, resolveEventPlayerName } from "@/lib/match-scorers";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 import { resolveSeasonScopedNumber, normalizeSeasonNumber, seasonKeyCandidates, toDashSeason } from "@/lib/season";
+import { FaFutbol, FaUser } from "react-icons/fa";
+import { GiRunningShoe } from "react-icons/gi";
 
 const getFormationSlots = (formation: string) => {
   const lines = formation
@@ -22,15 +24,15 @@ const getFormationSlots = (formation: string) => {
   const outfieldTotal = lines.reduce((sum, count) => sum + count, 0);
   const normalizedLines = outfieldTotal === 10 && lines.length > 0 ? lines : [4, 3, 3];
   const yByLineCount: Record<number, number[]> = {
-    3: [68, 45, 20],
-    4: [70, 53, 35, 17],
-    5: [72, 58, 44, 30, 16],
+    3: [61, 42, 23],
+    4: [67, 49, 31, 13],
+    5: [75, 59, 43, 27, 11],
   };
   const yList = yByLineCount[normalizedLines.length] || Array.from(
     { length: normalizedLines.length },
     (_, index) => 70 - index * (55 / Math.max(normalizedLines.length - 1, 1))
   );
-  const slots = [{ label: 'GK', x: 50, y: 88 }];
+  const slots = [{ label: 'GK', x: 50, y: 85 }];
 
   normalizedLines.forEach((count, lineIndex) => {
     const y = yList[lineIndex] ?? 50;
@@ -68,6 +70,8 @@ async function getMatchDetail(
   legalPages: any[];
   homeBgColor?: string;
   gameTeamUsage: boolean;
+  stadiumPhotoUrl?: string;
+  clubTeamId?: string;
   match: MatchDetails | null;
 } | null> {
   // Resolve clubId -> clubUid via the shared public resolver so that
@@ -84,6 +88,9 @@ async function getMatchDetail(
   const legalPages = Array.isArray((profileData as any).legalPages) ? (profileData as any).legalPages : [];
   const homeBgColor = typeof (profileData as any).homeBgColor === "string" ? (profileData as any).homeBgColor : undefined;
   const gameTeamUsage = Boolean((profileData as any).gameTeamUsage);
+  const stadiumPhotoUrl = typeof (profileData as any).stadiumPhotoUrl === "string" ? (profileData as any).stadiumPhotoUrl : undefined;
+  const mainTeamId = typeof (profileData as any).mainTeamId === "string" ? (profileData as any).mainTeamId : "";
+  const clubTeamId = mainTeamId || ownerUid;
   if (!ownerUid) return null;
 
   // 対象シーズンの roster コレクションのみを参照し、背番号のフォールバックマップを作る
@@ -204,7 +211,7 @@ async function getMatchDetail(
       (match as any).playerMetaMap = playerMetaMap;
       (match as any).playerTeamMap = playerTeamMap;
 
-      return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, match };
+      return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, stadiumPhotoUrl, clubTeamId, match };
     }
   }
 
@@ -317,14 +324,14 @@ async function getMatchDetail(
     (match as any).playerMetaMap = playerMetaMap;
     (match as any).playerTeamMap = playerTeamMap;
 
-    return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, match };
+    return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, stadiumPhotoUrl, clubTeamId, match };
   }
 
   // Fallback: legacy flat matches collection
   const flatMatchRef = db.doc(`clubs/${ownerUid}/matches/${matchId}`);
   const flatSnap = await flatMatchRef.get();
   if (!flatSnap.exists) {
-    return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, match: null };
+    return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, stadiumPhotoUrl, clubTeamId, match: null };
   }
 
   const data = flatSnap.data() as any;
@@ -437,7 +444,7 @@ async function getMatchDetail(
   (match as any).playerMetaMap = playerMetaMap;
   (match as any).playerTeamMap = playerTeamMap;
 
-  return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, match };
+  return { clubName, logoUrl, snsLinks, sponsors, legalPages, homeBgColor, gameTeamUsage, stadiumPhotoUrl, clubTeamId, match };
 }
 
 export const dynamic = 'force-dynamic';
@@ -470,6 +477,10 @@ export default async function MatchDetailPage({ params }: PageProps) {
     }
     if (ev.type === "sub_in" && ev.playerId) {
       subInMinuteByPlayerId.set(ev.playerId, ev.minute);
+    }
+    if (ev.type === "substitution") {
+      if (ev.outPlayerId) subOutMinuteByPlayerId.set(ev.outPlayerId, ev.minute);
+      if (ev.inPlayerId) subInMinuteByPlayerId.set(ev.inPlayerId, ev.minute);
     }
   });
 
@@ -544,9 +555,19 @@ export default async function MatchDetailPage({ params }: PageProps) {
       .sort((a, b) => getPositionKey(a) - getPositionKey(b) || getNumberKey(a) - getNumberKey(b));
 
   const homeStartersSorted = sortLineup(homeStarters);
-  const homeSubsSorted = sortLineup(homeSubs);
   const awayStartersSorted = sortLineup(awayStarters);
-  const awaySubsSorted = sortLineup(awaySubs);
+  const sortSubsByEntry = (arr: any[]) =>
+    arr
+      .slice()
+      .sort((a, b) => {
+        const aMin = a.playerId ? subInMinuteByPlayerId.get(a.playerId) : undefined;
+        const bMin = b.playerId ? subInMinuteByPlayerId.get(b.playerId) : undefined;
+        const aKey = typeof aMin === "number" ? aMin : Infinity;
+        const bKey = typeof bMin === "number" ? bMin : Infinity;
+        return aKey - bKey || getPositionKey(a) - getPositionKey(b) || getNumberKey(a) - getNumberKey(b);
+      });
+  const homeSubsSorted = sortSubsByEntry(homeSubs);
+  const awaySubsSorted = sortSubsByEntry(awaySubs);
 
   const homeFormation = (match as any).homeFormation || '4-3-3';
   const awayFormation = (match as any).awayFormation || '4-3-3';
@@ -569,18 +590,19 @@ export default async function MatchDetailPage({ params }: PageProps) {
   // Render pitch for a team
   const renderPitch = (starters: any[], pitchSlots: any[], formation: string, highestRating: number | null) => {
     return (
-      <div className="relative mx-auto aspect-[7/10] w-full overflow-hidden bg-[#0f1722] sm:aspect-[5/6] sm:max-w-[520px] rounded-lg">
+      <div className="relative w-screen ml-[calc(50%-50vw)] md:ml-0 md:w-full">
+        <div className="relative mx-auto aspect-[5/6.5] w-full overflow-hidden bg-[#0f1722] sm:aspect-[5/6.5] sm:max-w-[520px] rounded-lg">
         <div className="absolute right-3 top-3 z-20 rounded-full border border-slate-600 bg-slate-950/70 px-2 py-1 text-[10px] font-black tracking-wide text-white shadow-sm">
           {formation}
         </div>
-        <div className="absolute inset-x-[6%] inset-y-[4%] border-2 border-slate-400/14" />
-        <div className="absolute inset-x-[28%] top-[4%] h-[13%] border-x-2 border-b-2 border-slate-400/14" />
-        <div className="absolute inset-x-[38%] top-[4%] h-[6%] border-x-2 border-b-2 border-slate-400/14" />
-        <div className="absolute inset-x-[28%] bottom-[4%] h-[13%] border-x-2 border-t-2 border-slate-400/14" />
-        <div className="absolute inset-x-[38%] bottom-[4%] h-[6%] border-x-2 border-t-2 border-slate-400/14" />
-        <div className="absolute inset-x-[6%] top-1/2 h-px bg-slate-400/14" />
-        <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-400/14" />
-        <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(255,255,255,0.025)_0px,rgba(255,255,255,0.025)_52px,transparent_52px,transparent_104px)]" />
+        <div className="absolute inset-x-[4px] inset-y-[2px] border-2 border-slate-400/12" />
+        <div className="absolute inset-x-[28%] top-[2px] h-[13%] border-x-2 border-b-2 border-slate-400/12" />
+        <div className="absolute inset-x-[38%] top-[2px] h-[6%] border-x-2 border-b-2 border-slate-400/12" />
+        <div className="absolute inset-x-[28%] bottom-[2px] h-[13%] border-x-2 border-t-2 border-slate-400/12" />
+        <div className="absolute inset-x-[38%] bottom-[2px] h-[6%] border-x-2 border-t-2 border-slate-400/12" />
+        <div className="absolute inset-x-[4px] top-1/2 h-px bg-slate-400/12" />
+        <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-400/12" />
+        <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(255,255,255,0.018)_0px,rgba(255,255,255,0.018)_52px,transparent_52px,transparent_104px)]" />
         {pitchSlots.map((_, slot) => {
           const player = starters.find((p) => Number(p?.starterSlot) === slot);
           if (!player) return null;
@@ -588,16 +610,13 @@ export default async function MatchDetailPage({ params }: PageProps) {
           const meta = player?.playerId ? playerMetaMap[player.playerId] : undefined;
           const photoUrl = meta?.photoUrl || '';
           const playerName = meta?.name || player?.playerName || '';
-          
           const goalsValue = Number(player?.goals) || 0;
           const assistsValue = Number(player?.assists) || 0;
           const yellowValue = Number(player?.yellowCards) || 0;
           const redValue = Number(player?.redCards) || 0;
           const showRedCard = redValue > 0 || yellowValue >= 2;
-          const wasSubstituted = player?.playerId && events.some(
-            (e: any) => e?.type === 'substitution' && (e?.outPlayerId === player?.playerId || e?.inPlayerId === player?.playerId)
-          );
-          const minutesValue = Number(player?.minutesPlayed) || 0;
+          const subOutMinute = player?.playerId ? subOutMinuteByPlayerId.get(player.playerId) : undefined;
+          const subInMinute = player?.playerId ? subInMinuteByPlayerId.get(player.playerId) : undefined;
           const ratingNumber = Number(player?.rating) || 0;
           const hasRating = Number.isFinite(ratingNumber) && ratingNumber > 0;
           const ratingValue = hasRating ? ratingNumber.toFixed(1) : '-';
@@ -616,8 +635,8 @@ export default async function MatchDetailPage({ params }: PageProps) {
               className="absolute -translate-x-1/2 -translate-y-1/2"
               style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
             >
-              <div className="flex w-[62px] flex-col items-center gap-0.5 overflow-visible sm:w-[82px]">
-                <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-300/45 bg-slate-500/30 shadow-[0_0_0_3px_rgba(255,255,255,0.06)] sm:h-11 sm:w-11">
+              <div className="flex w-[72px] flex-col items-center gap-0.5 overflow-visible sm:w-[96px]">
+                <div className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border-2 border-white/90 bg-slate-500/30 shadow-[0_0_0_2px_rgba(255,255,255,0.12)] sm:h-[54px] sm:w-[54px]">
                   {photoUrl ? (
                     <div
                       className="h-full w-full rounded-full bg-slate-600/70 bg-cover bg-center"
@@ -625,58 +644,79 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-slate-200/90">
-                      <div className="relative h-4 w-4 rounded-full border border-current before:absolute before:left-1/2 before:top-[62%] before:h-2 before:w-4 before:-translate-x-1/2 before:rounded-t-full before:border before:border-b-0 before:border-current sm:h-5 sm:w-5 sm:before:h-2.5 sm:before:w-4" />
+                      <div className="relative h-5 w-5 rounded-full border border-current before:absolute before:left-1/2 before:top-[62%] before:h-2.5 before:w-5 before:-translate-x-1/2 before:rounded-t-full before:border before:border-b-0 before:border-current sm:h-6 sm:w-6 sm:before:h-3 sm:before:w-5" />
                     </div>
                   )}
-                  {goalsValue > 0 ? (
-                    <span className="absolute -left-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-amber-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
-                      <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
-                        <circle cx="4" cy="4" r="2.85" strokeWidth="0.65" />
-                        <path d="M4 2.1 5.25 3 4.8 4.55H3.2L2.75 3 4 2.1Z" strokeWidth="0.45" strokeLinejoin="round" />
-                        <path d="M2.75 3 1.75 2.7M5.25 3l1-.3M3.2 4.55l-.7 1M4.8 4.55l.7 1" strokeWidth="0.4" strokeLinecap="round" />
-                      </svg>
-                      {goalsValue}
-                    </span>
-                  ) : null}
-                  {assistsValue > 0 ? (
-                    <span className="absolute -right-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-sky-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
-                      <svg viewBox="0 0 8 8" className="shrink-0 -translate-x-[2px] -rotate-45 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
-                        <path d="M1.2 5.1c1.5.1 2.7-.4 3.6-1.7l1 1 1.1.4c.4.1.7.5.7.9H1.7c-.3 0-.5-.2-.5-.5v-.1Z" strokeWidth="0.65" strokeLinejoin="round" />
-                        <path d="M3.9 4.3 4.6 5M4.8 3.5l.7.7" strokeWidth="0.5" strokeLinecap="round" />
-                      </svg>
-                      {assistsValue}
-                    </span>
-                  ) : null}
-                  {showRedCard ? (
-                    <span className="absolute -left-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-red-500 shadow-sm" />
-                  ) : null}
-                  {yellowValue > 0 ? (
-                    <span className="absolute -right-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-yellow-400 shadow-sm" />
-                  ) : null}
-                  {meta?.number ? (
-                    <span className="absolute -left-1 -bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-slate-900/80 px-1 text-[9px] font-bold leading-none text-white shadow-sm">
-                      {meta.number}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="w-[62px] truncate text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-slate-300 sm:w-[82px] sm:text-[9px]">
-                  {playerName}
-                </div>
-                <div className="mt-0.5 flex w-[62px] flex-col items-center justify-center gap-0.5 text-[7px] font-bold leading-none text-white sm:w-[82px] sm:text-[8px]">
-                  <div className="inline-flex h-[11px] items-center gap-0.5 text-[7px] font-bold leading-none text-white sm:text-[8px]">
-                    {wasSubstituted && <span className="text-red-400 text-[8px]">⇔</span>}
-                    <span className="inline-flex h-[11px] items-center rounded-full bg-slate-700/80 px-1 py-0 leading-[11px]">{minutesValue}'</span>
-                    {hasRating && (
-                      <span className={`inline-flex h-[11px] items-center rounded-full px-1 text-[7px] font-bold leading-[11px] text-white sm:text-[8px] ${ratingClassName}`}>
-                        ★{ratingValue}
+                  {/* 左上: 交代OUT / IN */}
+                  {typeof subOutMinute === 'number' ? (
+                    <div className="absolute -left-1 -top-2 z-20 flex flex-col items-center gap-0.5">
+                      <span className="text-[9px] font-bold leading-none text-white/90 tabular-nums sm:text-[10px]">
+                        {formatMinute(subOutMinute)}'
                       </span>
-                    )}
-                  </div>
+                      <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-red-500 shadow-sm ring-1 ring-white/15" aria-label="交代OUT">
+                        <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 fill-none stroke-white" aria-hidden="true">
+                          <path d="M2 3h6L6 1M8 7H2l2 2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    </div>
+                  ) : typeof subInMinute === 'number' ? (
+                    <div className="absolute -left-1 -top-2 z-20 flex flex-col items-center gap-0.5">
+                      <span className="text-[9px] font-bold leading-none text-white/90 tabular-nums sm:text-[10px]">
+                        {formatMinute(subInMinute)}'
+                      </span>
+                      <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-emerald-500 shadow-sm ring-1 ring-white/15" aria-label="交代IN">
+                        <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 fill-none stroke-white" aria-hidden="true">
+                          <path d="M8 3H2l2-2M2 7h6L6 9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    </div>
+                  ) : null}
+                  {/* 右上: 評価点 */}
+                  {hasRating ? (
+                    <span aria-label={`評価点 ${ratingValue}`} className={`absolute -right-1.5 -top-1 z-20 inline-flex h-4 min-w-[24px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white shadow-sm ${ratingClassName}`}>
+                      {ratingValue}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="w-[72px] truncate text-center text-[10px] font-extrabold uppercase leading-none text-slate-50 sm:w-[96px] sm:text-[11px]">
+                  {meta?.number ? <span className="font-semibold text-slate-400">{meta.number} </span> : null}{playerName}
+                </div>
+                {/* EVENT BAR（固定高で選手配置のズレを防ぐ） */}
+                <div className="flex h-[18px] shrink-0 items-center justify-center">
+                  {goalsValue > 0 || assistsValue > 0 || yellowValue > 0 || showRedCard ? (
+                    <div className="flex items-center gap-px" aria-label="試合イベント">
+                      {goalsValue > 0 ? (
+                        <span aria-label={`ゴール ${goalsValue}`} className="inline-flex h-[18px] shrink-0 items-center gap-px rounded-[4px] border border-white/5 bg-slate-950/65 px-0.5 text-[10px] font-bold leading-none text-white tabular-nums">
+                          <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-white">
+                            <FaFutbol className="h-3 w-3 shrink-0 text-[#0b111d]" aria-hidden="true" />
+                          </span>
+                          <span>{goalsValue}</span>
+                        </span>
+                      ) : null}
+                      {assistsValue > 0 ? (
+                        <span aria-label={`アシスト ${assistsValue}`} className="inline-flex h-[18px] shrink-0 items-center gap-px rounded-[4px] border border-white/5 bg-slate-950/65 px-0.5 text-[10px] font-bold leading-none text-white tabular-nums">
+                          <GiRunningShoe className="h-3 w-3 shrink-0 rotate-[35deg]" aria-hidden="true" />
+                          <span>{assistsValue}</span>
+                        </span>
+                      ) : null}
+                      {yellowValue > 0 ? (
+                        <span aria-label="イエローカード" className="inline-flex h-[18px] w-[13px] shrink-0 items-center justify-center rounded-[4px] border border-white/5 bg-slate-950/65">
+                          <span className="h-3 w-[9px] rounded-[1px] bg-yellow-400" />
+                        </span>
+                      ) : null}
+                      {showRedCard ? (
+                        <span aria-label="レッドカード" className="inline-flex h-[18px] w-[13px] shrink-0 items-center justify-center rounded-[4px] border border-white/5 bg-slate-950/65">
+                          <span className="h-3 w-[9px] rounded-[1px] bg-red-500" />
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
           );
         })}
+      </div>
       </div>
     );
   };
@@ -774,6 +814,97 @@ export default async function MatchDetailPage({ params }: PageProps) {
     );
   };
 
+  const SubstituteCard = ({ ps, highestRating }: { ps: any; highestRating: number | null }) => {
+    const rating = Number(ps.rating) || 0;
+    const goals = Number(ps.goals) || 0;
+    const assists = Number(ps.assists) || 0;
+    const yellow = Number(ps.yellowCards) || 0;
+    const red = Number(ps.redCards) || 0;
+    const showRedCard = red > 0 || yellow >= 2;
+    const hasRating = Number.isFinite(rating) && rating > 0;
+    const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
+    const number = meta?.number;
+    const playerName = meta?.name || ps.playerName || "";
+    const photoUrl = meta?.photoUrl || "";
+
+    const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
+    const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
+    const hasSubIn = typeof subInMinute === "number";
+    const hasSubOut = typeof subOutMinute === "number";
+
+    const ratingText = hasRating ? rating.toFixed(1) : "-";
+    const ratingClassName = !hasRating
+      ? "bg-slate-700/80"
+      : highestRating !== null && rating === highestRating
+        ? "bg-violet-500/85"
+        : rating >= 7.0
+          ? "bg-emerald-500/90"
+          : "bg-orange-500/90";
+
+    return (
+      <div className="flex h-[138px] w-[86px] shrink-0 snap-start flex-col items-center justify-between rounded-lg border border-slate-700 bg-slate-900/50 p-2">
+        <div className="relative h-14 w-14 shrink-0">
+          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/90 bg-slate-500/30 shadow-[0_0_0_2px_rgba(255,255,255,0.12)]">
+            {photoUrl ? (
+              <div className="h-full w-full rounded-full bg-slate-600/70 bg-cover bg-center" style={{ backgroundImage: `url(${photoUrl})` }} />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-slate-200/90">
+                <div className="relative h-5 w-5 rounded-full border border-current before:absolute before:left-1/2 before:top-[62%] before:h-2.5 before:w-5 before:-translate-x-1/2 before:rounded-t-full before:border before:border-b-0 before:border-current" />
+              </div>
+            )}
+          </div>
+          <span className={`absolute -right-1 -top-1 z-10 inline-flex h-4 min-w-[22px] items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white shadow-sm ${ratingClassName}`}>
+            {ratingText}
+          </span>
+        </div>
+        <div className="w-full truncate text-center text-[10px] font-extrabold uppercase leading-none text-slate-50">
+          {number ? <span className="font-semibold text-slate-400">{number} </span> : null}{playerName}
+        </div>
+        <div className="flex h-4 shrink-0 items-center justify-center gap-1 text-[9px] leading-none">
+          {hasSubIn ? (
+            <>
+              <span className="text-emerald-500">↑</span>
+              <span className="text-white/80 tabular-nums">{formatMinute(subInMinute)}'</span>
+            </>
+          ) : null}
+          {hasSubOut ? (
+            <>
+              <span className={`${hasSubIn ? "ml-1" : ""} text-red-500`}>↓</span>
+              <span className="text-white/80 tabular-nums">{formatMinute(subOutMinute)}'</span>
+            </>
+          ) : null}
+          {!hasSubIn && !hasSubOut ? <span className="text-slate-400">－</span> : null}
+        </div>
+        <div className="flex h-[14px] shrink-0 items-center justify-center gap-px">
+          {goals > 0 ? (
+            <span className="inline-flex h-[14px] shrink-0 items-center gap-px rounded-[3px] border border-white/5 bg-slate-950/65 px-0.5 text-[8px] font-bold leading-none text-white tabular-nums">
+              <span className="inline-flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-white">
+                <FaFutbol className="h-2.5 w-2.5 shrink-0 text-[#0b111d]" aria-hidden="true" />
+              </span>
+              {goals}
+            </span>
+          ) : null}
+          {assists > 0 ? (
+            <span className="inline-flex h-[14px] shrink-0 items-center gap-px rounded-[3px] border border-white/5 bg-slate-950/65 px-0.5 text-[8px] font-bold leading-none text-white tabular-nums">
+              <GiRunningShoe className="h-2.5 w-2.5 shrink-0 rotate-[35deg]" aria-hidden="true" />
+              {assists}
+            </span>
+          ) : null}
+          {yellow > 0 ? (
+            <span className="inline-flex h-[14px] w-[11px] shrink-0 items-center justify-center rounded-[3px] border border-white/5 bg-slate-950/65">
+              <span className="h-2.5 w-[7px] rounded-[1px] bg-yellow-400" />
+            </span>
+          ) : null}
+          {showRedCard ? (
+            <span className="inline-flex h-[14px] w-[11px] shrink-0 items-center justify-center rounded-[3px] border border-white/5 bg-slate-950/65">
+              <span className="h-2.5 w-[7px] rounded-[1px] bg-red-500" />
+            </span>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
   const HomeLineups = (
     <div>
       <h3 className="text-center text-xs font-semibold text-muted-foreground mb-2">
@@ -849,6 +980,10 @@ export default async function MatchDetailPage({ params }: PageProps) {
   const snsLinks = (data as any).snsLinks as any;
   const homeBgColor = (data as any).homeBgColor as string | undefined;
   const gameTeamUsage = Boolean((data as any).gameTeamUsage);
+  const stadiumPhotoUrl = (data as any).stadiumPhotoUrl as string | undefined;
+  const clubTeamId = (data as any).clubTeamId as string | undefined;
+  const isClubHome = Boolean(clubTeamId && match && (match as any).homeTeam === clubTeamId);
+  const showStadiumBg = isClubHome && Boolean(stadiumPhotoUrl);
 
   return (
     <main className="min-h-screen bg-[#070c14] text-slate-100">
@@ -856,9 +991,19 @@ export default async function MatchDetailPage({ params }: PageProps) {
       <div className="container mx-auto px-4 py-8 max-w-5xl space-y-8">
         {/* Header with league, date, venue, emblems & score */}
         <div className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-[#070c14] px-4 py-8 shadow-2xl shadow-black/30 md:px-10 md:py-10">
+          {showStadiumBg ? (
+            <>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.22]"
+                style={{ backgroundImage: `url(${stadiumPhotoUrl})` }}
+              />
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#070c14]/60 via-[#070c14]/35 to-[#070c14]/70" />
+            </>
+          ) : null}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ backgroundColor: homeBgColor ? `${homeBgColor}CC` : 'rgb(239 68 68 0.8)' }} />
           {/* Top info: league, round, date, venue */}
-          <div className="text-center space-y-1">
+          <div className="relative text-center space-y-1">
             <p className="text-[11px] font-black uppercase tracking-[0.28em] text-white">
               {match.competitionName}
               {match.roundId !== 'single' && match.roundName && ` ・ ${match.roundName}`}
@@ -925,7 +1070,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           </div>
 
           {/* Scorers row */}
-          <div className="mx-auto mt-4 grid w-[320px] max-w-full grid-cols-2 gap-6 text-[11px] font-bold leading-relaxed text-white md:w-[420px] md:text-xs">
+          <div className="relative mx-auto mt-4 grid w-[320px] max-w-full grid-cols-2 gap-6 text-[11px] font-bold leading-relaxed text-white md:w-[420px] md:text-xs">
             <div className="space-y-0.5 text-right">
               {homeGoals.map((g) => {
                 const label = resolveScorerName(g, (pid) => playerMetaMap[pid]?.name || playerNameMap.get(pid));
@@ -971,7 +1116,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
           {/* LINEUPS */}
           <TabsContent value="lineups" className="mt-4">
             {hasLineups ? (
-              <section className="rounded-lg border border-slate-800 bg-[#0b111d] p-4 md:p-6">
+              <section className="rounded-lg border border-slate-800 bg-[#0b111d] px-2 py-4 md:p-6">
                 <div className="md:hidden">
                   <Tabs defaultValue="home" className="w-full">
                     <TabsList className="mx-auto mb-4 grid h-10 w-80 max-w-full grid-cols-2 rounded-full border border-slate-700 bg-slate-900/80 p-1">
@@ -989,14 +1134,10 @@ export default async function MatchDetailPage({ params }: PageProps) {
                         </h3>
                         {renderPitch(homeStarters, homePitchSlots, homeFormation, homeHighestRating)}
                         <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
-                        <div className="space-y-2">
-                          {homeSubsSorted.map((ps: any, idx: number) => {
-                            return (
-                              <div key={idx}>
-                                <LineupPlayerCard ps={ps} highestRating={homeHighestRating} />
-                              </div>
-                            );
-                          })}
+                        <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
+                          {homeSubsSorted.map((ps: any, idx: number) => (
+                            <SubstituteCard key={idx} ps={ps} highestRating={homeHighestRating} />
+                          ))}
                         </div>
                       </div>
                     </TabsContent>
@@ -1007,14 +1148,10 @@ export default async function MatchDetailPage({ params }: PageProps) {
                         </h3>
                         {renderPitch(awayStarters, awayPitchSlots, awayFormation, awayHighestRating)}
                         <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
-                        <div className="space-y-2">
-                          {awaySubsSorted.map((ps: any, idx: number) => {
-                            return (
-                              <div key={idx}>
-                                <LineupPlayerCard ps={ps} highestRating={awayHighestRating} />
-                              </div>
-                            );
-                          })}
+                        <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
+                          {awaySubsSorted.map((ps: any, idx: number) => (
+                            <SubstituteCard key={idx} ps={ps} highestRating={awayHighestRating} />
+                          ))}
                         </div>
                       </div>
                     </TabsContent>
@@ -1027,14 +1164,10 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     </h3>
                     {renderPitch(homeStarters, homePitchSlots, homeFormation, homeHighestRating)}
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
-                    <div className="space-y-2">
-                      {homeSubsSorted.map((ps: any, idx: number) => {
-                        return (
-                          <div key={idx}>
-                            <LineupPlayerCard ps={ps} highestRating={homeHighestRating} />
-                          </div>
-                        );
-                      })}
+                    <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
+                      {homeSubsSorted.map((ps: any, idx: number) => (
+                        <SubstituteCard key={idx} ps={ps} highestRating={homeHighestRating} />
+                      ))}
                     </div>
                   </div>
                   <div className="space-y-4">
@@ -1043,14 +1176,10 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     </h3>
                     {renderPitch(awayStarters, awayPitchSlots, awayFormation, awayHighestRating)}
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
-                    <div className="space-y-2">
-                      {awaySubsSorted.map((ps: any, idx: number) => {
-                        return (
-                          <div key={idx}>
-                            <LineupPlayerCard ps={ps} highestRating={awayHighestRating} />
-                          </div>
-                        );
-                      })}
+                    <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
+                      {awaySubsSorted.map((ps: any, idx: number) => (
+                        <SubstituteCard key={idx} ps={ps} highestRating={awayHighestRating} />
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -1078,11 +1207,15 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     return (
                       <div key={stat.id} className="px-3 py-2 space-y-2 text-xs md:text-sm">
                         <div className="grid grid-cols-3 items-baseline">
-                          <div className="text-left font-semibold pl-2">{homeVal}</div>
+                          <div className="text-left font-semibold pl-2">
+                            <span className={homeVal > awayVal ? "border-b-2 border-lime-400 pb-[1px]" : ""}>{homeVal}</span>
+                          </div>
                           <div className="text-center text-muted-foreground text-[11px] md:text-xs">
                             {stat.name}
                           </div>
-                          <div className="text-right font-semibold pl-2">{awayVal}</div>
+                          <div className="text-right font-semibold pl-2">
+                            <span className={awayVal > homeVal ? "border-b-2 border-lime-400 pb-[1px]" : ""}>{awayVal}</span>
+                          </div>
                         </div>
                         <div className="h-2 rounded-full bg-muted overflow-hidden flex">
                           <div className="h-full bg-primary" style={{ width: `${homePct}%` }} />
@@ -1243,6 +1376,18 @@ export default async function MatchDetailPage({ params }: PageProps) {
                           label = `${label} (${goalScoreLabel})`;
                         }
 
+                        const isGoalEvent = ev.type === "goal" || ev.type === "og";
+                        const scorerPhotoUrl = isGoalEvent && ev.playerId ? playerMetaMap[ev.playerId]?.photoUrl : undefined;
+                        const scorerPhoto = isGoalEvent ? (
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/70 bg-slate-600/50">
+                            {scorerPhotoUrl ? (
+                              <span className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${scorerPhotoUrl})` }} />
+                            ) : (
+                              <FaUser className="h-3 w-3 text-white/70" aria-hidden="true" />
+                            )}
+                          </span>
+                        ) : null;
+
                         const eventContent = (
                           <div className="flex items-start gap-1 min-w-0 max-w-full">
                             <span className="text-[10px] text-muted-foreground shrink-0 mt-[1px]">{renderTypeBadge(ev)}</span>
@@ -1260,7 +1405,8 @@ export default async function MatchDetailPage({ params }: PageProps) {
                           >
                             <div className="flex justify-end pr-2 min-w-0">
                               {isHome && label && (
-                                <div className="text-right text-[11px] font-medium text-emerald-500">
+                                <div className="flex items-center gap-1.5 text-right text-[11px] font-medium text-emerald-500">
+                                  {scorerPhoto}
                                   {eventContent}
                                 </div>
                               )}
@@ -1274,8 +1420,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
 
                             <div className="flex justify-start pl-2 min-w-0">
                               {!isHome && label && (
-                                <div className="text-left text-[11px] font-medium text-sky-500">
+                                <div className="flex items-center gap-1.5 text-left text-[11px] font-medium text-sky-500">
                                   {eventContent}
+                                  {scorerPhoto}
                                 </div>
                               )}
                             </div>
