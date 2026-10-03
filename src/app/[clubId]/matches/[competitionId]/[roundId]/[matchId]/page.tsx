@@ -15,43 +15,8 @@ import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 import { resolveSeasonScopedNumber, normalizeSeasonNumber, seasonKeyCandidates, toDashSeason } from "@/lib/season";
 import { FaFutbol, FaUser } from "react-icons/fa";
 import { GiRunningShoe } from "react-icons/gi";
-
-const getFormationSlots = (formation: string) => {
-  const lines = formation
-    .split('-')
-    .map((v) => Number(v))
-    .filter((v) => Number.isFinite(v) && v > 0);
-  const outfieldTotal = lines.reduce((sum, count) => sum + count, 0);
-  const normalizedLines = outfieldTotal === 10 && lines.length > 0 ? lines : [4, 3, 3];
-  const yByLineCount: Record<number, number[]> = {
-    3: [61, 42, 23],
-    4: [67, 49, 31, 13],
-    5: [75, 59, 43, 27, 11],
-  };
-  const yList = yByLineCount[normalizedLines.length] || Array.from(
-    { length: normalizedLines.length },
-    (_, index) => 70 - index * (55 / Math.max(normalizedLines.length - 1, 1))
-  );
-  const slots = [{ label: 'GK', x: 50, y: 85 }];
-
-  normalizedLines.forEach((count, lineIndex) => {
-    const y = yList[lineIndex] ?? 50;
-    const label = lineIndex === 0 ? 'DF' : lineIndex === normalizedLines.length - 1 ? 'FW' : 'MF';
-    const xMinByCount: Record<number, number> = { 2: 34, 3: 24, 4: 15, 5: 10 };
-    const xMaxByCount: Record<number, number> = { 2: 66, 3: 76, 4: 85, 5: 90 };
-    const xMin = xMinByCount[count] ?? 12;
-    const xMax = xMaxByCount[count] ?? 88;
-    const xs = count === 1
-      ? [50]
-      : Array.from({ length: count }, (_, index) => xMin + index * ((xMax - xMin) / (count - 1)));
-
-    xs.forEach((x) => {
-      slots.push({ label, x, y });
-    });
-  });
-
-  return slots.slice(0, 11);
-};
+import { getFormationSlots } from "@/lib/formation-slots";
+import { LineupPitch, PitchSlotAnchor, PlayerNode, SubstituteCard } from "@/components/lineup-pitch";
 
 interface PageProps {
   params: Promise<{ clubId: string; competitionId: string; roundId: string; matchId: string }>;
@@ -587,137 +552,37 @@ export default async function MatchDetailPage({ params }: PageProps) {
     return ratings.length > 0 ? Math.max(...ratings) : null;
   })();
 
-  // Render pitch for a team
+  // Render pitch for a team（共有 LineupPitch / PlayerNode を使用。管理画面も同一UI）
   const renderPitch = (starters: any[], pitchSlots: any[], formation: string, highestRating: number | null) => {
     return (
-      <div className="relative w-screen ml-[calc(50%-50vw)] md:ml-0 md:w-full">
-        <div className="relative mx-auto aspect-[5/6.5] w-full overflow-hidden bg-[#0f1722] sm:aspect-[5/6.5] sm:max-w-[520px] rounded-lg">
-        <div className="absolute right-3 top-3 z-20 rounded-full border border-slate-600 bg-slate-950/70 px-2 py-1 text-[10px] font-black tracking-wide text-white shadow-sm">
-          {formation}
-        </div>
-        <div className="absolute inset-x-[4px] inset-y-[2px] border-2 border-slate-400/12" />
-        <div className="absolute inset-x-[28%] top-[2px] h-[13%] border-x-2 border-b-2 border-slate-400/12" />
-        <div className="absolute inset-x-[38%] top-[2px] h-[6%] border-x-2 border-b-2 border-slate-400/12" />
-        <div className="absolute inset-x-[28%] bottom-[2px] h-[13%] border-x-2 border-t-2 border-slate-400/12" />
-        <div className="absolute inset-x-[38%] bottom-[2px] h-[6%] border-x-2 border-t-2 border-slate-400/12" />
-        <div className="absolute inset-x-[4px] top-1/2 h-px bg-slate-400/12" />
-        <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-400/12" />
-        <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(255,255,255,0.018)_0px,rgba(255,255,255,0.018)_52px,transparent_52px,transparent_104px)]" />
-        {pitchSlots.map((_, slot) => {
+      <LineupPitch formation={formation}>
+        {pitchSlots.map((pos: any, slot: number) => {
           const player = starters.find((p) => Number(p?.starterSlot) === slot);
           if (!player) return null;
-          
+
           const meta = player?.playerId ? playerMetaMap[player.playerId] : undefined;
-          const photoUrl = meta?.photoUrl || '';
-          const playerName = meta?.name || player?.playerName || '';
-          const goalsValue = Number(player?.goals) || 0;
-          const assistsValue = Number(player?.assists) || 0;
-          const yellowValue = Number(player?.yellowCards) || 0;
-          const redValue = Number(player?.redCards) || 0;
-          const showRedCard = redValue > 0 || yellowValue >= 2;
-          const subOutMinute = player?.playerId ? subOutMinuteByPlayerId.get(player.playerId) : undefined;
-          const subInMinute = player?.playerId ? subInMinuteByPlayerId.get(player.playerId) : undefined;
-          const ratingNumber = Number(player?.rating) || 0;
-          const hasRating = Number.isFinite(ratingNumber) && ratingNumber > 0;
-          const ratingValue = hasRating ? ratingNumber.toFixed(1) : '-';
-          const ratingClassName = !hasRating
-            ? 'bg-slate-700/80'
-            : highestRating !== null && ratingNumber === highestRating
-              ? 'bg-violet-500/85'
-              : ratingNumber >= 7
-                ? 'bg-emerald-500/90'
-                : 'bg-orange-500/90';
-          const pos = pitchSlots[slot];
 
           return (
-            <div
-              key={`pitch-slot-${slot}`}
-              className="absolute -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-            >
-              <div className="flex w-[72px] flex-col items-center gap-0.5 overflow-visible sm:w-[96px]">
-                <div className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border-2 border-white/90 bg-slate-500/30 shadow-[0_0_0_2px_rgba(255,255,255,0.12)] sm:h-[54px] sm:w-[54px]">
-                  {photoUrl ? (
-                    <div
-                      className="h-full w-full rounded-full bg-slate-600/70 bg-cover bg-center"
-                      style={{ backgroundImage: `url(${photoUrl})` }}
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-slate-200/90">
-                      <div className="relative h-5 w-5 rounded-full border border-current before:absolute before:left-1/2 before:top-[62%] before:h-2.5 before:w-5 before:-translate-x-1/2 before:rounded-t-full before:border before:border-b-0 before:border-current sm:h-6 sm:w-6 sm:before:h-3 sm:before:w-5" />
-                    </div>
-                  )}
-                  {/* 左上: 交代OUT / IN */}
-                  {typeof subOutMinute === 'number' ? (
-                    <div className="absolute -left-1 -top-2 z-20 flex flex-col items-center gap-0.5">
-                      <span className="text-[9px] font-bold leading-none text-white/90 tabular-nums sm:text-[10px]">
-                        {formatMinute(subOutMinute)}'
-                      </span>
-                      <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-red-500 shadow-sm ring-1 ring-white/15" aria-label="交代OUT">
-                        <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 fill-none stroke-white" aria-hidden="true">
-                          <path d="M2 3h6L6 1M8 7H2l2 2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
-                    </div>
-                  ) : typeof subInMinute === 'number' ? (
-                    <div className="absolute -left-1 -top-2 z-20 flex flex-col items-center gap-0.5">
-                      <span className="text-[9px] font-bold leading-none text-white/90 tabular-nums sm:text-[10px]">
-                        {formatMinute(subInMinute)}'
-                      </span>
-                      <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-emerald-500 shadow-sm ring-1 ring-white/15" aria-label="交代IN">
-                        <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 fill-none stroke-white" aria-hidden="true">
-                          <path d="M8 3H2l2-2M2 7h6L6 9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
-                    </div>
-                  ) : null}
-                  {/* 右上: 評価点 */}
-                  {hasRating ? (
-                    <span aria-label={`評価点 ${ratingValue}`} className={`absolute -right-1.5 -top-1 z-20 inline-flex h-4 min-w-[24px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white shadow-sm ${ratingClassName}`}>
-                      {ratingValue}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="w-[72px] truncate text-center text-[10px] font-extrabold uppercase leading-none text-slate-50 sm:w-[96px] sm:text-[11px]">
-                  {meta?.number ? <span className="font-semibold text-slate-400">{meta.number} </span> : null}{playerName}
-                </div>
-                {/* EVENT BAR（固定高で選手配置のズレを防ぐ） */}
-                <div className="flex h-[18px] shrink-0 items-center justify-center">
-                  {goalsValue > 0 || assistsValue > 0 || yellowValue > 0 || showRedCard ? (
-                    <div className="flex items-center gap-px" aria-label="試合イベント">
-                      {goalsValue > 0 ? (
-                        <span aria-label={`ゴール ${goalsValue}`} className="inline-flex h-[18px] shrink-0 items-center gap-px rounded-[4px] border border-white/5 bg-slate-950/65 px-0.5 text-[10px] font-bold leading-none text-white tabular-nums">
-                          <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-white">
-                            <FaFutbol className="h-3 w-3 shrink-0 text-[#0b111d]" aria-hidden="true" />
-                          </span>
-                          <span>{goalsValue}</span>
-                        </span>
-                      ) : null}
-                      {assistsValue > 0 ? (
-                        <span aria-label={`アシスト ${assistsValue}`} className="inline-flex h-[18px] shrink-0 items-center gap-px rounded-[4px] border border-white/5 bg-slate-950/65 px-0.5 text-[10px] font-bold leading-none text-white tabular-nums">
-                          <GiRunningShoe className="h-3 w-3 shrink-0 rotate-[35deg]" aria-hidden="true" />
-                          <span>{assistsValue}</span>
-                        </span>
-                      ) : null}
-                      {yellowValue > 0 ? (
-                        <span aria-label="イエローカード" className="inline-flex h-[18px] w-[13px] shrink-0 items-center justify-center rounded-[4px] border border-white/5 bg-slate-950/65">
-                          <span className="h-3 w-[9px] rounded-[1px] bg-yellow-400" />
-                        </span>
-                      ) : null}
-                      {showRedCard ? (
-                        <span aria-label="レッドカード" className="inline-flex h-[18px] w-[13px] shrink-0 items-center justify-center rounded-[4px] border border-white/5 bg-slate-950/65">
-                          <span className="h-3 w-[9px] rounded-[1px] bg-red-500" />
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
+            <PitchSlotAnchor key={`pitch-slot-${slot}`} x={pos.x} y={pos.y}>
+              <PlayerNode
+                highestRating={highestRating}
+                player={{
+                  name: meta?.name || player?.playerName || '',
+                  number: meta?.number,
+                  photoUrl: meta?.photoUrl || '',
+                  rating: player?.rating,
+                  goals: player?.goals,
+                  assists: player?.assists,
+                  yellowCards: player?.yellowCards,
+                  redCards: player?.redCards,
+                  subInMinute: player?.playerId ? subInMinuteByPlayerId.get(player.playerId) : undefined,
+                  subOutMinute: player?.playerId ? subOutMinuteByPlayerId.get(player.playerId) : undefined,
+                }}
+              />
+            </PitchSlotAnchor>
           );
         })}
-      </div>
-      </div>
+      </LineupPitch>
     );
   };
 
@@ -814,94 +679,24 @@ export default async function MatchDetailPage({ params }: PageProps) {
     );
   };
 
-  const SubstituteCard = ({ ps, highestRating }: { ps: any; highestRating: number | null }) => {
-    const rating = Number(ps.rating) || 0;
-    const goals = Number(ps.goals) || 0;
-    const assists = Number(ps.assists) || 0;
-    const yellow = Number(ps.yellowCards) || 0;
-    const red = Number(ps.redCards) || 0;
-    const showRedCard = red > 0 || yellow >= 2;
-    const hasRating = Number.isFinite(rating) && rating > 0;
+  const SubstituteCardView = ({ ps, highestRating }: { ps: any; highestRating: number | null }) => {
     const meta = ps.playerId ? playerMetaMap[ps.playerId] : undefined;
-    const number = meta?.number;
-    const playerName = meta?.name || ps.playerName || "";
-    const photoUrl = meta?.photoUrl || "";
-
-    const subOutMinute = ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined;
-    const subInMinute = ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined;
-    const hasSubIn = typeof subInMinute === "number";
-    const hasSubOut = typeof subOutMinute === "number";
-
-    const ratingText = hasRating ? rating.toFixed(1) : "-";
-    const ratingClassName = !hasRating
-      ? "bg-slate-700/80"
-      : highestRating !== null && rating === highestRating
-        ? "bg-violet-500/85"
-        : rating >= 7.0
-          ? "bg-emerald-500/90"
-          : "bg-orange-500/90";
-
     return (
-      <div className="flex h-[138px] w-[86px] shrink-0 snap-start flex-col items-center justify-between rounded-lg border border-slate-700 bg-slate-900/50 p-2">
-        <div className="relative h-14 w-14 shrink-0">
-          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/90 bg-slate-500/30 shadow-[0_0_0_2px_rgba(255,255,255,0.12)]">
-            {photoUrl ? (
-              <div className="h-full w-full rounded-full bg-slate-600/70 bg-cover bg-center" style={{ backgroundImage: `url(${photoUrl})` }} />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-slate-200/90">
-                <div className="relative h-5 w-5 rounded-full border border-current before:absolute before:left-1/2 before:top-[62%] before:h-2.5 before:w-5 before:-translate-x-1/2 before:rounded-t-full before:border before:border-b-0 before:border-current" />
-              </div>
-            )}
-          </div>
-          <span className={`absolute -right-1 -top-1 z-10 inline-flex h-4 min-w-[22px] items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white shadow-sm ${ratingClassName}`}>
-            {ratingText}
-          </span>
-        </div>
-        <div className="w-full truncate text-center text-[10px] font-extrabold uppercase leading-none text-slate-50">
-          {number ? <span className="font-semibold text-slate-400">{number} </span> : null}{playerName}
-        </div>
-        <div className="flex h-4 shrink-0 items-center justify-center gap-1 text-[9px] leading-none">
-          {hasSubIn ? (
-            <>
-              <span className="text-emerald-500">↑</span>
-              <span className="text-white/80 tabular-nums">{formatMinute(subInMinute)}'</span>
-            </>
-          ) : null}
-          {hasSubOut ? (
-            <>
-              <span className={`${hasSubIn ? "ml-1" : ""} text-red-500`}>↓</span>
-              <span className="text-white/80 tabular-nums">{formatMinute(subOutMinute)}'</span>
-            </>
-          ) : null}
-          {!hasSubIn && !hasSubOut ? <span className="text-slate-400">－</span> : null}
-        </div>
-        <div className="flex h-[14px] shrink-0 items-center justify-center gap-px">
-          {goals > 0 ? (
-            <span className="inline-flex h-[14px] shrink-0 items-center gap-px rounded-[3px] border border-white/5 bg-slate-950/65 px-0.5 text-[8px] font-bold leading-none text-white tabular-nums">
-              <span className="inline-flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-white">
-                <FaFutbol className="h-2.5 w-2.5 shrink-0 text-[#0b111d]" aria-hidden="true" />
-              </span>
-              {goals}
-            </span>
-          ) : null}
-          {assists > 0 ? (
-            <span className="inline-flex h-[14px] shrink-0 items-center gap-px rounded-[3px] border border-white/5 bg-slate-950/65 px-0.5 text-[8px] font-bold leading-none text-white tabular-nums">
-              <GiRunningShoe className="h-2.5 w-2.5 shrink-0 rotate-[35deg]" aria-hidden="true" />
-              {assists}
-            </span>
-          ) : null}
-          {yellow > 0 ? (
-            <span className="inline-flex h-[14px] w-[11px] shrink-0 items-center justify-center rounded-[3px] border border-white/5 bg-slate-950/65">
-              <span className="h-2.5 w-[7px] rounded-[1px] bg-yellow-400" />
-            </span>
-          ) : null}
-          {showRedCard ? (
-            <span className="inline-flex h-[14px] w-[11px] shrink-0 items-center justify-center rounded-[3px] border border-white/5 bg-slate-950/65">
-              <span className="h-2.5 w-[7px] rounded-[1px] bg-red-500" />
-            </span>
-          ) : null}
-        </div>
-      </div>
+      <SubstituteCard
+        highestRating={highestRating}
+        player={{
+          name: meta?.name || ps.playerName || "",
+          number: meta?.number,
+          photoUrl: meta?.photoUrl || "",
+          rating: ps.rating,
+          goals: ps.goals,
+          assists: ps.assists,
+          yellowCards: ps.yellowCards,
+          redCards: ps.redCards,
+          subInMinute: ps.playerId ? subInMinuteByPlayerId.get(ps.playerId) : undefined,
+          subOutMinute: ps.playerId ? subOutMinuteByPlayerId.get(ps.playerId) : undefined,
+        }}
+      />
     );
   };
 
@@ -1136,7 +931,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                         <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                         <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
                           {homeSubsSorted.map((ps: any, idx: number) => (
-                            <SubstituteCard key={idx} ps={ps} highestRating={homeHighestRating} />
+                            <SubstituteCardView key={idx} ps={ps} highestRating={homeHighestRating} />
                           ))}
                         </div>
                       </div>
@@ -1150,7 +945,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                         <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                         <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
                           {awaySubsSorted.map((ps: any, idx: number) => (
-                            <SubstituteCard key={idx} ps={ps} highestRating={awayHighestRating} />
+                            <SubstituteCardView key={idx} ps={ps} highestRating={awayHighestRating} />
                           ))}
                         </div>
                       </div>
@@ -1166,7 +961,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                     <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
                       {homeSubsSorted.map((ps: any, idx: number) => (
-                        <SubstituteCard key={idx} ps={ps} highestRating={homeHighestRating} />
+                        <SubstituteCardView key={idx} ps={ps} highestRating={homeHighestRating} />
                       ))}
                     </div>
                   </div>
@@ -1178,7 +973,7 @@ export default async function MatchDetailPage({ params }: PageProps) {
                     <h4 className="text-center text-xs font-semibold text-muted-foreground mt-4">Substitutes</h4>
                     <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
                       {awaySubsSorted.map((ps: any, idx: number) => (
-                        <SubstituteCard key={idx} ps={ps} highestRating={awayHighestRating} />
+                        <SubstituteCardView key={idx} ps={ps} highestRating={awayHighestRating} />
                       ))}
                     </div>
                   </div>

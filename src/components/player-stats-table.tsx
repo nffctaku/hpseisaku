@@ -1,14 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFormContext, useFieldArray, useWatch } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { Trash2 } from 'lucide-react';
 import { Player } from '@/types/match';
 import { deriveStarterMinutes, deriveBenchMinutes } from '@/lib/match-minutes';
 import { buildPlayerNameResolver } from '@/lib/match-event-resolve';
+import { getFormationSlots } from '@/lib/formation-slots';
+import { LineupPitch, PitchSlotAnchor, PlayerNode, EmptySlotNode, SubstituteCard, AddSubCard } from '@/components/lineup-pitch';
 import { toast } from 'sonner';
 
 const ratingOptions = (() => {
@@ -58,43 +57,6 @@ const FORMATION_OPTIONS = [
   '2-3-2-3',
 ];
 
-const getFormationSlots = (formation: string) => {
-  const lines = formation
-    .split('-')
-    .map((v) => Number(v))
-    .filter((v) => Number.isFinite(v) && v > 0);
-  const outfieldTotal = lines.reduce((sum, count) => sum + count, 0);
-  const normalizedLines = outfieldTotal === 10 && lines.length > 0 ? lines : [4, 3, 3];
-  const yByLineCount: Record<number, number[]> = {
-    3: [68, 45, 20],
-    4: [70, 53, 35, 17],
-    5: [72, 58, 44, 30, 16],
-  };
-  const yList = yByLineCount[normalizedLines.length] || Array.from(
-    { length: normalizedLines.length },
-    (_, index) => 70 - index * (55 / Math.max(normalizedLines.length - 1, 1))
-  );
-  const slots = [{ label: 'GK', x: 50, y: 88 }];
-
-  normalizedLines.forEach((count, lineIndex) => {
-    const y = yList[lineIndex] ?? 50;
-    const label = lineIndex === 0 ? 'DF' : lineIndex === normalizedLines.length - 1 ? 'FW' : 'MF';
-    const xMinByCount: Record<number, number> = { 2: 34, 3: 24, 4: 15, 5: 10 };
-    const xMaxByCount: Record<number, number> = { 2: 66, 3: 76, 4: 85, 5: 90 };
-    const xMin = xMinByCount[count] ?? 12;
-    const xMax = xMaxByCount[count] ?? 88;
-    const xs = count === 1
-      ? [50]
-      : Array.from({ length: count }, (_, index) => xMin + index * ((xMax - xMin) / (count - 1)));
-
-    xs.forEach((x) => {
-      slots.push({ label, x, y });
-    });
-  });
-
-  return slots.slice(0, 11);
-};
-
 const positionOrder = (position: any) => {
   const value = String(position || '').toUpperCase();
   if (value.includes('GK')) return 0;
@@ -102,15 +64,6 @@ const positionOrder = (position: any) => {
   if (value.includes('MF') || value.includes('DM') || value.includes('CM') || value.includes('AM') || value.includes('WB') || value.includes('SH')) return 2;
   if (value.includes('FW') || value.includes('ST') || value.includes('CF') || value.includes('WG')) return 3;
   return 99;
-};
-
-const getPositionPillClassName = (position: any) => {
-  const value = String(position || '').toUpperCase();
-  if (value.includes('GK')) return 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30';
-  if (value.includes('DF') || value.includes('CB') || value.includes('SB') || value.includes('RB') || value.includes('LB')) return 'bg-blue-500/20 text-blue-300 border border-blue-500/30';
-  if (value.includes('MF') || value.includes('DM') || value.includes('CM') || value.includes('AM') || value.includes('WB') || value.includes('SH')) return 'bg-green-500/20 text-green-300 border border-green-500/30';
-  if (value.includes('FW') || value.includes('ST') || value.includes('CF') || value.includes('WG')) return 'bg-red-500/20 text-red-300 border border-red-500/30';
-  return 'bg-slate-600/20 text-slate-300 border border-slate-500/30';
 };
 
 export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFormationChange, isHomeTeam }: { teamId: string, allPlayers: Player[], matchDuration?: number, onFormationChange?: (formation: string) => void, isHomeTeam?: boolean }) {
@@ -205,6 +158,31 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
     return deriveBenchMinutes(events, teamId, matchDuration, nameResolver);
   }, [teamId, watchedEvents, matchDuration, nameResolver]);
+
+  // 交代イベントの実際の「分」（公開ページの subInMinute/subOutMinute と同じ導出）
+  const subMinuteMaps = useMemo(() => {
+    const outMap = new Map<string, number>();
+    const inMap = new Map<string, number>();
+    (Array.isArray(watchedEvents) ? (watchedEvents as any[]) : []).forEach((ev: any) => {
+      if (ev?.type === 'sub_out' && ev.playerId) {
+        outMap.set(ev.playerId, ev.minute);
+      }
+      if (ev?.type === 'sub_in' && ev.playerId) {
+        inMap.set(ev.playerId, ev.minute);
+      }
+      if (ev?.type === 'substitution') {
+        const outId = (typeof ev?.outPlayerId === 'string' && ev.outPlayerId)
+          ? ev.outPlayerId
+          : (nameResolver(ev?.outPlayerName, ev?.teamId) ?? '');
+        const inId = (typeof ev?.inPlayerId === 'string' && ev.inPlayerId)
+          ? ev.inPlayerId
+          : (nameResolver(ev?.inPlayerName, ev?.teamId) ?? '');
+        if (outId) outMap.set(outId, ev.minute);
+        if (inId) inMap.set(inId, ev.minute);
+      }
+    });
+    return { outMap, inMap };
+  }, [watchedEvents, nameResolver]);
 
   // Automatically calculate and update minutesPlayed based on substitution events and matchDuration
   // Only recalc when minutes-relevant data actually changed since load (lineup members or
@@ -552,7 +530,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
       const isBench = bench.some(b => (b as any).playerId === p.id || b.id === p.id);
       return !teamPlayerIdsInStats.includes(p.id) || isCurrentPlayer || isBench;
     });
-    
+
     const player = currentPlayerId ? allPlayers.find((p) => p.id === currentPlayerId) : null;
     const photoUrl = player
       ? (player as any).photoURL || (player as any).photoUrl || (player as any).imageUrl || (player as any).profileImageUrl || (player as any).avatarUrl || ''
@@ -563,305 +541,121 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     const assistsValue = currentPlayerId ? (derivedCounts.assists.get(currentPlayerId) ?? Number(statRow?.assists || 0)) : 0;
     const yellowValue = currentPlayerId ? (derivedCounts.yellow.get(currentPlayerId) ?? Number(statRow?.yellowCards || 0)) : 0;
     const redValue = currentPlayerId ? (derivedCounts.red.get(currentPlayerId) ?? Number(statRow?.redCards || 0)) : 0;
-    const showRedCard = redValue > 0 || yellowValue >= 2;
-    const wasSubstituted = currentPlayerId && watchedEvents.some(
-      (e: any) => e?.type === 'substitution' && (e?.outPlayerId === currentPlayerId || e?.inPlayerId === currentPlayerId) && e?.teamId === teamId
-    );
-    const minutesValue = currentPlayerId
-      ? Number.isFinite(Number(statRow?.minutesPlayed))
-        ? Number(statRow?.minutesPlayed)
-        : matchDuration
-      : 0;
     const ratingNumber = Number(statRow?.rating);
     const hasRating = Number.isFinite(ratingNumber);
     const ratingValue = hasRating ? ratingNumber.toFixed(1) : '-';
-    const ratingClassName = !hasRating
-      ? 'bg-slate-700/80'
-      : highestRating !== null && ratingNumber === highestRating
-        ? 'bg-violet-500/85'
-        : ratingNumber >= 7
-          ? 'bg-emerald-500/90'
-          : 'bg-orange-500/90';
     const pos = pitchSlots[slot];
 
-    return (
-      <div
-        key={`pitch-slot-${slot}`}
-        className="absolute -translate-x-1/2 -translate-y-1/2"
-        style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+    const selectOverlay = !slotLocked ? (
+      <>
+        <button
+          type="button"
+          onClick={() => setMobilePicker({
+            title: '選手を選択',
+            value: currentPlayerId || NONE_SELECT_VALUE,
+            options: [
+              { value: NONE_SELECT_VALUE, label: '未選択' },
+              ...options.filter(p => bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => ({ value: p.id, label: `[ベンチ] #${p.number ?? '-'} ${p.name}` })),
+              ...options.filter(p => !bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => ({ value: p.id, label: `#${p.number ?? '-'} ${p.name}` })),
+            ],
+            onSelect: (value) => setStarterSlotPlayer(slot, value),
+          })}
+          className="absolute inset-0 z-20 h-full w-full cursor-pointer opacity-0 sm:hidden"
+          aria-label="選手を選択"
+        />
+        <select
+          value={currentPlayerId || NONE_SELECT_VALUE}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === currentPlayerId) return;
+            setStarterSlotPlayer(slot, val);
+          }}
+          className="hidden absolute inset-0 z-20 h-full w-full cursor-pointer border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0 sm:block"
+          aria-label="選手を選択"
+        >
+          <option value={NONE_SELECT_VALUE}>未選択</option>
+          {options.map((p) => (
+            <option key={p.id} value={p.id}>
+              #{p.number ?? '-'} {p.name}
+            </option>
+          ))}
+        </select>
+      </>
+    ) : null;
+
+    const ratingOverlay = player ? (
+      <select
+        value={hasRating ? ratingValue : ''}
+        onChange={(e) => {
+          const val = e.target.value;
+          const currentValue = hasRating ? ratingValue : '';
+          if (val === currentValue || !val || Number.isNaN(parseFloat(val))) return;
+          if (statIndex >= 0) setValue(`playerStats.${statIndex}.rating` as any, parseFloat(val), { shouldDirty: true });
+        }}
+        className="absolute -right-2 -top-2 z-30 h-8 w-8 cursor-pointer border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0"
+        aria-label="評価点を選択"
       >
-        <div className="relative flex w-[62px] flex-col items-center gap-0.5 overflow-visible sm:w-[82px]">
-          {!slotLocked ? (
-            <button
-              type="button"
-              onClick={() => setMobilePicker({
-                title: '選手を選択',
-                value: currentPlayerId || NONE_SELECT_VALUE,
-                options: [
-                  { value: NONE_SELECT_VALUE, label: '未選択' },
-                  ...options.filter(p => bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => ({ value: p.id, label: `[ベンチ] #${p.number ?? '-'} ${p.name}` })),
-                  ...options.filter(p => !bench.some(b => (b as any).playerId === p.id || b.id === p.id)).map((p) => ({ value: p.id, label: `#${p.number ?? '-'} ${p.name}` })),
-                ],
-                onSelect: (value) => setStarterSlotPlayer(slot, value),
-              })}
-              className="absolute inset-0 z-20 h-full w-full opacity-0 sm:hidden"
-              aria-label="選手を選択"
-              disabled={slotLocked}
-            />
-          ) : null}
-          <div className="relative h-auto w-full overflow-visible border-0 bg-transparent p-0 [&>svg]:hidden">
-            <div className="flex w-full flex-col items-center gap-0.5 overflow-visible">
-              <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-300/45 bg-slate-500/30 shadow-[0_0_0_3px_rgba(255,255,255,0.06)] sm:h-11 sm:w-11">
-                <div
-                  className="h-full w-full rounded-full bg-slate-600/70 bg-cover bg-center"
-                  style={photoUrl ? { backgroundImage: `url(${photoUrl})` } : undefined}
-                />
-                {!player ? (
-                  <div className="absolute inset-0 flex items-center justify-center text-slate-200/90">
-                    <div className="relative h-4 w-4 rounded-full border border-current before:absolute before:left-1/2 before:top-[62%] before:h-2 before:w-4 before:-translate-x-1/2 before:rounded-t-full before:border before:border-b-0 before:border-current sm:h-5 sm:w-5 sm:before:h-2.5 sm:before:w-4" />
-                  </div>
-                ) : null}
-                {goalsValue > 0 ? (
-                  <span className="absolute -left-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-amber-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
-                    <svg viewBox="0 0 8 8" className="shrink-0 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
-                      <circle cx="4" cy="4" r="2.85" strokeWidth="0.65" />
-                      <path d="M4 2.1 5.25 3 4.8 4.55H3.2L2.75 3 4 2.1Z" strokeWidth="0.45" strokeLinejoin="round" />
-                      <path d="M2.75 3 1.75 2.7M5.25 3l1-.3M3.2 4.55l-.7 1M4.8 4.55l.7 1" strokeWidth="0.4" strokeLinecap="round" />
-                    </svg>
-                    {goalsValue}
-                  </span>
-                ) : null}
-                {assistsValue > 0 ? (
-                  <span className="absolute -right-2 -top-2 inline-flex h-[10px] items-center gap-0 rounded-full bg-sky-500 px-1 py-0 text-[8px] font-bold leading-none text-white shadow-sm">
-                    <svg viewBox="0 0 8 8" className="shrink-0 -translate-x-[2px] -rotate-45 fill-none stroke-current" style={{ width: 10.5, height: 10.5 }} aria-hidden="true">
-                      <path d="M1.2 5.1c1.5.1 2.7-.4 3.6-1.7l1 1 1.1.4c.4.1.7.5.7.9H1.7c-.3 0-.5-.2-.5-.5v-.1Z" strokeWidth="0.65" strokeLinejoin="round" />
-                      <path d="M3.9 4.3 4.6 5M4.8 3.5l.7.7" strokeWidth="0.5" strokeLinecap="round" />
-                    </svg>
-                    {assistsValue}
-                  </span>
-                ) : null}
-                {showRedCard ? (
-                  <span className="absolute -left-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-red-500 shadow-sm" />
-                ) : null}
-                {yellowValue > 0 ? (
-                  <span className="absolute -right-1.5 top-1/2 h-4 w-2.5 -translate-y-1/2 rounded-[2px] bg-yellow-400 shadow-sm" />
-                ) : null}
-                {player?.number ? (
-                  <span className="absolute -left-1 -bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-slate-900/80 px-1 text-[9px] font-bold leading-none text-white shadow-sm">
-                    {player.number}
-                  </span>
-                ) : null}
-                <span className="absolute -right-1 -bottom-1 flex h-4 w-4 items-center justify-center rounded-full border border-slate-700 bg-slate-200 text-xs font-light leading-none text-slate-600">+</span>
-              </div>
-              <div className="w-[62px] truncate text-center text-[8px] font-semibold uppercase leading-tight tracking-wide text-slate-300 sm:w-[82px] sm:text-[9px]">
-                {player ? player.name : pos.label}
-              </div>
-            </div>
-            {!slotLocked ? (
-              <select
-                value={currentPlayerId || NONE_SELECT_VALUE}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === currentPlayerId) return;
-                  setStarterSlotPlayer(slot, val);
-                }}
-                disabled={slotLocked}
-                className="hidden absolute inset-0 z-20 h-full w-full border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0 sm:block"
-                aria-label="選手を選択"
-              >
-                <option value={NONE_SELECT_VALUE}>未選択</option>
-                {options.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    #{p.number ?? '-'} {p.name}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-          </div>
-          {player ? (
-            <div className="mt-2 flex w-[62px] flex-col items-center justify-center gap-0.5 text-[7px] font-bold leading-none text-white sm:w-[70px] sm:text-[8px]">
-              <div className="inline-flex h-[11px] items-center gap-0.5 text-[7px] font-bold leading-none text-white sm:text-[8px]">
-                {wasSubstituted && <span className="text-red-400 text-[8px]">⇔</span>}
-                <span className="inline-flex h-[11px] items-center rounded-full bg-slate-700/80 px-1 py-0 leading-[11px]">{minutesValue}'</span>
-                <div className="relative inline-flex h-[11px] items-center">
-                  <span className={`inline-flex h-[11px] items-center rounded-full px-1 text-[7px] font-bold leading-[11px] text-white sm:text-[8px] ${ratingClassName}`}>★{ratingValue}</span>
-                  <select
-                    value={hasRating ? ratingValue : ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const currentValue = hasRating ? ratingValue : '';
-                      if (val === currentValue || !val || Number.isNaN(parseFloat(val))) return;
-                      if (statIndex >= 0) setValue(`playerStats.${statIndex}.rating` as any, parseFloat(val), { shouldDirty: true });
-                    }}
-                    className="absolute inset-0 !h-[11px] !min-h-0 !w-full border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0"
-                  >
-                    <option value="" />
-                    {[...ratingOptions].reverse().map((rating) => (
-                      <option key={rating} value={rating}>
-                        ★{rating}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </div>
+        <option value="" />
+        {[...ratingOptions].reverse().map((rating) => (
+          <option key={rating} value={rating}>
+            ★{rating}
+          </option>
+        ))}
+      </select>
+    ) : null;
+
+    return (
+      <PitchSlotAnchor key={`pitch-slot-${slot}`} x={pos.x} y={pos.y}>
+        {player ? (
+          <PlayerNode
+            highestRating={highestRating}
+            alwaysShowRating
+            overlay={selectOverlay}
+            ratingOverlay={ratingOverlay}
+            player={{
+              name: player.name || statRow?.playerName || '',
+              number: typeof (player as any).number === 'number' ? (player as any).number : undefined,
+              photoUrl,
+              rating: statRow?.rating,
+              goals: goalsValue,
+              assists: assistsValue,
+              yellowCards: yellowValue,
+              redCards: redValue,
+              subInMinute: currentPlayerId ? subMinuteMaps.inMap.get(currentPlayerId) : undefined,
+              subOutMinute: currentPlayerId ? subMinuteMaps.outMap.get(currentPlayerId) : undefined,
+            }}
+          />
+        ) : (
+          <EmptySlotNode label={pos.label} overlay={selectOverlay} />
+        )}
+      </PitchSlotAnchor>
     );
   };
 
-  const renderPlayerRow = (
-    field: any,
-    opts?: {
-      header?: ReactNode;
-      showTrash?: boolean;
-    }
-  ) => {
-    const globalIndex = fields.findIndex(f => f.id === field.id);
-    if (globalIndex === -1) return null;
-
+  // ベンチカード下部に表示するカスタムスタッツ入力（従来の行UIと同じ編集機能を維持）
+  const renderCustomStatInputs = (globalIndex: number) => {
+    if (customStatHeaders.length === 0) return null;
     const customStatPath = `playerStats.${globalIndex}.customStats`;
-    const ratingFieldName = `playerStats.${globalIndex}.rating`;
-    const minutesFieldName = `playerStats.${globalIndex}.minutesPlayed`;
     const customStats = watch(customStatPath) || [];
-    const rawRating = watch(ratingFieldName);
-    const normalizeCount = (v: any) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-
-    const playerIdForCounts = String(watch(`playerStats.${globalIndex}.playerId`) || (field as any)?.playerId || "");
-    const playerNumber = (() => {
-      if (!playerIdForCounts) return undefined;
-      const p = allPlayers.find((ap) => ap.id === playerIdForCounts) as any;
-      const nRaw = p?.number;
-      const n = typeof nRaw === 'number' && Number.isFinite(nRaw) ? nRaw : Number(nRaw);
-      return Number.isFinite(n) ? n : undefined;
-    })();
-    const goalsFromEvents = playerIdForCounts ? (derivedCounts.goals.get(playerIdForCounts) ?? null) : null;
-    const assistsFromEvents = playerIdForCounts ? (derivedCounts.assists.get(playerIdForCounts) ?? null) : null;
-    const yellowFromEvents = playerIdForCounts ? (derivedCounts.yellow.get(playerIdForCounts) ?? null) : null;
-    const redFromEvents = playerIdForCounts ? (derivedCounts.red.get(playerIdForCounts) ?? null) : null;
-
-    const goalsValue = goalsFromEvents ?? normalizeCount(watch(`playerStats.${globalIndex}.goals`));
-    const assistsValue = assistsFromEvents ?? normalizeCount(watch(`playerStats.${globalIndex}.assists`));
-    const yellowValue = yellowFromEvents ?? normalizeCount(watch(`playerStats.${globalIndex}.yellowCards`));
-    const redValue = redFromEvents ?? normalizeCount(watch(`playerStats.${globalIndex}.redCards`));
-    const ratingValue =
-      typeof rawRating === 'number' &&
-      Number.isFinite(rawRating) &&
-      rawRating >= 4.0 &&
-      rawRating <= 10.0
-        ? rawRating.toFixed(1)
-        : '';
-
     return (
-      <div key={field.id} className="space-y-1">
-        <div className="rounded-md border border-slate-700 bg-slate-900 px-3 py-3 text-slate-100">
-          <div className="overflow-x-auto md:overflow-visible">
-            <div className="grid min-w-max grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto_auto_auto] items-end gap-2 text-xs">
-              <div className="min-w-0 self-end">
-                {opts?.header ? (
-                  opts.header
-                ) : (
-                  <div className="flex items-end gap-2 min-w-0">
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full w-10 text-center ${getPositionPillClassName(field.position)}`}>
-                      {field.position}
-                    </span>
-                    <span className="font-medium text-sm truncate">
-                      {playerNumber !== undefined ? `#${playerNumber} ` : ''}
-                      {field.playerName}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-slate-400">評価</span>
-                <select
-                  value={ratingValue}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === ratingValue || !val || Number.isNaN(parseFloat(val))) return;
-                    setValue(ratingFieldName, parseFloat(val), { shouldDirty: true });
-                  }}
-                  className="w-20 bg-slate-800 text-slate-100 border border-slate-700 rounded px-2 py-1 text-sm shadow-none focus:ring-0"
-                >
-                  <option value="">-</option>
-                  {ratingOptions.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-slate-400">出場分</span>
-                <div className="inline-flex items-center gap-1 h-8 px-2 text-sm text-slate-200 cursor-default shrink-0 pointer-events-none">
-                  <span>{watch(minutesFieldName)?.toString() ?? ""}</span>
-                  <span className="text-slate-500">⇔</span>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-slate-400">G</span>
-                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-slate-700 text-slate-200 rounded-full cursor-default shrink-0 pointer-events-none">
-                  {goalsValue}
-                </span>
-              </div>
-
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-slate-400">👟</span>
-                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-slate-700 text-slate-200 rounded-full cursor-default shrink-0 pointer-events-none">
-                  {assistsValue}
-                </span>
-              </div>
-
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-slate-400">Y</span>
-                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-slate-700 text-slate-200 rounded-full cursor-default shrink-0 pointer-events-none">
-                  {yellowValue}
-                </span>
-              </div>
-
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] text-slate-400">R</span>
-                <span className="inline-flex items-center justify-center h-8 w-10 px-2 text-center text-sm bg-slate-700 text-slate-200 rounded-full cursor-default shrink-0 pointer-events-none">
-                  {redValue}
-                </span>
-              </div>
-
-              {(opts?.showTrash ?? true) ? (
-                <Button type="button" variant="ghost" size="icon" onClick={() => remove(globalIndex)} className="shrink-0">
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              ) : (
-                <div />
-              )}
+      <div className="flex w-[86px] flex-wrap justify-center gap-x-2 gap-y-1">
+        {customStatHeaders.map((header: { id: string; name: string }, headerIndex: number) => {
+          if (!customStats[headerIndex]) {
+            setValue(`${customStatPath}.${headerIndex}`, { id: header.id, name: header.name, value: '' });
+          }
+          return (
+            <div key={header.id} className="flex items-center gap-1">
+              <span className="text-gray-500 text-[8px]">{header.name}</span>
+              <Input
+                {...control.register(`playerStats.${globalIndex}.customStats.${headerIndex}.value`, {
+                  valueAsNumber: true,
+                })}
+                type="number"
+                className="h-5 w-10 text-center text-[9px] bg-white text-gray-900"
+              />
             </div>
-          </div>
-        </div>
-
-        {customStatHeaders.length > 0 && (
-          <div className="ml-2 flex flex-wrap gap-2 text-[7px]">
-            {customStatHeaders.map((header: { id: string; name: string }, headerIndex: number) => {
-              if (!customStats[headerIndex]) {
-                setValue(`${customStatPath}.${headerIndex}`, { id: header.id, name: header.name, value: '' });
-              }
-              return (
-                <div key={header.id} className="flex items-center gap-1">
-                  <span className="text-gray-500 text-[6px]">{header.name}</span>
-                  <Input
-                    {...control.register(`playerStats.${globalIndex}.customStats.${headerIndex}.value`, {
-                      valueAsNumber: true,
-                    })}
-                    type="number"
-                    className="h-5 w-12 text-center text-[5px] bg-white text-gray-900"
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
+          );
+        })}
       </div>
     );
   };
@@ -907,143 +701,191 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
           </div>
         </div>
       ) : null}
-      {/* Starters */}
-      <div className="overflow-hidden rounded-[20px] border border-slate-700/80 bg-[#111827] shadow-[0_18px_50px_rgba(0,0,0,0.28)] sm:rounded-[24px]">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-700/80 px-4 py-5 text-white sm:px-5">
-          <div className="w-36">
-            <button
-              type="button"
-              onClick={() => setMobilePicker({
-                title: 'フォーメーションを選択',
-                value: selectedFormation,
-                options: FORMATION_OPTIONS.map((formation) => ({ value: formation, label: formation })),
-                onSelect: handleFormationChange,
-              })}
-              className="h-11 w-full rounded-full border border-slate-500/50 bg-slate-700/50 px-5 text-left text-sm font-semibold text-white shadow-none sm:hidden"
-              aria-label="フォーメーションを選択"
-            >
+      {/* Starters（公開ページと同一の LineupPitch / PlayerNode） */}
+      <div>
+        <LineupPitch
+          formation={selectedFormation}
+          formationBadge={
+            <div className="absolute right-3 top-3 z-20 cursor-pointer rounded-full border border-slate-600 bg-slate-950/70 px-2 py-1 text-[10px] font-black tracking-wide text-white shadow-sm">
               {selectedFormation}
-            </button>
-            <select
-              value={selectedFormation}
-              onChange={(e) => handleFormationChange(e.target.value)}
-              className="hidden h-11 rounded-full border border-slate-500/50 bg-slate-700/50 px-5 text-sm font-semibold text-white shadow-none focus:ring-0 focus:ring-offset-0 sm:flex"
-            >
-              {FORMATION_OPTIONS.map((formation) => (
-                <option key={formation} value={formation} className="text-slate-900">
-                  {formation}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="shrink-0 rounded-full border border-slate-500/50 bg-slate-700/50 px-4 py-2 text-sm font-semibold text-slate-100">
-            {starters.length} / 11
-          </div>
-        </div>
-        <div className="relative mx-auto aspect-[7/10] w-full overflow-hidden bg-[#0f1722] sm:aspect-[5/6] sm:max-w-[520px]">
-          <div className="absolute inset-x-[6%] inset-y-[4%] border-2 border-slate-400/14" />
-          <div className="absolute inset-x-[28%] top-[4%] h-[13%] border-x-2 border-b-2 border-slate-400/14" />
-          <div className="absolute inset-x-[38%] top-[4%] h-[6%] border-x-2 border-b-2 border-slate-400/14" />
-          <div className="absolute inset-x-[28%] bottom-[4%] h-[13%] border-x-2 border-t-2 border-slate-400/14" />
-          <div className="absolute inset-x-[38%] bottom-[4%] h-[6%] border-x-2 border-t-2 border-slate-400/14" />
-          <div className="absolute inset-x-[6%] top-1/2 h-px bg-slate-400/14" />
-          <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-400/14" />
-          <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(255,255,255,0.025)_0px,rgba(255,255,255,0.025)_52px,transparent_52px,transparent_104px)]" />
-          {pitchSlots.map((_, slot) => renderPitchSlot(slot))}
-        </div>
-        <div className="border-t border-slate-700/80 bg-[#142033] px-4 py-4 sm:px-5">
+              <button
+                type="button"
+                onClick={() => setMobilePicker({
+                  title: 'フォーメーションを選択',
+                  value: selectedFormation,
+                  options: FORMATION_OPTIONS.map((formation) => ({ value: formation, label: formation })),
+                  onSelect: handleFormationChange,
+                })}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0 sm:hidden"
+                aria-label="フォーメーションを選択"
+              />
+              <select
+                value={selectedFormation}
+                onChange={(e) => handleFormationChange(e.target.value)}
+                className="hidden absolute inset-0 h-full w-full cursor-pointer border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0 sm:block"
+                aria-label="フォーメーションを選択"
+              >
+                {FORMATION_OPTIONS.map((formation) => (
+                  <option key={formation} value={formation} className="text-slate-900">
+                    {formation}
+                  </option>
+                ))}
+              </select>
+            </div>
+          }
+          topLeft={
+            <div className="absolute left-3 top-3 z-20 rounded-full border border-slate-600 bg-slate-950/70 px-2 py-1 text-[10px] font-black tracking-wide text-white shadow-sm">
+              {starters.length} / 11
+            </div>
+          }
+        >
+          {pitchSlots.map((pos, slot) => renderPitchSlot(slot))}
+        </LineupPitch>
+        <div className="mt-2 px-4 sm:px-0">
           {Array.isArray(watchedEvents) && watchedEvents.length > 0 ? (
             <p className="text-center text-xs font-semibold text-amber-400">⚠️ イベント記録後は登録済み選手の入れ替え・削除不可（空き枠への登録は可）</p>
           ) : (
-            <p className="hidden text-center text-sm font-semibold text-slate-500 sm:block">タップで選手を追加 / 削除</p>
+            <p className="text-center text-xs font-semibold text-slate-500">タップで選手を追加 / 変更 / 削除</p>
           )}
         </div>
       </div>
 
-      {/* Bench */}
-      <div className="mt-6 space-y-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h4 className="text-sm font-semibold text-gray-300">ベンチ（最大12人）</h4>
-          <button
-            type="button"
-            onClick={() => setMobilePicker({
-              title: 'ベンチに選手を追加',
-              value: '',
-              options: availablePlayers.map((p) => ({ value: p.id, label: `#${p.number ?? '-'} ${p.name}` })),
-              onSelect: (value) => handleAddPlayer(value, 'sub'),
-            })}
-            className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-left text-sm font-bold text-gray-900 shadow-sm sm:hidden"
-            aria-label="ベンチに選手を追加"
-          >
-            ベンチに選手を追加...
-          </button>
-          <select
-            value={benchAddValue}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (!val) return;
-              handleAddPlayer(val, 'sub');
-              setBenchAddValue('');
-            }}
-            className="hidden h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm font-bold text-gray-900 shadow-sm sm:flex sm:w-64"
-          >
-            <option value="">{availablePlayers.length > 0 ? 'ベンチに選手を追加...' : '登録できる選手がありません'}</option>
-            {availablePlayers.map(p => (
-              <option key={p.id} value={p.id}>
-                #{p.number ?? '-'} {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="grid grid-cols-1 gap-3">
+      {/* Substitutes（公開ページと同一カードUI + 編集オーバーレイ） */}
+      <div className="mt-6 space-y-2 px-4 sm:px-0">
+        <h4 className="text-center text-xs font-semibold text-muted-foreground">Substitutes（最大12人）</h4>
+        <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
           {sortedBench.map((field) => {
             const globalIndex = fields.findIndex((f) => f.id === (field as any).id);
             if (globalIndex === -1) return null;
             const currentPlayerId = String(watch(`playerStats.${globalIndex}.playerId`) || (field as any)?.playerId || '');
-            const options = sortedAllPlayers;
-            return renderPlayerRow(field as any, {
-              showTrash: true,
-              header: (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full w-10 text-center ${getPositionPillClassName((field as any).position)}`}>
-                    {(field as any).position}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setMobilePicker({
-                      title: 'ベンチ選手を選択',
-                      value: currentPlayerId || NONE_SELECT_VALUE,
-                      options: [
-                        { value: NONE_SELECT_VALUE, label: '未選択' },
-                        ...options.map((p) => ({ value: p.id, label: `#${p.number ?? '-'} ${p.name}` })),
-                      ],
-                      onSelect: (value) => setBenchPlayer((field as any).id, value),
-                    })}
-                    className="h-11 w-56 rounded-xl border border-slate-600 bg-slate-800 px-4 text-left text-sm font-bold text-slate-100 shadow-sm sm:hidden"
-                    aria-label="ベンチ選手を選択"
-                  >
-                    {options.find((p) => p.id === currentPlayerId)?.name || '選手を選択'}
-                  </button>
-                  <select
-                    value={currentPlayerId || NONE_SELECT_VALUE}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === currentPlayerId) return;
-                      setBenchPlayer((field as any).id, val);
-                    }}
-                    className="hidden h-11 w-56 rounded-xl border border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100 shadow-sm sm:flex"
-                  >
-                    <option value={NONE_SELECT_VALUE}>未選択</option>
-                    {options.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        #{p.number ?? '-'} {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ),
-            });
+            const bp = currentPlayerId ? (allPlayers.find((p) => p.id === currentPlayerId) as any) : undefined;
+            const statRow = watch(`playerStats.${globalIndex}` as any) as any;
+            const goalsValue = currentPlayerId ? (derivedCounts.goals.get(currentPlayerId) ?? Number(statRow?.goals || 0)) : 0;
+            const assistsValue = currentPlayerId ? (derivedCounts.assists.get(currentPlayerId) ?? Number(statRow?.assists || 0)) : 0;
+            const yellowValue = currentPlayerId ? (derivedCounts.yellow.get(currentPlayerId) ?? Number(statRow?.yellowCards || 0)) : 0;
+            const redValue = currentPlayerId ? (derivedCounts.red.get(currentPlayerId) ?? Number(statRow?.redCards || 0)) : 0;
+            const ratingNumber = Number(statRow?.rating);
+            const hasRating = Number.isFinite(ratingNumber);
+            const ratingValue = hasRating ? ratingNumber.toFixed(1) : '-';
+            const photoUrl = bp
+              ? bp.photoURL || bp.photoUrl || bp.imageUrl || bp.profileImageUrl || bp.avatarUrl || ''
+              : '';
+
+            const selectOverlay = (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setMobilePicker({
+                    title: 'ベンチ選手を選択',
+                    value: currentPlayerId || NONE_SELECT_VALUE,
+                    options: [
+                      { value: NONE_SELECT_VALUE, label: '未選択' },
+                      ...sortedAllPlayers.map((p) => ({ value: p.id, label: `#${p.number ?? '-'} ${p.name}` })),
+                    ],
+                    onSelect: (value) => setBenchPlayer((field as any).id, value),
+                  })}
+                  className="absolute inset-0 z-20 h-full w-full cursor-pointer rounded-lg opacity-0 sm:hidden"
+                  aria-label="ベンチ選手を選択"
+                />
+                <select
+                  value={currentPlayerId || NONE_SELECT_VALUE}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === currentPlayerId) return;
+                    setBenchPlayer((field as any).id, val);
+                  }}
+                  className="hidden absolute inset-0 z-20 h-full w-full cursor-pointer rounded-lg border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0 sm:block"
+                  aria-label="ベンチ選手を選択"
+                >
+                  <option value={NONE_SELECT_VALUE}>未選択</option>
+                  {sortedAllPlayers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      #{p.number ?? '-'} {p.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            );
+
+            const ratingOverlay = (
+              <select
+                value={hasRating ? ratingValue : ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const currentValue = hasRating ? ratingValue : '';
+                  if (val === currentValue || !val || Number.isNaN(parseFloat(val))) return;
+                  setValue(`playerStats.${globalIndex}.rating` as any, parseFloat(val), { shouldDirty: true });
+                }}
+                className="absolute -right-2 -top-2 z-30 h-8 w-8 cursor-pointer border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0"
+                aria-label="評価点を選択"
+              >
+                <option value="" />
+                {[...ratingOptions].reverse().map((rating) => (
+                  <option key={rating} value={rating}>
+                    ★{rating}
+                  </option>
+                ))}
+              </select>
+            );
+
+            return (
+              <div key={(field as any).id} className="flex shrink-0 snap-start flex-col items-center gap-1.5">
+                <SubstituteCard
+                  highestRating={highestRating}
+                  overlay={selectOverlay}
+                  ratingOverlay={ratingOverlay}
+                  player={{
+                    name: bp?.name || (field as any)?.playerName || '',
+                    number: typeof bp?.number === 'number' ? bp.number : undefined,
+                    photoUrl,
+                    rating: statRow?.rating,
+                    goals: goalsValue,
+                    assists: assistsValue,
+                    yellowCards: yellowValue,
+                    redCards: redValue,
+                    subInMinute: currentPlayerId ? subMinuteMaps.inMap.get(currentPlayerId) : undefined,
+                    subOutMinute: currentPlayerId ? subMinuteMaps.outMap.get(currentPlayerId) : undefined,
+                  }}
+                />
+                {renderCustomStatInputs(globalIndex)}
+              </div>
+            );
           })}
+          <AddSubCard
+            overlay={
+              <>
+                <button
+                  type="button"
+                  onClick={() => setMobilePicker({
+                    title: 'ベンチに選手を追加',
+                    value: '',
+                    options: availablePlayers.map((p) => ({ value: p.id, label: `#${p.number ?? '-'} ${p.name}` })),
+                    onSelect: (value) => handleAddPlayer(value, 'sub'),
+                  })}
+                  className="absolute inset-0 z-20 h-full w-full cursor-pointer rounded-lg opacity-0 sm:hidden"
+                  aria-label="ベンチに選手を追加"
+                />
+                <select
+                  value={benchAddValue}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) return;
+                    handleAddPlayer(val, 'sub');
+                    setBenchAddValue('');
+                  }}
+                  className="hidden absolute inset-0 z-20 h-full w-full cursor-pointer rounded-lg border-0 bg-transparent p-0 text-transparent opacity-0 shadow-none focus:ring-0 focus:ring-offset-0 sm:block"
+                  aria-label="ベンチに選手を追加"
+                >
+                  <option value="">{availablePlayers.length > 0 ? 'ベンチに選手を追加...' : '登録できる選手がありません'}</option>
+                  {availablePlayers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      #{p.number ?? '-'} {p.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            }
+          />
         </div>
       </div>
     </div>

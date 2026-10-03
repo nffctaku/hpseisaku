@@ -798,7 +798,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
 
   return (
     <FormProvider {...methods}>
-      <Card className={view === 'events' ? "border-0 bg-transparent text-slate-100 shadow-none" : ""}>
+      <Card className="border-0 bg-transparent text-slate-100 shadow-none">
         {view === 'events' ? null : (
           <CardHeader>
             <CardTitle>
