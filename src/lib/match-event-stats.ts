@@ -129,6 +129,30 @@ export function deriveEventPlayerCounts(
   return { goals, assists, yellowCards, redCards, involved, teamIdByPlayer, subMinutes };
 }
 
+// 選手IDがイベントから参照されているか（削除保護用）。
+// 参照フィールド: 得点/カードのplayerId, assistPlayerId, 交代out/in, PKのoriginalPlayerId。
+// custom_*（名前のみ未紐づけ）のIDは実選手IDと一致しないため自然に除外される。
+export function playerReferencedByEvents(
+  events: readonly unknown[] | null | undefined,
+  playerId: string
+): boolean {
+  if (!playerId) return false;
+  for (const e of events ?? []) {
+    const ev = e as EventLike | null | undefined;
+    if (!ev) continue;
+    if (
+      ev.playerId === playerId ||
+      ev.assistPlayerId === playerId ||
+      ev.outPlayerId === playerId ||
+      ev.inPlayerId === playerId ||
+      ev.originalPlayerId === playerId
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** playerStats行の表示名から name→id マップを構築（PK(name)解決用） */
 export function buildNameToIdFromStats(playerStats: Array<{ playerId?: unknown; playerName?: unknown }> | unknown): Map<string, string> {
   const map = new Map<string, string>();

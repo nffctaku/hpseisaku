@@ -36,7 +36,7 @@ import {
   runTransaction,
   type Firestore,
 } from 'firebase/firestore';
-import { recomputeTeamMinutes } from './match-minutes';
+import { recomputeTeamMinutes, recomputeRoleChangedMinutes } from './match-minutes';
 import { mirrorDocsForEvent, type MatchEventInput } from './match-event-sync';
 import {
   buildPlayerNameResolver,
@@ -210,6 +210,31 @@ export async function commitSquadSave(
           merged.events,
           teamId as string,
           matchDuration,
+          resolvePlayer
+        );
+      });
+    }
+
+    // ロール変更（スタメン⇔ベンチ）があれば対象選手のみ出場時間を再導出。
+    // 新ロールと整合する交代イベント由来値を優先し、
+    // それ以外はロール既定値。ロール不変・手入力の値は保持する。
+    const loadedRoleById = new Map<string, string>();
+    (args.loaded.playerStats || []).forEach((ps: any) => {
+      if (ps?.playerId) loadedRoleById.set(ps.playerId, ps.role ?? 'starter');
+    });
+    const hasRoleChange = mergedPlayerStats.some((ps: any) => {
+      const prev = loadedRoleById.get(ps?.playerId);
+      return prev !== undefined && prev !== (ps?.role ?? 'starter');
+    });
+    if (hasRoleChange) {
+      const teamIds = new Set(mergedPlayerStats.map((ps: any) => ps?.teamId).filter(Boolean));
+      teamIds.forEach((teamId) => {
+        mergedPlayerStats = recomputeRoleChangedMinutes(
+          mergedPlayerStats,
+          merged.events,
+          teamId as string,
+          matchDuration,
+          loadedRoleById,
           resolvePlayer
         );
       });

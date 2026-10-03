@@ -174,3 +174,55 @@ export function recomputeTeamMinutes<T extends PlayerStatLike>(
     return { ...ps, minutesPlayed: desired };
   });
 }
+
+// ロール変更（スタメン⇔ベンチ）があった選手だけ minutesPlayed を再導出する。
+// 新ロールと論理整合する交代イベント由来値のみ採用する:
+//   starter → OUTイベントの出場時間 or 試合時間
+//   sub     → INイベントの出場時間 or 0
+// 整合しないイベント（スタメンにIN／ベンチにOUT）は採用せず既定値へ。
+// ロール不変の選手・イベント未関与の値は一切変更しない（手入力値を保持）。
+export function recomputeRoleChangedMinutes<T extends PlayerStatLike>(
+  playerStats: T[],
+  events: MinuteEventLike[],
+  teamId: string,
+  matchDuration: number,
+  prevRoleById: Map<string, string>,
+  resolvePlayer?: MinuteNameResolver
+): T[] {
+  const outMap = deriveStarterMinutes(events, teamId, matchDuration, resolvePlayer);
+  const inMap = deriveBenchMinutes(events, teamId, matchDuration, resolvePlayer);
+  return playerStats.map((ps) => {
+    if (!ps || ps.teamId !== teamId || !ps.playerId) return ps;
+    const prevRole = prevRoleById.get(ps.playerId);
+    const newRole = ps.role ?? 'starter';
+    if (prevRole === undefined || prevRole === newRole) return ps;
+    const desired =
+      newRole === 'starter'
+        ? (outMap.get(ps.playerId) ?? matchDuration)
+        : (inMap.get(ps.playerId) ?? 0);
+    return desired === ps.minutesPlayed ? ps : { ...ps, minutesPlayed: desired };
+  });
+}
+
+// 新ロールと論理矛盾する交代イベントを列挙する（警告表示用）。
+// スタメンに IN イベント／ベンチに OUT イベントが残る場合が対象。
+// イベント自体は変更しない（呼び出し側でユーザー修正を促す）。
+export function findInconsistentSubEvents(
+  events: MinuteEventLike[] | readonly unknown[] | null | undefined,
+  playerId: string,
+  newRole: 'starter' | 'sub'
+): { direction: 'in' | 'out'; minute: unknown }[] {
+  if (!playerId) return [];
+  const bad: { direction: 'in' | 'out'; minute: unknown }[] = [];
+  for (const e of events ?? []) {
+    const ev = e as MinuteEventLike | null | undefined;
+    if (ev?.type !== 'substitution') continue;
+    if (newRole === 'starter' && ev.inPlayerId === playerId) {
+      bad.push({ direction: 'in', minute: ev.minute });
+    }
+    if (newRole === 'sub' && ev.outPlayerId === playerId) {
+      bad.push({ direction: 'out', minute: ev.minute });
+    }
+  }
+  return bad;
+}

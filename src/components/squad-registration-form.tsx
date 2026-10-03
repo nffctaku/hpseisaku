@@ -17,7 +17,8 @@ import { useCareer } from '@/contexts/CareerContext';
 import { PlayerStatsTable } from './player-stats-table';
 import { MatchEventsTable } from './match-events-table';
 import { commitSquadSave, subEventsSignature, type SquadSaveSnapshot } from '@/lib/squad-save-merge';
-import { healStaleTeamMinutes } from '@/lib/match-minutes';
+import { healStaleTeamMinutes, findInconsistentSubEvents, deriveBenchMinutes } from '@/lib/match-minutes';
+import { playerReferencedByEvents } from '@/lib/match-event-stats';
 import { buildPlayerNameResolver } from '@/lib/match-event-resolve';
 import type { SubmitHandler } from 'react-hook-form';
 
@@ -462,6 +463,52 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     }
 
     const current = methods.getValues();
+    const currentStats: any[] = Array.isArray(current.playerStats) ? current.playerStats : [];
+    const currentEvents: any[] = Array.isArray(current.events) ? current.events : [];
+    const duration = match.matchDuration || 90;
+    const resolveNames = buildPlayerNameResolver(currentStats);
+    const inMinuteMaps = new Map<string, number>();
+    [match.homeTeam, match.awayTeam].forEach((tid) => {
+      deriveBenchMinutes(currentEvents, tid, duration, resolveNames).forEach((v, k) => inMinuteMaps.set(k, v));
+    });
+
+    // イベント参照中の選手を無言で試合メンバーから外さない:
+    // デフォルトラインナップに含まれない参照中選手はベンチとして保持する。
+    const nextIds = new Set(nextPlayerStats.map((ps: any) => ps.playerId));
+    const keptReferenced: any[] = [];
+    currentStats.forEach((ps: any) => {
+      const pid = String(ps?.playerId || '');
+      if (!pid || nextIds.has(pid)) return;
+      if (!playerReferencedByEvents(currentEvents, pid)) return;
+      keptReferenced.push({
+        ...ps,
+        role: 'sub',
+        starterSlot: undefined,
+        minutesPlayed: inMinuteMaps.get(pid) ?? 0,
+      });
+    });
+    nextPlayerStats.push(...keptReferenced);
+
+    // ロール変更後に論理矛盾の交代イベントが残る選手を警告（イベント自体は変更しない）
+    const prevRoleById = new Map<string, string>();
+    currentStats.forEach((ps: any) => {
+      if (ps?.playerId) prevRoleById.set(ps.playerId, ps.role ?? 'starter');
+    });
+    nextPlayerStats.forEach((ps: any) => {
+      const pid = String(ps?.playerId || '');
+      const prevRole = prevRoleById.get(pid);
+      const newRole = (ps.role ?? 'starter') as 'starter' | 'sub';
+      if (!prevRole || prevRole === newRole) return;
+      findInconsistentSubEvents(currentEvents, pid, newRole).forEach(({ direction, minute }) => {
+        const label = typeof minute === 'number'
+          ? (() => { const b = Math.floor(minute); const x = Math.round((minute - b) * 1000); return x > 0 ? `${b}+${x}` : `${b}`; })()
+          : String(minute ?? '?');
+        toast.warning(
+          `${ps.playerName || 'この選手'}には${label}分${direction === 'in' ? 'IN' : 'OUT'}の交代イベントが残っています。必要に応じて試合イベントを修正してください。`
+        );
+      });
+    });
+
     const nextValues = {
       customStatHeaders: current.customStatHeaders || [],
       playerStats: nextPlayerStats,
@@ -475,6 +522,9 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     if (res.ok) {
       methods.reset(nextValues, { keepValues: true });
       toast.success('登録済みのラインナップを反映して保存しました。');
+      if (keptReferenced.length > 0) {
+        toast.info(`登録済みラインナップを反映した結果、イベント参照中の${keptReferenced.length}名をベンチに保持しました。`);
+      }
     } else {
       toast.error('ラインナップの保存に失敗しました。');
     }

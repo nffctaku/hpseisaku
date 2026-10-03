@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFormContext, useFieldArray, useWatch } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Player } from '@/types/match';
-import { deriveStarterMinutes, deriveBenchMinutes } from '@/lib/match-minutes';
+import { deriveStarterMinutes, deriveBenchMinutes, findInconsistentSubEvents } from '@/lib/match-minutes';
+import { playerReferencedByEvents } from '@/lib/match-event-stats';
 import { buildPlayerNameResolver } from '@/lib/match-event-resolve';
 import { getFormationSlots } from '@/lib/formation-slots';
 import { LineupPitch, PitchSlotAnchor, PlayerNode, EmptySlotNode, SubstituteCard, AddSubCard } from '@/components/lineup-pitch';
@@ -191,6 +192,56 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     });
     return { outMap, inMap };
   }, [watchedEvents, nameResolver]);
+
+  // イベントから参照されている選手は「試合メンバーからの完全削除」をブロックする。
+  // 配置変更（スタメン⇔ベンチ・ポジション・フォーメーション）は許可し、
+  // スタメン/ベンチで同一ルールを適用する。
+  const isEventReferenced = useCallback(
+    (playerId: string) => playerReferencedByEvents(watchedEvents, playerId),
+    [watchedEvents]
+  );
+
+  const blockIfReferenced = useCallback(
+    (playerId: string): boolean => {
+      if (!playerId || !isEventReferenced(playerId)) return false;
+      toast.warning(
+        'この選手には試合イベントが登録されています。試合メンバーから削除する場合は、先に関連する試合イベントを変更・削除してください。'
+      );
+      return true;
+    },
+    [isEventReferenced]
+  );
+
+  // 交代イベントの分を人間向け表記に（65 → "65"、65.002 → "65+2"、"90+3" はそのまま）
+  const fmtMinuteLabel = (minute: unknown): string => {
+    if (typeof minute === 'number' && Number.isFinite(minute)) {
+      const base = Math.floor(minute);
+      const extra = Math.round((minute - base) * 1000);
+      return extra > 0 ? `${base}+${extra}` : `${base}`;
+    }
+    return String(minute ?? '?');
+  };
+
+  // ロール変更後に残る論理矛盾の交代イベントを警告する（イベント自体は変更しない）
+  const warnInconsistentSubEvents = useCallback(
+    (playerId: string, playerName: string | undefined, newRole: 'starter' | 'sub') => {
+      findInconsistentSubEvents(watchedEvents, playerId, newRole).forEach(({ direction, minute }) => {
+        toast.warning(
+          `${playerName || 'この選手'}には${fmtMinuteLabel(minute)}分${direction === 'in' ? 'IN' : 'OUT'}の交代イベントが残っています。必要に応じて試合イベントを修正してください。`
+        );
+      });
+    },
+    [watchedEvents]
+  );
+
+  // 新ロールと整合する交代イベント由来値 or ロール既定値
+  const minutesForRole = useCallback(
+    (playerId: string, newRole: 'starter' | 'sub'): number =>
+      newRole === 'starter'
+        ? (derivedStarterMinutes.get(playerId) ?? matchDuration)
+        : (derivedBenchMinutes.get(playerId) ?? 0),
+    [derivedStarterMinutes, derivedBenchMinutes, matchDuration]
+  );
 
   // Automatically calculate and update minutesPlayed based on substitution events and matchDuration
   // Only recalc when minutes-relevant data actually changed since load (lineup members or
@@ -388,6 +439,8 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     const currentPlayerId = String(currentRow?.playerId || '');
 
     if (!nextPlayerId) {
+      // イベント参照中の選手は完全削除をブロック（配置変更は許可）
+      if (blockIfReferenced(currentPlayerId)) return;
       remove(globalIndex);
       return;
     }
@@ -408,8 +461,25 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
           starterSlot: otherRow?.starterSlot,
         };
 
-        update(globalIndex, { ...otherRow, ...keepA } as any);
-        update(otherIndex, { ...currentRow, ...keepB } as any);
+        // 行スワップ（両者とも試合メンバーに残るためイベント有無に関わらず許可）
+        // minutesPlayed はロール変更時のみイベント基準で再導出する
+        const newRoleOther = (keepA.role ?? 'starter') as 'starter' | 'sub';
+        const newRoleCurrent = (keepB.role ?? 'starter') as 'starter' | 'sub';
+        const otherRoleChanged = (otherRow?.role ?? 'starter') !== newRoleOther;
+        const currentRoleChanged = (currentRow?.role ?? 'starter') !== newRoleCurrent;
+
+        update(globalIndex, {
+          ...otherRow,
+          ...keepA,
+          ...(otherRoleChanged ? { minutesPlayed: minutesForRole(String(otherRow?.playerId || ''), newRoleOther) } : {}),
+        } as any);
+        update(otherIndex, {
+          ...currentRow,
+          ...keepB,
+          ...(currentRoleChanged ? { minutesPlayed: minutesForRole(String(currentRow?.playerId || ''), newRoleCurrent) } : {}),
+        } as any);
+        if (otherRoleChanged) warnInconsistentSubEvents(String(otherRow?.playerId || ''), otherRow?.playerName, newRoleOther);
+        if (currentRoleChanged) warnInconsistentSubEvents(String(currentRow?.playerId || ''), currentRow?.playerName, newRoleCurrent);
         return;
       }
 
@@ -419,6 +489,9 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
     const player = allPlayers.find((p) => p.id === nextPlayerId);
     if (!player) return;
+
+    // 未登録選手への置き換えは旧選手の削除相当 → イベント参照中ならブロック
+    if (blockIfReferenced(currentPlayerId)) return;
 
     const base = {
       playerId: player.id,
@@ -449,6 +522,8 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
     if (!nextPlayerId) {
       if (existingInSlotIndex !== -1) {
+        // イベント参照中の選手は完全削除をブロック（配置変更は許可）
+        if (blockIfReferenced(String((existingInSlot as any)?.playerId || ''))) return;
         remove(existingInSlotIndex);
       }
       return;
@@ -471,22 +546,40 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
           starterSlot: otherRow?.starterSlot,
         };
 
-        update(existingInSlotIndex, { ...otherRow, ...keepA } as any);
-        update(otherIndex, { ...currentRow, ...keepB } as any);
+        // 行スワップ（両者とも試合メンバーに残るためイベント有無に関わらず許可）
+        // minutesPlayed はロール変更時のみイベント基準で再導出する
+        const newRoleOther = (keepA.role ?? 'starter') as 'starter' | 'sub';
+        const newRoleCurrent = (keepB.role ?? 'starter') as 'starter' | 'sub';
+        const otherRoleChanged = (otherRow?.role ?? 'starter') !== newRoleOther;
+        const currentRoleChanged = (currentRow?.role ?? 'starter') !== newRoleCurrent;
+
+        update(existingInSlotIndex, {
+          ...otherRow,
+          ...keepA,
+          ...(otherRoleChanged ? { minutesPlayed: minutesForRole(String(otherRow?.playerId || ''), newRoleOther) } : {}),
+        } as any);
+        update(otherIndex, {
+          ...currentRow,
+          ...keepB,
+          ...(currentRoleChanged ? { minutesPlayed: minutesForRole(String(currentRow?.playerId || ''), newRoleCurrent) } : {}),
+        } as any);
+        if (otherRoleChanged) warnInconsistentSubEvents(String(otherRow?.playerId || ''), otherRow?.playerName, newRoleOther);
+        if (currentRoleChanged) warnInconsistentSubEvents(String(currentRow?.playerId || ''), currentRow?.playerName, newRoleCurrent);
         return;
       }
 
       if (otherIndex !== -1 && existingInSlotIndex === -1) {
         // ベンチ登録済みの選手を空きスタメン枠へ昇格する。
-        // 交代INイベントがある選手はその出場分を、なければフル出場とする。
+        // OUTイベントと整合する出場時間 or 既定値（試合時間）。
+        // INイベントが残る場合は論理矛盾のため既定値を採用し警告する。
         const otherRow = watch(`playerStats.${otherIndex}`) as Record<string, unknown> | undefined;
-        const promotedMinutes = derivedBenchMinutes.get(nextPlayerId) ?? matchDuration;
         update(otherIndex, {
           ...otherRow,
           role: 'starter',
           starterSlot: slot,
-          minutesPlayed: promotedMinutes,
+          minutesPlayed: minutesForRole(nextPlayerId, 'starter'),
         });
+        warnInconsistentSubEvents(nextPlayerId, String(otherRow?.playerName || ''), 'starter');
         return;
       }
 
@@ -496,6 +589,9 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
     const player = allPlayers.find((p) => p.id === nextPlayerId);
     if (!player) return;
+
+    // 未登録選手への置き換えは旧選手の削除相当 → イベント参照中ならブロック
+    if (existingInSlotIndex !== -1 && blockIfReferenced(String((existingInSlot as any)?.playerId || ''))) return;
 
     const base = {
       playerId: player.id,
@@ -528,11 +624,9 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
   const renderPitchSlot = (slot: number) => {
     const slotField = starters.find((f) => (f as any).starterSlot === slot);
     const currentPlayerId = (slotField as any)?.playerId || '';
-    const hasEvents = Array.isArray(watchedEvents) && watchedEvents.length > 0;
-    // イベント記録後も「空きスロットへの選手登録」は許可する。
-    // ロックするのは登録済み選手の入れ替え・削除のみ
-    // （交代イベントが登録済み選手を参照するため、既存枠の変更を防ぐ）。
-    const slotLocked = hasEvents && Boolean(currentPlayerId);
+    // イベント記録後も配置変更（入れ替え・ポジション・フォーメーション）は許可。
+    // ブロックするのは「イベント参照中選手の試合メンバーからの完全削除」のみ
+    // （blockIfReferenced が各操作経路で判定する）。
     const options = sortedAllPlayers.filter((p) => {
       const isCurrentPlayer = p.id === currentPlayerId;
       const isBench = bench.some(b => (b as any).playerId === p.id || b.id === p.id);
@@ -554,7 +648,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     const ratingValue = hasRating ? ratingNumber.toFixed(1) : '-';
     const pos = pitchSlots[slot];
 
-    const selectOverlay = !slotLocked ? (
+    const selectOverlay = (
       <>
         <button
           type="button"
@@ -589,7 +683,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
           ))}
         </select>
       </>
-    ) : null;
+    );
 
     const ratingOverlay = player ? (
       <select
@@ -752,7 +846,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
         </LineupPitch>
         <div className="mt-2 px-4 sm:px-0">
           {Array.isArray(watchedEvents) && watchedEvents.length > 0 ? (
-            <p className="text-center text-xs font-semibold text-amber-400">⚠️ イベント記録後は登録済み選手の入れ替え・削除不可（空き枠への登録は可）</p>
+            <p className="text-center text-xs font-semibold text-slate-500">タップで選手を追加 / 変更 / 削除（イベント登録済みの選手は試合メンバーから削除できません）</p>
           ) : (
             <p className="text-center text-xs font-semibold text-slate-500">タップで選手を追加 / 変更 / 削除</p>
           )}
