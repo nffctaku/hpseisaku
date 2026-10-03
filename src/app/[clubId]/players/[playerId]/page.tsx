@@ -15,6 +15,7 @@ import { PublicPlayerOverallBySeasonChart } from "@/components/public-player-ove
 import { PublicPlayerSeasonSummaries } from "@/components/public-player-season-summaries";
 import { cache, Suspense } from "react";
 import type { CSSProperties } from "react";
+import { isOwnTeamId } from "@/lib/public-own-team";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 export const revalidate = 300;
@@ -372,9 +373,9 @@ function scorePlayerDocSeasonMatch(data: any, preferredSeasons: string[]): numbe
   return hits * 10_000_000;
 }
 
-async function findBestPlayerDoc(ownerUid: string, playerId: string, preferredSeasons?: string[], preferredTeamIds?: string[]): Promise<any | null> {
+async function findBestPlayerDoc(ownerUid: string, playerId: string, preferredSeasons?: string[], preferredTeamIds?: string[]): Promise<{ teamId: string; data: any } | null> {
   const teamsSnap = await db.collection(`clubs/${ownerUid}/teams`).get();
-  let best: { score: number; data: any } | null = null;
+  let best: { score: number; teamId: string; data: any } | null = null;
 
   const preferred = Array.isArray(preferredSeasons) ? preferredSeasons : [];
   const preferredTeams = Array.isArray(preferredTeamIds) ? preferredTeamIds : [];
@@ -395,11 +396,11 @@ async function findBestPlayerDoc(ownerUid: string, playerId: string, preferredSe
     const score = scorePlayerDocForPublic(data) + seasonMatchScore + teamMatchScore;
 
     if (!best || score > best.score) {
-      best = { score, data };
+      best = { score, teamId: c.teamId, data };
     }
   }
 
-  return best?.data ?? null;
+  return best ? { teamId: best.teamId, data: best.data } : null;
 }
 
 async function getRegisteredSeasonIds(ownerUid: string, playerId: string, playerSeasons: string[] | undefined): Promise<string[]> {
@@ -1091,6 +1092,7 @@ async function getPlayerRaw(
 } | null> {
   let clubName = clubId;
   let ownerUid: string | null = null;
+  let mainTeamId: string | null = null;
   let legalPages: LegalPageItem[] = [];
   let gameTeamUsage = false;
   let displaySettings: { playerProfileLatest?: boolean } = {};
@@ -1101,6 +1103,7 @@ async function getPlayerRaw(
   if (resolved) {
     const data = resolved.profileData as any;
     ownerUid = resolved.ownerUid;
+    mainTeamId = typeof (data as any).mainTeamId === "string" ? (data as any).mainTeamId : null;
     clubName = data.clubName || clubName;
     gameTeamUsage = Boolean((data as any).gameTeamUsage);
     homeBgColor = typeof (data as any).homeBgColor === "string" ? (data as any).homeBgColor : undefined;
@@ -1129,20 +1132,35 @@ async function getPlayerRaw(
 
   // まず roster 由来の teamId が取れるなら、そのチームの players を直参照する
   let player: any | null = null;
+  let resolvedTeamId = "";
   if (rosterTeamId) {
     const snap = await db.doc(`clubs/${ownerUid}/teams/${rosterTeamId}/players/${playerId}`).get();
-    if (snap.exists) player = snap.data() as any;
+    if (snap.exists) {
+      player = snap.data() as any;
+      resolvedTeamId = rosterTeamId;
+    }
   }
 
   // 直参照で取れない場合は、従来のスコアリングでfallback
   if (!player) {
     const preferredSeasons = await getRosterSeasonIdsOnly(ownerUid, playerId);
     const preferredTeams = await getPreferredTeamIdsFromRoster(ownerUid, playerId);
-    player = await findBestPlayerDoc(ownerUid, playerId, preferredSeasons, preferredTeams);
+    const best = await findBestPlayerDoc(ownerUid, playerId, preferredSeasons, preferredTeams);
+    if (best) {
+      player = best.data;
+      resolvedTeamId = best.teamId;
+    }
   }
 
   // roster側にプレイヤー情報が入っている場合は不足分を補完（体重/利き足など）
   const mergedPlayer = rosterData && player ? (mergeWithoutUndefined(rosterData, player) as any) : player ?? rosterData;
+
+  // 対戦相手チームの選手は公開の選手名鑑に含めない（詳細ページも404）。
+  // 試合記録上の参照用にデータ自体は保持する。
+  const effectiveTeamId = resolvedTeamId || rosterTeamId;
+  if (mergedPlayer && ownerUid && !(await isOwnTeamId(db, ownerUid, mainTeamId, effectiveTeamId))) {
+    return null;
+  }
 
   if (mergedPlayer) {
     return {

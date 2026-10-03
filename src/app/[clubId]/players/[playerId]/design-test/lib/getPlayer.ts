@@ -1,5 +1,6 @@
 import { db } from "@/lib/firebase/admin";
 import { unstable_cache } from "next/cache";
+import { isOwnTeamId } from "@/lib/public-own-team";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 
 import { toSlashSeason } from "./season";
@@ -135,9 +136,9 @@ async function findBestPlayerDoc(
   playerId: string,
   preferredSeasons?: string[],
   preferredTeamIds?: string[]
-): Promise<any | null> {
+): Promise<{ teamId: string; data: any } | null> {
   const teamsSnap = await db.collection(`clubs/${ownerUid}/teams`).get();
-  let best: { score: number; data: any } | null = null;
+  let best: { score: number; teamId: string; data: any } | null = null;
 
   const preferred = Array.isArray(preferredSeasons) ? preferredSeasons : [];
   const preferredTeams = Array.isArray(preferredTeamIds) ? preferredTeamIds : [];
@@ -158,11 +159,11 @@ async function findBestPlayerDoc(
     const score = scorePlayerDocForPublic(data) + seasonMatchScore + teamMatchScore;
 
     if (!best || score > best.score) {
-      best = { score, data };
+      best = { score, teamId: c.teamId, data };
     }
   }
 
-  return best?.data ?? null;
+  return best ? { teamId: best.teamId, data: best.data } : null;
 }
 
 async function getPlayerRaw(
@@ -171,6 +172,7 @@ async function getPlayerRaw(
 ): Promise<{ clubName: string; player: any; ownerUid: string; legalPages: LegalPageItem[]; gameTeamUsage: boolean; publicPlayerParamsEnabled?: boolean } | null> {
   let clubName = clubId;
   let ownerUid: string | null = null;
+  let mainTeamId: string | null = null;
   let legalPages: LegalPageItem[] = [];
   let gameTeamUsage = false;
   let publicPlayerParamsEnabled: boolean | undefined = undefined;
@@ -180,6 +182,7 @@ async function getPlayerRaw(
   if (resolved) {
     const data = resolved.profileData as any;
     ownerUid = resolved.ownerUid;
+    mainTeamId = typeof (data as any).mainTeamId === "string" ? (data as any).mainTeamId : null;
     clubName = data.clubName || clubName;
     gameTeamUsage = Boolean((data as any).gameTeamUsage);
     if (typeof (data as any).publicPlayerParamsEnabled === "boolean") {
@@ -204,18 +207,33 @@ async function getPlayerRaw(
   const rosterTeamId = typeof (rosterData as any)?.teamId === "string" ? String((rosterData as any).teamId).trim() : "";
 
   let player: any | null = null;
+  let resolvedTeamId = "";
   if (rosterTeamId) {
     const snap = await db.doc(`clubs/${ownerUid}/teams/${rosterTeamId}/players/${playerId}`).get();
-    if (snap.exists) player = snap.data() as any;
+    if (snap.exists) {
+      player = snap.data() as any;
+      resolvedTeamId = rosterTeamId;
+    }
   }
 
   if (!player) {
     const preferredSeasons = await getRosterSeasonIdsOnly(ownerUid, playerId);
     const preferredTeams = await getPreferredTeamIdsFromRoster(ownerUid, playerId);
-    player = await findBestPlayerDoc(ownerUid, playerId, preferredSeasons, preferredTeams);
+    const best = await findBestPlayerDoc(ownerUid, playerId, preferredSeasons, preferredTeams);
+    if (best) {
+      player = best.data;
+      resolvedTeamId = best.teamId;
+    }
   }
 
   const mergedPlayer = rosterData && player ? (mergeWithoutUndefined(rosterData, player) as any) : player ?? rosterData;
+
+  // 対戦相手チームの選手は公開の選手名鑑に含めない（詳細ページも404）。
+  // 試合記録上の参照用にデータ自体は保持する。
+  const effectiveTeamId = resolvedTeamId || rosterTeamId;
+  if (mergedPlayer && ownerUid && !(await isOwnTeamId(db, ownerUid, mainTeamId, effectiveTeamId))) {
+    return null;
+  }
 
   if (mergedPlayer) {
     return {

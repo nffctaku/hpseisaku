@@ -6,6 +6,7 @@ import { ClubHeader } from "@/components/club-header";
 import { ClubFooter } from "@/components/club-footer";
 import { toDashSeason, toSlashSeason, resolveSeasonScopedNumber, normalizeSeasonNumber } from "@/lib/season";
 import { pickPlayerPhotoUrl } from "@/lib/player-photo";
+import { resolveOwnTeamIds } from "@/lib/public-own-team";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
 import { lightenColor } from "@/lib/utils";
 
@@ -223,19 +224,29 @@ async function getPlayersData(
   }
 
   // 選手データもまず clubs/{ownerUid}/teams/*/players を見て、なければ clubs/{clubId}/teams を見る
-  let teamsSnap = await db.collection(`clubs/${baseClubDocId}/teams`).get();
-  if (teamsSnap.empty && baseClubDocId !== clubId) {
-    teamsSnap = await db.collection(`clubs/${clubId}/teams`).get();
+  let teamsClubDocId = baseClubDocId;
+  let teamsSnap = await db.collection(`clubs/${teamsClubDocId}/teams`).get();
+  if (teamsSnap.empty && teamsClubDocId !== clubId) {
+    teamsClubDocId = clubId;
+    teamsSnap = await db.collection(`clubs/${teamsClubDocId}/teams`).get();
   }
   const players: Player[] = [];
   const staff: Staff[] = [];
 
+  // 公開選手名鑑は自クラブの選手のみ。対戦相手チームも同じ teams 配下に保存されるため、
+  // mainTeamId / isMain / 旧形式(teamId===ルートID) で自チームを識別して走査範囲を限定する。
+  // 自チームが識別できないクラブでは対戦相手選手の混入を避けるため何も表示しない。
+  const ownTeamIds = resolveOwnTeamIds(teamsSnap, teamsClubDocId, mainTeamId);
+
   const perTeamData = await Promise.all(
-    teamsSnap.docs.map(async (teamDoc) => {
-      const teamPlayersRef = teamDoc.ref.collection("players").orderBy("number", "asc");
-      const teamPlayersSnap = await teamPlayersRef.get();
-      const teamStaffRef = teamDoc.ref.collection("staff");
-      const teamStaffSnap = await teamStaffRef.get();
+    ownTeamIds.map(async (ownTeamId) => {
+      const teamPlayersSnap = await db
+        .collection(`clubs/${teamsClubDocId}/teams/${ownTeamId}/players`)
+        .orderBy("number", "asc")
+        .get();
+      const teamStaffSnap = await db
+        .collection(`clubs/${teamsClubDocId}/teams/${ownTeamId}/staff`)
+        .get();
 
       const players = teamPlayersSnap.docs.map((pDoc) => {
         const data = pDoc.data() as any;
@@ -272,7 +283,7 @@ async function getPlayersData(
         
         console.log("[PlayersPage] player data from Firestore", {
           playerId: pDoc.id,
-          teamId: teamDoc.id,
+          teamId: ownTeamId,
           hasSeasonData: !!data?.seasonData,
           seasonDataKeys: data?.seasonData ? Object.keys(data.seasonData) : [],
           seasonDataSample: data?.seasonData ? (Object.entries(data.seasonData as any).slice(0, 1).reduce((acc: any, [k, v]) => ({ ...acc, [k]: typeof v === 'object' ? Object.keys(v as any) : typeof v }), {}) as any) : {},
@@ -282,14 +293,14 @@ async function getPlayersData(
         });
         return {
           id: pDoc.id,
-          __teamId: teamDoc.id,
+          __teamId: ownTeamId,
           ...data,
         };
       }) as Player[];
 
       const staff = teamStaffSnap.docs.map((sDoc) => ({
         id: sDoc.id,
-        __teamId: teamDoc.id,
+        __teamId: ownTeamId,
         ...(sDoc.data() as any),
       })) as Staff[];
 
