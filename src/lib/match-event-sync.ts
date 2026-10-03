@@ -16,6 +16,13 @@ import {
 } from 'firebase/firestore';
 import { recomputeTeamMinutes } from './match-minutes';
 import { deriveEventPlayerCounts, buildNameToIdFromStats } from './match-event-stats';
+import {
+  buildPlayerNameResolver,
+  eventDeletedKeyVariants,
+  withResolvedSubPlayerIds,
+  type DedupKeyLike,
+  type PlayerNameResolver,
+} from './match-event-resolve';
 
 export interface MatchEventInput {
   id: string;
@@ -76,20 +83,27 @@ export const recomputeDerivedEventStats = (
 };
 
 // Mirror doc descriptors for one array event.
-export function mirrorDocsForEvent(ev: MatchEventInput): { id: string; data: Record<string, unknown> }[] {
+// resolvePlayer が渡された場合、ID未紐付け（名前のみ）の交代選手を
+// 一意一致のみ playerId に解決してからミラーを生成する（曖昧・0件は据え置き）。
+export function mirrorDocsForEvent(
+  ev: MatchEventInput,
+  resolvePlayer?: PlayerNameResolver
+): { id: string; data: Record<string, unknown> }[] {
   const base = { minute: ev.minute, teamId: ev.teamId, timestamp: serverTimestamp() };
   if (ev.type === 'substitution') {
+    const outId = ev.outPlayerId || resolvePlayer?.(ev.outPlayerName, ev.teamId);
+    const inId = ev.inPlayerId || resolvePlayer?.(ev.inPlayerName, ev.teamId);
     const docs: { id: string; data: Record<string, unknown> }[] = [];
-    if (ev.outPlayerId) {
+    if (outId) {
       docs.push({
         id: `sub-${ev.id}-out`,
-        data: stripUndefined({ ...base, type: 'sub_out', playerId: ev.outPlayerId, playerName: ev.outPlayerName || '' }),
+        data: stripUndefined({ ...base, type: 'sub_out', playerId: outId, playerName: ev.outPlayerName || '' }),
       });
     }
-    if (ev.inPlayerId) {
+    if (inId) {
       docs.push({
         id: `sub-${ev.id}-in`,
-        data: stripUndefined({ ...base, type: 'sub_in', playerId: ev.inPlayerId, playerName: ev.inPlayerName || '' }),
+        data: stripUndefined({ ...base, type: 'sub_in', playerId: inId, playerName: ev.inPlayerName || '' }),
       });
     }
     return docs;
@@ -141,24 +155,36 @@ export async function appendMatchEvent(
     const curEvents: Record<string, unknown>[] = Array.isArray(data.events) ? data.events : [];
     const curStats: Record<string, unknown>[] = Array.isArray(data.playerStats) ? data.playerStats : [];
     const duration = typeof data.matchDuration === 'number' ? data.matchDuration : 90;
+    const resolvePlayer = buildPlayerNameResolver(curStats);
 
-    const cleanEvent = stripUndefined(event) as unknown as Record<string, unknown>;
+    // 名前のみ交代は一意一致のみ playerId を補完してから保存する
+    const resolvedEvent = withResolvedSubPlayerIds(event as unknown as Record<string, unknown>, resolvePlayer);
+    const cleanEvent = stripUndefined(resolvedEvent) as Record<string, unknown>;
     // Idempotency: same event id already present → don't duplicate.
     if (!curEvents.some((e) => e && e.id === cleanEvent.id)) {
       curEvents.push(cleanEvent);
     }
     const payload: Record<string, unknown> = { events: curEvents };
 
+    // 削除済みOCRイベントのtombstone: 同一dedup keyのイベントが
+    // 手動等で再追加された場合はtombstoneを解除する（OCR経路のみブロック対象）
+    const deletedKeys: string[] = Array.isArray(data.ocrDeletedEventKeys) ? data.ocrDeletedEventKeys : [];
+    const variants = eventDeletedKeyVariants(cleanEvent as DedupKeyLike);
+    const undelete = variants.filter((k) => deletedKeys.includes(k));
+    if (undelete.length) {
+      payload.ocrDeletedEventKeys = deletedKeys.filter((k) => !undelete.includes(k));
+    }
+
     // ゴール/カード等の追加でも公開SQUAD集計が参照する playerStats を更新する。
     // （従来は交代の出場時間のみ更新しており、得点者がSQUADに反映されなかった）
     let nextStats = recomputeDerivedEventStats(curStats, curEvents);
     if (event.type === 'substitution') {
-      nextStats = recomputeTeamMinutes(nextStats, curEvents, event.teamId, duration);
+      nextStats = recomputeTeamMinutes(nextStats, curEvents, event.teamId, duration, resolvePlayer);
     }
     payload.playerStats = nextStats;
 
     tx.set(matchRef, payload, { merge: true });
-    for (const m of mirrorDocsForEvent(event)) {
+    for (const m of mirrorDocsForEvent(cleanEvent as unknown as MatchEventInput, resolvePlayer)) {
       tx.set(doc(db, eventsCol, m.id), m.data, { merge: true });
     }
   });
@@ -186,18 +212,39 @@ export async function removeMatchEvent(
 
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(matchRef);
+    const mirrorSnap = await tx.get(eventDocRef);
     const data = snap.data() || {};
     const curEvents: Record<string, unknown>[] = Array.isArray(data.events) ? data.events : [];
     const curStats: Record<string, unknown>[] = Array.isArray(data.playerStats) ? data.playerStats : [];
     const duration = typeof data.matchDuration === 'number' ? data.matchDuration : 90;
+    const resolvePlayer = buildPlayerNameResolver(curStats);
 
     const removed = curEvents.find((e) => e && e.id === link.eventId);
     const nextEvents = curEvents.filter((e) => !(e && e.id === link.eventId));
     const payload: Record<string, unknown> = { events: nextEvents };
+    // OCR由来イベントの明示的な削除を tombstone として記録。
+    // 別analysisIdの再解析でも applyOcrResults が復活させないための印。
+    // （手動追加はこのチェックを通らないため妨げない）
+    if (removed?.source === 'ocr') {
+      const deletedKeys: string[] = Array.isArray(data.ocrDeletedEventKeys) ? data.ocrDeletedEventKeys : [];
+      const next = [...new Set([...deletedKeys, ...eventDeletedKeyVariants(removed as DedupKeyLike)])];
+      if (next.length !== deletedKeys.length) payload.ocrDeletedEventKeys = next;
+    }
     // 削除でも導出スタッツを再計算（ゴール削除→得点減算、カード削除→警告減算）
     let nextStats = recomputeDerivedEventStats(curStats, nextEvents);
-    if (removed?.type === 'substitution' && typeof removed.teamId === 'string') {
-      nextStats = recomputeTeamMinutes(nextStats, nextEvents, removed.teamId, duration);
+    const mirrorType = (mirrorSnap.data() as Record<string, unknown> | undefined)?.type;
+    const mirrorTeamId = (mirrorSnap.data() as Record<string, unknown> | undefined)?.teamId;
+    // 交代削除（配列イベント or 孤児ミラー）→ そのチームの出場時間を再計算。
+    // 配列に対応イベントが無い孤児ミラーでも、events配列が正なら
+    // recompute はイベント由来の値へ修復する（stale minutes の残存防止）。
+    const subTeamId =
+      removed?.type === 'substitution' && typeof removed.teamId === 'string'
+        ? removed.teamId
+        : (mirrorType === 'sub_out' || mirrorType === 'sub_in') && typeof mirrorTeamId === 'string'
+          ? mirrorTeamId
+          : null;
+    if (subTeamId) {
+      nextStats = recomputeTeamMinutes(nextStats, nextEvents, subTeamId, duration, resolvePlayer);
     }
     payload.playerStats = nextStats;
 

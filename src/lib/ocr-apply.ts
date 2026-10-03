@@ -20,6 +20,12 @@ import {
 } from 'firebase/firestore';
 import { recomputeTeamMinutes } from './match-minutes';
 import { mirrorDocsForEvent, type MatchEventInput } from './match-event-sync';
+import {
+  buildPlayerNameResolver,
+  eventDedupKey,
+  eventDeletedKeyVariants,
+  withResolvedSubPlayerIds,
+} from './match-event-resolve';
 
 export interface OcrApplyEvent {
   id: string;
@@ -67,6 +73,8 @@ export interface OcrApplyResult {
   pkMissExcluded: number;
   /** 時刻・チームが未確定で保存対象から除外した件数 */
   invalidExcluded: number;
+  /** ユーザーが削除済みのOCRイベント（tombstone一致）で除外した件数 */
+  deletedExcluded: number;
 }
 
 const stripUndefined = <T>(v: T): T => {
@@ -86,18 +94,6 @@ const YELLOW = (e: any) =>
   e.type === 'card' ? e.cardColor === 'yellow' : e.type === 'yellow';
 const RED = (e: any) =>
   e.type === 'card' ? e.cardColor === 'red' : e.type === 'red';
-
-// イベントの重複判定キー。タイムスタンプ由来のIDは使わない。
-// 選手は playerId 優先、なければ正規化済み表示名で比較する。
-function eventDedupKey(ev: { type?: string; minute?: unknown; teamId?: string | null; playerId?: string; playerName?: string; outPlayerId?: string; inPlayerId?: string; outPlayerName?: string; inPlayerName?: string }): string {
-  const norm = (s?: string) => (s || '').replace(/[\s　.．・=＝‐\-]/g, '').toLowerCase();
-  const minuteStr = String(ev.minute ?? '');
-  const player = ev.playerId || norm(ev.playerName);
-  if (ev.type === 'substitution') {
-    return `sub|${minuteStr}|${ev.teamId}|${ev.outPlayerId || norm(ev.outPlayerName)}|${ev.inPlayerId || norm(ev.inPlayerName)}`;
-  }
-  return `${ev.type}|${minuteStr}|${ev.teamId}|${player}`;
-}
 
 // 保存可能なイベント時刻か。null・0・解釈不能な値は false。
 // 0はnullの代替値として使わない（キックオフ時刻=0分のイベントは存在しない）。
@@ -123,7 +119,8 @@ export function ocrMinuteSortKey(m: unknown): number {
 function recomputeDerivedStats(
   playerStats: any[],
   events: any[],
-  matchDuration: number
+  matchDuration: number,
+  resolvePlayer?: Parameters<typeof recomputeTeamMinutes>[4]
 ): any[] {
   const goalCounts = new Map<string, number>();
   const assistCounts = new Map<string, number>();
@@ -163,7 +160,7 @@ function recomputeDerivedStats(
     events.filter((e) => e?.type === 'substitution' && e?.teamId).map((e) => e.teamId)
   );
   subTeamIds.forEach((teamId) => {
-    next = recomputeTeamMinutes(next, events, teamId, matchDuration);
+    next = recomputeTeamMinutes(next, events, teamId, matchDuration, resolvePlayer);
   });
   return next;
 }
@@ -193,12 +190,19 @@ export async function applyOcrResults(
     // 冪等: 同一 analysisId の適用済みならスキップ
     const applied = (data.ocrApplied || {}) as Record<string, unknown>;
     if (applied[payload.analysisId]) {
-      return { applied: false, skippedDuplicate: true, eventsAdded: 0, eventsSkipped: 0, pkMissExcluded: 0, invalidExcluded: 0 };
+      return { applied: false, skippedDuplicate: true, eventsAdded: 0, eventsSkipped: 0, pkMissExcluded: 0, invalidExcluded: 0, deletedExcluded: 0 };
     }
 
     const curEvents: any[] = Array.isArray(data.events) ? data.events : [];
     const curStats: any[] = Array.isArray(data.playerStats) ? data.playerStats : [];
     const duration = typeof data.matchDuration === 'number' ? data.matchDuration : 90;
+    // 名前のみ交代のID一意解決（dedup keyをID付き形式に揃えるため先に解決する）
+    const resolvePlayer = buildPlayerNameResolver(curStats);
+    // ユーザーが削除したOCR由来イベントの tombstone（dedup key形式・名前形式の両方を記録）。
+    // analysisId が変わった再解析でも復活させない。手動追加はこの経路を通らないため妨げない。
+    const deletedKeys = new Set<string>(
+      Array.isArray(data.ocrDeletedEventKeys) ? data.ocrDeletedEventKeys : []
+    );
 
     // 重複統合: 既存+新規の dedup key 集合
     const existingKeys = new Set(curEvents.map(eventDedupKey));
@@ -206,6 +210,7 @@ export async function applyOcrResults(
     let skipped = 0;
     let pkMissExcluded = 0;
     let invalidExcluded = 0;
+    let deletedExcluded = 0;
     for (const ev of payload.events || []) {
       // PK失敗（ボール+×）は最新仕様では試合イベントへ保存しない。
       // unknown由来のnoteも登録対象外。
@@ -229,17 +234,25 @@ export async function applyOcrResults(
         invalidExcluded += 1;
         continue;
       }
-      const key = eventDedupKey(ev);
+      // ID未紐付けの交代は一意一致のみ playerId を補完してからキー判定する
+      // （削除時にID付きで保存されていたイベントとの tombstone 照合を一致させる）
+      const resolvedEv = withResolvedSubPlayerIds(ev as unknown as Record<string, unknown>, resolvePlayer) as unknown as OcrApplyEvent;
+      // tombstone（ID形式・名前形式どちらのキーでも一致すれば削除済みとみなす）
+      if (eventDeletedKeyVariants(resolvedEv).some((k) => deletedKeys.has(k))) {
+        deletedExcluded += 1;
+        continue;
+      }
+      const key = eventDedupKey(resolvedEv);
       if (existingKeys.has(key)) {
         skipped += 1;
         continue;
       }
       existingKeys.add(key);
-      newEvents.push({ ...ev, source: ev.source || 'ocr' });
+      newEvents.push({ ...resolvedEv, source: ev.source || 'ocr' });
     }
 
     const nextEvents = [...curEvents, ...newEvents.map((e) => stripUndefined(e as unknown as Record<string, unknown>))];
-    const nextStats = recomputeDerivedStats(curStats, nextEvents, duration);
+    const nextStats = recomputeDerivedStats(curStats, nextEvents, duration, resolvePlayer);
 
     // 評価点の適用（確認済み・数値のみ）
     let statsWithRatings = nextStats;
@@ -267,7 +280,7 @@ export async function applyOcrResults(
 
     // eventsサブコレクションのミラー（新規追加分のみ）
     for (const ev of newEvents) {
-      for (const m of mirrorDocsForEvent(ev as MatchEventInput)) {
+      for (const m of mirrorDocsForEvent(ev as MatchEventInput, resolvePlayer)) {
         tx.set(doc(db, eventsColPath, m.id), m.data, { merge: true });
       }
     }
@@ -279,6 +292,7 @@ export async function applyOcrResults(
       eventsSkipped: skipped,
       pkMissExcluded,
       invalidExcluded,
+      deletedExcluded,
     };
   });
 }

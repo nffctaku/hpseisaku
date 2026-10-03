@@ -38,6 +38,11 @@ import {
 } from 'firebase/firestore';
 import { recomputeTeamMinutes } from './match-minutes';
 import { mirrorDocsForEvent, type MatchEventInput } from './match-event-sync';
+import {
+  buildPlayerNameResolver,
+  eventDeletedKeyVariants,
+  withResolvedSubPlayerIds,
+} from './match-event-resolve';
 
 // Firestore rejects undefined values — strip them recursively.
 // フォーム値（未設定の playerId / assistPlayerId 等）に undefined キーが残るため必須。
@@ -128,6 +133,31 @@ export async function commitSquadSave(
 
     const merged = mergeSquadSave(args.form, args.loaded, latestSnapshot);
 
+    // 名前のみ交代は一意一致のみ playerId を補完（0件/複数一致は据え置き）
+    const resolvePlayer = buildPlayerNameResolver(merged.playerStats);
+    merged.events = (merged.events || []).map((ev) =>
+      ev?.type === 'substitution' ? withResolvedSubPlayerIds(ev, resolvePlayer) : ev
+    );
+
+    // OCR由来イベントの削除 tombstone:
+    //  - 最新docにありマージ結果に無い source==='ocr' のイベント → tombstone追加
+    //    （別analysisIdでのOCR再適用による復活を防ぐ。手動追加は妨げない）
+    //  - tombstone済みと同一dedup keyのイベントが結果に存在 → tombstone解除
+    const mergedIds = new Set(merged.events.map((e) => e?.id).filter(Boolean));
+    const prevDeleted: string[] = Array.isArray(latest.ocrDeletedEventKeys)
+      ? latest.ocrDeletedEventKeys
+      : [];
+    const removedOcrKeys = latestSnapshot.events
+      .filter((e) => e && e.id && !mergedIds.has(e.id) && e.source === 'ocr')
+      .flatMap((e) => eventDeletedKeyVariants(e));
+    const mergedKeys = new Set(merged.events.flatMap((e) => eventDeletedKeyVariants(e)));
+    const nextDeleted = [
+      ...new Set(prevDeleted.filter((k) => !mergedKeys.has(k)).concat(removedOcrKeys)),
+    ];
+    const deletedChanged =
+      nextDeleted.length !== prevDeleted.length ||
+      nextDeleted.some((k, i) => prevDeleted[i] !== k);
+
     // マージ後イベントで導出カウントを再計算
     const goalCounts = new Map<string, number>();
     const assistCounts = new Map<string, number>();
@@ -168,14 +198,19 @@ export async function commitSquadSave(
           : (args.fallbackDuration ?? 90));
 
     // 交代イベントがロード時から変化していれば出場時間を再計算
-    if (subEventsSignature(merged.events) !== subEventsSignature(args.loaded.events)) {
+    // （名前のみイベントは resolver で一意一致のみID解決してから判定）
+    const loadedResolved = (args.loaded.events || []).map((ev) =>
+      ev?.type === 'substitution' ? withResolvedSubPlayerIds(ev, resolvePlayer) : ev
+    );
+    if (subEventsSignature(merged.events) !== subEventsSignature(loadedResolved)) {
       const teamIds = new Set(mergedPlayerStats.map((ps: any) => ps?.teamId).filter(Boolean));
       teamIds.forEach((teamId) => {
         mergedPlayerStats = recomputeTeamMinutes(
           mergedPlayerStats,
           merged.events,
           teamId as string,
-          matchDuration
+          matchDuration,
+          resolvePlayer
         );
       });
     }
@@ -201,12 +236,13 @@ export async function commitSquadSave(
     };
     if (merged.homeFormation !== undefined) payload.homeFormation = merged.homeFormation;
     if (merged.awayFormation !== undefined) payload.awayFormation = merged.awayFormation;
+    if (deletedChanged) payload.ocrDeletedEventKeys = nextDeleted;
     tx.set(matchRef, stripUndefined(payload), { merge: true });
 
     // ミラーサブコレクションを同一トランザクションで整合
     const desiredIds = new Set<string>();
     merged.events.forEach((ev: any) => {
-      for (const m of mirrorDocsForEvent(ev as MatchEventInput)) {
+      for (const m of mirrorDocsForEvent(ev as MatchEventInput, resolvePlayer)) {
         desiredIds.add(m.id);
         tx.set(doc(db, eventsColPath, m.id), m.data, { merge: true });
       }

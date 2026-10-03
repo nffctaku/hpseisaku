@@ -18,6 +18,7 @@ import { PlayerStatsTable } from './player-stats-table';
 import { MatchEventsTable } from './match-events-table';
 import { commitSquadSave, subEventsSignature, type SquadSaveSnapshot } from '@/lib/squad-save-merge';
 import { healStaleTeamMinutes } from '@/lib/match-minutes';
+import { buildPlayerNameResolver } from '@/lib/match-event-resolve';
 import type { SubmitHandler } from 'react-hook-form';
 
 const formSchema = z.object({
@@ -397,9 +398,10 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
           // Heal stale minutesPlayed: only for players whose expected value is
           // derivable from substitution events (non-event players untouched).
           if (loadedEvents.some((ev: any) => ev?.type === 'substitution')) {
+            const resolveNames = buildPlayerNameResolver(loadedStats);
             const teamIds = new Set<string>(loadedStats.map((ps: any) => ps?.teamId).filter(Boolean));
             teamIds.forEach((tid) => {
-              loadedStats = healStaleTeamMinutes(loadedStats, loadedEvents, tid, duration);
+              loadedStats = healStaleTeamMinutes(loadedStats, loadedEvents, tid, duration, resolveNames);
             });
           }
           const healed = loadedStats.some((ps: any, i: number) => ps !== (data.playerStats || [])[i]);

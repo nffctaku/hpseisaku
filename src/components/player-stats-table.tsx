@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { Player } from '@/types/match';
 import { deriveStarterMinutes, deriveBenchMinutes } from '@/lib/match-minutes';
+import { buildPlayerNameResolver } from '@/lib/match-event-resolve';
 import { toast } from 'sonner';
 
 const ratingOptions = (() => {
@@ -188,16 +189,22 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
     return { goals, assists, yellow, red };
   }, [watchedEvents, allPlayers]);
 
+  // 名前のみ交代イベントの一意解決用（0件/複数一致は未解決のまま）
+  const nameResolver = useMemo(
+    () => buildPlayerNameResolver(Array.isArray(watchedPlayerStats) ? watchedPlayerStats : []),
+    [watchedPlayerStats]
+  );
+
   const derivedStarterMinutes = useMemo(() => {
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
-    return deriveStarterMinutes(events, teamId, matchDuration);
-  }, [teamId, watchedEvents, matchDuration]);
+    return deriveStarterMinutes(events, teamId, matchDuration, nameResolver);
+  }, [teamId, watchedEvents, matchDuration, nameResolver]);
 
   // Calculate bench player minutes (IN substitutions)
   const derivedBenchMinutes = useMemo(() => {
     const events = Array.isArray(watchedEvents) ? (watchedEvents as any[]) : [];
-    return deriveBenchMinutes(events, teamId, matchDuration);
-  }, [teamId, watchedEvents, matchDuration]);
+    return deriveBenchMinutes(events, teamId, matchDuration, nameResolver);
+  }, [teamId, watchedEvents, matchDuration, nameResolver]);
 
   // Automatically calculate and update minutesPlayed based on substitution events and matchDuration
   // Only recalc when minutes-relevant data actually changed since load (lineup members or

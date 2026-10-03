@@ -7,8 +7,17 @@ interface MinuteEventLike {
   minute?: number | string;
   teamId?: string;
   outPlayerId?: string;
+  outPlayerName?: string;
   inPlayerId?: string;
+  inPlayerName?: string;
 }
+
+// 名前のみ（ID未紐付け）イベントの選手IDを一意に解決するリゾルバ。
+// 共通実装は match-event-resolve.ts の buildPlayerNameResolver。
+export type MinuteNameResolver = (
+  name: string | undefined | null,
+  teamId?: string
+) => string | undefined;
 
 interface PlayerStatLike {
   playerId?: string;
@@ -39,14 +48,17 @@ const parseMinute = (minute: unknown): { base: number; stoppage: number } => {
 export function deriveStarterMinutes(
   events: MinuteEventLike[],
   teamId: string,
-  matchDuration: number
+  matchDuration: number,
+  resolvePlayer?: MinuteNameResolver
 ): Map<string, number> {
   const out = new Map<string, number>();
   const halfTime = matchDuration / 2;
   events
     .filter((ev) => ev?.type === 'substitution')
     .forEach((ev) => {
-      const outId = typeof ev?.outPlayerId === 'string' ? ev.outPlayerId : '';
+      const outId = (typeof ev?.outPlayerId === 'string' && ev.outPlayerId)
+        ? ev.outPlayerId
+        : (resolvePlayer?.(ev?.outPlayerName, teamId) ?? '');
       if (!outId || ev?.teamId !== teamId) return;
       const { base, stoppage } = parseMinute(ev?.minute);
       let calculated: number;
@@ -68,14 +80,17 @@ export function deriveStarterMinutes(
 export function deriveBenchMinutes(
   events: MinuteEventLike[],
   teamId: string,
-  matchDuration: number
+  matchDuration: number,
+  resolvePlayer?: MinuteNameResolver
 ): Map<string, number> {
   const inMap = new Map<string, number>();
   const halfTime = matchDuration / 2;
   events
     .filter((ev) => ev?.type === 'substitution')
     .forEach((ev) => {
-      const inId = typeof ev?.inPlayerId === 'string' ? ev.inPlayerId : '';
+      const inId = (typeof ev?.inPlayerId === 'string' && ev.inPlayerId)
+        ? ev.inPlayerId
+        : (resolvePlayer?.(ev?.inPlayerName, teamId) ?? '');
       if (!inId || ev?.teamId !== teamId) return;
       const { base, stoppage } = parseMinute(ev?.minute);
       let calculated: number;
@@ -99,10 +114,11 @@ export function healStaleTeamMinutes<T extends PlayerStatLike>(
   playerStats: T[],
   events: MinuteEventLike[],
   teamId: string,
-  matchDuration: number
+  matchDuration: number,
+  resolvePlayer?: MinuteNameResolver
 ): T[] {
-  const outMap = deriveStarterMinutes(events, teamId, matchDuration);
-  const inMap = deriveBenchMinutes(events, teamId, matchDuration);
+  const outMap = deriveStarterMinutes(events, teamId, matchDuration, resolvePlayer);
+  const inMap = deriveBenchMinutes(events, teamId, matchDuration, resolvePlayer);
   return playerStats.map((ps) => {
     if (!ps || ps.teamId !== teamId || !ps.playerId) return ps;
     const role = ps.role ?? 'starter';
@@ -119,10 +135,11 @@ export function recomputeTeamMinutes<T extends PlayerStatLike>(
   playerStats: T[],
   events: MinuteEventLike[],
   teamId: string,
-  matchDuration: number
+  matchDuration: number,
+  resolvePlayer?: MinuteNameResolver
 ): T[] {
-  const outMap = deriveStarterMinutes(events, teamId, matchDuration);
-  const inMap = deriveBenchMinutes(events, teamId, matchDuration);
+  const outMap = deriveStarterMinutes(events, teamId, matchDuration, resolvePlayer);
+  const inMap = deriveBenchMinutes(events, teamId, matchDuration, resolvePlayer);
   return playerStats.map((ps) => {
     if (!ps || ps.teamId !== teamId || !ps.playerId) return ps;
     const role = ps.role ?? 'starter';
