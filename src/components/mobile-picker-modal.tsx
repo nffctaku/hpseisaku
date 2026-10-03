@@ -4,7 +4,7 @@
 // event-form（新しいイベントを追加）と ocr-review-panel（読み取り確認）で
 // 同じ操作・文言になるよう共有する。
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export interface PickerOption {
   value: string;
@@ -18,6 +18,22 @@ export interface PickerRequest {
   onSelect: (value: string) => void;
 }
 
+/**
+ * ピッカー内の現在値（data-picker-selected="true"）を
+ * scroll-snap の中央選択位置までスクロールする。
+ * scroll-margin（scroll-mt-[22vh]）を考慮して
+ * 「ユーザーが実際にスクロールして選ぶ位置」と同じ場所に止める。
+ */
+export function scrollPickerToValue(container: HTMLElement | null) {
+  if (!container) return;
+  const selected = container.querySelector<HTMLElement>('[data-picker-selected="true"]');
+  if (!selected) return;
+  const scrollMt = parseFloat(getComputedStyle(selected).scrollMarginTop) || 0;
+  const marginBoxTop = selected.offsetTop - scrollMt;
+  const marginBoxHeight = selected.offsetHeight + scrollMt;
+  container.scrollTop = marginBoxTop + marginBoxHeight / 2 - container.clientHeight / 2;
+}
+
 interface MobilePickerModalProps {
   picker: PickerRequest | null;
   onClose: () => void;
@@ -27,6 +43,14 @@ interface MobilePickerModalProps {
 
 export function MobilePickerModal({ picker, onClose, mobileOnly = false }: MobilePickerModalProps) {
   const [pressedPickerValue, setPressedPickerValue] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // ピッカーを開いた時点で現在値を中央の選択位置にする（0件目起点にしない）
+  useEffect(() => {
+    if (!picker) return;
+    scrollPickerToValue(scrollRef.current);
+  }, [picker]);
+
   if (!picker) return null;
   return (
     <div
@@ -43,7 +67,7 @@ export function MobilePickerModal({ picker, onClose, mobileOnly = false }: Mobil
             完了
           </button>
         </div>
-        <div className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
+        <div ref={scrollRef} className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
           {picker.options.map((option) => {
             const isPressed = pressedPickerValue === option.value;
             const isSelected = option.value === picker.value;
@@ -51,6 +75,7 @@ export function MobilePickerModal({ picker, onClose, mobileOnly = false }: Mobil
               <button
                 key={option.value}
                 type="button"
+                data-picker-selected={isSelected ? "true" : undefined}
                 onPointerDown={() => setPressedPickerValue(option.value)}
                 onClick={() => {
                   setPressedPickerValue(option.value);

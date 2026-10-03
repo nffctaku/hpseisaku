@@ -8,6 +8,7 @@ import { deriveStarterMinutes, deriveBenchMinutes } from '@/lib/match-minutes';
 import { buildPlayerNameResolver } from '@/lib/match-event-resolve';
 import { getFormationSlots } from '@/lib/formation-slots';
 import { LineupPitch, PitchSlotAnchor, PlayerNode, EmptySlotNode, SubstituteCard, AddSubCard } from '@/components/lineup-pitch';
+import { scrollPickerToValue } from '@/components/mobile-picker-modal';
 import { toast } from 'sonner';
 
 const ratingOptions = (() => {
@@ -89,6 +90,13 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
   }>(null);
   const [pressedPickerValue, setPressedPickerValue] = useState<string | null>(null);
   const [benchAddValue, setBenchAddValue] = useState('');
+  const pickerScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // ピッカーを開いた時点で現在値を中央の選択位置にする
+  useEffect(() => {
+    if (!mobilePicker) return;
+    scrollPickerToValue(pickerScrollRef.current);
+  }, [mobilePicker]);
   const formationStorageKey = `match_lineup_formation_${teamId}`;
   
   // Use isHomeTeam prop to determine which formation field to use
@@ -674,7 +682,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                 完了
               </button>
             </div>
-            <div className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
+            <div ref={pickerScrollRef} className="relative h-[56vh] overflow-y-auto px-5 py-[22vh] [scroll-snap-type:y_mandatory]">
               {mobilePicker.options.map((option) => {
                 const isPressed = pressedPickerValue === option.value;
                 const isSelected = option.value === mobilePicker.value;
@@ -682,6 +690,7 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
                   <button
                     key={option.value}
                     type="button"
+                    data-picker-selected={isSelected ? "true" : undefined}
                     onPointerDown={() => setPressedPickerValue(option.value)}
                     onClick={() => {
                       setPressedPickerValue(option.value);
