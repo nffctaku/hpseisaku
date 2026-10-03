@@ -11,10 +11,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import { Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { Player, MatchDetails, MatchEvent } from '@/types/match';
 import { appendMatchEvent } from '@/lib/match-event-sync';
+import { lastEventMinute } from '@/lib/match-minutes';
+import { formatMinute } from '@/lib/formatMinute';
 import { MobilePickerModal, type PickerRequest } from '@/components/mobile-picker-modal';
 
 const eventFormSchema = z.object({
@@ -82,6 +84,18 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
     },
   });
 
+  // 「分」の初期値: その試合で最後に登録されているイベントの時間。
+  // 最終イベントが変わったときだけ追従し、入力済みの値は上書きしない。
+  const lastMinuteText = useMemo(() => formatMinute(lastEventMinute(match?.events)) || "0", [match?.events]);
+  const prevLastMinuteRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevLastMinuteRef.current === lastMinuteText) return;
+    prevLastMinuteRef.current = lastMinuteText;
+    if (!form.getFieldState("minute").isDirty) {
+      form.setValue("minute", lastMinuteText, { shouldDirty: false });
+    }
+  }, [lastMinuteText, form]);
+
   const selectedTeamId = form.watch('teamId');
   const eventType = form.watch('type');
   const selectedPlayerId = form.watch('playerId');
@@ -146,7 +160,18 @@ export function EventForm({ homePlayers, awayPlayers, match, matchDocPath }: Eve
       const basePath = matchDocPath || `clubs/${ownerUid}/competitions/${match.competitionId}/rounds/${match.roundId}/matches/${match.id}`;
       await appendMatchEvent(db, basePath, eventData);
       toast.success("イベントを追加しました。");
-      form.reset();
+      // 「分」は直前に登録したイベントの時間を次回初期値として維持する
+      form.reset({
+        type: 'goal',
+        minute: formatMinute(values.minute) || lastMinuteText,
+        teamId: '',
+        isManual: false,
+        playerId: '',
+        manualPlayerName: '',
+        assistPlayerId: '',
+        outPlayerId: '',
+        inPlayerId: '',
+      });
     } catch (error) {
       console.error("Error adding event: ", error);
       toast.error("イベントの追加に失敗しました。");

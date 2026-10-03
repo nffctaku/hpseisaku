@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormContext, useFieldArray } from "react-hook-form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Trash2, Plus, ArrowLeftRight, AlertCircle } from "lucide-react";
 import { FaFutbol } from "react-icons/fa";
 import { Player, MatchDetails } from "@/types/match";
 import { formatMinute } from "@/lib/formatMinute";
-import { minuteSortValue } from "@/lib/match-minutes";
+import { lastEventMinute, minuteSortValue, minuteToPickerValue } from "@/lib/match-minutes";
 
 // 時間プルダウン用オプション
 // 表示順: 0..45, 45+1..45+10, 46..89, 90, 90+1..90+10, 91..104, 105+1..105+10, 106..119, 120, 120+1..120+10
@@ -81,9 +81,20 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
   const playerStats = watch("playerStats") || [];
   const events = watch("events") || [];
 
+  // 追加フォームの「分」の初期値: その試合で最後に登録されているイベントの時間。
+  // 最終イベントが変わったときだけ追従するので、ユーザーが選択中の値は上書きしない。
+  const lastMinute = useMemo(() => minuteToPickerValue(lastEventMinute(events)), [events]);
+  const prevLastMinuteRef = useRef<number | null>(null);
+
   const [newEventType, setNewEventType] = useState<"goal" | "card" | "substitution">("goal");
   const [newEventTeam, setNewEventTeam] = useState(match.homeTeam);
   const [newEventMinute, setNewEventMinute] = useState(0);
+
+  useEffect(() => {
+    if (prevLastMinuteRef.current === lastMinute) return;
+    prevLastMinuteRef.current = lastMinute;
+    setNewEventMinute(lastMinute);
+  }, [lastMinute]);
   const [newEventPlayerId, setNewEventPlayerId] = useState<string>("");
   const [newEventPlayerName, setNewEventPlayerName] = useState<string>("");
   const [newEventOriginalPlayerId, setNewEventOriginalPlayerId] = useState<string>("");
@@ -114,7 +125,7 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
   const handleAddEvent = () => {
     prepend({
       id: crypto.randomUUID(),
-      minute: 0,
+      minute: lastMinute,
       teamId: match.homeTeam,
       type: "goal",
       playerId: undefined,
@@ -182,8 +193,8 @@ export function MatchEventsTable({ match, homePlayers, awayPlayers }: MatchEvent
 
     prepend(newEvent);
 
-    // Reset form
-    setNewEventMinute(0);
+    // Reset form（「分」は最後に登録されたイベントの時間を初期値として維持）
+    setNewEventMinute(minuteSortValue(newEvent.minute) > minuteSortValue(lastMinute) ? newEvent.minute : lastMinute);
     setNewEventPlayerId("");
     setNewEventPlayerName("");
     setNewEventOriginalPlayerId('');

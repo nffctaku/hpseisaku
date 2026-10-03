@@ -35,6 +35,30 @@ export const minuteSortValue = (minute: unknown): number => {
   return base + stoppage / 100;
 };
 
+// イベント配列のうち時刻が最も進んでいるイベントの minute を返す（追加フォームの初期値用）。
+// minute が無いイベントしかない／イベント0件の場合は 0。
+export const lastEventMinute = (events: readonly unknown[] | null | undefined): unknown => {
+  let best: unknown = null;
+  let bestSort = -Infinity;
+  for (const e of events ?? []) {
+    const m = (e as { minute?: unknown } | null | undefined)?.minute;
+    if (m === undefined || m === null || m === "") continue;
+    const s = minuteSortValue(m);
+    if (Number.isFinite(s) && s > bestSort) {
+      bestSort = s;
+      best = m;
+    }
+  }
+  return best ?? 0;
+};
+
+// minute を分選択ピッカーの数値形式へ正規化する（ロスタイムは base + extra/1000、例: "45+2"→45.002）。
+export const minuteToPickerValue = (minute: unknown): number => {
+  if (typeof minute === "number" && Number.isFinite(minute)) return minute;
+  const { base, stoppage } = parseMinute(minute);
+  return base + stoppage / 1000;
+};
+
 const parseMinute = (minute: unknown): { base: number; stoppage: number } => {
   const minuteStr = typeof minute === 'string' ? minute : String(minute ?? '');
   if (minuteStr.includes('+')) {
