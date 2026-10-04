@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, deleteDoc, updateDoc, getDocs, where } from "firebase/firestore";
 import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
 
 import { Button } from "@/components/ui/button";
@@ -170,6 +170,28 @@ export default function CompetitionsPage() {
     if (!user || !deletingCompetition) return;
     if (!clubUid) return;
     try {
+      const compBase = `clubs/${clubUid}/competitions/${deletingCompetition.id}`;
+      // サブコレクション（rounds/matches/events, settings, standings）を先に削除
+      const roundsSnap = await getDocs(collection(db, `${compBase}/rounds`));
+      for (const roundDoc of roundsSnap.docs) {
+        const matchesSnap = await getDocs(collection(db, `${compBase}/rounds/${roundDoc.id}/matches`));
+        for (const matchDoc of matchesSnap.docs) {
+          const eventsSnap = await getDocs(collection(db, `${compBase}/rounds/${roundDoc.id}/matches/${matchDoc.id}/events`));
+          for (const ev of eventsSnap.docs) await deleteDoc(ev.ref);
+          await deleteDoc(matchDoc.ref);
+        }
+        await deleteDoc(roundDoc.ref);
+      }
+      for (const sub of ["settings", "standings"] as const) {
+        const subSnap = await getDocs(collection(db, `${compBase}/${sub}`));
+        for (const d of subSnap.docs) await deleteDoc(d.ref);
+      }
+      // 関連する public_match_index を削除
+      const indexSnap = await getDocs(
+        query(collection(db, `clubs/${clubUid}/public_match_index`), where("competitionId", "==", deletingCompetition.id))
+      );
+      for (const d of indexSnap.docs) await deleteDoc(d.ref);
+
       const competitionDocRef = doc(db, `clubs/${clubUid}/competitions`, deletingCompetition.id);
       await deleteDoc(competitionDocRef);
       setDeletingCompetition(null);

@@ -447,10 +447,11 @@ export default function MatchAdminPage() {
             let nextHomePlayers: Player[] = [];
             let nextAwayPlayers: Player[] = [];
 
-            if (matchData.homeTeam && matchData.awayTeam) {
+            if (matchData.homeTeam || matchData.awayTeam) {
+              const emptyRoster = { players: [] as Player[], debug: { reason: 'noTeam' } };
               const [home, away] = await Promise.all([
-                fetchPlayers(matchData.homeTeam),
-                fetchPlayers(matchData.awayTeam),
+                matchData.homeTeam ? fetchPlayers(matchData.homeTeam) : Promise.resolve([] as Player[]),
+                matchData.awayTeam ? fetchPlayers(matchData.awayTeam) : Promise.resolve([] as Player[]),
               ]);
 
               console.warn('[MatchAdminPage] fetched team players', {
@@ -462,8 +463,8 @@ export default function MatchAdminPage() {
               });
 
               const [homeRosterPlayers, awayRosterPlayers] = await Promise.all([
-                fetchRosterPlayersForTeam(matchData.homeTeam, home, effectiveSeasonId),
-                fetchRosterPlayersForTeam(matchData.awayTeam, away, effectiveSeasonId),
+                matchData.homeTeam ? fetchRosterPlayersForTeam(matchData.homeTeam, home, effectiveSeasonId) : Promise.resolve(emptyRoster),
+                matchData.awayTeam ? fetchRosterPlayersForTeam(matchData.awayTeam, away, effectiveSeasonId) : Promise.resolve(emptyRoster),
               ]);
 
               console.warn('[MatchAdminPage] roster filtered players', {
