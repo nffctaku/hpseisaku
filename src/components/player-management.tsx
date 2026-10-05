@@ -98,6 +98,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const [importingCsv, setImportingCsv] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [deletingPlayer, setDeletingPlayer] = useState<Player | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const deletingRef = useRef(false);
   const [isCarryoverDialogOpen, setIsCarryoverDialogOpen] = useState(false);
   const [selectedSourceSeason, setSelectedSourceSeason] = useState<string>('');
   const [carryingOver, setCarryingOver] = useState(false);
@@ -1017,25 +1019,34 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   };
 
 
+  // 選択中シーズン以外に残る seasons エントリ（削除後も選手docが残るかの判定に共用）
+  const getRemainingSeasonKeys = (player: Player | null): string[] => {
+    const seasons = Array.isArray(player?.seasons) ? player.seasons : [];
+    const normalizedTarget = String(selectedSeason || "").trim();
+    const normalizedTargetDash = String(toDashSeason(selectedSeason || "") || "").trim();
+    return seasons.filter((s) => {
+      const raw = typeof s === "string" ? s.trim() : "";
+      if (!raw) return false;
+      return raw !== normalizedTarget && raw !== normalizedTargetDash;
+    });
+  };
+
   const handleDeletePlayer = async () => {
-    if (!clubUid || !deletingPlayer || !teamId) return;
+    if (!clubUid || !deletingPlayer || !teamId || deletingRef.current) return;
     if (!selectedSeason) {
       toast.error("シーズンが選択されていません。");
       return;
     }
+    deletingRef.current = true;
+    setDeleting(true);
     const selectedSeasonDash = toDashSeason(selectedSeason);
     const selectedSeasonSlash = selectedSeason;
     try {
       const playerDocRef = doc(db, `clubs/${clubUid}/teams/${teamId}/players`, deletingPlayer.id);
       const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${selectedSeasonDash}/roster`, deletingPlayer.id);
-      const seasons = Array.isArray((deletingPlayer as any)?.seasons) ? ((deletingPlayer as any).seasons as string[]) : [];
-      const normalizedTarget = String(selectedSeasonSlash || "").trim();
-      const normalizedTargetDash = String(selectedSeasonDash || "").trim();
-      const remaining = seasons.filter((s) => {
-        const raw = typeof s === "string" ? s.trim() : "";
-        if (!raw) return false;
-        return raw !== normalizedTarget && raw !== normalizedTargetDash;
-      });
+      const seasons = Array.isArray(deletingPlayer.seasons) ? deletingPlayer.seasons : [];
+      const remaining = getRemainingSeasonKeys(deletingPlayer);
+      const failedRosterKeys: string[] = [];
       if (remaining.length === 0) {
         await deleteDoc(playerDocRef);
 
@@ -1044,11 +1055,18 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           .filter((s) => typeof s === "string" && s.trim().length > 0)
           .filter((s, i, arr) => arr.indexOf(s) === i);
 
-        await Promise.all(
+        // roster は存在しないシーズンもあるため1件ずつ独立して扱い、失敗は握りつぶさず記録する
+        const results = await Promise.allSettled(
           rosterSeasonKeys.map((s) =>
-            deleteDoc(doc(db, `clubs/${clubUid}/seasons/${s}/roster`, deletingPlayer.id)).catch(() => null)
+            deleteDoc(doc(db, `clubs/${clubUid}/seasons/${s}/roster`, deletingPlayer.id))
           )
         );
+        results.forEach((r, i) => {
+          if (r.status === "rejected") failedRosterKeys.push(rosterSeasonKeys[i]);
+        });
+        if (failedRosterKeys.length > 0) {
+          console.error("[PlayerManagement] roster delete failed", { playerId: deletingPlayer.id, failedRosterKeys });
+        }
       } else {
         await updateDoc(playerDocRef, {
           seasons: arrayRemove(selectedSeasonSlash, selectedSeasonDash),
@@ -1057,13 +1075,27 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
         // Public pages use roster doc IDs as the source of truth.
         // If the player is removed from this season, the roster doc must be deleted.
-        await deleteDoc(rosterDocRef);
+        try {
+          await deleteDoc(rosterDocRef);
+        } catch (rosterError) {
+          failedRosterKeys.push(selectedSeasonDash);
+          console.error("[PlayerManagement] roster delete failed", { playerId: deletingPlayer.id, season: selectedSeasonDash, error: rosterError });
+        }
       }
 
       await invalidatePlayerStatsCache(deletingPlayer.id);
       setDeletingPlayer(null);
+      if (failedRosterKeys.length > 0) {
+        toast.warning("選手は削除しましたが、関連するロスター情報の一部を削除できませんでした。公開ページに残る場合はお問い合わせください。");
+      } else {
+        toast.success(remaining.length === 0 ? "選手を削除しました" : "選手をこのシーズンから削除しました");
+      }
     } catch (error) {
       console.error("Error deleting player: ", error);
+      toast.error("選手の削除に失敗しました。時間をおいて再度お試しください。");
+    } finally {
+      deletingRef.current = false;
+      setDeleting(false);
     }
   };
 
@@ -1844,12 +1876,16 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           <AlertDialogHeader>
             <AlertDialogTitle>本当に削除しますか？</AlertDialogTitle>
             <AlertDialogDescription>
-              選手「{deletingPlayer?.name}」を削除します。この操作は元に戻せません。
+              {getRemainingSeasonKeys(deletingPlayer).length > 0
+                ? `選手「${deletingPlayer?.name}」をこのシーズンから削除します。`
+                : `選手「${deletingPlayer?.name}」を削除します。この操作は元に戻せません。`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeletePlayer}>削除</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeletePlayer} disabled={deleting}>
+              {deleting ? "削除中..." : "削除"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
