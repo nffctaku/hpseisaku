@@ -151,6 +151,40 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     extra: Record<string, unknown> = {}
   ) => emitSaveTerminal("player_save_failed", { failurePoint, failureCode, ...extra });
 
+  // permission-denied 等のwrite失敗時に原因切り分け用の事実を記録する
+  // （auth状態の断定はせず、取得した値をそのまま出す）
+  const logWriteFailure = (params: {
+    operation: string;
+    path: string;
+    playerId?: string | null;
+    error: unknown;
+  }) => {
+    const e = params.error as { code?: string; message?: string } | null;
+    console.error("[PlayerManagement] Firestore write failed", {
+      operation: params.operation,
+      path: params.path,
+      playerId: params.playerId ?? null,
+      clubUid: clubUid ?? null,
+      teamId: teamId ?? null,
+      activeCareerId: activeCareer?.id ?? null,
+      authUid: auth.currentUser?.uid ?? null,
+      userUid: user?.uid ?? null,
+      errorCode: e?.code ?? null,
+      errorMessage: e?.message ?? null,
+    });
+  };
+
+  const writeWithDiag = <T,>(
+    operation: string,
+    path: string,
+    promise: Promise<T>,
+    playerId?: string | null
+  ): Promise<T> =>
+    promise.catch((e) => {
+      logWriteFailure({ operation, path, playerId, error: e });
+      throw e;
+    });
+
   // 対象チームが解決され選手管理画面が表示された時に1回だけ記録
   useEffect(() => {
     if (!clubUid || !teamId || !user?.uid) return;
@@ -537,8 +571,11 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           path: `clubs/${clubUid}/teams/${teamId}/players`,
           uid: clubUid,
           teamId,
+          authUid: auth.currentUser?.uid ?? null,
+          userUid: user?.uid ?? null,
+          activeCareerId: activeCareer?.id ?? null,
         });
-        toast.error("選手データの取得に失敗しました（permission-denied）。権限設定をご確認ください。", {
+        toast.error("選手データの取得に失敗しました。ログイン状態が切れている可能性があります。再読み込みまたは再ログインをお試しください。", {
           id: "players-permission-denied",
         });
       }
@@ -600,8 +637,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         },
         { merge: true }
       );
-    } catch {
-      // ignore
+    } catch (e) {
+      logWriteFailure({ operation: "club_profile params update", path: `club_profiles/${clubUid}`, error: e });
     }
 
     const selectedSeasonDash = toDashSeason(selectedSeason);
@@ -634,8 +671,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           toast.error(`現在のプランでは選手画像は1チームあたり最大${maxPlayerPhotos}人まで登録できます。`);
           return;
         }
-      } catch {
-        // ignore
+      } catch (e) {
+        logWriteFailure({ operation: "players read (photo limit)", path: `clubs/${clubUid}/teams/${teamId}/players`, error: e });
       }
     }
 
@@ -815,7 +852,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           selectedSeasonDash,
           updatePayloadSeasonData: updatePayload[`seasonData.${selectedSeasonDash}`]
         });
-        await updateDoc(playerDocRef, (updatePayload || {}) as any);
+        await writeWithDiag(
+          "player update",
+          `clubs/${clubUid}/teams/${teamId}/players/${editingPlayer.id}`,
+          updateDoc(playerDocRef, (updatePayload || {}) as any),
+          editingPlayer.id
+        );
         savedPlayerId = editingPlayer.id;
 
         // 公開ページのキャッシュをクリア
@@ -824,7 +866,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster`, editingPlayer.id);
         
         // 既存のロスターデータが配列の場合、削除してから更新
-        const rosterDocSnap = await getDoc(rosterDocRef);
+        const rosterDocSnap = await writeWithDiag(
+          "roster read",
+          `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster/${editingPlayer.id}`,
+          getDoc(rosterDocRef),
+          editingPlayer.id
+        );
         const rosterUpdate: any = {};
         if (rosterDocSnap.exists()) {
           const rosterData = rosterDocSnap.data();
@@ -870,10 +917,15 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           rosterPayload,
           rosterUpdate
         });
-        await setDoc(
-          rosterDocRef,
-          (rosterPayload || {}) as any,
-          { merge: true }
+        await writeWithDiag(
+          "roster set",
+          `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster/${editingPlayer.id}`,
+          setDoc(
+            rosterDocRef,
+            (rosterPayload || {}) as any,
+            { merge: true }
+          ),
+          editingPlayer.id
         );
 
         // 基本情報の変更を他シーズンの roster / seasonData にも反映
@@ -905,7 +957,17 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           if (Object.keys(playerSeasonDataUpdates).length > 0) {
             syncBatch.update(playerDocRef, playerSeasonDataUpdates);
           }
-          await syncBatch.commit();
+          await writeWithDiag(
+            "roster batch commit",
+            [
+              ...otherSeasons.map((s) => `clubs/${clubUid}/seasons/${s}/roster/${editingPlayer.id}`),
+              ...(Object.keys(playerSeasonDataUpdates).length > 0
+                ? [`clubs/${clubUid}/teams/${teamId}/players/${editingPlayer.id}`]
+                : []),
+            ].join(" , "),
+            syncBatch.commit(),
+            editingPlayer.id
+          );
         }
       } else {
         const createPayload = stripUndefinedDeep({
@@ -923,7 +985,11 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           ownerUid: clubUid,
           clubProfileId: clubProfileId || null,
         });
-        const created = await addDoc(playersColRef, (createPayload || {}) as any);
+        const created = await writeWithDiag(
+          "player create",
+          `clubs/${clubUid}/teams/${teamId}/players`,
+          addDoc(playersColRef, (createPayload || {}) as any)
+        );
         savedPlayerId = created.id;
 
         // 「計測開始後に初めて観測した自チーム選手の作成成功」を記録する。
@@ -947,9 +1013,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         console.log("[PlayerManagement] write roster (create)", {
           path: `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster/${created.id}`,
         });
-        await setDoc(
-          rosterDocRef,
-          (stripUndefinedDeep({
+        await writeWithDiag(
+          "roster set (create)",
+          `clubs/${clubUid}/seasons/${toDashSeason(selectedSeason)}/roster/${created.id}`,
+          setDoc(
+            rosterDocRef,
+            (stripUndefinedDeep({
             ...(createPayload || {}),
             subName: (values as any).subName,
             teamId,
@@ -966,7 +1035,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             joinedSeason,
             tenureYears,
           }) || {}) as any,
-          { merge: true }
+            { merge: true }
+          ),
+          created.id
         );
       }
 
@@ -982,6 +1053,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         try {
           await syncPhotoIfNeeded(savedPlayerId);
         } catch (photoError) {
+          logWriteFailure({ operation: "photo sync", path: "/api/club/player-photos", playerId: savedPlayerId, error: photoError });
           if (!editingPlayer) {
             const att = saveAttemptRef.current;
             trackPlayerEvent("player_photo_sync_failed", user?.uid ?? null, {
@@ -1005,11 +1077,20 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       const code = (error as any)?.code;
       const message = (error as any)?.message;
       console.error("Error saving player:", error);
-      console.error("Error saving player (meta):", { code, message });
+      console.error("Error saving player (meta):", {
+        code,
+        message,
+        authUid: auth.currentUser?.uid ?? null,
+        userUid: user?.uid ?? null,
+        clubUid: clubUid ?? null,
+        teamId: teamId ?? null,
+        activeCareerId: activeCareer?.id ?? null,
+        editingPlayerId: editingPlayer?.id ?? null,
+      });
 
       toast.error(
         code === "permission-denied"
-          ? "保存に失敗しました（permission-denied）。権限設定をご確認ください。"
+          ? "保存に失敗しました。ログイン状態が切れている可能性があります。一度ログアウトし、再度ログインしてお試しください。"
           : `保存に失敗しました。${code ? ` (${code})` : ""}`,
         {
         id: "player-save-failed",
@@ -1048,7 +1129,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       const remaining = getRemainingSeasonKeys(deletingPlayer);
       const failedRosterKeys: string[] = [];
       if (remaining.length === 0) {
-        await deleteDoc(playerDocRef);
+        await writeWithDiag(
+          "player delete",
+          `clubs/${clubUid}/teams/${teamId}/players/${deletingPlayer.id}`,
+          deleteDoc(playerDocRef),
+          deletingPlayer.id
+        );
 
         const rosterSeasonKeys = [selectedSeasonSlash, selectedSeasonDash, ...seasons]
           .map((s) => toDashSeason(String(s || "").trim()))
@@ -1062,16 +1148,26 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           )
         );
         results.forEach((r, i) => {
-          if (r.status === "rejected") failedRosterKeys.push(rosterSeasonKeys[i]);
+          if (r.status === "rejected") {
+            failedRosterKeys.push(rosterSeasonKeys[i]);
+            logWriteFailure({
+              operation: "roster delete",
+              path: `clubs/${clubUid}/seasons/${rosterSeasonKeys[i]}/roster/${deletingPlayer.id}`,
+              playerId: deletingPlayer.id,
+              error: r.reason,
+            });
+          }
         });
-        if (failedRosterKeys.length > 0) {
-          console.error("[PlayerManagement] roster delete failed", { playerId: deletingPlayer.id, failedRosterKeys });
-        }
       } else {
-        await updateDoc(playerDocRef, {
-          seasons: arrayRemove(selectedSeasonSlash, selectedSeasonDash),
-          [`seasonData.${selectedSeasonDash}`]: deleteField(),
-        } as any);
+        await writeWithDiag(
+          "player season update",
+          `clubs/${clubUid}/teams/${teamId}/players/${deletingPlayer.id}`,
+          updateDoc(playerDocRef, {
+            seasons: arrayRemove(selectedSeasonSlash, selectedSeasonDash),
+            [`seasonData.${selectedSeasonDash}`]: deleteField(),
+          } as any),
+          deletingPlayer.id
+        );
 
         // Public pages use roster doc IDs as the source of truth.
         // If the player is removed from this season, the roster doc must be deleted.
@@ -1079,7 +1175,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           await deleteDoc(rosterDocRef);
         } catch (rosterError) {
           failedRosterKeys.push(selectedSeasonDash);
-          console.error("[PlayerManagement] roster delete failed", { playerId: deletingPlayer.id, season: selectedSeasonDash, error: rosterError });
+          logWriteFailure({
+            operation: "roster delete",
+            path: `clubs/${clubUid}/seasons/${selectedSeasonDash}/roster/${deletingPlayer.id}`,
+            playerId: deletingPlayer.id,
+            error: rosterError,
+          });
         }
       }
 
@@ -1092,7 +1193,12 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       }
     } catch (error) {
       console.error("Error deleting player: ", error);
-      toast.error("選手の削除に失敗しました。時間をおいて再度お試しください。");
+      const code = (error as any)?.code;
+      toast.error(
+        code === "permission-denied"
+          ? "選手の削除に失敗しました。ログイン状態が切れている可能性があります。一度ログアウトし、再度ログインしてお試しください。"
+          : "選手の削除に失敗しました。時間をおいて再度お試しください。"
+      );
     } finally {
       deletingRef.current = false;
       setDeleting(false);
