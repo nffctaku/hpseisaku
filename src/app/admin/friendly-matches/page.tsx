@@ -46,8 +46,8 @@ interface FriendlyMatch {
   awayTeam: string;
   homeTeamName?: string;
   awayTeamName?: string;
-  homeTeamLogo?: string;
-  awayTeamLogo?: string;
+  homeTeamLogo?: string | null;
+  awayTeamLogo?: string | null;
   scoreHome?: number | null;
   scoreAway?: number | null;
 }
@@ -186,8 +186,8 @@ export default function FriendlyMatchesPage() {
         awayTeam: isCustomAway ? `custom:${customAwayName}` : awayTeamId,
         homeTeamName: homeName,
         awayTeamName: awayName,
-        homeTeamLogo: home?.logoUrl,
-        awayTeamLogo: away?.logoUrl,
+        homeTeamLogo: home?.logoUrl ?? null,
+        awayTeamLogo: away?.logoUrl ?? null,
         scoreHome: null,
         scoreAway: null,
         ownerUid: user?.uid,

@@ -35,13 +35,16 @@ interface Team {
 
 export default function TeamPlayersPage() {
   const { user } = useAuth();
-  const { activeCareer } = useCareer();
+  const { activeCareer, loading: careersLoading } = useCareer();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const teamId = params.teamId as string;
   const clubUid = activeCareer?.clubUid || null;
   const [seasons, setSeasons] = useState<Season[]>([]);
+  const [seasonsLoading, setSeasonsLoading] = useState(false);
+  const [seasonsError, setSeasonsError] = useState<string | null>(null);
+  const [seasonsReloadKey, setSeasonsReloadKey] = useState(0);
   const [teams, setTeams] = useState<Team[]>([]);
   // "?season=2027-28" のような dash 形式も入口で slash に正規化する。
   // 正規化しないと selectedSeason が dash のまま残り、arrayRemove 相当の
@@ -56,26 +59,68 @@ export default function TeamPlayersPage() {
     }
   }, [router, seasonFromQuery, teamId]);
 
+  // seasons一覧の取得。選択状態の同期とは分離し、取得コールバック内では
+  // setSelectedSeason しない（古いクロージャが選択を上書きする競合を防ぐ）。
+  // Firestoreはネットワーク断で内部リトライし続けgetDocsが解決しない場合が
+  // あるため、タイムアウトでエラー表示＋再試行導線を提供する。
   useEffect(() => {
-    if (!clubUid) return;
-    if (!seasonFromQuery) return;
+    if (!clubUid) {
+      setSeasons([]);
+      return;
+    }
+    let cancelled = false;
+    // 前のキャリアのシーズンが残らないよう、取得開始時にクリアする
+    setSeasons([]);
+    setSeasonsLoading(true);
+    setSeasonsError(null);
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) return;
+      setSeasonsLoading(false);
+      setSeasonsError('シーズン一覧の取得に時間がかかっています。再試行してください。');
+    }, 15000);
     const seasonsColRef = collection(db, `clubs/${clubUid}/seasons`);
-    getDocs(seasonsColRef).then(snapshot => {
-      const seasonsData = snapshot.docs
-        .map((d) => ({ id: toSlashSeason(d.id), ...(d.data() as any) } as Season))
-        .sort((a, b) => b.id.localeCompare(a.id));
-      setSeasons(seasonsData);
-      if (seasonsData.length > 0) {
-        const hasQuery = Boolean(seasonFromQuery);
-        const exists = hasQuery ? seasonsData.some((s) => s.id === seasonFromQuery) : false;
-        const next = exists ? seasonFromQuery : seasonsData[0].id;
-        setSelectedSeason(next);
-        if (hasQuery && !exists) {
-          router.replace(`/admin/teams/${teamId}?season=${encodeURIComponent(next)}`);
+    getDocs(seasonsColRef)
+      .then((snapshot) => {
+        if (cancelled) return;
+        // オフライン時は空のキャッシュ結果で解決することがある。
+        // 「シーズン0件」と区別できないためエラー＋再試行導線に倒す。
+        if (snapshot.empty && snapshot.metadata.fromCache) {
+          setSeasonsError('シーズン一覧の取得に失敗しました。再試行してください。');
+          return;
         }
-      }
-    });
-  }, [clubUid, seasonFromQuery, router, teamId]);
+        const seen = new Set<string>();
+        const seasonsData = snapshot.docs
+          .map((d) => ({ id: toSlashSeason(d.id), ...(d.data() as any) } as Season))
+          .filter((s) => (seen.has(s.id) ? false : (seen.add(s.id), true)))
+          .sort((a, b) => b.id.localeCompare(a.id));
+        setSeasons(seasonsData);
+        setSeasonsError(null);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.error('[TeamPlayersPage] failed to fetch seasons', e);
+        setSeasonsError('シーズン一覧の取得に失敗しました。');
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId);
+        if (!cancelled) setSeasonsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [clubUid, seasonsReloadKey]);
+
+  // 取得済みのseasonsとURLクエリから選択状態を同期（通信を伴わず競合しない）
+  useEffect(() => {
+    if (!seasonFromQuery || seasons.length === 0) return;
+    const exists = seasons.some((s) => s.id === seasonFromQuery);
+    const next = exists ? seasonFromQuery : seasons[0].id;
+    setSelectedSeason(next);
+    if (!exists) {
+      router.replace(`/admin/teams/${teamId}?season=${encodeURIComponent(next)}`);
+    }
+  }, [seasons, seasonFromQuery, router, teamId]);
 
   // Fetch teams for team selector
   useEffect(() => {
@@ -152,18 +197,25 @@ export default function TeamPlayersPage() {
               </Select>
             </div>
             <div className="flex-1 flex gap-2">
-              <Select value={selectedSeason} onValueChange={handleChangeSeason}>
-                <SelectTrigger className="bg-white/10 text-white border-white/15 w-full">
-                  <SelectValue placeholder="シーズンを選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {seasons.map((season) => (
-                    <SelectItem key={season.id} value={season.id}>
-                      {season.id}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {careersLoading || seasonsLoading ? (
+                <div className="bg-white/10 text-white/70 border border-white/15 w-full h-9 rounded-md flex items-center gap-2 px-3 text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  読み込み中...
+                </div>
+              ) : (
+                <Select value={selectedSeason} onValueChange={handleChangeSeason}>
+                  <SelectTrigger className="bg-white/10 text-white border-white/15 w-full">
+                    <SelectValue placeholder="シーズンを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {seasons.map((season) => (
+                      <SelectItem key={season.id} value={season.id}>
+                        {season.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -174,6 +226,25 @@ export default function TeamPlayersPage() {
               </Button>
             </div>
           </div>
+
+          {seasonsError ? (
+            <div className="mb-6 flex items-center gap-3 text-sm">
+              <span className="text-red-300">{seasonsError}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="bg-white/10 text-white border-white/15 hover:bg-white/20 h-8 px-3"
+                onClick={() => setSeasonsReloadKey((k) => k + 1)}
+              >
+                再試行
+              </Button>
+            </div>
+          ) : !careersLoading && !seasonsLoading && seasons.length === 0 ? (
+            <div className="mb-6 text-sm text-white/60">
+              シーズンが登録されていません。「シーズン登録」ボタンから追加してください。
+            </div>
+          ) : null}
 
           {/* Public Toggle - Lighter Expression */}
           {selectedSeason && (
