@@ -19,6 +19,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Loader2, Pencil, Trash2, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toSlashSeason } from "@/lib/season";
 import { ProPaywall } from "@/components/pro-paywall";
 import { PlanLimitBadge } from "@/components/plan-limit-badge";
 
@@ -156,7 +157,12 @@ export default function TeamsPage() {
         querySnapshot.docs.forEach(doc => {
           const player = doc.data() as any;
           if (Array.isArray(player.seasons)) {
-            player.seasons.forEach((season: string) => seasonsSet.add(season));
+            // 選手docに残っている過去の dash 形式("2027-28")をそのまま
+            // ?season= URL に使うと dash セッションが発生するため必ず正規化する
+            player.seasons.forEach((season: string) => {
+              const normalized = toSlashSeason(String(season || "").trim());
+              if (normalized) seasonsSet.add(normalized);
+            });
           }
         });
         const seasonsArray = Array.from(seasonsSet).sort().reverse();

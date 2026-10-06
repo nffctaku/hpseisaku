@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { SeasonDetail, SquadPlayer, LeaderEntry } from "../lib/season-records";
 import { positionCategory } from "../lib/season-records";
+import { toSlashSeason } from "@/lib/season";
 
 function getPositionLabel(position?: string) {
   const p = position?.toUpperCase() || "";
@@ -127,7 +128,7 @@ export function SeasonDetailView({ detail, season }: { detail: SeasonDetail; sea
     players: (detail.mostUsedXI?.players || []).filter((p) => positionCategory(p.position) === cat),
   }));
 
-  const matchesUrl = `/admin/matches?season=${encodeURIComponent(season)}`;
+  const matchesUrl = `/admin/matches?season=${encodeURIComponent(toSlashSeason(season))}`;
 
   return (
     <div className="relative min-h-screen bg-[#050a12] text-white">

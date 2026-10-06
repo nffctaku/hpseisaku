@@ -43,7 +43,10 @@ export default function TeamPlayersPage() {
   const clubUid = activeCareer?.clubUid || null;
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const seasonFromQuery = (searchParams.get('season') || '').trim();
+  // "?season=2027-28" のような dash 形式も入口で slash に正規化する。
+  // 正規化しないと selectedSeason が dash のまま残り、arrayRemove 相当の
+  // 完全一致比較で slash 形式の seasons エントリを削除できなくなる。
+  const seasonFromQuery = toSlashSeason((searchParams.get('season') || '').trim());
   const [selectedSeason, setSelectedSeason] = useState<string>(seasonFromQuery);
   const [activeTab, setActiveTab] = useState<'players' | 'staff'>('players');
 
@@ -90,12 +93,13 @@ export default function TeamPlayersPage() {
   const seasonIds = seasons.map((s) => s.id);
 
   const handleChangeTeam = (newTeamId: string) => {
-    router.push(`/admin/teams/${newTeamId}?season=${encodeURIComponent(selectedSeason)}`);
+    router.push(`/admin/teams/${newTeamId}?season=${encodeURIComponent(toSlashSeason(selectedSeason))}`);
   };
 
   const handleChangeSeason = (seasonId: string) => {
-    setSelectedSeason(seasonId);
-    router.replace(`/admin/teams/${teamId}?season=${encodeURIComponent(seasonId)}`);
+    const normalized = toSlashSeason(seasonId);
+    setSelectedSeason(normalized);
+    router.replace(`/admin/teams/${teamId}?season=${encodeURIComponent(normalized)}`);
   };
 
   const handleTogglePublic = async (seasonId: string, isPublic: boolean) => {
@@ -208,10 +212,10 @@ export default function TeamPlayersPage() {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="players" className="mt-4">
-                <PlayerManagement teamId={teamId} selectedSeason={selectedSeason} />
+                <PlayerManagement teamId={teamId} selectedSeason={toSlashSeason(selectedSeason)} />
               </TabsContent>
               <TabsContent value="staff" className="mt-4">
-                <StaffManagement teamId={teamId} selectedSeason={selectedSeason} />
+                <StaffManagement teamId={teamId} selectedSeason={toSlashSeason(selectedSeason)} />
               </TabsContent>
             </Tabs>
           ) : (

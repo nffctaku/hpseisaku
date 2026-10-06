@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MatchesFilters } from "./components/MatchesFilters";
 import { MatchesList } from "./components/MatchesList";
 import { useMatchesData } from "./hooks/useMatchesData";
+import { toSlashSeason } from "@/lib/season";
 
 export default function MatchesPage() {
   const router = useRouter();
@@ -37,7 +38,8 @@ export default function MatchesPage() {
     const set = new Set<string>();
     for (const c of competitions) {
       if (typeof c?.season === "string" && c.season.trim().length > 0) {
-        set.add(c.season);
+        // DB上の dash 形式("2027-28")が ?season= URLへ流出しないよう正規化
+        set.add(toSlashSeason(c.season.trim()));
       }
     }
     const list = Array.from(set);
@@ -47,7 +49,7 @@ export default function MatchesPage() {
 
   useEffect(() => {
     if (loadingBootstrap) return;
-    const qSeason = (searchParams?.get("season") || "").trim();
+    const qSeason = toSlashSeason((searchParams?.get("season") || "").trim());
     if (selectedSeason !== null) {
       // 選択中シーズンが候補に無い（Career切替等）場合は選び直す
       if (!seasonButtons.includes(selectedSeason)) {

@@ -30,7 +30,7 @@ export default function TeamTransfersPage() {
   const teamId = params.teamId as string;
   const clubUid = activeCareer?.clubUid || user?.clubUid || user?.uid;
 
-  const seasonFromQuery = (searchParams.get("season") || "").trim();
+  const seasonFromQuery = toSlashSeason((searchParams.get("season") || "").trim());
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>(seasonFromQuery);
 

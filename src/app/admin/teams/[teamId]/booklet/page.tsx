@@ -29,7 +29,7 @@ export default function TeamBookletPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const teamId = params.teamId as string;
-  const season = (searchParams.get("season") || "").trim();
+  const season = toSlashSeason((searchParams.get("season") || "").trim());
 
   const { user } = useAuth();
   const { activeCareer, loading: careerLoading } = useCareer();

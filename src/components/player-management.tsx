@@ -19,7 +19,7 @@ import {
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { pickPlayerPhotoUrl } from "@/lib/player-photo";
 import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
-import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, arrayRemove, deleteField, setDoc, getDocs, getDoc, writeBatch } from "firebase/firestore";
+import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, deleteField, setDoc, getDocs, getDoc, writeBatch } from "firebase/firestore";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -829,7 +829,10 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
       if (editingPlayer) {
         const currentSeasons = Array.isArray((editingPlayer as any)?.seasons) ? (((editingPlayer as any).seasons as string[]) || []) : [];
-        const nextSeasons = currentSeasons.includes(selectedSeason) ? currentSeasons : [...currentSeasons, selectedSeason];
+        const nextSeasons = [
+          ...currentSeasons.filter((s) => toDashSeason(String(s || "").trim()) !== selectedSeasonDash),
+          selectedSeason,
+        ];
         const playerDocRef = doc(playersColRef, editingPlayer.id);
         
         const updatePayload = stripUndefinedDeep({
@@ -1101,14 +1104,14 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
 
 
   // 選択中シーズン以外に残る seasons エントリ（削除後も選手docが残るかの判定に共用）
+  // "2027/28" "2027-28" など表記違いの既存データも正規化して同一シーズンとして除外する
   const getRemainingSeasonKeys = (player: Player | null): string[] => {
     const seasons = Array.isArray(player?.seasons) ? player.seasons : [];
-    const normalizedTarget = String(selectedSeason || "").trim();
-    const normalizedTargetDash = String(toDashSeason(selectedSeason || "") || "").trim();
+    const targetDash = String(toDashSeason(selectedSeason || "") || "").trim();
     return seasons.filter((s) => {
       const raw = typeof s === "string" ? s.trim() : "";
       if (!raw) return false;
-      return raw !== normalizedTarget && raw !== normalizedTargetDash;
+      return toDashSeason(raw) !== targetDash;
     });
   };
 
@@ -1163,7 +1166,11 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           "player season update",
           `clubs/${clubUid}/teams/${teamId}/players/${deletingPlayer.id}`,
           updateDoc(playerDocRef, {
-            seasons: arrayRemove(selectedSeasonSlash, selectedSeasonDash),
+            // arrayRemove は文字列完全一致のため "2027-28" 等の表記違いを消せない。
+            // 正規化済みの残存エントリで配列ごと置き換える
+            seasons: remaining,
+            // seasonData のキーは dash 形式のみ。Firestore フィールド名は "/" を
+            // 含めないため slash 形式キーは存在し得ない
             [`seasonData.${selectedSeasonDash}`]: deleteField(),
           } as any),
           deletingPlayer.id
@@ -1552,9 +1559,21 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     }
   };
 
+  // 対象シーズンのroster実在ID（引き継ぎダイアログ起動時に取得）。
+  // null = 未取得/取得失敗。この場合はroster存在とみなして過剰包含を防ぐ
+  const [carryoverRosterIds, setCarryoverRosterIds] = useState<Set<string> | null>(null);
+
   const openCarryoverDialog = () => {
     setSelectedSourceSeason('');
     setIsCarryoverDialogOpen(true);
+    if (clubUid && selectedSeason) {
+      const targetDash = toDashSeason(selectedSeason);
+      getDocs(collection(db, `clubs/${clubUid}/seasons/${targetDash}/roster`))
+        .then((snap) => setCarryoverRosterIds(new Set(snap.docs.map((d) => d.id))))
+        .catch(() => setCarryoverRosterIds(null));
+    } else {
+      setCarryoverRosterIds(null);
+    }
   };
 
   const availableSourceSeasons = useMemo(() => {
@@ -1567,7 +1586,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         if (dash && dash !== currentDash) seen.add(dash);
       }
       for (const s of Object.keys(p.seasonData || {})) {
-        if (s && s !== currentDash) seen.add(s);
+        const dash = toDashSeason(s);
+        if (dash && dash !== currentDash) seen.add(dash);
       }
     }
     return Array.from(seen).sort();
@@ -1578,14 +1598,17 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     const sourceDash = toDashSeason(selectedSourceSeason);
     const targetDash = toDashSeason(selectedSeason);
     return mergedPlayers.filter((p) => {
-      const source = p.seasonData?.[sourceDash];
+      const source = p.seasonData?.[sourceDash] || p.seasonData?.[selectedSourceSeason] || p.seasonData?.[toSlashSeason(selectedSourceSeason)];
       if (!source) return false;
-      if (p.seasons?.includes(selectedSeason)) return false;
-      if (p.seasons?.some((s) => toDashSeason(s) === targetDash)) return false;
-      if (p.seasonData?.[targetDash]) return false;
+      // 「引き継ぎ済み」は対象シーズンの seasonData と roster の両方が実在する場合のみ。
+      // seasons 配列にだけエントリがある・rosterだけ欠損などの半引き継ぎ状態は
+      // 対象に含め、引き継ぎ実行で seasonData/roster を補完して自己修復できるようにする。
+      const hasTargetSeasonData = Boolean(p.seasonData?.[targetDash] || p.seasonData?.[selectedSeason]);
+      const hasRoster = carryoverRosterIds === null ? true : carryoverRosterIds.has(p.id);
+      if (hasTargetSeasonData && hasRoster) return false;
       return true;
     });
-  }, [mergedPlayers, selectedSourceSeason, selectedSeason]);
+  }, [mergedPlayers, selectedSourceSeason, selectedSeason, carryoverRosterIds]);
 
   const handleCarryover = async () => {
     if (!clubUid || !teamId || !selectedSeason || !selectedSourceSeason) return;
@@ -1605,11 +1628,15 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       const batch = writeBatch(db);
       const touchedIds: string[] = [];
       for (const p of carryoverablePlayers) {
-        const source = p.seasonData?.[sourceDash] as PlayerSeasonData | undefined;
+        const source = (p.seasonData?.[sourceDash] || p.seasonData?.[selectedSourceSeason] || p.seasonData?.[toSlashSeason(selectedSourceSeason)]) as PlayerSeasonData | undefined;
         if (!source) continue;
-        const nextSeasonData: PlayerSeasonData = { ...source };
-        const dateOfBirth = source.dateOfBirth ?? p.dateOfBirth;
-        const joinedSeason = source.joinedSeason ?? p.joinedSeason;
+        // 対象シーズンの seasonData が既にある（rosterのみ欠損）場合は上書きせず、
+        // 既存データをそのまま使ってrosterだけ補完する
+        const existingTarget = (p.seasonData?.[targetDash] || p.seasonData?.[selectedSeason]) as PlayerSeasonData | undefined;
+        const base = existingTarget || source;
+        const nextSeasonData: PlayerSeasonData = { ...base };
+        const dateOfBirth = base.dateOfBirth ?? source.dateOfBirth ?? p.dateOfBirth;
+        const joinedSeason = base.joinedSeason ?? source.joinedSeason ?? p.joinedSeason;
         if (dateOfBirth) {
           try {
             (nextSeasonData as any).age = calculateAge(dateOfBirth, selectedSeason);
@@ -1622,13 +1649,16 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         }
         const seasonPayloadClean = (stripUndefinedDeep(nextSeasonData) || {}) as any;
         const currentSeasons = Array.isArray(p.seasons) ? p.seasons : [];
-        const nextSeasons = currentSeasons.includes(selectedSeason)
-          ? currentSeasons
-          : [...currentSeasons, selectedSeason];
+        // 同一シーズンの表記違い（"2027-28" 等）を除去してから slash 形式で登録し直す
+        const nextSeasons = [
+          ...currentSeasons.filter((s) => toDashSeason(String(s || "").trim()) !== targetDash),
+          selectedSeason,
+        ];
         const playerDocRef = doc(playersColRef, p.id);
         batch.update(playerDocRef, stripUndefinedDeep({
           seasons: nextSeasons,
-          [`seasonData.${targetDash}`]: seasonPayloadClean,
+          // seasonData は欠損している場合のみ補完（既存データをsourceで上書きしない）
+          ...(existingTarget ? {} : { [`seasonData.${targetDash}`]: seasonPayloadClean }),
         }) as any);
         const rosterDocRef = doc(db, `clubs/${clubUid}/seasons/${targetDash}/roster`, p.id);
         batch.set(rosterDocRef, (stripUndefinedDeep({

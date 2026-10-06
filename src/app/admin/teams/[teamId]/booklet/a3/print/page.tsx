@@ -11,6 +11,7 @@ import type { BookletResponse } from "../../types";
 import { BookletGlobalStyles } from "../../components/BookletGlobalStyles";
 import { ProPlanNotice } from "../../components/ProPlanNotice";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { toSlashSeason } from "@/lib/season";
 import { PrintPageLayout, type TransferRow } from "./components/PrintPageLayout";
 import { formations } from "@/lib/formations";
 import { getPlanTier } from "@/lib/plan-limits";
@@ -159,7 +160,7 @@ export default function TeamBookletA3PrintPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const teamId = params.teamId as string;
-  const season = (searchParams.get("season") || "").trim();
+  const season = toSlashSeason((searchParams.get("season") || "").trim());
   const embed = (searchParams.get("embed") || "").trim() === "1";
 
   const { user } = useAuth();
