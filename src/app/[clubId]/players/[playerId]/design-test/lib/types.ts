@@ -3,6 +3,7 @@ export type SimplePlayerStats = {
   minutes: number;
   goals: number;
   assists: number;
+  avgRating?: number | null;
 };
 
 export type SeasonCompetitionStatsRow = {

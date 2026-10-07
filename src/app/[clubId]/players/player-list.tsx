@@ -578,10 +578,22 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
       basicItems.push({ label: '契約満了', value: `${player.contractEndYear}年${player.contractEndMonth}月` });
     }
 
+    const activeVariants = activeSeason
+      ? new Set([activeSeason, toSlashSeason(activeSeason), toDashSeason(activeSeason)].filter((v): v is string => typeof v === 'string' && v.trim().length > 0))
+      : null;
+    const ratedMatches = (player.matchRecords || []).filter((r) => {
+      const seasonOk = !activeVariants || activeVariants.has(r.season);
+      return seasonOk && typeof r.rating === "number" && r.rating > 0;
+    });
+    const avgRating = ratedMatches.length > 0
+      ? ratedMatches.reduce((sum, r) => sum + (r.rating ?? 0), 0) / ratedMatches.length
+      : null;
+
     const summaryItems = [
       { label: '出場', value: stats.appearances },
       { label: '得点', value: stats.goals },
       { label: 'AS', value: stats.assists },
+      { label: '平均評価', value: avgRating == null ? '—' : avgRating.toFixed(2) },
     ];
 
     return (
@@ -911,7 +923,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
 
             {tab === 'stats' && (
               <div className="space-y-3">
-                <div className="grid grid-cols-3 divide-x divide-white/[0.07] rounded-xl border bg-white/[0.04] py-2.5" style={{ borderColor: `${mainAccent}15` }}>
+                <div className="grid grid-cols-4 divide-x divide-white/[0.07] rounded-xl border bg-white/[0.04] py-2.5" style={{ borderColor: `${mainAccent}15` }}>
                   {summaryItems.map((s) => (
                     <div key={s.label} className="text-center">
                       <div className={`text-xl font-black italic leading-none ${barlow.className}`} style={{ color: posTextColor }}>{s.value}</div>

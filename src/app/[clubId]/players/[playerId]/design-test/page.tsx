@@ -223,7 +223,7 @@ export default async function PlayerDesignTestPage({
           </div>
           {null}
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+        <div className="mt-3 grid grid-cols-4 gap-2 text-center">
           <div className="rounded-xl border border-white/10 bg-black/10 px-3 py-2">
             <div className="text-[11px] text-white/70">試合</div>
             <div className="mt-0.5 text-lg font-bold tabular-nums">{leagueStats.appearances}</div>
@@ -235,6 +235,10 @@ export default async function PlayerDesignTestPage({
           <div className="rounded-xl border border-white/10 bg-black/10 px-3 py-2">
             <div className="text-[11px] text-white/70">アシスト</div>
             <div className="mt-0.5 text-lg font-bold tabular-nums">{leagueStats.assists}</div>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-black/10 px-3 py-2">
+            <div className="text-[11px] text-white/70">平均評価</div>
+            <div className="mt-0.5 text-lg font-bold tabular-nums">{leagueStats.avgRating == null ? "—" : leagueStats.avgRating.toFixed(2)}</div>
           </div>
         </div>
       </div>
@@ -262,7 +266,7 @@ export default async function PlayerDesignTestPage({
                     <div className="min-w-0 text-sm font-semibold truncate">{row.competitionName}</div>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  <div className="mt-3 grid grid-cols-4 gap-2 text-center">
                     <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
                       <div className="text-[11px] text-white/70">試合</div>
                       <div className="mt-0.5 text-lg font-bold tabular-nums">{row.stats.appearances}</div>
@@ -274,6 +278,10 @@ export default async function PlayerDesignTestPage({
                     <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
                       <div className="text-[11px] text-white/70">アシスト</div>
                       <div className="mt-0.5 text-lg font-bold tabular-nums">{row.stats.assists}</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                      <div className="text-[11px] text-white/70">平均評価</div>
+                      <div className="mt-0.5 text-lg font-bold tabular-nums">{row.stats.avgRating == null ? "—" : row.stats.avgRating.toFixed(2)}</div>
                     </div>
                   </div>
                 </div>
@@ -342,7 +350,7 @@ export default async function PlayerDesignTestPage({
           </div>
           {null}
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+        <div className="mt-3 grid grid-cols-4 gap-2 text-center">
           <div className="rounded-xl border border-white/10 bg-black/10 px-3 py-2">
             <div className="text-[11px] text-white/70">試合</div>
             <div className="mt-0.5 text-lg font-bold tabular-nums">{leagueStats.appearances}</div>
@@ -354,6 +362,10 @@ export default async function PlayerDesignTestPage({
           <div className="rounded-xl border border-white/10 bg-black/10 px-3 py-2">
             <div className="text-[11px] text-white/70">アシスト</div>
             <div className="mt-0.5 text-lg font-bold tabular-nums">{leagueStats.assists}</div>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-black/10 px-3 py-2">
+            <div className="text-[11px] text-white/70">平均評価</div>
+            <div className="mt-0.5 text-lg font-bold tabular-nums">{leagueStats.avgRating == null ? "—" : leagueStats.avgRating.toFixed(2)}</div>
           </div>
         </div>
       </div>
@@ -377,7 +389,7 @@ export default async function PlayerDesignTestPage({
                   <div className="min-w-0 text-sm font-semibold truncate">{row.competitionName}</div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center">
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
                     <div className="text-[11px] text-white/70">試合</div>
                     <div className="mt-0.5 text-lg font-bold tabular-nums">{row.stats.appearances}</div>
@@ -389,6 +401,10 @@ export default async function PlayerDesignTestPage({
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
                     <div className="text-[11px] text-white/70">アシスト</div>
                     <div className="mt-0.5 text-lg font-bold tabular-nums">{row.stats.assists}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                    <div className="text-[11px] text-white/70">平均評価</div>
+                    <div className="mt-0.5 text-lg font-bold tabular-nums">{row.stats.avgRating == null ? "—" : row.stats.avgRating.toFixed(2)}</div>
                   </div>
                 </div>
               </div>

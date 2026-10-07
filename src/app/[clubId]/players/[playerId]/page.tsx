@@ -426,6 +426,7 @@ interface PlayerStats {
   redCards: number;
   ratingSum: number;
   ratingCount: number;
+  avgRating: number | null;
 }
 
 type SeasonSummaryCompetitionRow = {
@@ -776,7 +777,7 @@ function getPlayerStats(records: PlayerMatchRecord[], targetSeason?: string | nu
     ? records.filter((r) => seasonEquals(r.competitionSeason, normalizedTargetSeason))
     : records;
 
-  return filtered.reduce(
+  const totals = filtered.reduce(
     (acc, r) => ({
       appearances: acc.appearances + r.appearances,
       minutes: acc.minutes + r.minutes,
@@ -798,6 +799,10 @@ function getPlayerStats(records: PlayerMatchRecord[], targetSeason?: string | nu
       ratingCount: 0,
     }
   );
+  return {
+    ...totals,
+    avgRating: totals.ratingCount > 0 ? totals.ratingSum / totals.ratingCount : null,
+  };
 }
 
 async function PlayerStatsSection({
@@ -884,7 +889,7 @@ async function PlayerStatsSection({
         <h2 className="text-xl font-bold mb-4">シーズンスタッツ</h2>
         {statsSeason && <p className="text-xs text-muted-foreground mb-2">{toSlashSeason(statsSeason)} シーズン</p>}
         <div className="overflow-x-auto">
-          <div className="grid grid-cols-6 gap-2 min-w-[420px] text-center">
+          <div className="grid grid-cols-7 gap-2 min-w-[520px] text-center">
             <div className="border rounded-md p-2">
               <p className="text-[10px] text-muted-foreground">試合数</p>
               <p className="text-xl font-bold tabular-nums">{stats.appearances}</p>
@@ -909,6 +914,10 @@ async function PlayerStatsSection({
               <p className="text-[10px] text-muted-foreground">退場</p>
               <p className="text-xl font-bold tabular-nums">{stats.redCards}</p>
             </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">平均評価</p>
+              <p className="text-xl font-bold tabular-nums">{stats.avgRating == null ? "—" : stats.avgRating.toFixed(2)}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -916,7 +925,7 @@ async function PlayerStatsSection({
       <div className="mt-4">
         <h2 className="text-xl font-bold mb-4">通算スタッツ</h2>
         <div className="overflow-x-auto">
-          <div className="grid grid-cols-6 gap-2 min-w-[420px] text-center">
+          <div className="grid grid-cols-7 gap-2 min-w-[520px] text-center">
             <div className="border rounded-md p-2">
               <p className="text-[10px] text-muted-foreground">試合数</p>
               <p className="text-xl font-bold tabular-nums">{careerStats.appearances}</p>
@@ -940,6 +949,10 @@ async function PlayerStatsSection({
             <div className="border rounded-md p-2">
               <p className="text-[10px] text-muted-foreground">退場</p>
               <p className="text-xl font-bold tabular-nums">{careerStats.redCards}</p>
+            </div>
+            <div className="border rounded-md p-2">
+              <p className="text-[10px] text-muted-foreground">平均評価</p>
+              <p className="text-xl font-bold tabular-nums">{careerStats.avgRating == null ? "—" : careerStats.avgRating.toFixed(2)}</p>
             </div>
           </div>
         </div>

@@ -54,6 +54,7 @@ import { POSITIONS, type PlayerFormValues } from "./player-form.schema";
 import { Player, PlayerSeasonData } from "@/types/player";
 import { columns } from "./players-columns";
 import { PlayersDataTable } from "./players-data-table";
+import { Checkbox } from "@/components/ui/checkbox";
 
 function stripUndefinedDeep(value: any): any {
   if (value === undefined) return undefined;
@@ -102,6 +103,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
   const deletingRef = useRef(false);
   const [isCarryoverDialogOpen, setIsCarryoverDialogOpen] = useState(false);
   const [selectedSourceSeason, setSelectedSourceSeason] = useState<string>('');
+  const [selectedCarryoverIds, setSelectedCarryoverIds] = useState<Set<string>>(new Set());
   const [carryingOver, setCarryingOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isFormDirty, setIsFormDirty] = useState(false);
@@ -1610,13 +1612,23 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
     });
   }, [mergedPlayers, selectedSourceSeason, selectedSeason, carryoverRosterIds]);
 
+  useEffect(() => {
+    if (isCarryoverDialogOpen) {
+      setSelectedCarryoverIds(new Set(carryoverablePlayers.map((p) => p.id)));
+    }
+  }, [isCarryoverDialogOpen, carryoverablePlayers]);
+
+  const selectedCarryoverPlayers = useMemo(() => {
+    return carryoverablePlayers.filter((p) => selectedCarryoverIds.has(p.id));
+  }, [carryoverablePlayers, selectedCarryoverIds]);
+
   const handleCarryover = async () => {
     if (!clubUid || !teamId || !selectedSeason || !selectedSourceSeason) return;
-    if (carryoverablePlayers.length === 0) {
-      toast.error('引き継ぎ可能な選手がいません。');
+    if (selectedCarryoverPlayers.length === 0) {
+      toast.error('引き継ぐ選手を選択してください。');
       return;
     }
-    if (Number.isFinite(maxPlayers) && filteredPlayers.length + carryoverablePlayers.length > maxPlayers) {
+    if (Number.isFinite(maxPlayers) && filteredPlayers.length + selectedCarryoverPlayers.length > maxPlayers) {
       toast.error(`現在のプランでは1チームあたり選手は最大${maxPlayers}人まで登録できます。`);
       return;
     }
@@ -1627,7 +1639,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       const playersColRef = collection(db, `clubs/${clubUid}/teams/${teamId}/players`);
       const batch = writeBatch(db);
       const touchedIds: string[] = [];
-      for (const p of carryoverablePlayers) {
+      for (const p of selectedCarryoverPlayers) {
         const source = (p.seasonData?.[sourceDash] || p.seasonData?.[selectedSourceSeason] || p.seasonData?.[toSlashSeason(selectedSourceSeason)]) as PlayerSeasonData | undefined;
         if (!source) continue;
         // 対象シーズンの seasonData が既にある（rosterのみ欠損）場合は上書きせず、
@@ -2045,22 +2057,73 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                 ))}
               </select>
             </div>
-            {selectedSourceSeason && carryoverablePlayers.length > 0 && (
-              <div className="text-sm text-slate-300">
-                {carryoverablePlayers.length}人の選手を引き継ぎます
-              </div>
-            )}
             {selectedSourceSeason && carryoverablePlayers.length === 0 && (
               <div className="text-sm text-slate-400">
                 引き継ぎ可能な選手がいません
               </div>
             )}
+            {selectedSourceSeason && carryoverablePlayers.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-slate-300">
+                    {selectedCarryoverPlayers.length}/{carryoverablePlayers.length}人選択
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setSelectedCarryoverIds(new Set(carryoverablePlayers.map((p) => p.id)))}
+                    >
+                      全員選択
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setSelectedCarryoverIds(new Set())}
+                    >
+                      全員解除
+                    </Button>
+                  </div>
+                </div>
+                <div className="max-h-[240px] overflow-y-auto rounded-md border border-slate-700 bg-slate-900 p-2 space-y-1">
+                  {carryoverablePlayers.map((p) => {
+                    const numberText = p.number != null ? String(p.number) : "";
+                    const posText = typeof p.position === "string" ? p.position.toUpperCase() : "";
+                    const labelId = `carryover-${p.id}`;
+                    return (
+                      <div key={p.id} className="flex items-center gap-2 rounded px-1 py-1 hover:bg-slate-800">
+                        <Checkbox
+                          id={labelId}
+                          checked={selectedCarryoverIds.has(p.id)}
+                          onCheckedChange={(checked) => {
+                            setSelectedCarryoverIds((prev) => {
+                              const next = new Set(prev);
+                              if (checked === true) next.add(p.id);
+                              else next.delete(p.id);
+                              return next;
+                            });
+                          }}
+                          aria-labelledby={labelId}
+                        />
+                        <label htmlFor={labelId} className="flex min-w-0 flex-1 items-center gap-2 text-sm text-slate-200 cursor-pointer">
+                          <span className="w-7 shrink-0 text-right text-xs tabular-nums text-slate-400">{numberText || "-"}</span>
+                          <span className="w-8 shrink-0 text-center text-[10px] font-semibold text-slate-400">{posText || "-"}</span>
+                          <span className="min-w-0 truncate">{p.name}</span>
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <Button
               onClick={handleCarryover}
-              disabled={!selectedSourceSeason || carryingOver || carryoverablePlayers.length === 0}
+              disabled={!selectedSourceSeason || carryingOver || selectedCarryoverPlayers.length === 0}
               className="w-full bg-blue-600 text-white hover:bg-blue-700"
             >
-              {carryingOver ? '引き継ぎ中...' : `${carryoverablePlayers.length}人を引き継ぎ`}
+              {carryingOver ? '引き継ぎ中...' : selectedCarryoverPlayers.length > 0 ? `${selectedCarryoverPlayers.length}人を引き継ぎ` : '引き継ぐ選手を選択'}
             </Button>
           </div>
         </DialogContent>

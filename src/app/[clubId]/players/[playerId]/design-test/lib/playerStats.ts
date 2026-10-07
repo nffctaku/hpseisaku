@@ -232,6 +232,9 @@ export async function getLeaguePlayerStats(
   const manualStatsMap = buildManualStatsMapFromPlayer(playerData, targetSeason);
   const matchesMap = matchesByCompetition(matches);
 
+  let ratingSum = 0;
+  let ratingCount = 0;
+
   for (const c of competitions) {
     if (c.format !== "league" && c.format !== "league_cup") continue;
     if (targetSeason && !seasonMatches(targetSeasonSet, c.season)) continue;
@@ -252,9 +255,14 @@ export async function getLeaguePlayerStats(
       aggregated.appearances += r.minutesPlayed > 0 ? 1 : 0;
       aggregated.goals += r.goals;
       aggregated.assists += r.assists;
+      if (r.rating > 0) {
+        ratingSum += r.rating;
+        ratingCount += 1;
+      }
     }
   }
 
+  aggregated.avgRating = ratingCount > 0 ? ratingSum / ratingCount : null;
   return aggregated;
 }
 
@@ -281,14 +289,20 @@ export async function getSeasonCompetitionStats(
   for (const c of competitions) {
     if (targetSeasonSet && !seasonMatches(targetSeasonSet, c.season)) continue;
 
-    const stats: SimplePlayerStats = { appearances: 0, minutes: 0, goals: 0, assists: 0 };
+    const stats: SimplePlayerStats = { appearances: 0, minutes: 0, goals: 0, assists: 0, avgRating: null };
     const manual = manualStatsMap.get(c.id);
+    let ratingSum = 0;
+    let ratingCount = 0;
 
     if (manual) {
       stats.appearances = Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
       stats.minutes = Number.isFinite(manual.minutes as any) ? Number(manual.minutes) : 0;
       stats.goals = Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0;
       stats.assists = Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0;
+      const manualAvg = Number((manual as any).avgRating);
+      if (Number.isFinite(manualAvg) && manualAvg > 0) {
+        stats.avgRating = manualAvg;
+      }
     } else {
       const compMatches = matchesMap.get(c.id) || [];
       for (const r of compMatches) {
@@ -296,7 +310,12 @@ export async function getSeasonCompetitionStats(
         stats.appearances += r.minutesPlayed > 0 ? 1 : 0;
         stats.goals += r.goals;
         stats.assists += r.assists;
+        if (r.rating > 0) {
+          ratingSum += r.rating;
+          ratingCount += 1;
+        }
       }
+      stats.avgRating = ratingCount > 0 ? ratingSum / ratingCount : null;
     }
 
     const hasAny = stats.appearances > 0 || stats.goals > 0 || stats.assists > 0 || stats.minutes > 0;

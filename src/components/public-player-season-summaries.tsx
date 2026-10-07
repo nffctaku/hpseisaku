@@ -101,7 +101,7 @@ export function PublicPlayerSeasonSummaries({ rows }: { rows: PublicSeasonSummar
                           <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.goals : "-"}</div>
                           <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.assists : "-"}</div>
                           <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
-                            {row.hasStats ? (row.avgRating == null ? "-" : row.avgRating.toFixed(1)) : "-"}
+                            {row.hasStats ? (row.avgRating == null ? "-" : row.avgRating.toFixed(2)) : "-"}
                           </div>
                         </div>
                       </summary>
@@ -165,7 +165,7 @@ export function PublicPlayerSeasonSummaries({ rows }: { rows: PublicSeasonSummar
                                   <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? c.goals : "-"}</td>
                                   <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{c.hasStats ? c.assists : "-"}</td>
                                   <td className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
-                                    {c.hasStats ? (c.avgRating == null ? "-" : c.avgRating.toFixed(1)) : "-"}
+                                    {c.hasStats ? (c.avgRating == null ? "-" : c.avgRating.toFixed(2)) : "-"}
                                   </td>
                                 </tr>
                               ))}
@@ -183,7 +183,7 @@ export function PublicPlayerSeasonSummaries({ rows }: { rows: PublicSeasonSummar
                       <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.goals : "-"}</div>
                       <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">{row.hasStats ? row.assists : "-"}</div>
                       <div className="p-1.5 text-center text-[11px] font-semibold tabular-nums">
-                        {row.hasStats ? (row.avgRating == null ? "-" : row.avgRating.toFixed(1)) : "-"}
+                        {row.hasStats ? (row.avgRating == null ? "-" : row.avgRating.toFixed(2)) : "-"}
                       </div>
                     </div>
                   )}
