@@ -9,6 +9,7 @@ import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc } from
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getPlanLimit, getPlanTier } from "@/lib/plan-limits";
+import { toDashSeason, toSlashSeason } from "@/lib/season";
 import {
   Dialog,
   DialogContent,
@@ -67,7 +68,18 @@ export function StaffManagement({ teamId, selectedSeason }: StaffManagementProps
 
   const filteredStaff = useMemo(() => {
     if (!selectedSeason) return staff;
-    return staff.filter((p) => (p.seasons || []).includes(selectedSeason));
+    const selectedDash = toDashSeason(selectedSeason);
+    const selectedSlash = toSlashSeason(selectedSeason);
+    return staff.filter((p) => {
+      const seasons = Array.isArray(p.seasons) ? (p.seasons as string[]) : [];
+      if (seasons.length === 0) return true;
+      return seasons.some(
+        (s) =>
+          s === selectedSeason ||
+          s === selectedDash ||
+          s === selectedSlash
+      );
+    });
   }, [staff, selectedSeason]);
 
   useEffect(() => {

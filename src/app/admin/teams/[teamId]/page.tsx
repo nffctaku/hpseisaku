@@ -143,7 +143,9 @@ export default function TeamPlayersPage() {
 
   const handleChangeSeason = (seasonId: string) => {
     const normalized = toSlashSeason(seasonId);
-    setSelectedSeason(normalized);
+    // selectedSeason の更新は URL クエリに任せ、ここでは router.replace のみ行う。
+    // setSelectedSeason を挟むと searchParams の更新が遅れた際に useEffect で
+    // 古い seasonFromQuery に上書きされ、一瞬で元のシーズンに戻ってしまう。
     router.replace(`/admin/teams/${teamId}?season=${encodeURIComponent(normalized)}`);
   };
 
@@ -254,12 +256,12 @@ export default function TeamPlayersPage() {
                   HPに公開する
                 </Label>
                 <span className="text-xs text-white/60">
-                  {seasons.find(s => s.id === selectedSeason)?.isPublic ? '現在: 公開中' : '現在: 非公開'}
+                  {seasons.find(s => s.id === selectedSeason)?.isPublic !== false ? '現在: 公開中' : '現在: 非公開'}
                 </span>
               </div>
               <Switch
                 id={`public-switch-${selectedSeason}`}
-                checked={seasons.find(s => s.id === selectedSeason)?.isPublic || false}
+                checked={seasons.find(s => s.id === selectedSeason)?.isPublic !== false}
                 onCheckedChange={(checked) => handleTogglePublic(selectedSeason, checked)}
                 className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-gray-500"
               />
