@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCareer } from '@/contexts/CareerContext';
@@ -51,6 +51,7 @@ export default function TeamPlayersPage() {
   // 完全一致比較で slash 形式の seasons エントリを削除できなくなる。
   const seasonFromQuery = toSlashSeason((searchParams.get('season') || '').trim());
   const [selectedSeason, setSelectedSeason] = useState<string>(seasonFromQuery);
+  const pendingSeasonRef = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState<'players' | 'staff'>('players');
 
   useEffect(() => {
@@ -116,6 +117,12 @@ export default function TeamPlayersPage() {
     if (!seasonFromQuery || seasons.length === 0) return;
     const exists = seasons.some((s) => s.id === seasonFromQuery);
     const next = exists ? seasonFromQuery : seasons[0].id;
+    // handleChangeSeason 側で selectedSeason を既に更新済みの場合は、
+    // 古い seasonFromQuery または同じ値で上書きしない。
+    if (pendingSeasonRef.current === seasonFromQuery) {
+      pendingSeasonRef.current = null;
+      return;
+    }
     setSelectedSeason(next);
     if (!exists) {
       router.replace(`/admin/teams/${teamId}?season=${encodeURIComponent(next)}`);
@@ -143,9 +150,11 @@ export default function TeamPlayersPage() {
 
   const handleChangeSeason = (seasonId: string) => {
     const normalized = toSlashSeason(seasonId);
-    // selectedSeason の更新は URL クエリに任せ、ここでは router.replace のみ行う。
-    // setSelectedSeason を挟むと searchParams の更新が遅れた際に useEffect で
-    // 古い seasonFromQuery に上書きされ、一瞬で元のシーズンに戻ってしまう。
+    // 即座に selectedSeason を更新して Select 表示を最新にする。
+    // 同時に useEffect 側の URL→state 同期を抑制するため、
+    // 更新を予定した season を pendingSeasonRef に保存する。
+    pendingSeasonRef.current = normalized;
+    setSelectedSeason(normalized);
     router.replace(`/admin/teams/${teamId}?season=${encodeURIComponent(normalized)}`);
   };
 
