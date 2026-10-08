@@ -49,7 +49,7 @@ export default function TeamPlayersPage() {
   // "?season=2027-28" のような dash 形式も入口で slash に正規化する。
   // 正規化しないと selectedSeason が dash のまま残り、arrayRemove 相当の
   // 完全一致比較で slash 形式の seasons エントリを削除できなくなる。
-  const seasonFromQuery = toSlashSeason((searchParams.get('season') || '').trim());
+  const seasonFromQuery = toSlashSeason(decodeURIComponent((searchParams.get('season') || '').trim()));
   const [selectedSeason, setSelectedSeason] = useState<string>(seasonFromQuery);
   const pendingSeasonRef = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState<'players' | 'staff'>('players');
@@ -149,7 +149,7 @@ export default function TeamPlayersPage() {
   };
 
   const handleChangeSeason = (seasonId: string) => {
-    const normalized = toSlashSeason(seasonId);
+    const normalized = toSlashSeason(decodeURIComponent(seasonId));
     // 即座に selectedSeason を更新して Select 表示を最新にする。
     // 同時に useEffect 側の URL→state 同期を抑制するため、
     // 更新を予定した season を pendingSeasonRef に保存する。
