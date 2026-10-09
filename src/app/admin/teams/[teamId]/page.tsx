@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCareer } from '@/contexts/CareerContext';
 import { db } from '@/lib/firebase';
 import { doc, collection, getDocs, updateDoc, limit, query } from 'firebase/firestore';
-import { toDashSeason, toSlashSeason } from '@/lib/season';
+import { toSlashSeason } from '@/lib/season';
 import { toast } from 'sonner';
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import { PlayerManagement } from '@/components/player-management';
@@ -25,6 +25,7 @@ import {
 
 interface Season {
   id: string;
+  label: string;
   isPublic?: boolean;
 }
 
@@ -50,7 +51,9 @@ export default function TeamPlayersPage() {
   // 正規化しないと selectedSeason が dash のまま残り、arrayRemove 相当の
   // 完全一致比較で slash 形式の seasons エントリを削除できなくなる。
   const seasonFromQuery = toSlashSeason(decodeURIComponent((searchParams.get('season') || '').trim()));
-  const [selectedSeason, setSelectedSeason] = useState<string>(seasonFromQuery);
+  // selectedSeason は内部 ID（Firestore ドキュメント ID）を保持する。
+  // 表示ラベルが必要な箇所では toSlashSeason(selectedSeason) を使用する。
+  const [selectedSeason, setSelectedSeason] = useState<string>("");
   const pendingSeasonRef = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState<'players' | 'staff'>('players');
 
@@ -91,9 +94,16 @@ export default function TeamPlayersPage() {
         }
         const seen = new Set<string>();
         const seasonsData = snapshot.docs
-          .map((d) => ({ id: toSlashSeason(d.id), ...(d.data() as any) } as Season))
+          .map((d) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              label: toSlashSeason(d.id),
+              isPublic: data.isPublic,
+            } as Season;
+          })
           .filter((s) => (seen.has(s.id) ? false : (seen.add(s.id), true)))
-          .sort((a, b) => b.id.localeCompare(a.id));
+          .sort((a, b) => b.label.localeCompare(a.label));
         setSeasons(seasonsData);
         setSeasonsError(null);
       })
@@ -115,8 +125,11 @@ export default function TeamPlayersPage() {
   // 取得済みのseasonsとURLクエリから選択状態を同期（通信を伴わず競合しない）
   useEffect(() => {
     if (!seasonFromQuery || seasons.length === 0) return;
-    const exists = seasons.some((s) => s.id === seasonFromQuery);
-    const next = exists ? seasonFromQuery : seasons[0].id;
+    // 内部 ID（d.id）は dash/slash 混在している可能性があるため、
+    // 表示ラベル（slash）で照合し、確実に SelectItem.value と一致する
+    // 内部 ID を selectedSeason に設定する。
+    const matched = seasons.find((s) => s.label === seasonFromQuery);
+    const next = matched ? matched.id : seasons[0].id;
     // handleChangeSeason 側で selectedSeason を既に更新済みの場合は、
     // 古い seasonFromQuery または同じ値で上書きしない。
     if (pendingSeasonRef.current === seasonFromQuery) {
@@ -124,8 +137,8 @@ export default function TeamPlayersPage() {
       return;
     }
     setSelectedSeason(next);
-    if (!exists) {
-      router.replace(`/admin/teams/${teamId}?season=${encodeURIComponent(next)}`);
+    if (!matched) {
+      router.replace(`/admin/teams/${teamId}?season=${encodeURIComponent(toSlashSeason(next))}`);
     }
   }, [seasons, seasonFromQuery, router, teamId]);
 
@@ -150,20 +163,25 @@ export default function TeamPlayersPage() {
 
   const handleChangeSeason = (seasonId: string) => {
     const normalized = toSlashSeason(decodeURIComponent(seasonId));
-    // 即座に selectedSeason を更新して Select 表示を最新にする。
+    // SelectItem.value は内部 ID（dash/slash 混在）を保持する。
+    // 表示用 URL には slash 形式を使用し、selectedSeason には
+    // 実際の SelectItem.value である内部 ID を保持する。
+    const matched = seasons.find((s) => s.label === normalized);
+    const selectedId = matched ? matched.id : seasonId;
     // 同時に useEffect 側の URL→state 同期を抑制するため、
-    // 更新を予定した season を pendingSeasonRef に保存する。
+    // 更新を予定した表示ラベルを pendingSeasonRef に保存する。
     pendingSeasonRef.current = normalized;
-    setSelectedSeason(normalized);
+    setSelectedSeason(selectedId);
     router.replace(`/admin/teams/${teamId}?season=${encodeURIComponent(normalized)}`);
   };
 
   const handleTogglePublic = async (seasonId: string, isPublic: boolean) => {
     if (!clubUid) return;
-    const seasonDocRef = doc(db, `clubs/${clubUid}/seasons`, toDashSeason(seasonId));
+    // seasonId は内部 ID（Firestore ドキュメント ID）を受け取る。
+    const seasonDocRef = doc(db, `clubs/${clubUid}/seasons`, seasonId);
     await updateDoc(seasonDocRef, { isPublic });
     setSeasons(seasons.map(s => s.id === seasonId ? { ...s, isPublic } : s));
-    toast.success(`シーズン ${seasonId} を ${isPublic ? '公開' : '非公開'}にしました。`);
+    toast.success(`シーズン ${toSlashSeason(seasonId)} を ${isPublic ? '公開' : '非公開'}にしました。`);
   };
 
   return (
@@ -215,13 +233,13 @@ export default function TeamPlayersPage() {
                 </div>
               ) : (
                 <Select value={selectedSeason} onValueChange={handleChangeSeason}>
-                  <SelectTrigger className="bg-white/10 text-white border-white/15 w-full">
+                  <SelectTrigger className="bg-white/10 text-white border-white/15 w-full data-[placeholder]:text-white/70">
                     <SelectValue placeholder="シーズンを選択" />
                   </SelectTrigger>
                   <SelectContent>
                     {seasons.map((season) => (
                       <SelectItem key={season.id} value={season.id}>
-                        {season.id}
+                        {season.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
