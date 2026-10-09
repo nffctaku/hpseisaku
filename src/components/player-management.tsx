@@ -516,6 +516,20 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       });
   }, [mergedPlayers, selectedSeason]);
 
+  const pageSize = 10;
+  const [currentPage, setCurrentPage] = useState(0);
+
+  const playerCount = filteredPlayers ? filteredPlayers.length : 0;
+  const totalPages = Math.max(1, Math.ceil(playerCount / pageSize));
+
+  const paginatedPlayers = useMemo(() => {
+    return filteredPlayers ? filteredPlayers.slice(currentPage * pageSize, (currentPage + 1) * pageSize) : [];
+  }, [filteredPlayers, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [playerCount]);
+
   const seasonDefaults = useMemo(() => {
     if (!selectedSeason || !editingPlayer) return undefined;
     const selectedSeasonDash = toDashSeason(selectedSeason);
@@ -1941,7 +1955,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
               選手がいません。
             </div>
           ) : (
-            filteredPlayers.map((p) => {
+            paginatedPlayers.map((p) => {
               const photoUrl = typeof (p as any)?.photoUrl === "string" ? String((p as any).photoUrl).trim() : "";
               const numberText = (p as any)?.number != null ? String((p as any).number) : "-";
               const posText = typeof (p as any)?.position === "string" ? String((p as any).position).trim().toUpperCase() : "";
@@ -1990,6 +2004,28 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           )}
 
         </div>
+
+        {totalPages > 1 && (
+          <div className="mt-4 flex items-center justify-between max-w-7xl mx-auto text-sm text-white/80">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+              className="rounded-md border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              前へ
+            </button>
+            <span>{currentPage + 1} / {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={currentPage >= totalPages - 1}
+              className="rounded-md border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              次へ
+            </button>
+          </div>
+        )}
       </div>
 
       <AlertDialog open={!!deletingPlayer} onOpenChange={() => setDeletingPlayer(null)}>
