@@ -516,7 +516,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       });
   }, [mergedPlayers, selectedSeason]);
 
-  const pageSize = 10;
+  const pageSize = 20;
   const [currentPage, setCurrentPage] = useState(0);
 
   const playerCount = filteredPlayers ? filteredPlayers.length : 0;
