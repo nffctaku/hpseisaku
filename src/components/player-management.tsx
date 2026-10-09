@@ -52,8 +52,6 @@ import {
 import { PlayerForm } from "./player-form";
 import { POSITIONS, type PlayerFormValues } from "./player-form.schema";
 import { Player, PlayerSeasonData } from "@/types/player";
-import { columns } from "./players-columns";
-import { PlayersDataTable } from "./players-data-table";
 import { Checkbox } from "@/components/ui/checkbox";
 
 function stripUndefinedDeep(value: any): any {
@@ -1937,9 +1935,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           </Button>
         </div>
 
-        <div className="sm:hidden space-y-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 max-w-7xl mx-auto">
           {filteredPlayers.length === 0 ? (
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 md:col-span-2">
               選手がいません。
             </div>
           ) : (
@@ -1951,7 +1949,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
               return (
                 <div
                   key={p.id}
-                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur relative overflow-hidden"
+                  className="flex h-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur relative overflow-hidden"
                   style={{ borderLeft: `4px solid ${positionColor}` }}
                 >
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded bg-white/10 -ml-3 -mt-3 -mb-3">
@@ -1991,31 +1989,6 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             })
           )}
 
-          {filteredPlayers.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => {
-                // Show a toast message about PC sorting
-                toast.info('並び替え機能はPC表示でご利用いただけます。');
-              }}
-              className="text-xs text-white/50 hover:text-white/70 underline cursor-pointer"
-            >
-              ※並び替えはPC表示で行えます。
-            </button>
-          ) : null}
-        </div>
-
-        <div className="hidden sm:block">
-          <PlayersDataTable
-            columns={columns(openEditDialog, setDeletingPlayer)}
-            data={filteredPlayers}
-            emptyState={filteredPlayers.length === 0 ? {
-              title: 'まだ選手が登録されていません',
-              description: '最初の1人を追加してチームを始めましょう',
-              actionLabel: '選手を追加',
-              onAction: openAddDialog
-            } : undefined}
-          />
         </div>
       </div>
 
