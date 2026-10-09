@@ -1742,6 +1742,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
                 limit={playerUsage.limit}
                 label="選手登録"
                 unit="人"
+                proMessage="選手登録 50名まで（1シーズン）"
               />
             </div>
           )}

@@ -159,6 +159,7 @@ export function PlayerPhotoUploader({ value, onChange, teamId, season, uid, club
           limit={photoLimit}
           label="選手画像"
           unit="人"
+          proMessage="選手画像登録 50枚まで（1シーズン）"
         />
       )}
       {limitReached && uid && (

@@ -8,9 +8,10 @@ interface PlanLimitBadgeProps {
   limit: number;
   label: string;
   unit?: string;
+  proMessage?: string;
 }
 
-export function PlanLimitBadge({ plan, current, limit, label, unit = "" }: PlanLimitBadgeProps) {
+export function PlanLimitBadge({ plan, current, limit, label, unit = "", proMessage }: PlanLimitBadgeProps) {
   const tier = typeof plan === "string" ? plan.trim().toLowerCase() : "free";
   const isUnlimited = !Number.isFinite(limit);
 
@@ -18,7 +19,7 @@ export function PlanLimitBadge({ plan, current, limit, label, unit = "" }: PlanL
     return (
       <div className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-500">
         <Info className="h-3 w-3" />
-        <span>Proプラン：{label}は無制限</span>
+        <span>{proMessage || `Proプラン：${label}は無制限`}</span>
       </div>
     );
   }
