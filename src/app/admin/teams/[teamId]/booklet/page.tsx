@@ -810,6 +810,7 @@ export default function TeamBookletPage() {
                       player={p}
                       positionColorClass={getPositionColor(p.mainPosition || p.position)}
                       accentColor={clubColor || undefined}
+                      clubLogo={data.club.logoUrl}
                       showParameterGraph={showParameterGraph}
                       mode="full"
                     />
