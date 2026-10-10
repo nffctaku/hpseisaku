@@ -5,18 +5,28 @@ function clamp99(n: unknown): number {
   return Math.max(0, Math.min(99, n));
 }
 
+function hexToRgba(hex: string, alpha: number) {
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.substring(0, 2), 16) || 0;
+  const g = parseInt(clean.substring(2, 4), 16) || 0;
+  const b = parseInt(clean.substring(4, 6), 16) || 0;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export function PublicPlayerHexChart({
   labels,
   values,
   overall,
   theme,
   className,
+  accentColor,
 }: {
   labels: string[];
   values: number[];
   overall: number;
   theme?: "light" | "dark";
   className?: string;
+  accentColor?: string;
 }) {
   const isDark = theme === "dark";
   const size = 120;
@@ -80,7 +90,12 @@ export function PublicPlayerHexChart({
       {angles.map((a, idx) => (
         <line key={idx} x1={c} y1={c} x2={c + r * Math.cos(a)} y2={c + r * Math.sin(a)} stroke={gridStroke} strokeWidth="2" />
       ))}
-      <polygon points={valuePoints} fill="rgba(37,99,235,0.25)" stroke="#2563EB" strokeWidth="2" />
+      <polygon
+        points={valuePoints}
+        fill={accentColor ? hexToRgba(accentColor, 0.25) : "rgba(37,99,235,0.25)"}
+        stroke={accentColor ? accentColor : "#2563EB"}
+        strokeWidth="2"
+      />
       <text x={c} y={c - 4} textAnchor="middle" fontSize="10" fill={overallLabelFill}>
         総合
       </text>

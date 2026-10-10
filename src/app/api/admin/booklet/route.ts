@@ -174,8 +174,8 @@ export async function GET(request: Request) {
               const mergedPlayerData = { ...p, ...playerDoc };
               const prevStats = await getPlayerStats(ownerUid, p.id, mergedPlayerData, prevSeason);
               
-              if (prevStats.appearances > 0 || prevStats.goals > 0) {
-                lastSeasonSummary = `${prevStats.appearances}試合${prevStats.goals}ゴール`;
+              if (prevStats.appearances > 0 || prevStats.goals > 0 || prevStats.assists > 0) {
+                lastSeasonSummary = `${prevStats.appearances}試合 ${prevStats.goals}ゴール ${prevStats.assists}アシスト`;
               }
             } catch (error) {
               console.error(`Failed to fetch ${prevSeason} match stats for player ${p.id}:`, error);
@@ -230,6 +230,7 @@ export async function GET(request: Request) {
         const merged = {
           id: p.id,
           name: safeString(sd?.name) || safeString((p as any)?.name) || safeString(playerDoc?.name),
+          subName: safeString(sd?.subName) || safeString((p as any)?.subName) || safeString(playerDoc?.subName),
           number: (toFiniteNumber(sd?.number) ?? toFiniteNumber((p as any)?.number) ?? toFiniteNumber(playerDoc?.number)) ?? null,
           position: safeString(sd?.position) || safeString((p as any)?.position) || safeString(playerDoc?.position),
           mainPosition: safeString(sd?.mainPosition) || safeString((p as any)?.mainPosition) || safeString(playerDoc?.mainPosition),

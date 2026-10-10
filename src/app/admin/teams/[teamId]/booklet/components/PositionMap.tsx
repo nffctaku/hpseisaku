@@ -15,12 +15,22 @@ const PITCH_BOXES: Array<{ key: string; style: { left: string; top: string; widt
   { key: "GK", style: { left: "33%", top: "84%", width: "34%", height: "8%" } },
 ];
 
+function toRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.substring(0, 2), 16) || 0;
+  const g = parseInt(clean.substring(2, 4), 16) || 0;
+  const b = parseInt(clean.substring(4, 6), 16) || 0;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export function PositionMap({
   mainPosition,
   subPositions,
+  accentColor,
 }: {
   mainPosition?: string;
   subPositions?: string[];
+  accentColor?: string;
 }) {
   const main = (mainPosition || "").trim();
   const subs = Array.isArray(subPositions) ? subPositions : [];
@@ -41,7 +51,9 @@ export function PositionMap({
       {PITCH_BOXES.map((p) => {
         const isMain = main === p.key;
         const isSub = subs.includes(p.key);
-        const fill = isMain ? "rgba(244,63,94,0.80)" : isSub ? "rgba(244,63,94,0.25)" : "rgba(0,0,0,0.04)";
+        const mainFill = accentColor ? toRgba(accentColor, 0.85) : "rgba(244,63,94,0.85)";
+        const subFill = accentColor ? toRgba(accentColor, 0.30) : "rgba(244,63,94,0.30)";
+        const fill = isMain ? mainFill : isSub ? subFill : "rgba(0,0,0,0.04)";
         return (
           <rect
             key={p.key}

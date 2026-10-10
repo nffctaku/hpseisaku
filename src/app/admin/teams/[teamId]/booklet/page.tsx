@@ -74,16 +74,22 @@ export default function TeamBookletPage() {
   // メインチームIDを club_profiles/{clubUid}（docId = clubUid のみ）から解決し、
   // URLのteamIdと照合する。不一致なら正しいメインチームのURLへ補正する。
   const [resolvedMainTeamId, setResolvedMainTeamId] = useState<string | null>(null);
+  const [clubColor, setClubColor] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     setResolvedMainTeamId(null);
+    setClubColor(null);
     const run = async () => {
       if (!clubUid) return;
       try {
         const snap = await getDoc(doc(db, "club_profiles", clubUid));
         const data = snap.exists() ? (snap.data() as any) : null;
         const id = typeof data?.mainTeamId === "string" ? data.mainTeamId.trim() : "";
-        if (!cancelled) setResolvedMainTeamId(id || null);
+        const color = typeof data?.homeBgColor === "string" ? data.homeBgColor : null;
+        if (!cancelled) {
+          setResolvedMainTeamId(id || null);
+          setClubColor(color);
+        }
       } catch (e) {
         console.warn("[TeamBookletPage] failed to resolve mainTeamId", e);
       }
@@ -773,7 +779,7 @@ export default function TeamBookletPage() {
       ) : null}
 
       {data && format === "a4" && bookletMode === "individual" ? (
-        <IndividualPlayerBooklet players={data.players} season={season} />
+        <IndividualPlayerBooklet players={data.players} season={season} accentColor={clubColor || undefined} />
       ) : null}
 
       {data && format === "a4" && bookletMode === "team" && (

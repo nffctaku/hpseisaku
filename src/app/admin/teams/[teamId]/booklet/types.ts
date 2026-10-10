@@ -1,6 +1,7 @@
 export type BookletPlayer = {
   id: string;
   name: string;
+  subName?: string;
   number: number | null;
   position: string;
   mainPosition?: string;

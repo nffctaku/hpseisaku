@@ -3,15 +3,14 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
+import { getContrastTextColor } from "@/lib/utils";
 import type { BookletPlayer } from "../types";
-import { preferredFootLabel } from "../lib/booklet-utils";
+import { contractEndLabel, isAlphabetName, preferredFootLabel } from "../lib/booklet-utils";
+import { PositionMap } from "./PositionMap";
 
-function escapeXml(value: unknown): string {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function clamp99(n: unknown): number {
+  if (typeof n !== "number" || !Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(99, n));
 }
 
 function shortPosition(position: string): string {
@@ -19,12 +18,20 @@ function shortPosition(position: string): string {
   return (pos.match(/^(FW|MF|DF|GK)$/)?.[1] as string) || pos || "-";
 }
 
+function statValue(value: number | null | undefined, suffix = ""): string {
+  return typeof value === "number" && Number.isFinite(value) ? `${value}${suffix}` : "-";
+}
+
 function profileText(player: BookletPlayer): string {
   return String(player.memo || "").trim() || String(player.profile || "").trim() || "プロフィール未入力";
 }
 
-function statValue(value: number | null | undefined, suffix = ""): string {
-  return typeof value === "number" && Number.isFinite(value) ? `${value}${suffix}` : "-";
+function escapeXml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function downloadSvg(player: BookletPlayer, season: string) {
@@ -85,10 +92,47 @@ ${labels.map((label, i) => {
   URL.revokeObjectURL(url);
 }
 
-export function IndividualPlayerBooklet({ players, season }: { players: BookletPlayer[]; season: string }) {
+function ParamBarList({
+  labels,
+  values,
+  accentColor,
+}: {
+  labels: string[];
+  values: number[];
+  accentColor?: string;
+}) {
+  const items = labels.slice(0, 6).map((label, i) => ({ label: label || `項目${i + 1}`, value: clamp99(values[i]) }));
+  return (
+    <div className="flex h-full flex-col justify-center space-y-2.5 py-1">
+      {items.map((item, i) => (
+        <div key={i} className="grid items-center gap-2" style={{ gridTemplateColumns: "80px 1fr 32px" }}>
+          <div className="truncate text-xs font-semibold text-gray-600">{item.label}</div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${item.value}%`, backgroundColor: accentColor || "#2563EB" }}
+            />
+          </div>
+          <div className="text-right text-sm font-black text-gray-900">{item.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function IndividualPlayerBooklet({
+  players,
+  season,
+  accentColor,
+}: {
+  players: BookletPlayer[];
+  season: string;
+  accentColor?: string;
+}) {
   const sortedPlayers = useMemo(() => [...players].sort((a, b) => (a.number ?? 9999) - (b.number ?? 9999)), [players]);
   const [selectedPlayerId, setSelectedPlayerId] = useState(sortedPlayers[0]?.id || "");
   const selectedPlayer = sortedPlayers.find((p) => p.id === selectedPlayerId) || sortedPlayers[0] || null;
+  const contrastColor = accentColor ? getContrastTextColor(accentColor) : "#FFFFFF";
 
   if (!selectedPlayer) {
     return <div className="rounded-lg border bg-white p-4 text-sm text-gray-600">選手データがありません。</div>;
@@ -96,6 +140,7 @@ export function IndividualPlayerBooklet({ players, season }: { players: BookletP
 
   const labels = selectedPlayer.params?.items?.map((item) => item.label) ?? ["", "", "", "", "", ""];
   const values = selectedPlayer.params?.items?.map((item) => item.value) ?? [0, 0, 0, 0, 0, 0];
+  const hasParams = selectedPlayer.params?.items && selectedPlayer.params.items.length > 0;
 
   return (
     <div className="space-y-4">
@@ -110,7 +155,8 @@ export function IndividualPlayerBooklet({ players, season }: { players: BookletP
             >
               {sortedPlayers.map((player) => (
                 <option key={player.id} value={player.id}>
-                  {player.number != null ? `${player.number} ` : ""}{player.name}
+                  {player.number != null ? `${player.number} ` : ""}
+                  {player.name}
                 </option>
               ))}
             </select>
@@ -125,72 +171,140 @@ export function IndividualPlayerBooklet({ players, season }: { players: BookletP
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[760px] rounded-2xl bg-white p-5 text-gray-900 shadow-sm ring-1 ring-gray-200">
-        <div className="grid gap-5 md:grid-cols-[320px_1fr]">
-          <div className="relative h-[320px] overflow-hidden rounded-lg bg-slate-100 ring-1 ring-gray-200">
-            <div className="absolute left-0 top-0 z-10 flex h-24 w-14 flex-col items-center justify-center bg-emerald-400 text-white">
-              <div className="text-2xl font-black leading-none">{selectedPlayer.number ?? "-"}</div>
-              <div className="mt-1 text-lg font-black leading-none">{shortPosition(selectedPlayer.position)}</div>
-            </div>
+      <div className="mx-auto w-full max-w-[900px] overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:p-6">
+        <div className="grid gap-4 md:grid-cols-[45%_1fr]">
+          {/* 左：選手ビジュアル */}
+          <div className="relative flex h-[320px] overflow-hidden rounded-xl border border-gray-200 bg-slate-100 md:h-[440px]">
+            {accentColor ? (
+              <div
+                className="z-10 flex h-full w-14 flex-col items-center py-4 text-center"
+                style={{ backgroundColor: accentColor, color: contrastColor }}
+              >
+                <div className="text-3xl font-black leading-none">{selectedPlayer.number ?? "-"}</div>
+                <div className="mt-2 h-px w-8 bg-current opacity-40" />
+                <div className="mt-2 text-lg font-black leading-none">{shortPosition(selectedPlayer.position)}</div>
+                <div className="mt-auto w-full px-1">
+                  {selectedPlayer.nationality ? (
+                    <div className="text-[10px] font-bold opacity-90">{selectedPlayer.nationality}</div>
+                  ) : null}
+                  <div className="mt-1 flex justify-center">
+                    {isAlphabetName(selectedPlayer.name) ? (
+                      <span
+                        className="whitespace-nowrap text-xs font-black tracking-wide"
+                        style={{ writingMode: "vertical-rl" }}
+                      >
+                        {selectedPlayer.name}
+                      </span>
+                    ) : (
+                      <span
+                        className="text-sm font-black leading-tight"
+                        style={{ writingMode: "vertical-rl" }}
+                      >
+                        {selectedPlayer.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
             {selectedPlayer.photoUrl ? (
-              <Image src={selectedPlayer.photoUrl} alt={selectedPlayer.name} fill className="object-cover" sizes="320px" />
+              <Image
+                src={selectedPlayer.photoUrl}
+                alt={selectedPlayer.name}
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 45vw"
+              />
             ) : (
-              <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-400">NO PHOTO</div>
+              <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-slate-400">
+                NO PHOTO
+              </div>
             )}
           </div>
 
-          <div className="min-w-0 py-2">
-            <h2 className="text-3xl font-black leading-tight tracking-tight text-gray-900">{selectedPlayer.name}</h2>
-            <div className="mt-2 text-lg font-semibold text-gray-500">{selectedPlayer.mainPosition || selectedPlayer.position}</div>
-            <div className="mt-7 grid grid-cols-[96px_1fr] gap-x-5 gap-y-4 text-sm">
-              <div className="font-bold text-gray-600">生年月日</div>
-              <div className="font-semibold text-gray-900">{selectedPlayer.dateOfBirth || (selectedPlayer.age != null ? `${selectedPlayer.age}歳` : "-")}</div>
-              <div className="font-bold text-gray-600">国籍</div>
-              <div className="font-semibold text-gray-900">{selectedPlayer.nationality || "-"}</div>
-              <div className="font-bold text-gray-600">身長 / 体重</div>
-              <div className="font-semibold text-gray-900">{statValue(selectedPlayer.height, "cm")} / {statValue(selectedPlayer.weight, "kg")}</div>
-              <div className="font-bold text-gray-600">利き足</div>
-              <div className="font-semibold text-gray-900">{preferredFootLabel(selectedPlayer.preferredFoot)}</div>
-              <div className="font-bold text-gray-600">ポジション</div>
-              <div className="font-semibold text-gray-900">{selectedPlayer.position}</div>
-              <div className="font-bold text-gray-600">背番号</div>
-              <div className="font-semibold text-gray-900">{selectedPlayer.number ?? "-"}</div>
+          {/* 右：選手情報 */}
+          <div className="flex min-w-0 flex-col">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="break-words text-2xl font-black leading-tight text-gray-900 md:text-3xl">
+                  {selectedPlayer.name}
+                </h2>
+                {selectedPlayer.subName ? (
+                  <p className="mt-1 break-words text-base font-semibold text-gray-500">{selectedPlayer.subName}</p>
+                ) : null}
+              </div>
+              <div className="h-28 w-20 shrink-0 md:h-36 md:w-24">
+                <PositionMap
+                  mainPosition={selectedPlayer.mainPosition}
+                  subPositions={selectedPlayer.subPositions}
+                  accentColor={accentColor}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 text-sm">
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs font-semibold text-gray-500">身長 / 体重</div>
+                  <div className="mt-0.5 text-base font-bold text-gray-900">
+                    {statValue(selectedPlayer.height, "cm")} / {statValue(selectedPlayer.weight, "kg")}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-500">年齢</div>
+                  <div className="mt-0.5 text-base font-bold text-gray-900">{selectedPlayer.age != null ? `${selectedPlayer.age}歳` : "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-500">利き足</div>
+                  <div className="mt-0.5 text-base font-bold text-gray-900">{preferredFootLabel(selectedPlayer.preferredFoot)}</div>
+                </div>
+              </div>
+              <div className="space-y-3 border-l border-gray-100 pl-4">
+                <div>
+                  <div className="text-xs font-semibold text-gray-500">契約情報</div>
+                  <div className="mt-0.5 text-base font-bold text-gray-900">{contractEndLabel(selectedPlayer.contractEndDate) || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-500">昨季成績</div>
+                  <div className="mt-0.5 text-base font-bold text-gray-900">
+                    {selectedPlayer.lastSeasonSummary && selectedPlayer.lastSeasonSummary !== "-"
+                      ? selectedPlayer.lastSeasonSummary
+                      : "未登録"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 p-3">
+              <p className="line-clamp-3 text-sm leading-relaxed text-gray-700">{profileText(selectedPlayer)}</p>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 rounded-lg border border-gray-200 p-4 text-sm font-semibold leading-7 text-gray-700 whitespace-pre-wrap">
-          {profileText(selectedPlayer)}
-        </div>
-
-        <div className="mt-4 grid gap-4 rounded-lg border border-gray-200 p-4 md:grid-cols-[1fr_280px]">
-          <div>
-            <h3 className="text-base font-black text-gray-900">ステータス</h3>
-            <div className="mt-3 grid grid-cols-[120px_1fr] gap-y-2 text-sm">
-              <div className="font-bold text-gray-600">出場試合数</div>
-              <div className="font-semibold">{statValue(selectedPlayer.seasonStats?.appearances, "試合")}</div>
-              <div className="font-bold text-gray-600">得点数</div>
-              <div className="font-semibold">{statValue(selectedPlayer.seasonStats?.goals, "得点")}</div>
-              <div className="font-bold text-gray-600">アシスト数</div>
-              <div className="font-semibold">{statValue(selectedPlayer.seasonStats?.assists, "アシスト")}</div>
-              <div className="font-bold text-gray-600">平均評価</div>
-              <div className="font-black text-emerald-600">{selectedPlayer.seasonStats?.avgRating ?? "-"}</div>
+        {/* 能力パラメーター */}
+        {hasParams ? (
+          <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
+            <h3 className="text-sm font-bold text-gray-500">能力パラメーター</h3>
+            <div className="mt-3 grid items-center gap-3 md:grid-cols-2 md:divide-x md:divide-gray-200">
+              <div className="flex items-center justify-center px-2 md:pr-4">
+                <PublicPlayerHexChart
+                  labels={labels}
+                  values={values}
+                  overall={selectedPlayer.params?.overall ?? 0}
+                  className="h-48 w-auto"
+                  accentColor={accentColor}
+                />
+              </div>
+              <div className="md:pl-4">
+                <ParamBarList labels={labels} values={values} accentColor={accentColor} />
+              </div>
             </div>
           </div>
-          <div className="flex items-center justify-center">
-            <PublicPlayerHexChart labels={labels} values={values} overall={selectedPlayer.params?.overall ?? 0} />
+        ) : (
+          <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-4 text-center text-sm text-gray-500">
+            能力データ未登録
           </div>
-        </div>
-
-        <div className="mt-4 rounded-lg border border-gray-200 overflow-hidden">
-          <div className="bg-gray-50 px-4 py-3 text-base font-black">シーズン成績（{season}）</div>
-          <div className="grid grid-cols-4 divide-x divide-gray-200 text-center">
-            <div className="p-3"><div className="text-xs font-bold text-gray-500">出場</div><div className="mt-2 text-xl font-black">{selectedPlayer.seasonStats?.appearances ?? 0}</div></div>
-            <div className="p-3"><div className="text-xs font-bold text-gray-500">得点</div><div className="mt-2 text-xl font-black">{selectedPlayer.seasonStats?.goals ?? 0}</div></div>
-            <div className="p-3"><div className="text-xs font-bold text-gray-500">アシスト</div><div className="mt-2 text-xl font-black">{selectedPlayer.seasonStats?.assists ?? 0}</div></div>
-            <div className="p-3"><div className="text-xs font-bold text-gray-500">平均評価</div><div className="mt-2 text-xl font-black">{selectedPlayer.seasonStats?.avgRating ?? "-"}</div></div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
