@@ -2,6 +2,7 @@ import React from "react";
 import Image from "next/image";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { getContrastTextColor } from "@/lib/utils";
+import { getFlagUrl } from "@/lib/flag-url";
 import type { BookletPlayer } from "../types";
 import { clampText, contractEndLabel, preferredFootLabel } from "../lib/booklet-utils";
 import { PositionMap } from "./PositionMap";
@@ -214,7 +215,22 @@ function FullBookletPlayerCard({
             <div className="my-1 h-px w-8 bg-current opacity-40" />
             <div className="text-sm font-black leading-none">{shortPosition(player.position)}</div>
             {player.nationality ? (
-              <div className="mt-1 text-[10px] font-semibold opacity-90">{player.nationality}</div>
+              <>
+                {getFlagUrl(player.nationality) ? (
+                  <div className="mt-1 rounded-sm overflow-hidden shadow-sm">
+                    <Image
+                      src={getFlagUrl(player.nationality)!}
+                      alt={player.nationality}
+                      width={24}
+                      height={16}
+                      className="block"
+                      unoptimized
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-1 text-[10px] font-semibold opacity-90">{player.nationality}</div>
+                )}
+              </>
             ) : null}
           </div>
 
