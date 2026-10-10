@@ -811,6 +811,7 @@ export default function TeamBookletPage() {
                       key={p.id}
                       player={p}
                       positionColorClass={getPositionColor(p.mainPosition || p.position)}
+                      accentColor={clubColor || undefined}
                       showParameterGraph={showParameterGraph}
                     />
                   ))}
