@@ -786,7 +786,7 @@ export default function TeamBookletPage() {
         <div className="mx-auto">
           <div className="print-page">
             <div
-              className="w-full md:w-[210mm] h-auto mx-auto bg-white"
+              className="w-full max-w-5xl mx-auto bg-white"
             >
               <div className="px-4 md:px-[6mm] pt-4 md:pt-[10mm]">
                 <div className="flex items-center justify-between">
@@ -803,14 +803,13 @@ export default function TeamBookletPage() {
                   ) : null}
                 </div>
 
-                <div className="mt-4 md:mt-[6mm] grid grid-cols-1 gap-4">
+                <div className="mt-4 md:mt-[6mm] grid grid-cols-1 md:grid-cols-2 gap-4">
                   {players.map((p) => (
                     <BookletPlayerCard
                       key={p.id}
                       player={p}
                       positionColorClass={getPositionColor(p.mainPosition || p.position)}
                       accentColor={clubColor || undefined}
-                      clubLogo={data.club.logoUrl}
                       showParameterGraph={showParameterGraph}
                       mode="full"
                     />
