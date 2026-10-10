@@ -786,9 +786,9 @@ export default function TeamBookletPage() {
         <div className="mx-auto">
           <div className="print-page">
             <div
-              className={`${paper === "a3_landscape" ? "w-[420mm]" : "w-[210mm]"} min-h-[297mm] mx-auto bg-white`}
+              className="w-full md:w-[210mm] h-auto mx-auto bg-white"
             >
-              <div className="px-[6mm] pt-[10mm]">
+              <div className="px-4 md:px-[6mm] pt-4 md:pt-[10mm]">
                 <div className="flex items-center justify-between">
                   <div className="min-w-0">
                     <div className="text-2xl font-black leading-tight truncate">{data.club.clubName}</div>
@@ -803,9 +803,7 @@ export default function TeamBookletPage() {
                   ) : null}
                 </div>
 
-                <div
-                  className={`mt-[6mm] grid ${paper === "a3_landscape" ? "grid-cols-5" : "grid-cols-3"} gap-[1.5mm]`}
-                >
+                <div className="mt-4 md:mt-[6mm] grid grid-cols-1 gap-4">
                   {players.map((p) => (
                     <BookletPlayerCard
                       key={p.id}
@@ -813,6 +811,7 @@ export default function TeamBookletPage() {
                       positionColorClass={getPositionColor(p.mainPosition || p.position)}
                       accentColor={clubColor || undefined}
                       showParameterGraph={showParameterGraph}
+                      mode="full"
                     />
                   ))}
                 </div>
