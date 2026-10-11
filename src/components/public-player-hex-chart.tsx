@@ -20,6 +20,7 @@ export function PublicPlayerHexChart({
   theme,
   className,
   accentColor,
+  dense,
 }: {
   labels: string[];
   values: number[];
@@ -27,12 +28,20 @@ export function PublicPlayerHexChart({
   theme?: "light" | "dark";
   className?: string;
   accentColor?: string;
+  dense?: boolean;
 }) {
   const isDark = theme === "dark";
   const size = 120;
-  const pad = 60;
   const c = size / 2;
-  const r = 40;
+  const r = dense ? 56 : 40;
+  const labelRr = dense ? 70 : 28 + r;
+  const valueRr = 8 + r;
+  const labelFontSize = dense ? 9.5 : 12;
+  const valueFontSize = dense ? 9.5 : 10;
+  const vbX = dense ? -34 : -60;
+  const vbY = dense ? -22 : -60;
+  const vbW = dense ? 188 : 240;
+  const vbH = dense ? 164 : 240;
   const max = 99;
   const angles = Array.from({ length: 6 }, (_, i) => -Math.PI / 2 + (i * (Math.PI * 2)) / 6);
 
@@ -51,8 +60,13 @@ export function PublicPlayerHexChart({
     })
     .join(" ");
 
+  const axisPoint = (a: number, rr: number) => ({
+    x: c + rr * Math.cos(a),
+    y: c + rr * Math.sin(a),
+  });
+
   const labelPoints = angles.map((a) => {
-    const rr = r + 28;
+    const rr = labelRr;
     return {
       x: c + rr * Math.cos(a),
       y: c + rr * Math.sin(a),
@@ -62,7 +76,7 @@ export function PublicPlayerHexChart({
 
   const valueUnderLabelPoints = angles.map((a) => {
     // Place value under the label by moving toward center along the same axis.
-    const rr = r + 8;
+    const rr = valueRr;
     return {
       x: c + rr * Math.cos(a),
       y: c + rr * Math.sin(a),
@@ -71,7 +85,7 @@ export function PublicPlayerHexChart({
   });
 
   return (
-    <svg width="100%" viewBox={`${-pad} ${-pad} ${size + pad * 2} ${size + pad * 2}`} className={className || "mx-auto block max-w-[180px] h-auto"}>
+    <svg width="100%" viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`} className={className || "mx-auto block max-w-[180px] h-auto"}>
       <polygon points={outerPoints} fill="none" stroke={outerStroke} strokeWidth="2" />
       {[0.2, 0.4, 0.6, 0.8].map((k) => (
         <polygon
@@ -94,43 +108,79 @@ export function PublicPlayerHexChart({
         points={valuePoints}
         fill={accentColor ? hexToRgba(accentColor, 0.25) : "rgba(37,99,235,0.25)"}
         stroke={accentColor ? accentColor : "#2563EB"}
-        strokeWidth="2"
+        strokeWidth={dense ? 1.6 : 2}
       />
-      <text x={c} y={c - 4} textAnchor="middle" fontSize="10" fill={overallLabelFill}>
+      {dense &&
+        angles.map((a, i) => {
+          const rr = r * (clamp99(values[i] ?? 0) / max);
+          const p = axisPoint(a, rr);
+          return (
+            <circle key={`v-${i}`} cx={p.x} cy={p.y} r="1.8" fill={accentColor || "#E11D48"} />
+          );
+        })}
+      <text x={c} y={c - 5} textAnchor="middle" fontSize={dense ? 9 : 10} fill={overallLabelFill}>
         総合
       </text>
-      <text x={c} y={c + 18} textAnchor="middle" fontSize="18" fontWeight="700" fill={valueFill}>
+      <text x={c} y={c + 18} textAnchor="middle" fontSize={dense ? 20 : 18} fontWeight="700" fill={valueFill}>
         {clamp99(overall)}
       </text>
 
-      {labelPoints.map((p, i) => (
-        <text
-          key={`l-${i}`}
-          x={p.x}
-          y={p.y}
-          textAnchor={p.anchor}
-          dominantBaseline="middle"
-          fontSize="12"
-          fontWeight={600}
-          fill={labelFill}
-        >
-          {(labels[i] || "").slice(0, 8) || `項目${i + 1}`}
-        </text>
-      ))}
+      {dense
+        ? labelPoints.map((p, i) => (
+            <g key={`d-${i}`}>
+              <text
+                x={p.x}
+                y={p.y - 5}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={labelFontSize}
+                fontWeight={600}
+                fill={labelFill}
+              >
+                {(labels[i] || "").slice(0, 8) || `項目${i + 1}`}
+              </text>
+              <text
+                x={p.x}
+                y={p.y + 6}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={valueFontSize}
+                fontWeight={700}
+                fill={valueFill}
+              >
+                {clamp99(values[i] ?? 0)}
+              </text>
+            </g>
+          ))
+        : labelPoints.map((p, i) => (
+            <text
+              key={`l-${i}`}
+              x={p.x}
+              y={p.y}
+              textAnchor={p.anchor}
+              dominantBaseline="middle"
+              fontSize={labelFontSize}
+              fontWeight={600}
+              fill={labelFill}
+            >
+              {(labels[i] || "").slice(0, 8) || `項目${i + 1}`}
+            </text>
+          ))}
 
-      {valueUnderLabelPoints.map((p, i) => (
-        <text
-          key={`n-${i}`}
-          x={p.x}
-          y={p.y}
-          textAnchor={p.anchor}
-          dominantBaseline="middle"
-          fontSize="10"
-          fontWeight={700}
-          fill={valueFill}>
-          {clamp99(values[i] ?? 0)}
-        </text>
-      ))}
+      {!dense &&
+        valueUnderLabelPoints.map((p, i) => (
+          <text
+            key={`n-${i}`}
+            x={p.x}
+            y={p.y}
+            textAnchor={p.anchor}
+            dominantBaseline="middle"
+            fontSize={valueFontSize}
+            fontWeight={700}
+            fill={valueFill}>
+            {clamp99(values[i] ?? 0)}
+          </text>
+        ))}
     </svg>
   );
 }

@@ -5,6 +5,7 @@ import Image from "next/image";
 import type { BookletResponse } from "../../../types";
 import { BookletPlayerCard } from "../../../components/BookletPlayerCard";
 import { formations } from "@/lib/formations";
+import { isColorDark, lightenColor } from "@/lib/utils";
 import { normalizeA3Text } from "../../lib/a3-layout";
 
 type StatRow = {
@@ -31,9 +32,36 @@ type CoachInfo = {
   bio: string;
 };
 
+const A3_CARD_ZOOM = 0.27;
+
+function ScaledPlayerCard({
+  player,
+  positionColorClass,
+  showParameterGraph,
+}: {
+  player: BookletResponse["players"][number];
+  positionColorClass: string;
+  showParameterGraph: boolean;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl">
+      <div style={{ zoom: A3_CARD_ZOOM }}>
+        <BookletPlayerCard
+          player={player}
+          positionColorClass={positionColorClass}
+          stripClassName={positionColorClass}
+          showParameterGraph={showParameterGraph}
+          mode="full"
+          fixedWidth
+        />
+      </div>
+    </div>
+  );
+}
+
 function FormationPlayerSilhouette() {
   return (
-    <div className="flex flex-col items-center justify-center text-slate-400">
+    <div className="flex flex-col items-center justify-center text-slate-500">
       <svg viewBox="0 0 48 48" className="h-9 w-9" aria-hidden="true">
         <circle cx="24" cy="16" r="8" fill="currentColor" opacity="0.55" />
         <path d="M9 42c1.8-9 7.6-14 15-14s13.2 5 15 14" fill="currentColor" opacity="0.35" />
@@ -55,14 +83,16 @@ function NoImageCard() {
   );
 }
 
-function FormationPitch({
+export function FormationPitch({
   formationName,
   startersByPosition,
   fallbackPlayers,
+  accentColor = "#DD2629",
 }: {
   formationName: string | null;
   startersByPosition: Record<string, { id: string; number: string; name: string; photoUrl?: string } | null>;
   fallbackPlayers: Array<{ id: string; number: string; name: string; photoUrl?: string }>;
+  accentColor?: string;
 }) {
   const formation = useMemo(() => {
     const name = String(formationName || "").trim();
@@ -108,19 +138,44 @@ function FormationPitch({
     return out;
   }, [fallbackPlayers, formation.positions, startersByPosition]);
 
+  const pitchLine = "rgba(119,125,130,0.75)";
+  const resolvedAccent = useMemo(
+    () => (isColorDark(accentColor) ? lightenColor(accentColor, 45) : accentColor),
+    [accentColor]
+  );
   return (
-    <div className="rounded-md border bg-white p-3">
-      <div className="text-sm font-semibold text-gray-900 mb-2">フォーメーション</div>
-      <div className="relative w-full aspect-[16/10] rounded-md overflow-hidden bg-emerald-700">
-        <svg viewBox="0 0 100 60" className="absolute inset-0 w-full h-full">
-          <rect x="2" y="2" width="96" height="56" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="0.7" />
-          <line x1="2" y1="30" x2="98" y2="30" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
-          <circle cx="50" cy="30" r="6" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
-          <rect x="38" y="2" width="24" height="10" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
-          <rect x="42" y="2" width="16" height="5" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
-          <rect x="38" y="48" width="24" height="10" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
-          <rect x="42" y="53" width="16" height="5" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
-        </svg>
+    <div
+      className="overflow-hidden rounded-lg bg-[#23262B]"
+      style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
+    >
+      <div className="relative w-full bg-[#292D31]">
+        <div className="flex items-center justify-between px-4 pt-3 pb-2">
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-4 w-[3px]" style={{ backgroundColor: resolvedAccent }} />
+            <span className="text-[11px] font-black tracking-[0.15em] text-white">FORMATION</span>
+          </div>
+          <div className="text-sm font-black text-white">{String(formation.name || "").replace(/-/g, " - ")}</div>
+        </div>
+        <div className="relative w-full aspect-[16/10]">
+          <svg viewBox="0 0 100 60" className="absolute inset-0 w-full h-full">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <rect
+                key={i}
+                x={i * 10}
+                y="0"
+                width="10"
+                height="60"
+                fill={i % 2 === 0 ? "#30353A" : "#292D31"}
+              />
+            ))}
+            <rect x="2" y="2" width="96" height="56" fill="none" stroke={pitchLine} strokeWidth="0.6" />
+            <line x1="2" y1="30" x2="98" y2="30" stroke={pitchLine} strokeWidth="0.5" />
+            <circle cx="50" cy="30" r="6" fill="none" stroke={pitchLine} strokeWidth="0.5" />
+            <rect x="38" y="2" width="24" height="10" fill="none" stroke={pitchLine} strokeWidth="0.5" />
+            <rect x="42" y="2" width="16" height="5" fill="none" stroke={pitchLine} strokeWidth="0.5" />
+            <rect x="38" y="48" width="24" height="10" fill="none" stroke={pitchLine} strokeWidth="0.5" />
+            <rect x="42" y="53" width="16" height="5" fill="none" stroke={pitchLine} strokeWidth="0.5" />
+          </svg>
 
         {formation.positions.map((pos) => {
           const p = slotsByPositionId[pos.id];
@@ -132,21 +187,23 @@ function FormationPitch({
             className="absolute -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${100 - x}%`, top: `${100 - y}%` }}
           >
-            <div className="flex flex-col items-center">
-              <div className="w-14 h-14 rounded-full bg-white/90 border-2 border-white shadow-md overflow-hidden flex items-center justify-center">
+            <div className={`flex flex-col items-center ${100 - y > 88 ? "flex-col-reverse" : ""}`}>
+              <div className="w-14 h-14 rounded-full bg-[#3A3E45] border border-white/25 overflow-hidden flex items-center justify-center">
                 {p.photoUrl ? (
-                  <Image src={p.photoUrl} alt={p.name} width={56} height={56} className="w-full h-full object-cover" />
+                  <Image src={p.photoUrl} alt={p.name} width={56} height={56} className="w-full h-full object-cover object-top" />
                 ) : (
                   <FormationPlayerSilhouette />
                 )}
               </div>
-              <div className="mt-1 px-2 py-1 rounded-full bg-white/90 text-[10px] leading-none font-bold text-gray-900 whitespace-nowrap shadow-sm">
-                {p.number} {p.name}
+              <div className={`${100 - y > 88 ? "mb-1" : "mt-1"} text-[10px] leading-none font-bold whitespace-nowrap`} style={{ textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
+                <span style={{ color: resolvedAccent }}>{p.number}</span>
+                <span className="ml-1 text-gray-100">{p.name}</span>
               </div>
             </div>
           </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
@@ -171,6 +228,7 @@ export function PrintPageLayout({
   transfersIn,
   transfersOut,
   coach,
+  accentColor = "#DD2629",
 }: {
   teamName: string;
   season: string;
@@ -190,6 +248,7 @@ export function PrintPageLayout({
   transfersIn: TransferRow[];
   transfersOut: TransferRow[];
   coach: CoachInfo;
+  accentColor?: string;
 }) {
   const normalizedBioTitle = normalizeA3Text(bioTitle);
   const normalizedBioBody = normalizeA3Text(bioBody);
@@ -231,13 +290,14 @@ export function PrintPageLayout({
                   formationName={formationName}
                   startersByPosition={formationStartersByPosition}
                   fallbackPlayers={formationPlayers}
+                  accentColor={accentColor}
                 />
               </div>
 
               <div className="mt-auto grid grid-cols-3 gap-[1.5mm]">
                 {leftCards.map((p, idx) =>
                   p ? (
-                    <BookletPlayerCard
+                    <ScaledPlayerCard
                       key={`l_${p.id}_${idx}`}
                       player={p}
                       positionColorClass={getPositionColor(p.mainPosition || p.position)}
@@ -255,7 +315,7 @@ export function PrintPageLayout({
                 <div className="grid grid-cols-3 gap-[1.5mm]">
                   {rightCards.map((p, idx) =>
                     p ? (
-                      <BookletPlayerCard
+                      <ScaledPlayerCard
                         key={`r_${p.id}_${idx}`}
                         player={p}
                         positionColorClass={getPositionColor(p.mainPosition || p.position)}
@@ -271,7 +331,7 @@ export function PrintPageLayout({
               <div className="grid grid-cols-2 gap-[4mm]">
                 <div className="flex flex-col gap-[4mm]">
                   <div className="border border-gray-300">
-                    <div className="bg-gray-50 px-3 py-2 text-sm font-semibold">OTHER MEMBERS</div>
+                    <div className="bg-gray-50 px-3 py-2 text-sm font-semibold flex items-center gap-2"><span className="inline-block h-4 w-[3px]" style={{ backgroundColor: accentColor }} />OTHER MEMBERS</div>
                     <div className="p-2">
                       {hasAdditionalPlayers ? (
                         <table className="w-full text-[9px] table-fixed">
@@ -307,7 +367,7 @@ export function PrintPageLayout({
                   </div>
 
                   <div className="border border-gray-300">
-                    <div className="bg-gray-50 px-3 py-2 text-sm font-semibold">リーグ成績（過去5シーズン）</div>
+                    <div className="bg-gray-50 px-3 py-2 text-sm font-semibold flex items-center gap-2"><span className="inline-block h-4 w-[3px]" style={{ backgroundColor: accentColor }} />リーグ成績（過去5シーズン）</div>
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-white">
@@ -329,7 +389,7 @@ export function PrintPageLayout({
                   </div>
 
                   <div className="border border-gray-300">
-                    <div className="bg-gray-50 px-3 py-2 text-sm font-semibold">昨シーズン 他大会成績</div>
+                    <div className="bg-gray-50 px-3 py-2 text-sm font-semibold flex items-center gap-2"><span className="inline-block h-4 w-[3px]" style={{ backgroundColor: accentColor }} />昨シーズン 他大会成績</div>
                     <div className="p-2">
                       {visibleCups.length > 0 ? (
                         <table className="w-full text-xs">
@@ -358,7 +418,7 @@ export function PrintPageLayout({
                 </div>
 
                 <div className="border border-gray-300">
-                  <div className="bg-gray-50 px-3 py-2 text-sm font-semibold">監督</div>
+                  <div className="bg-gray-50 px-3 py-2 text-sm font-semibold flex items-center gap-2"><span className="inline-block h-4 w-[3px]" style={{ backgroundColor: accentColor }} />監督</div>
                   <div className="p-2 flex items-start gap-3">
                     <div className="relative w-[26mm] h-[22mm] bg-slate-100 border border-slate-200 flex-shrink-0 overflow-hidden">
                       {coach.photoUrl ? (
@@ -385,7 +445,7 @@ export function PrintPageLayout({
                   </div>
 
                   <div className="border-t border-gray-200">
-                    <div className="bg-gray-50 px-3 py-2 text-sm font-semibold">移籍情報</div>
+                    <div className="bg-gray-50 px-3 py-2 text-sm font-semibold flex items-center gap-2"><span className="inline-block h-4 w-[3px]" style={{ backgroundColor: accentColor }} />移籍情報</div>
                     <div className="p-2">
                       <div className="text-[9px] font-semibold mb-1">IN</div>
                       <table className="w-full text-[9px] table-fixed">

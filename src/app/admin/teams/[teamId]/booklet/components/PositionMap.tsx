@@ -47,7 +47,7 @@ export function PositionMap({
   const toH = (v: string) => pct(v) * (VIEW_H - INSET * 2);
 
   return (
-    <svg viewBox="0 0 100 160" width="100%" className="rounded-md">
+    <svg viewBox="0 0 100 160" className="h-full w-auto rounded-md">
       {PITCH_BOXES.map((p) => {
         const isMain = main === p.key;
         const isSub = subs.includes(p.key);

@@ -445,6 +445,27 @@ export default function TeamBookletA3PrintPage() {
   const [transfersOutFromDb, setTransfersOutFromDb] = useState<TransferRow[]>([]);
   const [previewScale, setPreviewScale] = useState(0.7);
   const [leagueStats, setLeagueStats] = useState<StatRow[]>([]);
+  const [clubColor, setClubColor] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!clubUid) {
+        setClubColor(null);
+        return;
+      }
+      try {
+        const snap = await getDoc(doc(db, "club_profiles", clubUid));
+        const data = snap.exists() ? (snap.data() as any) : null;
+        const color = typeof data?.homeBgColor === "string" ? data.homeBgColor : null;
+        if (!cancelled) setClubColor(color);
+      } catch (e) {
+        console.warn("[A3Print] failed to load club color", e);
+      }
+    };
+    void run();
+    return () => { cancelled = true; };
+  }, [clubUid]);
 
   useEffect(() => {
     const run = async () => {
@@ -713,6 +734,7 @@ export default function TeamBookletA3PrintPage() {
               transfersIn={transfersIn12}
               transfersOut={transfersOut12}
               coach={coach}
+              accentColor={clubColor || undefined}
             />
           </div>
         </div>

@@ -641,6 +641,13 @@ export default function TeamBookletPage() {
         onToggleDisplaySettings={() => setShowDisplaySettings((prev) => !prev)}
         showParameterGraph={showParameterGraph}
         onToggleParameterGraph={() => setShowParameterGraph((prev) => !prev)}
+        bookletMode={bookletMode}
+        onSelectBookletMode={(mode) => {
+          if (mode === "individual") {
+            setIsEditMode(false);
+          }
+          setBookletMode(mode);
+        }}
       />
 
       {a3UpgradeMessage ? (
@@ -651,27 +658,7 @@ export default function TeamBookletPage() {
 
       {!isPro ? <ProPlanNotice /> : null}
 
-      {format === "a4" ? (
-        <div className="no-print mb-4 flex flex-wrap gap-2 rounded-lg border bg-white p-2">
-          <button
-            type="button"
-            onClick={() => setBookletMode("team")}
-            className={`rounded-md px-4 py-2 text-sm font-semibold ${bookletMode === "team" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-          >
-            チーム名鑑
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setIsEditMode(false);
-              setBookletMode("individual");
-            }}
-            className={`rounded-md px-4 py-2 text-sm font-semibold ${bookletMode === "individual" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-          >
-            個人名鑑
-          </button>
-        </div>
-      ) : null}
+
 
       {isPro && season && format === "a3" && !a3IsEditMode ? (
         <div className="no-print mb-4 rounded-md border bg-white p-3 text-sm text-gray-900">
@@ -803,16 +790,17 @@ export default function TeamBookletPage() {
                   ) : null}
                 </div>
 
-                <div className="mt-4 md:mt-[6mm] grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="mt-4 md:mt-[6mm] space-y-4">
                   {players.map((p) => (
-                    <BookletPlayerCard
-                      key={p.id}
-                      player={p}
-                      positionColorClass={getPositionColor(p.mainPosition || p.position)}
-                      accentColor={clubColor || undefined}
-                      showParameterGraph={showParameterGraph}
-                      mode="full"
-                    />
+                    <div key={p.id} className="overflow-x-auto rounded-2xl pb-2">
+                      <BookletPlayerCard
+                        player={p}
+                        positionColorClass={getPositionColor(p.mainPosition || p.position)}
+                        accentColor={clubColor || undefined}
+                        showParameterGraph={showParameterGraph}
+                        mode="full"
+                      />
+                    </div>
                   ))}
                 </div>
                 

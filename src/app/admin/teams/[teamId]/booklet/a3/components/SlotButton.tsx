@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { BookletPlayerCard } from "../../components/BookletPlayerCard";
 import type { BookletPlayer } from "../../types";
 
@@ -34,6 +35,19 @@ export function SlotButton({
   onAssign: (playerId: string | null) => void;
   onClear: () => void;
 }) {
+  const cardAreaRef = useRef<HTMLDivElement>(null);
+  const [cardAreaWidth, setCardAreaWidth] = useState(0);
+
+  useEffect(() => {
+    const el = cardAreaRef.current;
+    if (!el) return;
+    const update = () => setCardAreaWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <div
       role="button"
@@ -45,7 +59,7 @@ export function SlotButton({
           onClick();
         }
       }}
-      className={`relative w-full aspect-[3/2] rounded-md border text-left p-2 transition-colors cursor-pointer select-none ${
+      className={`relative w-full aspect-[3/2] rounded-md border text-left p-2 overflow-hidden transition-colors cursor-pointer select-none ${
         active ? "border-emerald-500 bg-emerald-50" : "border-gray-300 bg-white hover:bg-gray-50"
       }`}
     >
@@ -86,9 +100,15 @@ export function SlotButton({
       ) : null}
 
       {player ? (
-        <div className="mt-6 pointer-events-none">
-          <div className="origin-top-left scale-[0.78]">
-            <BookletPlayerCard player={player} positionColorClass={positionColorClass} />
+        <div ref={cardAreaRef} className="mt-6 pointer-events-none">
+          <div style={{ zoom: cardAreaWidth > 0 ? cardAreaWidth / 900 : 0.17 }}>
+            <BookletPlayerCard
+              player={player}
+              positionColorClass={positionColorClass}
+              stripClassName={positionColorClass}
+              mode="full"
+              fixedWidth
+            />
           </div>
         </div>
       ) : (
