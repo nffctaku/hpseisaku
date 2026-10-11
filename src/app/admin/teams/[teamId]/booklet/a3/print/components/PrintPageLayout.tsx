@@ -32,7 +32,10 @@ type CoachInfo = {
   bio: string;
 };
 
-const A3_CARD_ZOOM = 0.27;
+// A3 グリッドセル幅: (420mm - 16mm padding - 6mm gap) / 2列 - 3mm ギャップ) / 3列 = 65.33mm ≈ 247px
+const A3_CARD_W = 900;
+const A3_CARD_H = 620;
+const A3_CARD_SCALE = 246.96 / A3_CARD_W;
 
 function ScaledPlayerCard({
   player,
@@ -44,8 +47,19 @@ function ScaledPlayerCard({
   showParameterGraph: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl">
-      <div style={{ zoom: A3_CARD_ZOOM }}>
+    <div
+      className="relative w-full overflow-hidden rounded-2xl bg-white"
+      style={{ aspectRatio: `${A3_CARD_W} / ${A3_CARD_H}` }}
+    >
+      <div
+        className="absolute left-0 top-0"
+        style={{
+          width: A3_CARD_W,
+          height: A3_CARD_H,
+          transform: `scale(${A3_CARD_SCALE})`,
+          transformOrigin: "top left",
+        }}
+      >
         <BookletPlayerCard
           player={player}
           positionColorClass={positionColorClass}
@@ -53,6 +67,7 @@ function ScaledPlayerCard({
           showParameterGraph={showParameterGraph}
           mode="full"
           fixedWidth
+          fixedHeight={A3_CARD_H}
         />
       </div>
     </div>
@@ -195,7 +210,7 @@ export function FormationPitch({
                   <FormationPlayerSilhouette />
                 )}
               </div>
-              <div className={`${100 - y > 88 ? "mb-1" : "mt-1"} text-[10px] leading-none font-bold whitespace-nowrap`} style={{ textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
+              <div className={`${100 - y > 88 ? "mb-1" : "mt-1"} max-w-[120px] truncate text-[10px] leading-none font-bold`} style={{ textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
                 <span style={{ color: resolvedAccent }}>{p.number}</span>
                 <span className="ml-1 text-gray-100">{p.name}</span>
               </div>

@@ -101,13 +101,21 @@ export function SlotButton({
 
       {player ? (
         <div ref={cardAreaRef} className="mt-6 pointer-events-none">
-          <div style={{ zoom: cardAreaWidth > 0 ? cardAreaWidth / 900 : 0.17 }}>
+          <div
+            style={{
+              width: 900,
+              height: 620,
+              transform: `scale(${cardAreaWidth > 0 ? cardAreaWidth / 900 : 0.17})`,
+              transformOrigin: "top left",
+            }}
+          >
             <BookletPlayerCard
               player={player}
               positionColorClass={positionColorClass}
               stripClassName={positionColorClass}
               mode="full"
               fixedWidth
+              fixedHeight={620}
             />
           </div>
         </div>

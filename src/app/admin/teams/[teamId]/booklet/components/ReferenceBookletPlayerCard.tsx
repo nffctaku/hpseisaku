@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { getContrastTextColor } from "@/lib/utils";
@@ -142,19 +144,47 @@ function ReferenceAbilityBars({
   );
 }
 
+const CARD_NATURAL_WIDTH = 900;
+
 export function ReferenceBookletPlayerCard({
   player,
   accentColor = "#C8102E",
   showParameterGraph = true,
   fixedWidth = false,
+  fixedHeight,
   stripClassName,
 }: {
   player: BookletPlayer;
   accentColor?: string;
   showParameterGraph?: boolean;
   fixedWidth?: boolean;
+  fixedHeight?: number;
   stripClassName?: string;
 }) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState<{ scale: number; height: number | null }>({ scale: 1, height: null });
+
+  useLayoutEffect(() => {
+    if (fixedWidth) return;
+    const outer = outerRef.current;
+    if (!outer) return;
+    const update = () => {
+      const w = outer.clientWidth;
+      const isMd = window.matchMedia("(min-width: 768px)").matches;
+      const scale = !isMd && w > 0 && w < CARD_NATURAL_WIDTH ? w / CARD_NATURAL_WIDTH : 1;
+      const inner = innerRef.current;
+      const h = inner ? inner.offsetHeight : 0;
+      const height = scale < 1 && h > 0 ? h * scale : null;
+      setFit((prev) => (prev.scale === scale && prev.height === height ? prev : { scale, height }));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(outer);
+    const inner = innerRef.current;
+    if (inner) ro.observe(inner);
+    return () => ro.disconnect();
+  }, [fixedWidth]);
   const color = accentColor || "#C8102E";
   const contrastColor = getContrastTextColor(color);
   const labels = player.params?.items?.map((i) => i.label) ?? ["", "", "", "", "", ""];
@@ -172,13 +202,26 @@ export function ReferenceBookletPlayerCard({
   const hasAbility = labels.some((l) => l.trim());
   const flagUrl = player.nationality ? getFlagUrl(player.nationality) : null;
 
+  const scaled = !fixedWidth && fit.scale < 1;
   return (
     <div
-      className={`reference-card grid grid-cols-[400px_1fr] rounded-2xl border border-gray-200 bg-white shadow-md overflow-hidden ${
+      ref={outerRef}
+      className={fixedWidth ? undefined : "reference-card-outer w-full"}
+      style={scaled && fit.height != null ? { height: fit.height, overflow: "hidden" } : undefined}
+    >
+    <div
+      ref={innerRef}
+      className={`reference-card${scaled ? " reference-card-fit" : ""} grid grid-cols-[400px_1fr] rounded-2xl border border-gray-200 bg-white shadow-md overflow-hidden ${
         fixedWidth
           ? "w-[900px]"
-          : "w-[900px] md:w-full md:max-w-6xl mx-auto max-md:[zoom:0.38] md:[zoom:1]"
+          : scaled
+            ? "w-[900px]"
+            : "w-[900px] md:w-full md:max-w-6xl mx-auto"
       }`}
+      style={{
+        ...(typeof fixedHeight === "number" && fixedHeight > 0 ? { height: fixedHeight } : {}),
+        ...(scaled ? { transform: `scale(${fit.scale})`, transformOrigin: "top left" } : {}),
+      }}
     >
       <div className="relative grid h-full overflow-hidden grid-cols-[80px_1fr]">
         <div
@@ -307,6 +350,7 @@ export function ReferenceBookletPlayerCard({
           </div>
         ) : null}
       </div>
+    </div>
     </div>
   );
 }

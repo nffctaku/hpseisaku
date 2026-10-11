@@ -108,4 +108,14 @@ body {
     transform: none !important;
     width: auto !important;
   }
+
+  .reference-card-outer {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .reference-card-fit {
+    transform: none !important;
+    width: 100% !important;
+  }
 }
