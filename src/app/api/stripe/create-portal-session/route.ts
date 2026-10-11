@@ -566,19 +566,27 @@ export async function POST(req: NextRequest) {
       const target = subs.data.find((s) =>
         s.status === 'active' || s.status === 'trialing' || s.status === 'past_due'
       );
-      if (!target) {
+      if (!target || target.cancel_at_period_end === true) {
         // Fall back to the regular portal so the user can still reach Stripe.
+        // (subscription_cancel flow fails when the subscription is already set to cancel at period end;
+        //  the regular portal lets the user review or resume it instead.)
         const portalSession = await stripe.billingPortal.sessions.create({
           customer: stripeCustomerId,
           configuration,
           return_url: `${baseUrl}/admin/plan`,
         });
         return NextResponse.json(
-          {
-            url: portalSession.url,
-            warning: 'No active subscription found for cancellation flow. Opened regular portal instead.',
-            code: 'no_active_subscription_fallback',
-          },
+          target
+            ? {
+                url: portalSession.url,
+                warning: 'Subscription is already scheduled to cancel at period end. Opened regular portal instead.',
+                code: 'already_canceling_fallback',
+              }
+            : {
+                url: portalSession.url,
+                warning: 'No active subscription found for cancellation flow. Opened regular portal instead.',
+                code: 'no_active_subscription_fallback',
+              },
           { status: 200 }
         );
       }
