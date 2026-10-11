@@ -194,6 +194,12 @@ service cloud.firestore {
       }
     }
 
+    // BOOKLET SHARES - 公開名鑑設定。クライアントからは一切アクセス不可
+    // （読み書きはすべてサーバーのAdmin SDK経由。公開閲覧はSSRで行う）
+    match /booklet_shares/{shareId} {
+      allow read, write: if false;
+    }
+
     // Global collections (if any)
     match /matches/{matchId} {
       allow read: if request.auth != null;

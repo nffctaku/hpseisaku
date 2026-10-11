@@ -6,6 +6,7 @@ import {
   ChevronRight,
   FileText,
   Printer,
+  Share2,
   SlidersHorizontal,
   Users,
 } from "lucide-react";
@@ -74,6 +75,7 @@ export function BookletToolbar({
   onEnterEdit,
   onExitEdit,
   onPrint,
+  onOpenShare,
   showDisplaySettings,
   onToggleDisplaySettings,
   showParameterGraph,
@@ -99,6 +101,7 @@ export function BookletToolbar({
   onEnterEdit: () => void;
   onExitEdit: () => void;
   onPrint: () => void;
+  onOpenShare?: () => void;
   showDisplaySettings: boolean;
   onToggleDisplaySettings: () => void;
   showParameterGraph: boolean;
@@ -295,6 +298,18 @@ export function BookletToolbar({
           <span className="flex-1 text-left text-base font-bold">印刷</span>
           <ChevronRight className="h-4 w-4 shrink-0" />
         </button>
+        {onOpenShare ? (
+          <button
+            type="button"
+            onClick={onOpenShare}
+            disabled={loading}
+            className="mt-2 flex w-full items-center gap-3 rounded-xl bg-blue-600 px-4 py-3.5 text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+          >
+            <Share2 className="h-5 w-5 shrink-0" />
+            <span className="flex-1 text-left text-base font-bold">公開・シェア</span>
+            <ChevronRight className="h-4 w-4 shrink-0" />
+          </button>
+        ) : null}
       </div>
     </div>
   );

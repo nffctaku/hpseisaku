@@ -1,0 +1,153 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+
+import { db } from "@/lib/firebase/admin";
+import { getBookletShare } from "@/lib/booklet-share";
+import { getBookletTeamData } from "@/lib/booklet-data-server";
+import { getEffectivePlanForUid } from "@/lib/server-plan";
+import { getCareer } from "@/lib/career-server";
+import { safeString } from "@/app/api/admin/booklet/lib";
+
+import { PublicBooklet, type PublicBookletView } from "./PublicBooklet";
+
+// 公開・非公開・プラン変更を即時反映するためキャッシュしない
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+async function loadShare(publicId: string) {
+  const share = await getBookletShare(publicId);
+  if (!share || !share.isPublished) return null;
+
+  // 所有者・Careerの実在確認（削除済みCareerの名鑑は公開しない）
+  const career = await getCareer(share.careerId);
+  if (!career || career.ownerId !== share.ownerUid || career.clubUid !== share.clubUid) return null;
+
+  return share;
+}
+
+async function loadClubProfile(clubUid: string) {
+  try {
+    const snap = await db.collection("club_profiles").doc(clubUid).get();
+    const d = snap.exists ? (snap.data() as any) : null;
+    return {
+      clubName: safeString(d?.clubName),
+      logoUrl: typeof d?.logoUrl === "string" && d.logoUrl.trim() ? d.logoUrl.trim() : null,
+      homeBgColor:
+        typeof d?.homeBgColor === "string" && d.homeBgColor.trim() ? d.homeBgColor.trim() : null,
+    };
+  } catch {
+    return { clubName: "", logoUrl: null, homeBgColor: null };
+  }
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ publicId: string }>;
+}): Promise<Metadata> {
+  const { publicId } = await params;
+  const share = await loadShare(publicId).catch(() => null);
+  const profile = share ? await loadClubProfile(share.clubUid) : null;
+
+  const title = share
+    ? `${profile?.clubName || "チーム"} ${share.season} 選手名鑑 | FootChron`
+    : "選手名鑑 | FootChron";
+
+  return {
+    title,
+    description: "FootChronで作成された公開選手名鑑",
+    // 公開URLを知っていても検索エンジンには掲載しない
+    robots: { index: false, follow: false },
+    openGraph: {
+      title,
+      description: "FootChronで作成された公開選手名鑑",
+      type: "website",
+    },
+  };
+}
+
+export default async function PublicBookletPage({
+  params,
+}: {
+  params: Promise<{ publicId: string }>;
+}) {
+  const { publicId } = await params;
+  const share = await loadShare(publicId);
+  if (!share) notFound();
+
+  const [plan, profile] = await Promise.all([
+    getEffectivePlanForUid(share.ownerUid),
+    loadClubProfile(share.clubUid),
+  ]);
+  const isPro = plan.tier !== "free";
+
+  // 公開に必要な選手だけ集計（カード掲載選手 + フォーメーションスタメン）
+  const neededIds = new Set<string>(share.cardPlayerIds);
+  if (isPro && share.showFormation) {
+    for (const pid of Object.values(share.starters)) {
+      if (typeof pid === "string" && pid) neededIds.add(pid);
+    }
+  }
+
+  const data = await getBookletTeamData({
+    ownerUid: share.clubUid,
+    teamId: share.teamId,
+    seasonId: share.season,
+    clubProfile: profile,
+    playerIds: neededIds,
+  });
+
+  const byId = new Map(data.players.map((p) => [String(p.id), p]));
+  const cardPlayers = share.cardPlayerIds
+    .map((id) => byId.get(id))
+    .filter((p): p is NonNullable<typeof p> => !!p);
+
+  // Pro限定セクション（Free レスポンスには含めない）
+  let pro: PublicBookletView["pro"] = null;
+  if (isPro) {
+    const startersByPosition: Record<
+      string,
+      { id: string; number: string; name: string; photoUrl?: string } | null
+    > = {};
+    for (const [posId, pid] of Object.entries(share.starters)) {
+      const p = typeof pid === "string" ? byId.get(pid) : undefined;
+      startersByPosition[posId] = p
+        ? {
+            id: p.id,
+            number: p.number != null ? String(p.number) : "-",
+            name: safeString(p.name) || "-",
+            ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}),
+          }
+        : null;
+    }
+    const fallbackPlayers = data.players.map((p) => ({
+      id: p.id,
+      number: p.number != null ? String(p.number) : "-",
+      name: safeString(p.name) || "-",
+      ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}),
+    }));
+
+    pro = {
+      bioTitle: share.showIntroduction ? share.bioTitle : "",
+      bioBody: share.showIntroduction ? share.bioBody : "",
+      formationName: share.showFormation ? share.formationName : null,
+      startersByPosition: share.showFormation ? startersByPosition : {},
+      fallbackPlayers: share.showFormation ? fallbackPlayers : [],
+    };
+  }
+
+  const view: PublicBookletView = {
+    isPro,
+    clubName: profile.clubName || data.club.clubName,
+    logoUrl: profile.logoUrl,
+    teamName: data.teamName,
+    season: share.season,
+    accentColor: profile.homeBgColor || "#C8102E",
+    showParameterGraph: share.showParameterGraph,
+    positionColors: share.positionColors,
+    players: cardPlayers,
+    pro,
+  };
+
+  return <PublicBooklet view={view} />;
+}

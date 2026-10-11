@@ -46,6 +46,7 @@ function FullBookletPlayerCard({
   showParameterGraph = true,
   fixedWidth = false,
   fixedHeight,
+  fitToWidth = false,
 }: {
   player: BookletPlayer;
   stripClassName?: string;
@@ -53,6 +54,7 @@ function FullBookletPlayerCard({
   showParameterGraph?: boolean;
   fixedWidth?: boolean;
   fixedHeight?: number;
+  fitToWidth?: boolean;
 }) {
   return (
     <ReferenceBookletPlayerCard
@@ -62,6 +64,7 @@ function FullBookletPlayerCard({
       fixedWidth={fixedWidth}
       fixedHeight={fixedHeight}
       stripClassName={stripClassName}
+      fitToWidth={fitToWidth}
     />
   );
 }
@@ -75,6 +78,7 @@ export function BookletPlayerCard({
   fixedWidth = false,
   fixedHeight,
   stripClassName,
+  fitToWidth = false,
 }: {
   player: BookletPlayer;
   positionColorClass: string;
@@ -84,9 +88,10 @@ export function BookletPlayerCard({
   fixedWidth?: boolean;
   fixedHeight?: number;
   stripClassName?: string;
+  fitToWidth?: boolean;
 }) {
   if (mode === "full") {
-    return <FullBookletPlayerCard player={player} stripClassName={stripClassName} accentColor={accentColor} showParameterGraph={showParameterGraph} fixedWidth={fixedWidth} fixedHeight={fixedHeight} />;
+    return <FullBookletPlayerCard player={player} stripClassName={stripClassName} accentColor={accentColor} showParameterGraph={showParameterGraph} fixedWidth={fixedWidth} fixedHeight={fixedHeight} fitToWidth={fitToWidth} />;
   }
   return <CompactBookletPlayerCard player={player} positionColorClass={positionColorClass} accentColor={accentColor} showParameterGraph={showParameterGraph} />;
 }

@@ -153,6 +153,7 @@ export function ReferenceBookletPlayerCard({
   fixedWidth = false,
   fixedHeight,
   stripClassName,
+  fitToWidth = false,
 }: {
   player: BookletPlayer;
   accentColor?: string;
@@ -160,6 +161,7 @@ export function ReferenceBookletPlayerCard({
   fixedWidth?: boolean;
   fixedHeight?: number;
   stripClassName?: string;
+  fitToWidth?: boolean;
 }) {
   const outerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -172,7 +174,8 @@ export function ReferenceBookletPlayerCard({
     const update = () => {
       const w = outer.clientWidth;
       const isMd = window.matchMedia("(min-width: 768px)").matches;
-      const scale = !isMd && w > 0 && w < CARD_NATURAL_WIDTH ? w / CARD_NATURAL_WIDTH : 1;
+      const scale =
+        (fitToWidth || !isMd) && w > 0 && w < CARD_NATURAL_WIDTH ? w / CARD_NATURAL_WIDTH : 1;
       const inner = innerRef.current;
       const h = inner ? inner.offsetHeight : 0;
       const height = scale < 1 && h > 0 ? h * scale : null;
@@ -184,7 +187,7 @@ export function ReferenceBookletPlayerCard({
     const inner = innerRef.current;
     if (inner) ro.observe(inner);
     return () => ro.disconnect();
-  }, [fixedWidth]);
+  }, [fixedWidth, fitToWidth]);
   const color = accentColor || "#C8102E";
   const contrastColor = getContrastTextColor(color);
   const labels = player.params?.items?.map((i) => i.label) ?? ["", "", "", "", "", ""];

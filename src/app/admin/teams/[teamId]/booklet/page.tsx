@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { auth } from "@/lib/firebase";
@@ -23,6 +23,7 @@ import { createEmptyLayout, last5Seasons } from "./a3/lib/a3-layout";
 import { formations } from "@/lib/formations";
 import { getPlanTier } from "@/lib/plan-limits";
 import { A3Editor } from "./a3/A3Editor";
+import { PublishShareModal } from "./components/PublishShareModal";
 
 export default function TeamBookletPage() {
   const params = useParams();
@@ -53,6 +54,7 @@ export default function TeamBookletPage() {
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
   const [showParameterGraph, setShowParameterGraph] = useState(true);
   const [bookletMode, setBookletMode] = useState<"team" | "individual">("team");
+  const [showShareModal, setShowShareModal] = useState(false);
   const [positionColors, setPositionColors] = useState<PositionColors>({
     GK: "bg-rose-300",
     DF: "bg-blue-300",
@@ -173,12 +175,15 @@ export default function TeamBookletPage() {
     return () => { cancelled = true; };
   }, [clubUid, router, season, teamId]);
 
+  const selectionLoadedRef = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
     // Career/team/season が変わったら古い名鑑データを即時破棄する
     setData(null);
     setSelectedPlayerIds([]);
     setAdditionalPlayerIds([]);
+    selectionLoadedRef.current = false;
     const run = async () => {
       if (!teamId || !season || !clubUid) return;
       setLoading(true);
@@ -245,7 +250,10 @@ export default function TeamBookletPage() {
         console.error(e);
         if (!cancelled) setError("取得に失敗しました");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          selectionLoadedRef.current = true;
+        }
       }
     };
 
@@ -284,8 +292,10 @@ export default function TeamBookletPage() {
   }, [data, selectedPlayerIds.length]);
 
   // 選択状態が変更されたらlocalStorageに保存
+  // （復元完了前に初期値で上書きしないようガードする）
   useEffect(() => {
     if (!teamId || !season) return;
+    if (!selectionLoadedRef.current) return;
     
     const storageKey = `booklet_selection_${teamId}_${season}`;
     const selectionData = {
@@ -594,6 +604,25 @@ export default function TeamBookletPage() {
     });
   };
 
+  const buildSharePayload = () => {
+    let a3: any = null;
+    try {
+      a3 = JSON.parse(localStorage.getItem(`booklet_a3_layout_${teamId}_${season}`) || "null");
+    } catch {}
+    return {
+      teamId,
+      season,
+      cardPlayerIds: players.filter((p) => selectedPlayerIds.includes(p.id)).map((p) => p.id),
+      additionalPlayerIds,
+      showParameterGraph,
+      positionColors,
+      formationName: typeof a3?.formationName === "string" ? a3.formationName : null,
+      starters: a3?.starters && typeof a3.starters === "object" ? a3.starters : {},
+      bioTitle: typeof a3?.bioTitle === "string" ? a3.bioTitle : "",
+      bioBody: typeof a3?.bioBody === "string" ? a3.bioBody : "",
+    };
+  };
+
   return (
     <div className="text-gray-900">
       <BookletGlobalStyles paper={paper} />
@@ -642,6 +671,7 @@ export default function TeamBookletPage() {
         showParameterGraph={showParameterGraph}
         onToggleParameterGraph={() => setShowParameterGraph((prev) => !prev)}
         bookletMode={bookletMode}
+        onOpenShare={() => setShowShareModal(true)}
         onSelectBookletMode={(mode) => {
           if (mode === "individual") {
             setIsEditMode(false);
@@ -813,6 +843,13 @@ export default function TeamBookletPage() {
           </div>
         </div>
       )}
+
+      <PublishShareModal
+        open={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        isPro={!!isPro}
+        buildPayload={buildSharePayload}
+      />
     </div>
   );
 }
