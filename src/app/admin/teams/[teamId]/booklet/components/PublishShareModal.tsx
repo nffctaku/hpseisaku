@@ -30,12 +30,16 @@ export function PublishShareModal({
   open,
   onClose,
   isPro,
+  clubName,
+  season,
   players,
   buildPayload,
 }: {
   open: boolean;
   onClose: () => void;
   isPro: boolean;
+  clubName: string;
+  season: string;
   players: BookletPlayer[];
   buildPayload: () => Omit<PublishPayload, never>;
 }) {
@@ -180,12 +184,12 @@ export function PublishShareModal({
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/booklet/${share.publicId}`
     : null;
 
-  const shareText = share?.isPublished ? "選手名鑑を公開しました" : "";
+  const shareText = `${clubName || "チーム"} ${season} 選手名鑑を公開しました！📖⚽`;
   const xShareUrl = publicUrl
-    ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(publicUrl)}`
+    ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&hashtags=FootChron&url=${encodeURIComponent(publicUrl)}`
     : null;
   const lineShareUrl = publicUrl
-    ? `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(publicUrl)}`
+    ? `https://line.me/R/msg/text/?${encodeURIComponent(`${clubName || "チーム"} ${season} 選手名鑑\n${publicUrl}`)}`
     : null;
 
   if (!open) return null;

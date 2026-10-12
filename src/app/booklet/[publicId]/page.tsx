@@ -58,21 +58,34 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { publicId } = await params;
   const share = await loadShare(publicId).catch(() => null);
-  const profile = share ? await loadClubProfile(share.clubUid) : null;
+  if (!share) {
+    return {
+      title: "選手名鑑 | FootChron",
+      robots: { index: false, follow: false },
+    };
+  }
 
-  const title = share
-    ? `${profile?.clubName || "チーム"} ${share.season} 選手名鑑 | FootChron`
-    : "選手名鑑 | FootChron";
+  const profile = await loadClubProfile(share.clubUid);
+  const title = `${profile.clubName || "チーム"}｜${share.season} 選手名鑑`;
+  const description =
+    "自分だけの選手名鑑を作ろう。選手の写真やプロフィール、能力値を自由に登録・公開できます。";
 
   return {
     title,
-    description: "FootChronで作成された公開選手名鑑",
+    description,
     // 公開URLを知っていても検索エンジンには掲載しない
     robots: { index: false, follow: false },
     openGraph: {
       title,
-      description: "FootChronで作成された公開選手名鑑",
+      description,
+      siteName: "FootChron",
       type: "website",
+      images: [{ url: "/booklet-ogp.jpg", width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
     },
   };
 }

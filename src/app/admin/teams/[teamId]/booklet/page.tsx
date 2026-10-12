@@ -850,6 +850,8 @@ export default function TeamBookletPage() {
         open={showShareModal}
         onClose={() => setShowShareModal(false)}
         isPro={!!isPro}
+        clubName={data?.club?.clubName || ""}
+        season={season}
         players={sortedPlayers}
         buildPayload={buildSharePayload}
       />
