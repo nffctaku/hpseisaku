@@ -124,28 +124,7 @@ export function BookletToolbar({
         </div>
       </div>
 
-      {/* チーム名鑑 / 個人名鑑 切替（A4時のみ） */}
-      {format === "a4" ? (
-        <div className="flex rounded-full bg-gray-700/60 p-1">
-          {(
-            [
-              ["team", "チーム名鑑"],
-              ["individual", "個人名鑑"],
-            ] as const
-          ).map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => onSelectBookletMode(mode)}
-              className={`h-10 flex-1 rounded-full text-sm font-bold transition-colors ${
-                bookletMode === mode ? "bg-blue-600 text-white" : "text-gray-300 hover:text-white"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {/* チーム名鑑 / 個人名鑑 切替（A4時のみ） — リニューアル中のため個人名鑑は非表示 */}
 
       {/* 基本設定カード */}
       <div className="rounded-2xl bg-white p-4 shadow-sm">
@@ -169,135 +148,16 @@ export function BookletToolbar({
             )}
           </SelectField>
 
-          <SelectField
-            icon={FileText}
-            label="用紙サイズ"
-            value={format}
-            disabled={loading}
-            onChange={(v) => onSelectFormat(v as "a4" | "a3")}
-          >
-            <option value="a4">A4</option>
-            <option value="a3">A3{!isPro ? "（Pro）" : ""}</option>
-          </SelectField>
+          {/* 用紙サイズ選択はリニューアル中のため非表示 */}
         </div>
       </div>
 
-      {/* 選手設定カード */}
-      <div className="rounded-2xl bg-white p-4 shadow-sm">
-        <CardHeading icon={Users}>{format === "a4" ? "選手設定" : "レイアウト設定"}</CardHeading>
-        <div className="space-y-3">
-          {format === "a4" ? (
-            !isEditMode ? (
-              <button
-                type="button"
-                onClick={onEnterEdit}
-                disabled={loading}
-                className="flex h-12 w-full items-center gap-3 rounded-xl bg-blue-600 px-4 text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-              >
-                <Users className="h-5 w-5 shrink-0" />
-                <span className="flex-1 text-left text-sm font-bold">選手を選択</span>
-                <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-bold tabular-nums">
-                  {selectedCount}/15
-                </span>
-                <ChevronRight className="h-4 w-4 shrink-0" />
-              </button>
-            ) : (
-              <div className="grid w-full grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={onExitEdit}
-                  className="h-12 rounded-xl bg-emerald-600 px-3 text-sm font-bold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
-                  disabled={selectedCount !== 15}
-                >
-                  決定 ({selectedCount}/15)
-                </button>
-                <button
-                  type="button"
-                  onClick={onExitEdit}
-                  className="h-12 rounded-xl bg-gray-500 px-3 text-sm font-bold text-white transition-colors hover:bg-gray-600"
-                >
-                  キャンセル
-                </button>
-              </div>
-            )
-          ) : !a3IsEditMode ? (
-            <button
-              type="button"
-              onClick={onA3EnterEdit}
-              disabled={loading}
-              className="flex w-full items-center gap-3 rounded-xl bg-blue-600 px-4 py-3 text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-            >
-              <Users className="h-5 w-5 shrink-0" />
-              <span className="flex-1 text-left text-sm font-bold">編集</span>
-              <ChevronRight className="h-4 w-4 shrink-0" />
-            </button>
-          ) : (
-            <div className="grid w-full grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={onA3ExitEdit}
-                className="h-12 rounded-xl bg-emerald-600 px-3 text-sm font-bold text-white transition-colors hover:bg-emerald-700"
-              >
-                決定
-              </button>
-              <button
-                type="button"
-                onClick={onA3ExitEdit}
-                className="h-12 rounded-xl bg-gray-500 px-3 text-sm font-bold text-white transition-colors hover:bg-gray-600"
-              >
-                キャンセル
-              </button>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={onToggleDisplaySettings}
-            disabled={loading}
-            className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 transition-colors disabled:opacity-50 ${
-              showDisplaySettings
-                ? "border-blue-300 bg-blue-50"
-                : "border-gray-200 bg-white hover:border-gray-300"
-            }`}
-          >
-            <SlidersHorizontal className="h-5 w-5 shrink-0 text-gray-500" />
-            <span className="flex-1 text-left text-sm font-bold text-gray-900">表示項目の設定</span>
-            <ChevronRight
-              className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${showDisplaySettings ? "rotate-90" : ""}`}
-            />
-          </button>
-
-          {showDisplaySettings ? (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-              <label className="flex items-center justify-between gap-4">
-                <span className="text-sm font-semibold text-gray-900">パラメーターグラフ</span>
-                <button
-                  type="button"
-                  onClick={onToggleParameterGraph}
-                  className={`h-8 min-w-16 rounded-full px-3 text-xs font-bold text-white ${showParameterGraph ? "bg-emerald-600" : "bg-gray-500"}`}
-                  aria-pressed={showParameterGraph}
-                >
-                  {showParameterGraph ? "ON" : "OFF"}
-                </button>
-              </label>
-            </div>
-          ) : null}
-        </div>
-      </div>
+      {/* 選手設定カードはリニューアル中のため非表示 */}
 
       {/* 出力カード */}
       <div className="rounded-2xl bg-white p-4 shadow-sm">
         <CardHeading icon={Printer}>出力</CardHeading>
-        <button
-          type="button"
-          onClick={format === "a4" ? onPrint : onA3Print}
-          disabled={loading || isEditMode || a3IsEditMode}
-          className="flex w-full items-center gap-3 rounded-xl bg-emerald-600 px-4 py-3.5 text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
-        >
-          <Printer className="h-5 w-5 shrink-0" />
-          <span className="flex-1 text-left text-base font-bold">印刷</span>
-          <ChevronRight className="h-4 w-4 shrink-0" />
-        </button>
+        {/* 印刷ボタンはリニューアル中のため非表示 */}
         {onOpenShare ? (
           <button
             type="button"
