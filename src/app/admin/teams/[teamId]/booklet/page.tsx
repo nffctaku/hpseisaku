@@ -308,10 +308,10 @@ export default function TeamBookletPage() {
     localStorage.setItem(storageKey, JSON.stringify(selectionData));
   }, [selectedPlayerIds, additionalPlayerIds, positionColors, showParameterGraph, teamId, season]);
 
-  const players = useMemo(() => {
+  const sortedPlayers = useMemo(() => {
     const list = Array.isArray(data?.players) ? data!.players : [];
-    
-    const sortedList = [...list].sort((a, b) => {
+
+    return [...list].sort((a, b) => {
       // まずメインポジションでソート
       const aOrder = getPositionOrder(a.mainPosition || a.position || "");
       const bOrder = getPositionOrder(b.mainPosition || b.position || "");
@@ -326,14 +326,16 @@ export default function TeamBookletPage() {
       // 最後に名前でソート
       return String(a.name || "").localeCompare(String(b.name || ""));
     });
-    
+  }, [data]);
+
+  const players = useMemo(() => {
     if (isEditMode) {
-      return sortedList;
+      return sortedPlayers;
     }
-    
-    // 編集モードでない場合は選択された15人のみ表示
-    return sortedList.filter(p => selectedPlayerIds.includes(p.id));
-  }, [data, isEditMode, selectedPlayerIds]);
+
+    // 編集モードでない場合は選択された選手のみ表示
+    return sortedPlayers.filter(p => selectedPlayerIds.includes(p.id));
+  }, [sortedPlayers, isEditMode, selectedPlayerIds]);
 
   const getPositionColor = (position: string) => {
     const pos = (position || "").toUpperCase();
@@ -848,6 +850,7 @@ export default function TeamBookletPage() {
         open={showShareModal}
         onClose={() => setShowShareModal(false)}
         isPro={!!isPro}
+        players={sortedPlayers}
         buildPayload={buildSharePayload}
       />
     </div>

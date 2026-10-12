@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, ExternalLink, Globe, Loader2, Lock, Share2, X } from "lucide-react";
 import { auth } from "@/lib/firebase";
+import { publicBookletCardLimit } from "@/lib/booklet-limits";
+import type { BookletPlayer } from "../types";
 
 type ShareState = {
   publicId: string;
@@ -28,11 +30,13 @@ export function PublishShareModal({
   open,
   onClose,
   isPro,
+  players,
   buildPayload,
 }: {
   open: boolean;
   onClose: () => void;
   isPro: boolean;
+  players: BookletPlayer[];
   buildPayload: () => Omit<PublishPayload, never>;
 }) {
   const [loading, setLoading] = useState(false);
@@ -42,6 +46,28 @@ export function PublishShareModal({
   const [share, setShare] = useState<ShareState | null>(null);
   const [showFormation, setShowFormation] = useState(true);
   const [showIntroduction, setShowIntroduction] = useState(true);
+  const [publishIds, setPublishIds] = useState<string[]>([]);
+  // 親の再レンダーで選択中のピッカー状態が巻き戻らないよう、初期化はモーダルopenごと1回
+  const publishInitRef = useRef(false);
+
+  const cardLimit = publicBookletCardLimit(isPro ? "pro" : "free");
+
+  // 保存時はロースター順で cardPlayerIds を生成（選択順=配列順を維持）
+  const orderedPublishIds = useMemo(() => {
+    const set = new Set(publishIds);
+    return players.filter((p) => set.has(p.id)).map((p) => p.id);
+  }, [players, publishIds]);
+
+  const togglePublish = useCallback(
+    (playerId: string) => {
+      setPublishIds((prev) => {
+        if (prev.includes(playerId)) return prev.filter((id) => id !== playerId);
+        if (prev.length >= cardLimit) return prev; // プラン上限を超えて追加しない
+        return [...prev, playerId];
+      });
+    },
+    [cardLimit]
+  );
 
   const fetchShare = useCallback(async () => {
     const payload = buildPayload();
@@ -72,18 +98,35 @@ export function PublishShareModal({
         });
         setShowFormation(s.showFormation);
         setShowIntroduction(s.showIntroduction);
+        if (!publishInitRef.current) {
+          publishInitRef.current = true;
+          const saved = Array.isArray(s.cardPlayerIds) ? s.cardPlayerIds : [];
+          // 保存済み選択（存在する選手のみ）。なければ先頭から上限までを初期選択
+          const validIds = new Set(players.map((p) => p.id));
+          const restored = saved.filter(
+            (id: unknown): id is string => typeof id === "string" && validIds.has(id)
+          );
+          setPublishIds(restored.length > 0 ? restored : players.slice(0, cardLimit).map((p) => p.id));
+        }
       } else {
         setShare(null);
+        if (!publishInitRef.current) {
+          publishInitRef.current = true;
+          setPublishIds(players.slice(0, cardLimit).map((p) => p.id));
+        }
       }
     } catch {
       setError("取得に失敗しました。");
     } finally {
       setLoading(false);
     }
-  }, [buildPayload]);
+  }, [buildPayload, players, cardLimit]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      publishInitRef.current = false;
+      return;
+    }
     setCopied(false);
     void fetchShare();
   }, [open, fetchShare]);
@@ -106,6 +149,7 @@ export function PublishShareModal({
         },
         body: JSON.stringify({
           ...payload,
+          cardPlayerIds: orderedPublishIds,
           isPublished,
           showFormation: isPro ? showFormation : false,
           showIntroduction: isPro ? showIntroduction : false,
@@ -263,6 +307,60 @@ export function PublishShareModal({
                 </div>
               </div>
             ) : null}
+
+            {/* 公開選手（Web名鑑） */}
+            <div className="rounded-xl border border-gray-200 p-4">
+              <div className="mb-1 flex items-center justify-between">
+                <div className="text-xs font-bold text-gray-500">公開選手（Web名鑑）</div>
+                <div className="text-xs font-bold text-gray-700">
+                  {orderedPublishIds.length}/{cardLimit}名
+                </div>
+              </div>
+              <p className="mb-3 text-[11px] leading-relaxed text-gray-400">
+                {isPro
+                  ? "Proプランでは最大30名まで公開できます。"
+                  : "Freeプランでは最大21名まで公開できます。Proでは30名まで公開可能です。"}
+              </p>
+              {orderedPublishIds.length > cardLimit ? (
+                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-700">
+                  上限を超えています。先頭{cardLimit}名のみ公開されます。公開対象を選び直してください。
+                </div>
+              ) : null}
+              <div className="grid max-h-56 grid-cols-2 gap-1.5 overflow-y-auto pr-1">
+                {players.map((player) => {
+                  const checked = publishIds.includes(player.id);
+                  const disabled = !checked && publishIds.length >= cardLimit;
+                  return (
+                    <label
+                      key={player.id}
+                      className={`flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs ${
+                        checked
+                          ? "border-blue-400 bg-blue-50"
+                          : disabled
+                            ? "border-gray-200 bg-gray-50 opacity-50"
+                            : "border-gray-200 bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 shrink-0 rounded"
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={() => togglePublish(player.id)}
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-gray-900">
+                          {player.name || "-"}
+                        </span>
+                        <span className="block truncate text-[10px] text-gray-500">
+                          {player.number != null ? `#${player.number}` : "-"} {player.position || ""}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* 公開内容 */}
             <div className="rounded-xl border border-gray-200 p-4">

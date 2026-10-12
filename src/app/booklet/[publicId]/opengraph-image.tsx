@@ -5,6 +5,8 @@ import { db } from "@/lib/firebase/admin";
 import { getBookletShare } from "@/lib/booklet-share";
 import { getBookletTeamData } from "@/lib/booklet-data-server";
 import { getCareer } from "@/lib/career-server";
+import { getEffectivePlanForUid } from "@/lib/server-plan";
+import { capPublicCardIds } from "@/lib/booklet-limits";
 import { isParodyClub } from "@/lib/parody";
 import { getContrastTextColor, isColorDark } from "@/lib/utils";
 import { safeString } from "@/app/api/admin/booklet/lib";
@@ -83,9 +85,12 @@ async function getOgData(publicId: string) {
     // フォールバック値で生成
   }
 
-  // OGPは cardPlayerIds の先頭最大3名のみ使用（選択順を維持）
+  // OGPは実際に公開可能な選手（プラン上限適用後）の先頭1名のみ使用
+  const tier = await getEffectivePlanForUid(share.ownerUid)
+    .then((p) => p.tier)
+    .catch(() => "free" as const);
   const players: OgPlayer[] = [];
-  const firstIds = share.cardPlayerIds.slice(0, 3);
+  const firstIds = capPublicCardIds(share.cardPlayerIds, tier).slice(0, 1);
   if (firstIds.length > 0) {
     try {
       const data = await getBookletTeamData({
@@ -150,15 +155,16 @@ function silhouette(h: number) {
 
 function playerCard(
   p: OgPlayer,
-  kind: "main" | "sub",
+  kind: "hero" | "main" | "sub",
   accent: string,
   accentText: string,
   rotate?: string
 ) {
-  const main = kind === "main";
-  const W = main ? 250 : 190;
-  const H = main ? 350 : 260;
-  const photoH = main ? 205 : 145;
+  const hero = kind === "hero";
+  const main = kind === "main" || hero;
+  const W = hero ? 330 : main ? 250 : 190;
+  const H = hero ? 470 : main ? 350 : 260;
+  const photoH = hero ? 330 : main ? 205 : 145;
   return (
     <div
       style={{
@@ -222,14 +228,14 @@ function playerCard(
         style={{
           display: "flex",
           flexDirection: "column",
-          padding: main ? "12px 16px" : "9px 12px",
-          gap: 5,
+          padding: hero ? "16px 20px" : main ? "12px 16px" : "9px 12px",
+          gap: 6,
         }}
       >
         <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
           <span
             style={{
-              fontSize: main ? 36 : 26,
+              fontSize: hero ? 46 : main ? 36 : 26,
               fontWeight: 900,
               color: accentText,
               lineHeight: 1,
@@ -239,7 +245,7 @@ function playerCard(
           </span>
           <span
             style={{
-              fontSize: main ? 15 : 12,
+              fontSize: hero ? 17 : main ? 15 : 12,
               fontWeight: 700,
               color: "#64748b",
               letterSpacing: 1,
@@ -251,13 +257,13 @@ function playerCard(
         <div
           style={{
             display: "flex",
-            fontSize: main ? 26 : 18,
+            fontSize: hero ? 32 : main ? 26 : 18,
             fontWeight: 800,
             color: "#0f172a",
             lineHeight: 1.15,
           }}
         >
-          {truncate(p.name, main ? 11 : 9)}
+          {truncate(p.name, hero ? 13 : main ? 11 : 9)}
         </div>
       </div>
     </div>
@@ -283,7 +289,7 @@ export default async function OpenGraphImage({
   const nameFont = clubName.length > 20 ? 34 : clubName.length > 12 ? 44 : 54;
 
   const players = data.players;
-  const [p0, p1, p2] = players;
+  const p0 = players[0];
 
   return new ImageResponse(
     (
@@ -423,35 +429,16 @@ export default async function OpenGraphImage({
               )}
             </div>
           ) : (
-            <>
-              {p2 && players.length >= 3 ? (
-                <div style={{ position: "absolute", left: 150, top: 74, display: "flex" }}>
-                  {playerCard(p2, "sub", accent, accentText, "rotate(-6deg)")}
-                </div>
-              ) : null}
-              {p1 ? (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: players.length >= 3 ? 748 : 620,
-                    top: 74,
-                    display: "flex",
-                  }}
-                >
-                  {playerCard(p1, "sub", accent, accentText, "rotate(6deg)")}
-                </div>
-              ) : null}
-              <div
-                style={{
-                  position: "absolute",
-                  left: players.length >= 3 ? 419 : players.length === 2 ? 300 : 419,
-                  top: 14,
-                  display: "flex",
-                }}
-              >
-                {playerCard(p0, "main", accent, accentText)}
-              </div>
-            </>
+            <div
+              style={{
+                display: "flex",
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {playerCard(p0, "hero", accent, accentText)}
+            </div>
           )}
         </div>
 
@@ -479,18 +466,23 @@ export default async function OpenGraphImage({
           >
             Powered by FootChron
           </div>
-          {data.isParody ? (
-            <div
-              style={{
-                display: "flex",
-                color: "rgba(255,255,255,0.8)",
-                fontSize: 16,
-                fontWeight: 600,
-              }}
-            >
-              {PARODY_NOTE}
-            </div>
-          ) : null}
+        {data.isParody ? (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 34,
+              right: 56,
+              display: "flex",
+              width: 700,
+              justifyContent: "flex-end",
+              color: "rgba(255,255,255,0.8)",
+              fontSize: 16,
+              fontWeight: 600,
+            }}
+          >
+            {PARODY_NOTE}
+          </div>
+        ) : null}
         </div>
       </div>
     ),

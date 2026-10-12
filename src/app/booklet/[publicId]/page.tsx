@@ -9,6 +9,7 @@ import { getCareer } from "@/lib/career-server";
 import { safeString } from "@/app/api/admin/booklet/lib";
 
 import { isParodyClub } from "@/lib/parody";
+import { capPublicCardIds } from "@/lib/booklet-limits";
 
 import { PublicBooklet, type PublicBookletView } from "./PublicBooklet";
 
@@ -91,8 +92,11 @@ export default async function PublicBookletPage({
   ]);
   const isPro = plan.tier !== "free";
 
+  // プラン別の公開上限を適用（保存済み選択順の先頭のみ公開。超過分は保持される）
+  const publicIds = capPublicCardIds(share.cardPlayerIds, plan.tier);
+
   // 公開に必要な選手だけ集計（カード掲載選手 + フォーメーションスタメン）
-  const neededIds = new Set<string>(share.cardPlayerIds);
+  const neededIds = new Set<string>(publicIds);
   if (isPro && share.showFormation) {
     for (const pid of Object.values(share.starters)) {
       if (typeof pid === "string" && pid) neededIds.add(pid);
@@ -108,7 +112,7 @@ export default async function PublicBookletPage({
   });
 
   const byId = new Map(data.players.map((p) => [String(p.id), p]));
-  const cardPlayers = share.cardPlayerIds
+  const cardPlayers = publicIds
     .map((id) => byId.get(id))
     .filter((p): p is NonNullable<typeof p> => !!p);
 
