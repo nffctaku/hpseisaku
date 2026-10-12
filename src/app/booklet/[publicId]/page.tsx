@@ -8,6 +8,8 @@ import { getEffectivePlanForUid } from "@/lib/server-plan";
 import { getCareer } from "@/lib/career-server";
 import { safeString } from "@/app/api/admin/booklet/lib";
 
+import { isParodyClub } from "@/lib/parody";
+
 import { PublicBooklet, type PublicBookletView } from "./PublicBooklet";
 
 // 公開・非公開・プラン変更を即時反映するためキャッシュしない
@@ -34,9 +36,17 @@ async function loadClubProfile(clubUid: string) {
       logoUrl: typeof d?.logoUrl === "string" && d.logoUrl.trim() ? d.logoUrl.trim() : null,
       homeBgColor:
         typeof d?.homeBgColor === "string" && d.homeBgColor.trim() ? d.homeBgColor.trim() : null,
+      realTeamUsage: typeof d?.realTeamUsage === "boolean" ? d.realTeamUsage : undefined,
+      gameTeamUsage: typeof d?.gameTeamUsage === "boolean" ? d.gameTeamUsage : undefined,
     };
   } catch {
-    return { clubName: "", logoUrl: null, homeBgColor: null };
+    return {
+      clubName: "",
+      logoUrl: null,
+      homeBgColor: null,
+      realTeamUsage: undefined,
+      gameTeamUsage: undefined,
+    };
   }
 }
 
@@ -138,6 +148,7 @@ export default async function PublicBookletPage({
 
   const view: PublicBookletView = {
     isPro,
+    isParody: isParodyClub(profile),
     clubName: profile.clubName || data.club.clubName,
     logoUrl: profile.logoUrl,
     teamName: data.teamName,

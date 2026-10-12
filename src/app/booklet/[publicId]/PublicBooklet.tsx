@@ -3,11 +3,11 @@
 import Image from "next/image";
 
 import { BookletPlayerCard } from "@/app/admin/teams/[teamId]/booklet/components/BookletPlayerCard";
-import { FormationPitch } from "@/app/admin/teams/[teamId]/booklet/a3/print/components/PrintPageLayout";
 import type { BookletPlayer, PositionColors } from "@/app/admin/teams/[teamId]/booklet/types";
 
 export type PublicBookletView = {
   isPro: boolean;
+  isParody: boolean;
   clubName: string;
   logoUrl: string | null;
   teamName: string;
@@ -70,6 +70,18 @@ export function PublicBooklet({ view }: { view: PublicBookletView }) {
           </header>
         )}
 
+        {/* パロディ/創作表記（Free・Pro共通・判定はサーバー側） */}
+        {view.isParody ? (
+          <div className="mb-8 flex flex-wrap items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 px-5 py-3.5">
+            <span className="rounded-md bg-white/15 px-2.5 py-1 text-[11px] font-black tracking-[0.15em] text-white">
+              PARODY / FAN-MADE
+            </span>
+            <p className="text-xs font-semibold leading-relaxed text-gray-300">
+              FootChron利用者による非公式の創作コンテンツです。
+            </p>
+          </div>
+        ) : null}
+
         {/* チーム紹介（Pro） */}
         {hasIntro ? (
           <section className="mb-8 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -82,17 +94,7 @@ export function PublicBooklet({ view }: { view: PublicBookletView }) {
           </section>
         ) : null}
 
-        {/* フォーメーション（Pro） */}
-        {pro?.formationName ? (
-          <section className="mb-10">
-            <FormationPitch
-              formationName={pro.formationName}
-              startersByPosition={pro.startersByPosition}
-              fallbackPlayers={pro.fallbackPlayers}
-              accentColor={view.accentColor}
-            />
-          </section>
-        ) : null}
+        {/* フォーメーション（Pro）: 表示不具合のため一時非表示 */}
 
         {/* 選手プロフィールカード：PC 3列 / モバイルはカード領域のみ横スクロール */}
         <section>
@@ -114,6 +116,9 @@ export function PublicBooklet({ view }: { view: PublicBookletView }) {
         </section>
 
         <footer className="mt-12 border-t border-gray-200 pt-6 text-center">
+          <p className="mb-3 text-[11px] font-semibold text-gray-400">
+            FootChron利用者が作成したコンテンツです。クラブ公式の発信とは限りません。
+          </p>
           <a
             href="https://www.footchron.com"
             className="text-xs font-semibold text-gray-400 hover:text-gray-600"
