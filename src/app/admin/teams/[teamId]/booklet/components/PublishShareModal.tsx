@@ -6,6 +6,9 @@ import { auth } from "@/lib/firebase";
 import { publicBookletCardLimit } from "@/lib/booklet-limits";
 import type { BookletPlayer } from "../types";
 
+// OGP画像を差し替えたら +1 する。シェアURLに ?v=N として付与し、SNSのカードキャッシュを更新させる
+const BOOKLET_SHARE_OGP_VERSION = "2";
+
 type ShareState = {
   publicId: string;
   isPublished: boolean;
@@ -180,9 +183,13 @@ export function PublishShareModal({
     }
   };
 
-  const publicUrl = share?.publicId
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/booklet/${share.publicId}`
-    : null;
+  // 公開URLにOGPバージョンを付与（既存クエリがあっても正しくマージされる）
+  const publicUrl = useMemo(() => {
+    if (!share?.publicId || typeof window === "undefined") return null;
+    const u = new URL(`/booklet/${share.publicId}`, window.location.origin);
+    u.searchParams.set("v", BOOKLET_SHARE_OGP_VERSION);
+    return u.toString();
+  }, [share?.publicId]);
 
   const shareText = `${clubName || "チーム"} ${season} 選手名鑑を公開しました！📖⚽`;
   const xShareUrl = publicUrl
