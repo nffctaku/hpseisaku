@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import { db } from "@/lib/firebase/admin";
-import { getBookletShare } from "@/lib/booklet-share";
+import { getBookletShare, type BookletShareDoc } from "@/lib/booklet-share";
 import { getBookletTeamData } from "@/lib/booklet-data-server";
 import { getEffectivePlanForUid } from "@/lib/server-plan";
 import { getCareer } from "@/lib/career-server";
@@ -96,33 +97,52 @@ export default async function PublicBookletPage({
   params: Promise<{ publicId: string }>;
 }) {
   const { publicId } = await params;
+  // 公開検証だけ先に確定し、選手データ取得はSuspense内に逃がす。
+  // head(OGPメタ)とシェルを先行送信しないとSNSクローラーがタイムアウトする
   const share = await loadShare(publicId);
   if (!share) notFound();
 
-  const [plan, profile] = await Promise.all([
-    getEffectivePlanForUid(share.ownerUid),
-    loadClubProfile(share.clubUid),
-  ]);
-  const isPro = plan.tier !== "free";
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-slate-900">
+          <p className="animate-pulse text-sm font-semibold text-white/70">読み込み中…</p>
+        </main>
+      }
+    >
+      <BookletContent share={share} />
+    </Suspense>
+  );
+}
 
-  // プラン別の公開上限を適用（保存済み選択順の先頭のみ公開。超過分は保持される）
-  const publicIds = capPublicCardIds(share.cardPlayerIds, plan.tier);
+async function BookletContent({ share }: { share: BookletShareDoc }) {
+  // ストリーミング開始後は404にできないため、取得失敗はページ内メッセージに変換する
+  let view: PublicBookletView;
+  try {
+    const [plan, profile] = await Promise.all([
+      getEffectivePlanForUid(share.ownerUid),
+      loadClubProfile(share.clubUid),
+    ]);
+    const isPro = plan.tier !== "free";
 
-  // 公開に必要な選手だけ集計（カード掲載選手 + フォーメーションスタメン）
-  const neededIds = new Set<string>(publicIds);
-  if (isPro && share.showFormation) {
-    for (const pid of Object.values(share.starters)) {
-      if (typeof pid === "string" && pid) neededIds.add(pid);
+    // プラン別の公開上限を適用（保存済み選択順の先頭のみ公開。超過分は保持される）
+    const publicIds = capPublicCardIds(share.cardPlayerIds, plan.tier);
+
+    // 公開に必要な選手だけ集計（カード掲載選手 + フォーメーションスタメン）
+    const neededIds = new Set<string>(publicIds);
+    if (isPro && share.showFormation) {
+      for (const pid of Object.values(share.starters)) {
+        if (typeof pid === "string" && pid) neededIds.add(pid);
+      }
     }
-  }
 
-  const data = await getBookletTeamData({
-    ownerUid: share.clubUid,
-    teamId: share.teamId,
-    seasonId: share.season,
-    clubProfile: profile,
-    playerIds: neededIds,
-  });
+    const data = await getBookletTeamData({
+      ownerUid: share.clubUid,
+      teamId: share.teamId,
+      seasonId: share.season,
+      clubProfile: profile,
+      playerIds: neededIds,
+    });
 
   const byId = new Map(data.players.map((p) => [String(p.id), p]));
   const cardPlayers = publicIds
@@ -163,19 +183,28 @@ export default async function PublicBookletPage({
     };
   }
 
-  const view: PublicBookletView = {
-    isPro,
-    isParody: isParodyClub(profile),
-    clubName: profile.clubName || data.club.clubName,
-    logoUrl: profile.logoUrl,
-    teamName: data.teamName,
-    season: share.season,
-    accentColor: profile.homeBgColor || "#C8102E",
-    showParameterGraph: share.showParameterGraph,
-    positionColors: share.positionColors,
-    players: cardPlayers,
-    pro,
-  };
+    view = {
+      isPro,
+      isParody: isParodyClub(profile),
+      clubName: profile.clubName || data.club.clubName,
+      logoUrl: profile.logoUrl,
+      teamName: data.teamName,
+      season: share.season,
+      accentColor: profile.homeBgColor || "#C8102E",
+      showParameterGraph: share.showParameterGraph,
+      positionColors: share.positionColors,
+      players: cardPlayers,
+      pro,
+    };
+  } catch {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-900 px-6">
+        <p className="text-center text-sm font-semibold text-white/80">
+          選手名鑑の読み込みに失敗しました。時間をおいて再度お試しください。
+        </p>
+      </main>
+    );
+  }
 
   return <PublicBooklet view={view} />;
 }
