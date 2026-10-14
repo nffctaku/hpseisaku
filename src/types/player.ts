@@ -46,6 +46,8 @@ export interface PlayerSeasonData {
   nationality?: string;
   dateOfBirth?: string;
   joinedSeason?: string;
+  /** 前所属（正はplayer基本プロフィール。Careerコピー経由で存在し得る） */
+  previousClub?: string;
   tenureYears?: number;
   height?: number;
   weight?: number;
@@ -77,6 +79,8 @@ export interface Player {
   nationality: string;
   dateOfBirth?: string;
   joinedSeason?: string;
+  /** 前所属（現クラブ加入直前の所属クラブ） */
+  previousClub?: string;
   tenureYears?: number;
   height: number; // in cm
   weight?: number; // in kg

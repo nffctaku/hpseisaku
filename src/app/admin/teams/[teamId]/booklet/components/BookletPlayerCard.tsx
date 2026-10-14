@@ -202,7 +202,7 @@ function CompactBookletPlayerCard({
           <div className="mt-1 text-[5px] leading-tight text-gray-700">
             <span className="text-gray-500">昨季:</span>{" "}
             <span className="font-bold">
-              {player.lastSeasonSummary && player.lastSeasonSummary !== "-" ? player.lastSeasonSummary : "未登録"}
+              {player.lastSeasonSummary && player.lastSeasonSummary !== "-" ? player.lastSeasonSummary : "-"}
             </span>
           </div>
 

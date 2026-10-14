@@ -104,10 +104,18 @@ function contractDisplay(player: BookletPlayer): string {
 
 function lastSeasonCompact(summary: string | null | undefined): string {
   const s = (summary || "").trim();
-  if (!s || s === "-" || s === "未登録") return "未登録";
+  if (!s || s === "-" || s === "未登録") return "-";
   const m = s.match(/(\d+)試合\s*(\d+)ゴール\s*(\d+)アシスト/);
   if (m) return `${m[1]}試合｜${m[2]}G｜${m[3]}A`;
   return s;
+}
+
+// 長いクラブ名は段階的に縮小し、1行省略でカードからはみ出さない
+function previousClubTextSize(previousClub: string | null | undefined): string {
+  const len = (previousClub || "").trim().length;
+  if (len > 28) return "text-xs";
+  if (len > 18) return "text-sm";
+  return "text-base";
 }
 
 function ReferenceAbilityBars({
@@ -314,6 +322,12 @@ export function ReferenceBookletPlayerCard({
             <div className="flex items-baseline gap-2">
               <span className="w-16 shrink-0 text-base text-gray-500 whitespace-nowrap">昨季成績</span>
               <span className="min-w-0 font-bold text-gray-900 leading-tight">{lastSeasonCompact(player.lastSeasonSummary)}</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="w-16 shrink-0 text-base text-gray-500 whitespace-nowrap">前所属</span>
+              <span className={`min-w-0 truncate font-bold text-gray-900 leading-tight ${previousClubTextSize(player.previousClub)}`}>
+                {(player.previousClub || "").trim() || "-"}
+              </span>
             </div>
           </div>
         </div>

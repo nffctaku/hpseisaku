@@ -480,6 +480,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           nationality: (season?.nationality ?? p.nationality) as any,
           dateOfBirth: (season?.dateOfBirth ?? p.dateOfBirth) as any,
           joinedSeason: (season?.joinedSeason ?? p.joinedSeason) as any,
+          // 前所属はplayer基本プロフィールが正（seasonDataはCareerコピー由来の場合のみフォールバック）
+          previousClub: ((p as any).previousClub ?? (season as any)?.previousClub) as any,
           tenureYears: ((season as any)?.tenureYears ?? (p as any).tenureYears) as any,
           height: (season?.height ?? p.height) as any,
           weight: (season as any)?.weight ?? (p as any).weight,
@@ -549,6 +551,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       nationality: season.nationality ?? editingPlayer.nationality,
       dateOfBirth: season.dateOfBirth ?? editingPlayer.dateOfBirth,
       joinedSeason: season.joinedSeason ?? editingPlayer.joinedSeason,
+      previousClub: (editingPlayer as any).previousClub ?? (season as any)?.previousClub,
       tenureYears: (season as any)?.tenureYears ?? (editingPlayer as any).tenureYears,
       height: season.height ?? editingPlayer.height,
       weight: (season as any)?.weight ?? (editingPlayer as any).weight,
@@ -857,6 +860,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
           number: valuesNormalized.number as any,
           joinedSeason,
+          previousClub: typeof (values as any).previousClub === "string" ? (values as any).previousClub.trim() : "",
           tenureYears,
           seasons: nextSeasons,
           [`seasonData.${selectedSeasonDash}`]: seasonPayloadClean,
@@ -927,6 +931,7 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           mainPosition: (values as any).mainPosition,
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
           joinedSeason,
+          previousClub: typeof (values as any).previousClub === "string" ? (values as any).previousClub.trim() : "",
           tenureYears,
         });
         console.log("[PlayerManagement] write roster", {

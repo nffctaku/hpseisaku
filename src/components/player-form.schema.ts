@@ -141,6 +141,7 @@ export const formSchema = z.object({
   preferredFoot: z.enum(["left", "right", "both"]).optional(),
   dateOfBirth: z.string().optional().or(z.literal("")),
   joinedSeason: z.string().optional().or(z.literal("")),
+  previousClub: z.string().max(100, { message: "前所属は100文字以内です。" }).optional().or(z.literal("")),
   tenureYears: tenureYearsSchema,
   annualSalary: optionalNumberSchema,
   annualSalaryCurrency: z.enum(["JPY", "GBP", "EUR"]).optional(),

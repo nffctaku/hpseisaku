@@ -96,6 +96,7 @@ async function seedSource(ownerId: string, careerId: string, clubUid: string) {
     number: "10",
     position: "FW",
     nationality: "JP",
+    previousClub: "RC Strasbourg Alsace",
     photoUrl: "https://example.com/a.png",
     stats: { goals: 20, assists: 5 },
     history: [{ season: s2024, club: "旧クラブ" }],
@@ -193,6 +194,7 @@ describe("career-copy integration", () => {
     assert.equal(typeof aDoc.data().photoUrl, "string");
     assert.equal(aDoc.data().number, "10");
     assert.equal(aDoc.data().position, "FW");
+    assert.equal(aDoc.data().previousClub, "RC Strasbourg Alsace");
     assert.equal(aDoc.data().stats, undefined);
     assert.equal(aDoc.data().history, undefined);
     assert.equal(aDoc.data().contract, undefined);

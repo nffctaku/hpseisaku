@@ -58,6 +58,7 @@ const PLAYER_PROFILE_FIELDS = [
   "subPositions",
   "nationality",
   "dateOfBirth",
+  "previousClub",
   "height",
   "weight",
   "preferredFoot",

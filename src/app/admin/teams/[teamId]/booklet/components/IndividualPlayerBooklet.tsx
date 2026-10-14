@@ -269,7 +269,7 @@ export function IndividualPlayerBooklet({
                   <div className="mt-0.5 text-base font-bold text-gray-900">
                     {selectedPlayer.lastSeasonSummary && selectedPlayer.lastSeasonSummary !== "-"
                       ? selectedPlayer.lastSeasonSummary
-                      : "未登録"}
+                      : "-"}
                   </div>
                 </div>
               </div>

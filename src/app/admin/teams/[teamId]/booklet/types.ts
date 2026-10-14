@@ -8,6 +8,7 @@ export type BookletPlayer = {
   subPositions?: string[];
   nationality?: string;
   dateOfBirth?: string;
+  previousClub?: string;
   age?: number | null;
   height?: number | null;
   weight?: number | null;

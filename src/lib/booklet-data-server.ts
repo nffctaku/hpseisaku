@@ -229,6 +229,11 @@ export async function getBookletTeamData(opts: {
           safeString((p as any)?.nationality) ||
           safeString(playerDoc?.nationality),
         dateOfBirth,
+        // 前所属はplayer基本プロフィールを優先（seasonDataはCareerコピー由来の場合のみフォールバック）
+        previousClub:
+          safeString((p as any)?.previousClub) ||
+          safeString(playerDoc?.previousClub) ||
+          safeString(sd?.previousClub),
         // 年齢は保存値を使わず「シーズン開幕日（8/1）時点」を生年月日から計算
         // 未登録・不正な生年月日では非表示（0歳などの誤表示を防ぐ）
         age: isValidBirthDateString(dateOfBirth) ? tryCalculateAge(dateOfBirth, seasonId) : null,

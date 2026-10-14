@@ -443,6 +443,27 @@ export function BasicInfoSection({
               </FormItem>
             )}
           />
+
+          <FormField
+            control={form.control}
+            name="previousClub"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-[#F1F5F9]">前所属</FormLabel>
+                <FormControl>
+                  <Input
+                    type="text"
+                    placeholder="RC Strasbourg Alsace"
+                    {...field}
+                    value={(field.value ?? "") as any}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    className="h-11 bg-[#172334] border-[#334155] text-[#F1F5F9] placeholder:text-slate-500"
+                  />
+                </FormControl>
+                <FormMessage className="text-[#FCA5A5]" />
+              </FormItem>
+            )}
+          />
         </div>
       </div>
     </SectionCard>
