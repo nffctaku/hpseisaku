@@ -72,18 +72,6 @@ export function PublicBooklet({ view }: { view: PublicBookletView }) {
           </header>
         )}
 
-        {/* パロディ/創作表記（Free・Pro共通・判定はサーバー側） */}
-        {view.isParody ? (
-          <div className="mb-8 flex flex-wrap items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 px-5 py-3.5">
-            <span className="rounded-md bg-white/15 px-2.5 py-1 text-[11px] font-black tracking-[0.15em] text-white">
-              PARODY / FAN-MADE
-            </span>
-            <p className="text-xs font-semibold leading-relaxed text-gray-300">
-              FootChron利用者による非公式の創作コンテンツです。
-            </p>
-          </div>
-        ) : null}
-
         {/* チーム紹介（Pro） */}
         {hasIntro ? (
           <section className="mb-8 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -120,7 +108,19 @@ export function PublicBooklet({ view }: { view: PublicBookletView }) {
           </div>
         </section>
 
-        <footer className="mt-12 border-t border-gray-200 pt-6 text-center">
+        {/* パロディ/創作表記（Free・Pro共通・判定はサーバー側）— 全コンテンツの後、フッター直前 */}
+        {view.isParody ? (
+          <div className="mt-12 flex flex-wrap items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 px-5 py-3.5">
+            <span className="rounded-md bg-white/15 px-2.5 py-1 text-[11px] font-black tracking-[0.15em] text-white">
+              PARODY / FAN-MADE
+            </span>
+            <p className="text-xs font-semibold leading-relaxed text-gray-300">
+              FootChron利用者による非公式の創作コンテンツです。
+            </p>
+          </div>
+        ) : null}
+
+        <footer className="mt-8 border-t border-gray-200 pt-6 text-center">
           <p className="mb-3 text-[11px] font-semibold text-gray-400">
             FootChron利用者が作成したコンテンツです。クラブ公式の発信とは限りません。
           </p>
