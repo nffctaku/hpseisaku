@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db, auth } from "@/lib/firebase";
-import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, deleteField, getDocs, where, limit, setDoc, getDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, addDoc, doc, updateDoc, deleteDoc, writeBatch, deleteField, getDocs, where, limit, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from "next/navigation";
@@ -368,6 +368,30 @@ export default function TeamsPage() {
           processedValues.categoryId = deleteField();
         }
         await updateDoc(teamDocRef, processedValues);
+
+        // メインチーム名は club_profiles にも伝播する
+        // （公開クラブページ・選手名鑑・ヘッダーは club_profiles.clubName を参照するため）
+        try {
+          const profileRef = doc(db, "club_profiles", clubUid);
+          const profileSnap = await getDoc(profileRef);
+          const profileData = profileSnap.exists() ? (profileSnap.data() as Record<string, any>) : {};
+          if (profileData.mainTeamId === editingTeam.id) {
+            const aliasId =
+              typeof profileData.clubId === "string" && profileData.clubId.trim()
+                ? profileData.clubId.trim()
+                : typeof profileData.slug === "string" && profileData.slug.trim()
+                  ? profileData.slug.trim()
+                  : "";
+            const patch = { clubName: values.name, updatedAt: serverTimestamp() };
+            await setDoc(profileRef, patch as any, { merge: true });
+            if (aliasId && aliasId !== clubUid) {
+              await setDoc(doc(db, "club_profiles", aliasId), patch as any, { merge: true });
+            }
+          }
+        } catch (syncError) {
+          console.warn("[AdminTeamsPage] club_profiles name sync failed:", syncError);
+        }
+
         toast.success("チームを更新しました。");
       } else {
         const teamsColRef = collection(db, `clubs/${clubUid}/teams`);

@@ -182,10 +182,15 @@ export default function ClubInfoPage() {
           if (typeof data.transfersPublic === 'boolean') {
             setTransfersPublic(Boolean(data.transfersPublic));
           }
-          // クラブロゴの正本は club_profiles/{activeClubUid}
-          // （user.logoUrl はレガシープロファイル由来で古い場合がある）
-          if (!userHasSelectedTeam.current && typeof data.logoUrl === 'string') {
-            setLogoUrl(data.logoUrl);
+          // クラブ名・クラブロゴの正本は club_profiles/{activeClubUid}
+          // （user.clubName / user.logoUrl はレガシープロファイル由来で古い場合がある）
+          if (!userHasSelectedTeam.current) {
+            if (typeof data.logoUrl === 'string') {
+              setLogoUrl(data.logoUrl);
+            }
+            if (typeof data.clubName === 'string' && data.clubName) {
+              setClubName(data.clubName);
+            }
           }
           if (data.snsLinks && typeof data.snsLinks === 'object') {
             setSnsLinks({
