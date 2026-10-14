@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
@@ -71,6 +72,17 @@ export async function generateMetadata({
   const description =
     "自分だけの選手名鑑を作ろう。選手の写真やプロフィール、能力値を自由に登録・公開できます。";
 
+  // クラブページと同じ方式: リクエストホストから絶対URLを解決し、画像URLにも?v=でバージョン管理
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const fallbackSiteUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
+  const baseUrl = envSiteUrl || (host ? `${proto}://${host}` : fallbackSiteUrl);
+  const imageUrl = new URL("/booklet-ogp.jpg?v=2", baseUrl).toString();
+
   return {
     title,
     description,
@@ -79,14 +91,16 @@ export async function generateMetadata({
     openGraph: {
       title,
       description,
+      url: `/booklet/${encodeURIComponent(publicId)}`,
       siteName: "FootChron",
       type: "website",
-      images: [{ url: "/booklet-ogp.jpg", width: 1672, height: 941 }],
+      images: [{ url: imageUrl, width: 1672, height: 941 }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      images: [imageUrl],
     },
   };
 }
