@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, cache } from "react";
 
 import { db } from "@/lib/firebase/admin";
 import { getBookletShare, type BookletShareDoc } from "@/lib/booklet-share";
@@ -19,7 +19,8 @@ import { PublicBooklet, type PublicBookletView } from "./PublicBooklet";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-async function loadShare(publicId: string) {
+// generateMetadataとページ本体で重複実行されないようリクエスト内でメモ化
+const loadShare = cache(async function loadShare(publicId: string) {
   const share = await getBookletShare(publicId);
   if (!share || !share.isPublished) return null;
 
@@ -28,7 +29,7 @@ async function loadShare(publicId: string) {
   if (!career || career.ownerId !== share.ownerUid || career.clubUid !== share.clubUid) return null;
 
   return share;
-}
+});
 
 async function loadClubProfile(clubUid: string) {
   try {
@@ -210,7 +211,11 @@ async function BookletContent({ share }: { share: BookletShareDoc }) {
       players: cardPlayers,
       pro,
     };
-  } catch {
+  } catch (error) {
+    console.error(
+      `PublicBooklet load failed (publicId=${share.publicId} club=${share.clubUid} team=${share.teamId} season=${share.season}):`,
+      error
+    );
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-900 px-6">
         <p className="text-center text-sm font-semibold text-white/80">

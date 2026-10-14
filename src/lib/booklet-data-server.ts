@@ -1,7 +1,7 @@
 import { db } from "@/lib/firebase/admin";
+import { getBookletSeasonStats, type BookletPlayerStats } from "@/lib/booklet-stats-server";
 import {
   contractEndMonthFromDate,
-  getPlayerStats,
   getPreviousSeason,
   normalizeDirection,
   normalizeParams,
@@ -38,14 +38,15 @@ export async function getBookletTeamData(opts: {
 }): Promise<BookletTeamData> {
   const { ownerUid, teamId, seasonId, clubProfile, playerIds } = opts;
 
-  const teamSnap = await db.doc(`clubs/${ownerUid}/teams/${teamId}`).get();
+  // 独立した初期データは並列取得（roster全件は未使用だったため廃止）
+  const [teamSnap, transfersSnap, playersSnap] = await Promise.all([
+    db.doc(`clubs/${ownerUid}/teams/${teamId}`).get(),
+    db.collection(`clubs/${ownerUid}/teams/${teamId}/transfers`).get(),
+    db.collection(`clubs/${ownerUid}/teams/${teamId}/players`).get(),
+  ]);
   const teamName = teamSnap.exists ? safeString((teamSnap.data() as any)?.name) : "";
 
-  const rosterSeasonDocId = toDashSeason(seasonId);
-  const rosterSnap = await db.collection(`clubs/${ownerUid}/seasons/${rosterSeasonDocId}/roster`).get();
   const prevSeason = getPreviousSeason(seasonId);
-
-  const transfersSnap = await db.collection(`clubs/${ownerUid}/teams/${teamId}/transfers`).get();
   const transfers = transfersSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as any));
   const seasonTransfers = transfers
     .filter((t) => {
@@ -72,13 +73,7 @@ export async function getBookletTeamData(opts: {
       fromTo: safeString((t as any)?.counterparty) || "-",
     }));
 
-  // まず指定シーズンの選手を取得
-  const seasonRosterPlayers = rosterSnap.docs
-    .map((d) => ({ id: d.id, ...(d.data() as any) }))
-    .filter((p) => String((p as any)?.teamId || "").trim() === teamId);
-
-  // 次にチームの選手コレクションからシーズンを含む選手を取得
-  const playersSnap = await db.collection(`clubs/${ownerUid}/teams/${teamId}/players`).get();
+  // チームの選手コレクションからシーズンを含む選手を取得
   const teamPlayers = playersSnap.docs
     .map((d) => ({ id: d.id, ...(d.data() as any) }))
     .filter((p) => {
@@ -90,26 +85,34 @@ export async function getBookletTeamData(opts: {
       );
     });
 
-  const teamPlayerIds = new Set(playersSnap.docs.map((d) => d.id));
-
   // チームの選手コレクションを優先（選手管理はここに保存するため）
   const rosterPlayers = teamPlayers.filter((p) =>
     playerIds && playerIds.size > 0 ? playerIds.has(p.id) : true
   );
-  void seasonRosterPlayers;
-  void teamPlayerIds;
 
-  const players = await Promise.all(
-    rosterPlayers.map(async (p) => {
-      const playerDocSnap = await db
-        .doc(`clubs/${ownerUid}/teams/${teamId}/players/${p.id}`)
-        .get()
-        .catch(() => null as any);
-      const playerDoc = playerDocSnap?.exists ? (playerDocSnap.data() as any) : null;
+  // スタッツはチーム全員分をシーズンごと1回のクエリセットで一括集計
+  // （元実装は選手ごとに competitions→rounds→matches を全走査していた）
+  // 取得失敗は0件として扱わずエラーで伝播させる（偽のスタッツ0を表示しないため）
+  const statsInput = rosterPlayers.map((p) => ({ id: p.id, data: p }));
+  let currentStatsMap: Map<string, BookletPlayerStats>;
+  let prevStatsMap: Map<string, BookletPlayerStats>;
+  try {
+    [currentStatsMap, prevStatsMap] = await Promise.all([
+      getBookletSeasonStats({ ownerUid, players: statsInput, targetSeason: seasonId }),
+      prevSeason
+        ? getBookletSeasonStats({ ownerUid, players: statsInput, targetSeason: prevSeason })
+        : Promise.resolve(new Map<string, BookletPlayerStats>()),
+    ]);
+  } catch (error) {
+    console.error(
+      `getBookletSeasonStats failed (club=${ownerUid} team=${teamId} season=${seasonId} prev=${prevSeason}):`,
+      error
+    );
+    throw error;
+  }
 
-      if (!playerDocSnap?.exists) {
-        return null;
-      }
+  const players = rosterPlayers.map((p) => {
+      const playerDoc = p as any;
 
       // 昨シーズンのスタッツを取得
       let lastSeasonSummary = "-";
@@ -131,15 +134,14 @@ export async function getBookletTeamData(opts: {
 
           lastSeasonSummary = `${totalMatches}試合${totalGoals}ゴール`;
         } else {
-          try {
-            const mergedPlayerData = { ...p, ...playerDoc };
-            const prevStats = await getPlayerStats(ownerUid, p.id, mergedPlayerData, prevSeason);
+          const prevStats = prevStatsMap.get(p.id) ?? {
+            appearances: 0,
+            goals: 0,
+            assists: 0,
+          };
 
-            if (prevStats.appearances > 0 || prevStats.goals > 0 || prevStats.assists > 0) {
-              lastSeasonSummary = `${prevStats.appearances}試合 ${prevStats.goals}ゴール ${prevStats.assists}アシスト`;
-            }
-          } catch (error) {
-            console.error(`Failed to fetch ${prevSeason} match stats for player ${p.id}:`, error);
+          if (prevStats.appearances > 0 || prevStats.goals > 0 || prevStats.assists > 0) {
+            lastSeasonSummary = `${prevStats.appearances}試合 ${prevStats.goals}ゴール ${prevStats.assists}アシスト`;
           }
         }
       }
@@ -178,12 +180,7 @@ export async function getBookletTeamData(opts: {
             ? !seasonsArr.includes(prevSeason)
             : false;
 
-      const mergedPlayerData = {
-        ...p,
-        ...playerDoc,
-        seasonData: (p as any)?.seasonData || playerDoc?.seasonData,
-      };
-      const currentStats = await getPlayerStats(ownerUid, p.id, mergedPlayerData, seasonId).catch(() => ({
+      const currentStats = currentStatsMap.get(p.id) ?? {
         appearances: 0,
         minutes: 0,
         goals: 0,
@@ -192,7 +189,7 @@ export async function getBookletTeamData(opts: {
         redCards: 0,
         ratingSum: 0,
         ratingCount: 0,
-      }));
+      };
       const avgRating =
         currentStats.ratingCount > 0
           ? Math.round((currentStats.ratingSum / currentStats.ratingCount) * 100) / 100
@@ -294,8 +291,7 @@ export async function getBookletTeamData(opts: {
       };
 
       return merged;
-    })
-  );
+  });
 
   const playersClean = players.filter(Boolean);
 
