@@ -44,6 +44,8 @@ function positionColorClass(view: PublicBookletView, position: string): string {
 export function PublicBooklet({ view }: { view: PublicBookletView }) {
   const { pro } = view;
   const hasIntro = !!(pro && (pro.bioTitle.trim() || pro.bioBody.trim()));
+  // 年齢は「シーズン開幕時点」の旨を名鑑共通の注記として表示
+  const seasonStartYear = /^(\d{4})/.exec(view.season)?.[1] ?? null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -98,6 +100,9 @@ export function PublicBooklet({ view }: { view: PublicBookletView }) {
 
         {/* 選手プロフィールカード：PC 3列 / モバイルはカード領域のみ横スクロール */}
         <section>
+          <p className="mb-2 px-1 text-right text-[10px] text-gray-400">
+            年齢はシーズン開幕時点{seasonStartYear ? `（${seasonStartYear}年8月1日時点）` : ""}のものです
+          </p>
           <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
             <div className="grid min-w-[1020px] grid-cols-3 gap-4 sm:min-w-[1050px] md:min-w-0">
               {view.players.map((p) => (

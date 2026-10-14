@@ -52,6 +52,22 @@ export function tryCalculateAge(dateOfBirth: unknown, season: string): number | 
 }
 
 /**
+ * 生年月日文字列の厳密検証（YYYY-MM-DD / YYYY/M/D のみ、実在する日付に限定）
+ * new Date() は "2000-02-30" のような不存在日付を繰り上げて受理するため、
+ * 名鑑年齢計算では事前にこの検証を通す
+ */
+export function isValidBirthDateString(dateStr: unknown): boolean {
+  if (typeof dateStr !== "string") return false;
+  const m = dateStr.trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (!m) return false;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const dt = new Date(y, mo - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
+}
+
+/**
  * 加入シーズンから表示シーズン時点での在籍年数を計算
  * @param joinedSeason 加入シーズン（例: 2023/24）
  * @param displaySeason 表示シーズン（例: 2025/26）

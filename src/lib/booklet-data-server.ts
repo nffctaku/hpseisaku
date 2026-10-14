@@ -1,5 +1,6 @@
 import { db } from "@/lib/firebase/admin";
 import { getBookletSeasonStats, type BookletPlayerStats } from "@/lib/booklet-stats-server";
+import { isValidBirthDateString, tryCalculateAge } from "@/lib/player-calculations";
 import {
   contractEndMonthFromDate,
   getPreviousSeason,
@@ -180,6 +181,11 @@ export async function getBookletTeamData(opts: {
             ? !seasonsArr.includes(prevSeason)
             : false;
 
+      const dateOfBirth =
+        safeString(sd?.dateOfBirth) ||
+        safeString((p as any)?.dateOfBirth) ||
+        safeString(playerDoc?.dateOfBirth);
+
       const currentStats = currentStatsMap.get(p.id) ?? {
         appearances: 0,
         minutes: 0,
@@ -222,12 +228,10 @@ export async function getBookletTeamData(opts: {
           safeString(sd?.nationality) ||
           safeString((p as any)?.nationality) ||
           safeString(playerDoc?.nationality),
-        dateOfBirth:
-          safeString(sd?.dateOfBirth) ||
-          safeString((p as any)?.dateOfBirth) ||
-          safeString(playerDoc?.dateOfBirth),
-        age:
-          toFiniteNumber(sd?.age) ?? toFiniteNumber((p as any)?.age) ?? toFiniteNumber(playerDoc?.age),
+        dateOfBirth,
+        // 年齢は保存値を使わず「シーズン開幕日（8/1）時点」を生年月日から計算
+        // 未登録・不正な生年月日では非表示（0歳などの誤表示を防ぐ）
+        age: isValidBirthDateString(dateOfBirth) ? tryCalculateAge(dateOfBirth, seasonId) : null,
         height:
           toFiniteNumber(sd?.height) ??
           toFiniteNumber((p as any)?.height) ??
