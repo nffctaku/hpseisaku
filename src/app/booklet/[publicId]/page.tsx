@@ -42,6 +42,7 @@ async function loadClubProfile(clubUid: string) {
         typeof d?.homeBgColor === "string" && d.homeBgColor.trim() ? d.homeBgColor.trim() : null,
       realTeamUsage: typeof d?.realTeamUsage === "boolean" ? d.realTeamUsage : undefined,
       gameTeamUsage: typeof d?.gameTeamUsage === "boolean" ? d.gameTeamUsage : undefined,
+      mainTeamId: typeof d?.mainTeamId === "string" ? d.mainTeamId : null,
     };
   } catch {
     return {
@@ -50,6 +51,7 @@ async function loadClubProfile(clubUid: string) {
       homeBgColor: null,
       realTeamUsage: undefined,
       gameTeamUsage: undefined,
+      mainTeamId: null,
     };
   }
 }
@@ -198,11 +200,16 @@ async function BookletContent({ share }: { share: BookletShareDoc }) {
     };
   }
 
+    // メインチームの名鑑ではチーム側の最新値を優先する
+    // （管理プレビューの /api/club-summary と同じ優先順位。
+    //   club_profiles への伝播に依存せず、チーム名・エンブレムの変更が即時反映される）
+    const isMainTeamBooklet = !profile.mainTeamId || share.teamId === profile.mainTeamId;
+
     view = {
       isPro,
       isParody: isParodyClub(profile),
-      clubName: profile.clubName || data.club.clubName,
-      logoUrl: profile.logoUrl,
+      clubName: (isMainTeamBooklet && data.teamName) || profile.clubName || data.club.clubName,
+      logoUrl: isMainTeamBooklet ? data.teamLogoUrl || profile.logoUrl : profile.logoUrl,
       teamName: data.teamName,
       season: share.season,
       accentColor: profile.homeBgColor || "#C8102E",

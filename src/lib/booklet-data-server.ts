@@ -20,6 +20,7 @@ export type BookletTeamData = {
   seasonId: string;
   teamId: string;
   teamName: string;
+  teamLogoUrl: string | null;
   club: { clubName: string; logoUrl: string | null };
   players: any[];
   transfersIn: Array<{ type: string; position: string; playerName: string; fromTo: string }>;
@@ -46,6 +47,8 @@ export async function getBookletTeamData(opts: {
     db.collection(`clubs/${ownerUid}/teams/${teamId}/players`).get(),
   ]);
   const teamName = teamSnap.exists ? safeString((teamSnap.data() as any)?.name) : "";
+  const teamLogoRaw = teamSnap.exists ? (teamSnap.data() as any)?.logoUrl : null;
+  const teamLogoUrl = typeof teamLogoRaw === "string" && teamLogoRaw.trim() ? teamLogoRaw.trim() : null;
 
   const prevSeason = getPreviousSeason(seasonId);
   const transfers = transfersSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as any));
@@ -308,6 +311,7 @@ export async function getBookletTeamData(opts: {
     seasonId,
     teamId,
     teamName,
+    teamLogoUrl,
     club: {
       clubName: safeString(clubProfile?.clubName) || "",
       logoUrl: typeof clubProfile?.logoUrl === "string" ? clubProfile.logoUrl : null,
