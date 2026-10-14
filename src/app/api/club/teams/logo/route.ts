@@ -88,6 +88,36 @@ export async function POST(req: NextRequest) {
       },
       { merge: true }
     );
+
+    // メインチームのロゴは club_profiles にも伝播する
+    // （公開クラブページ・選手名鑑・ヘッダーは club_profiles.logoUrl を参照するため）
+    try {
+      const profileRef = db.collection('club_profiles').doc(clubUid);
+      const profileSnap = await profileRef.get();
+      const profileData = profileSnap.exists ? (profileSnap.data() as Record<string, unknown>) : {};
+      if (profileData.mainTeamId === teamId) {
+        const nextLogo = logoUrl.trim().length > 0 ? logoUrl.trim() : null;
+        const profilePatch = {
+          logoUrl: nextLogo,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        await profileRef.set(profilePatch, { merge: true });
+        // slug alias（club_profiles/{clubId}）も公開URL側の参照先として同期
+        const aliasId =
+          typeof profileData.clubId === 'string' && profileData.clubId.trim()
+            ? profileData.clubId.trim()
+            : typeof profileData.slug === 'string' && profileData.slug.trim()
+              ? profileData.slug.trim()
+              : '';
+        if (aliasId && aliasId !== clubUid) {
+          await db.collection('club_profiles').doc(aliasId).set(profilePatch, { merge: true });
+        }
+      }
+    } catch (syncError) {
+      // チームロゴ自体の保存は成功しているため、プロファイル同期失敗はログのみ
+      console.error('[team-logo] club_profiles sync failed:', syncError);
+    }
+
     await touchUserActivity(uid);
 
     return NextResponse.json<SaveTeamLogoResponse>({

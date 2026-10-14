@@ -182,6 +182,11 @@ export default function ClubInfoPage() {
           if (typeof data.transfersPublic === 'boolean') {
             setTransfersPublic(Boolean(data.transfersPublic));
           }
+          // クラブロゴの正本は club_profiles/{activeClubUid}
+          // （user.logoUrl はレガシープロファイル由来で古い場合がある）
+          if (!userHasSelectedTeam.current && typeof data.logoUrl === 'string') {
+            setLogoUrl(data.logoUrl);
+          }
           if (data.snsLinks && typeof data.snsLinks === 'object') {
             setSnsLinks({
               x: data.snsLinks.x || '',
