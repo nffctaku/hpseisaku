@@ -5,7 +5,7 @@ import Image from "next/image";
 import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { getContrastTextColor } from "@/lib/utils";
 import { getFlagUrl } from "@/lib/flag-url";
-import { preferredFootLabel } from "@/app/admin/teams/[teamId]/booklet/lib/booklet-utils";
+import { clampText, preferredFootLabel } from "@/app/admin/teams/[teamId]/booklet/lib/booklet-utils";
 import type { BookletPlayer } from "@/app/admin/teams/[teamId]/booklet/types";
 
 const PITCH_BOXES: Array<{ key: string; style: { left: string; top: string; width: string; height: string } }> = [
@@ -333,8 +333,8 @@ export function ReferenceBookletPlayerCard({
         </div>
 
         {player.memo || player.profile ? (
-          <p className="mt-3 text-base leading-relaxed text-gray-700 line-clamp-6">
-            {(player.memo || player.profile || "").trim()}
+          <p className="mt-3 text-base leading-relaxed text-gray-700 line-clamp-[16]">
+            {clampText((player.memo || player.profile || "").trim(), 300)}
           </p>
         ) : null}
 
