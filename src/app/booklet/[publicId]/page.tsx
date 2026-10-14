@@ -71,7 +71,17 @@ export async function generateMetadata({
   }
 
   const profile = await loadClubProfile(share.clubUid);
-  const title = `${profile.clubName || "チーム"}｜${share.season} 選手名鑑`;
+  // ページ本体と同じ優先順位: メインチームの名鑑ではチーム側の最新名を使う
+  let teamName = "";
+  try {
+    const teamSnap = await db
+      .doc(`clubs/${share.clubUid}/teams/${share.teamId}`)
+      .get();
+    teamName = teamSnap.exists ? safeString((teamSnap.data() as any)?.name) : "";
+  } catch {}
+  const isMainTeamBooklet = !profile.mainTeamId || share.teamId === profile.mainTeamId;
+  const clubName = (isMainTeamBooklet && teamName) || profile.clubName || "チーム";
+  const title = `${clubName}｜${share.season} 選手名鑑`;
   const description =
     "自分だけの選手名鑑を作ろう。選手の写真やプロフィール、能力値を自由に登録・公開できます。";
 
