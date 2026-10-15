@@ -6,6 +6,7 @@ import { PublicPlayerHexChart } from "@/components/public-player-hex-chart";
 import { getContrastTextColor } from "@/lib/utils";
 import { getFlagUrl } from "@/lib/flag-url";
 import { clampText, preferredFootLabel } from "@/app/admin/teams/[teamId]/booklet/lib/booklet-utils";
+import { JOIN_BADGE_STYLE } from "@/lib/join-status";
 import type { BookletPlayer } from "@/app/admin/teams/[teamId]/booklet/types";
 
 const PITCH_BOXES: Array<{ key: string; style: { left: string; top: string; width: string; height: string } }> = [
@@ -106,7 +107,7 @@ function lastSeasonCompact(summary: string | null | undefined): string {
   const s = (summary || "").trim();
   if (!s || s === "-" || s === "未登録") return "-";
   const m = s.match(/(\d+)試合\s*(\d+)ゴール\s*(\d+)アシスト/);
-  if (m) return `${m[1]}試合｜${m[2]}G｜${m[3]}A`;
+  if (m) return `${m[1]}M｜${m[2]}G｜${m[3]}A`;
   return s;
 }
 
@@ -234,30 +235,35 @@ export function ReferenceBookletPlayerCard({
         ...(scaled ? { transform: `scale(${fit.scale})`, transformOrigin: "top left" } : {}),
       }}
     >
-      <div className="relative grid h-full overflow-hidden grid-cols-[80px_1fr]">
+      <div className="relative grid h-full overflow-hidden grid-cols-[52px_1fr]">
         <div
           className={`flex flex-col items-center py-4 text-center ${stripClassName || ""}`}
           style={stripClassName ? { color: "#FFFFFF" } : { backgroundColor: color, color: contrastColor }}
         >
-          <div className="text-5xl font-black leading-none">{player.number ?? "-"}</div>
-          <div className="my-2 h-px w-12 bg-current opacity-40" />
-          <div className="text-2xl font-black leading-none">{shortPosition(player.position)}</div>
+          <div className="text-3xl font-black leading-none">{player.number ?? "-"}</div>
+          <div className="my-2 h-px w-8 bg-current opacity-40" />
+          <div className="text-lg font-black leading-none">{shortPosition(player.position)}</div>
           {player.nationality ? (
             flagUrl ? (
-              <div className="mt-3 rounded-sm overflow-hidden shadow-sm relative w-9 h-6">
-                <Image src={flagUrl} alt={player.nationality} fill className="object-cover" sizes="64px" unoptimized />
+              <div className="mt-3 rounded-sm overflow-hidden shadow-sm relative w-7 h-5">
+                <Image src={flagUrl} alt={player.nationality} fill className="object-cover" sizes="48px" unoptimized />
               </div>
             ) : (
               <div className="mt-3 text-[10px] font-semibold opacity-90">{player.nationality}</div>
             )
           ) : null}
-          <div className="mt-auto flex w-full flex-1 items-end justify-center pb-3">
-            <span
-              className="max-h-full text-lg font-black tracking-wide"
-              style={{ writingMode: "vertical-rl" }}
-            >
-              {player.name}
-            </span>
+          <div className="mt-auto flex w-full items-end justify-center pb-1">
+            {player.joinBadge ? (
+              <span
+                className="whitespace-nowrap rounded px-1 py-0.5 text-[9px] font-black leading-none tracking-tight"
+                style={{
+                  backgroundColor: JOIN_BADGE_STYLE[player.joinBadge].bg,
+                  color: JOIN_BADGE_STYLE[player.joinBadge].fg,
+                }}
+              >
+                {player.joinBadge}
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -321,7 +327,7 @@ export function ReferenceBookletPlayerCard({
             </div>
             <div className="flex items-baseline gap-2">
               <span className="w-16 shrink-0 text-base text-gray-500 whitespace-nowrap">昨季成績</span>
-              <span className="min-w-0 font-bold text-gray-900 leading-tight">{lastSeasonCompact(player.lastSeasonSummary)}</span>
+              <span className="min-w-0 truncate font-bold text-gray-900 leading-tight whitespace-nowrap">{lastSeasonCompact(player.lastSeasonSummary)}</span>
             </div>
             <div className="flex items-baseline gap-2">
               <span className="w-16 shrink-0 text-base text-gray-500 whitespace-nowrap">前所属</span>

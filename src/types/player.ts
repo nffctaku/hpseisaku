@@ -48,6 +48,12 @@ export interface PlayerSeasonData {
   joinedSeason?: string;
   /** 前所属（正はplayer基本プロフィール。Careerコピー経由で存在し得る） */
   previousClub?: string;
+  /** 加入形態（このシーズン時点の記録。名鑑バッジの判定元。明示クリアは null） */
+  joinType?: "permanent" | "loan" | "loan_return" | "promotion" | null;
+  /** レンタル終了シーズン（joinType=loan時） */
+  loanEndSeason?: string;
+  /** loan の複数年展開で自動記録された値か（明示記録と区別する内部フラグ） */
+  joinTypeAuto?: boolean;
   tenureYears?: number;
   height?: number;
   weight?: number;
@@ -81,6 +87,10 @@ export interface Player {
   joinedSeason?: string;
   /** 前所属（現クラブ加入直前の所属クラブ） */
   previousClub?: string;
+  /** 加入形態（直近に編集されたシーズンの値。名鑑バッジは seasonData 側を参照） */
+  joinType?: "permanent" | "loan" | "loan_return" | "promotion" | null;
+  /** レンタル終了シーズン（joinType=loan時） */
+  loanEndSeason?: string;
   tenureYears?: number;
   height: number; // in cm
   weight?: number; // in kg

@@ -34,6 +34,7 @@ import {
   type DetailedPosition,
   type PlayerFormValues,
 } from "./player-form.schema";
+import { JOIN_TYPE_OPTIONS } from "@/lib/join-status";
 
 const detailedPositionLayout: Array<{ key: DetailedPosition; label: string; x: string; y: string }> = [
   { key: "LW", label: "LW", x: "16%", y: "12%" },
@@ -443,6 +444,66 @@ export function BasicInfoSection({
               </FormItem>
             )}
           />
+
+          <FormField
+            control={form.control}
+            name="joinType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-[#F1F5F9]">加入形態</FormLabel>
+                <FormControl>
+                  <Select
+                    value={(field.value as string) || ""}
+                    onValueChange={(v) => field.onChange(v === "__none" ? "" : v)}
+                  >
+                    <SelectTrigger className="h-11 w-full bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                      <SelectValue placeholder="選択" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                      <SelectItem value="__none">未設定</SelectItem>
+                      {JOIN_TYPE_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormMessage className="text-[#FCA5A5]" />
+              </FormItem>
+            )}
+          />
+
+          {form.watch("joinType") === "loan" ? (
+            <FormField
+              control={form.control}
+              name="loanEndSeason"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[#F1F5F9]">レンタル終了シーズン</FormLabel>
+                  <FormControl>
+                    <Select
+                      value={(field.value as string) || ""}
+                      onValueChange={(v) => field.onChange(v === "__none" ? "" : v)}
+                    >
+                      <SelectTrigger className="h-11 w-full bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                        <SelectValue placeholder="選択" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#172334] border-[#334155] text-[#F1F5F9]">
+                        <SelectItem value="__none">未設定（加入シーズンのみ）</SelectItem>
+                        {seasons.map((season: string) => (
+                          <SelectItem key={season} value={season}>
+                            {season}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage className="text-[#FCA5A5]" />
+                </FormItem>
+              )}
+            />
+          ) : null}
 
           <FormField
             control={form.control}

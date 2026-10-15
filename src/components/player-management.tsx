@@ -19,6 +19,7 @@ import {
 import { toDashSeason, toSlashSeason } from "@/lib/season";
 import { pickPlayerPhotoUrl } from "@/lib/player-photo";
 import { calculateAge, calculateTenureYears } from "@/lib/player-calculations";
+import { buildJoinTypeFutureUpdates, type JoinType } from "@/lib/join-status";
 import { collection, addDoc, query, onSnapshot, doc, updateDoc, deleteDoc, deleteField, setDoc, getDocs, getDoc, writeBatch } from "firebase/firestore";
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
@@ -482,6 +483,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           joinedSeason: (season?.joinedSeason ?? p.joinedSeason) as any,
           // 前所属はplayer基本プロフィールが正（seasonDataはCareerコピー由来の場合のみフォールバック）
           previousClub: ((p as any).previousClub ?? (season as any)?.previousClub) as any,
+          // 加入形態は seasonData[対象シーズン] の記録が正。明示クリア(null)は値として尊重する
+          joinType: (season && "joinType" in (season as any) ? (season as any).joinType : (p as any).joinType) as any,
+          loanEndSeason: (season && "loanEndSeason" in (season as any) ? (season as any).loanEndSeason : (p as any).loanEndSeason) as any,
           tenureYears: ((season as any)?.tenureYears ?? (p as any).tenureYears) as any,
           height: (season?.height ?? p.height) as any,
           weight: (season as any)?.weight ?? (p as any).weight,
@@ -552,6 +556,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       dateOfBirth: season.dateOfBirth ?? editingPlayer.dateOfBirth,
       joinedSeason: season.joinedSeason ?? editingPlayer.joinedSeason,
       previousClub: (editingPlayer as any).previousClub ?? (season as any)?.previousClub,
+      joinType: ("joinType" in (season as any) ? (season as any).joinType : (editingPlayer as any).joinType) as any,
+      loanEndSeason: ("loanEndSeason" in (season as any) ? (season as any).loanEndSeason : (editingPlayer as any).loanEndSeason) as any,
       tenureYears: (season as any)?.tenureYears ?? (editingPlayer as any).tenureYears,
       height: season.height ?? editingPlayer.height,
       weight: (season as any)?.weight ?? (editingPlayer as any).weight,
@@ -742,6 +748,16 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
       const joinedSeason = typeof (values as any)?.joinedSeason === "string" ? (values as any).joinedSeason.trim() : "";
       const tenureYears = joinedSeason ? calculateTenureYears(joinedSeason, selectedSeason) : undefined;
 
+      const joinTypeRaw = (values as any)?.joinType;
+      const joinType: JoinType | null =
+        joinTypeRaw === "permanent" || joinTypeRaw === "loan" || joinTypeRaw === "loan_return" || joinTypeRaw === "promotion"
+          ? joinTypeRaw
+          : null;
+      const loanEndSeason =
+        joinType === "loan" && typeof (values as any)?.loanEndSeason === "string" && (values as any).loanEndSeason.trim()
+          ? (values as any).loanEndSeason.trim()
+          : null;
+
       const snsLinksRaw = (valuesNormalized as any)?.snsLinks;
       const snsLinksClean = {
         x: typeof snsLinksRaw?.x === "string" ? snsLinksRaw.x : "",
@@ -764,6 +780,9 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         nationality: valuesNormalized.nationality,
         dateOfBirth: valuesNormalized.dateOfBirth,
         joinedSeason,
+        // 加入形態はシーズン単位の記録。明示クリアは null（未登録の undefined とは区別）
+        joinType,
+        loanEndSeason,
         tenureYears,
         height: valuesNormalized.height,
         weight: valuesNormalized.weight,
@@ -861,9 +880,18 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           number: valuesNormalized.number as any,
           joinedSeason,
           previousClub: typeof (values as any).previousClub === "string" ? (values as any).previousClub.trim() : "",
+          joinType,
+          loanEndSeason,
           tenureYears,
           seasons: nextSeasons,
           [`seasonData.${selectedSeasonDash}`]: seasonPayloadClean,
+          // レンタル複数年分の前方展開 / 自動展開分の除去
+          ...buildJoinTypeFutureUpdates(
+            (editingPlayer.seasonData as any) || {},
+            selectedSeason,
+            joinType,
+            loanEndSeason
+          ),
           params: paramsNormalized as any,
           showParamsOnPublic: (values as any).showParamsOnPublic,
         });
@@ -932,6 +960,8 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
           joinedSeason,
           previousClub: typeof (values as any).previousClub === "string" ? (values as any).previousClub.trim() : "",
+          joinType,
+          loanEndSeason,
           tenureYears,
         });
         console.log("[PlayerManagement] write roster", {
@@ -992,15 +1022,28 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
           );
         }
       } else {
+        // レンタル複数年分を seasonData にも展開（dot-path をネストに戻す）
+        const joinTypeFutureSd: Record<string, any> = {};
+        for (const [path, v] of Object.entries(
+          buildJoinTypeFutureUpdates({}, selectedSeason, joinType, loanEndSeason)
+        )) {
+          const m = path.match(/^seasonData\.([^.]+)\.(.+)$/);
+          if (m) {
+            (joinTypeFutureSd[m[1]] ||= {})[m[2]] = v;
+          }
+        }
         const createPayload = stripUndefinedDeep({
           ...valuesNormalized,
           photoUrl: undefined,
           subName: (values as any).subName,
           joinedSeason,
+          joinType,
+          loanEndSeason,
           tenureYears,
           seasons: [selectedSeason],
           seasonData: {
             [selectedSeasonDash]: seasonPayloadClean,
+            ...joinTypeFutureSd,
           },
           params: paramsNormalized as any,
           showParamsOnPublic: (values as any).showParamsOnPublic,
@@ -1049,12 +1092,15 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
             seasons: [selectedSeason],
             seasonData: {
               [selectedSeasonDash]: seasonPayloadClean,
+              ...joinTypeFutureSd,
             },
             number: values.number as any,
             position: values.position as any,
             mainPosition: (values as any).mainPosition,
             subPositions: Array.isArray((values as any).subPositions) ? ((values as any).subPositions as any[]).slice(0, 3) : [],
             joinedSeason,
+            joinType,
+            loanEndSeason,
             tenureYears,
           }) || {}) as any,
             { merge: true }
@@ -1664,6 +1710,13 @@ export function PlayerManagement({ teamId, selectedSeason }: PlayerManagementPro
         const existingTarget = (p.seasonData?.[targetDash] || p.seasonData?.[selectedSeason]) as PlayerSeasonData | undefined;
         const base = existingTarget || source;
         const nextSeasonData: PlayerSeasonData = { ...base };
+        if (!existingTarget) {
+          // 加入形態はシーズン単位の記録。コピー元シーズンの値を対象シーズンへ持ち越さない
+          // （レンタル継続は加入形態保存時の seasonData 前方展開で記録済み）
+          delete (nextSeasonData as any).joinType;
+          delete (nextSeasonData as any).joinTypeAuto;
+          delete (nextSeasonData as any).loanEndSeason;
+        }
         const dateOfBirth = base.dateOfBirth ?? source.dateOfBirth ?? p.dateOfBirth;
         const joinedSeason = base.joinedSeason ?? source.joinedSeason ?? p.joinedSeason;
         if (dateOfBirth) {

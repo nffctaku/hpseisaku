@@ -27,6 +27,7 @@ export type BookletPlayer = {
     assists: number;
     avgRating: number | null;
   };
+  joinBadge?: "NEW" | "LOAN" | "BACK" | "UP" | null;
   isNew?: boolean;
 };
 

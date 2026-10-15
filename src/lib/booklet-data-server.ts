@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase/admin";
 import { getBookletSeasonStats, type BookletPlayerStats } from "@/lib/booklet-stats-server";
 import { isValidBirthDateString, tryCalculateAge } from "@/lib/player-calculations";
+import { resolveJoinBadge } from "@/lib/join-status";
 import {
   contractEndMonthFromDate,
   getPreviousSeason,
@@ -136,7 +137,7 @@ export async function getBookletTeamData(opts: {
             totalGoals += Number.isFinite(stat.goals) ? Number(stat.goals) : 0;
           }
 
-          lastSeasonSummary = `${totalMatches}試合${totalGoals}ゴール`;
+          lastSeasonSummary = `${totalMatches}M｜${totalGoals}G`;
         } else {
           const prevStats = prevStatsMap.get(p.id) ?? {
             appearances: 0,
@@ -145,7 +146,7 @@ export async function getBookletTeamData(opts: {
           };
 
           if (prevStats.appearances > 0 || prevStats.goals > 0 || prevStats.assists > 0) {
-            lastSeasonSummary = `${prevStats.appearances}試合 ${prevStats.goals}ゴール ${prevStats.assists}アシスト`;
+            lastSeasonSummary = `${prevStats.appearances}M｜${prevStats.goals}G｜${prevStats.assists}A`;
           }
         }
       }
@@ -183,6 +184,13 @@ export async function getBookletTeamData(opts: {
           : prevSeason
             ? !seasonsArr.includes(prevSeason)
             : false;
+
+      // 加入形態バッジは「対象シーズンの seasonData に記録された joinType」のみを根拠にする
+      // （root 値のフォールバックは行わず、過去シーズンへの現在値の混入を防ぐ）
+      const joinBadge =
+        sd && typeof sd === "object" && "joinType" in sd
+          ? resolveJoinBadge((sd as any).joinType)
+          : null;
 
       const dateOfBirth =
         safeString(sd?.dateOfBirth) ||
@@ -298,6 +306,7 @@ export async function getBookletTeamData(opts: {
           avgRating,
         },
         tenureYears,
+        joinBadge,
         isNew,
         lastSeasonSummary,
       };

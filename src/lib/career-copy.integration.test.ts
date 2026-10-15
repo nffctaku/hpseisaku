@@ -97,6 +97,11 @@ async function seedSource(ownerId: string, careerId: string, clubUid: string) {
     position: "FW",
     nationality: "JP",
     previousClub: "RC Strasbourg Alsace",
+    joinType: "loan",
+    loanEndSeason: "2029/30",
+    seasonData: {
+      "2024": { joinType: "loan", loanEndSeason: "2029/30", joinTypeAuto: true },
+    },
     photoUrl: "https://example.com/a.png",
     stats: { goals: 20, assists: 5 },
     history: [{ season: s2024, club: "旧クラブ" }],
@@ -195,6 +200,11 @@ describe("career-copy integration", () => {
     assert.equal(aDoc.data().number, "10");
     assert.equal(aDoc.data().position, "FW");
     assert.equal(aDoc.data().previousClub, "RC Strasbourg Alsace");
+    assert.equal(aDoc.data().joinType, "loan");
+    assert.equal(aDoc.data().loanEndSeason, "2029/30");
+    // joinTypeAuto（自動展開フラグ）もコピーされ、自動記録と明示記録の区別が維持される
+    assert.equal(aDoc.data().seasonData?.["2026"]?.joinType, "loan");
+    assert.equal(aDoc.data().seasonData?.["2026"]?.joinTypeAuto, true);
     assert.equal(aDoc.data().stats, undefined);
     assert.equal(aDoc.data().history, undefined);
     assert.equal(aDoc.data().contract, undefined);
