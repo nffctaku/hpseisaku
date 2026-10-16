@@ -235,7 +235,7 @@ export function ReferenceBookletPlayerCard({
         ...(scaled ? { transform: `scale(${fit.scale})`, transformOrigin: "top left" } : {}),
       }}
     >
-      <div className="relative grid h-full overflow-hidden grid-cols-[52px_1fr]">
+      <div className="relative grid h-full overflow-hidden grid-cols-[58px_1fr]">
         <div
           className={`flex flex-col items-center py-4 text-center ${stripClassName || ""}`}
           style={stripClassName ? { color: "#FFFFFF" } : { backgroundColor: color, color: contrastColor }}
@@ -252,19 +252,17 @@ export function ReferenceBookletPlayerCard({
               <div className="mt-3 text-[10px] font-semibold opacity-90">{player.nationality}</div>
             )
           ) : null}
-          <div className="mt-auto flex w-full items-end justify-center pb-1">
-            {player.joinBadge ? (
-              <span
-                className="whitespace-nowrap rounded px-1 py-0.5 text-[9px] font-black leading-none tracking-tight"
-                style={{
-                  backgroundColor: JOIN_BADGE_STYLE[player.joinBadge].bg,
-                  color: JOIN_BADGE_STYLE[player.joinBadge].fg,
-                }}
-              >
-                {player.joinBadge}
-              </span>
-            ) : null}
-          </div>
+          {player.joinBadge ? (
+            <span
+              className="mt-2 whitespace-nowrap rounded-full px-1.5 py-1 text-[10px] font-black leading-none tracking-tight"
+              style={{
+                backgroundColor: JOIN_BADGE_STYLE[player.joinBadge].bg,
+                color: JOIN_BADGE_STYLE[player.joinBadge].fg,
+              }}
+            >
+              {player.joinBadge}
+            </span>
+          ) : null}
         </div>
 
         <div className="relative h-full bg-slate-100">
