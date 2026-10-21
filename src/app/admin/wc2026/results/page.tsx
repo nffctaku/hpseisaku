@@ -70,7 +70,10 @@ export default function Wc2026ResultsAdminPage() {
       }
       toast.success("Firestoreへ反映しました");
 
-      const recomputeRes = await fetch("/api/wc2026/recompute-points", { method: "POST" });
+      const recomputeRes = await fetch("/api/wc2026/recompute-points", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
       if (recomputeRes.ok) {
         toast.success("再集計が完了しました");
       } else {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { auth } from "@/lib/firebase";
 
 export default function Wc2026RecomputePage() {
   const [running, setRunning] = useState(false);
@@ -16,8 +17,13 @@ export default function Wc2026RecomputePage() {
     setResultText("");
     setSummary(null);
     try {
+      if (!auth.currentUser) {
+        throw new Error("ログインしていません");
+      }
+      const idToken = await auth.currentUser.getIdToken();
       const res = await fetch(`/api/wc2026/recompute-points`, {
         method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
       });
 
       const data = await res.json().catch(() => null);

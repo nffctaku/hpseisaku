@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase/admin";
 import { computeWc2026Points } from "@/lib/wc2026/points";
+import { getOperatorUid } from "@/lib/updates-server";
 import admin from "firebase-admin";
 
 export const runtime = "nodejs";
@@ -18,6 +19,11 @@ type PredictionsDoc = {
 
 export async function POST(request: Request) {
   try {
+    const operatorUid = await getOperatorUid(request);
+    if (!operatorUid) {
+      return new NextResponse(JSON.stringify({ message: "権限がありません。" }), { status: 401 });
+    }
+
     if (typeof (db as any)?.collection !== "function") {
       return new NextResponse(
         JSON.stringify({
