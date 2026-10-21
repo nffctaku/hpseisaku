@@ -25,14 +25,23 @@ export default function RegisterClubPage() {
         return;
     }
 
+    if (!user) {
+      setError('ログインが必要です。');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
+      const idToken = await user.getIdToken();
       const response = await fetch('/api/club/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clubId, ownerUid: user?.uid }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ clubId }),
       });
 
       if (!response.ok) {
