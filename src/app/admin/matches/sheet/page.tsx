@@ -221,8 +221,7 @@ export default function MatchSheetPage() {
   const [roundsByComp, setRoundsByComp] = useState<Map<string, SheetRound[]>>(new Map());
   const [teams, setTeams] = useState<SheetTeam[]>([]);
   const [players, setPlayers] = useState<SheetPlayer[]>([]);
-  // 選択シーズンのroster選手ID。roster未整備の旧データは null（=全選手を候補に）
-  const [seasonPlayerIds, setSeasonPlayerIds] = useState<Set<string> | null>(null);
+
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
   const [rows, setRows] = useState<SheetMatchRow[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>("");
@@ -249,50 +248,22 @@ export default function MatchSheetPage() {
   const teamsMap = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const competitionsMap = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
 
-  // 選択シーズンのroster選手一覧を取得（得点者候補をそのシーズン在籍に絞る）
-  useEffect(() => {
-    if (!clubUid || !selectedSeason) { setSeasonPlayerIds(null); return; }
-    let cancelled = false;
-    void (async () => {
-      try {
-        // 詳細画面と同じロジック: seasons/{dashSeason}/roster を読み、
-        // seasonDataに該当キーがある / seasons配列に含まれる / シーズン情報なし(レガシー) のいずれかで在籍判定
-        const sids = seasonKeyCandidates(selectedSeason);
-        const dash = toDashSeason(selectedSeason);
-        const seasonsSnap = await getDocs(collection(db, `clubs/${clubUid}/seasons`));
-        const matched = seasonsSnap.docs.filter((d) => {
-          const keys = seasonKeyCandidates(d.id);
-          const field = String((d.data() as any).season || (d.data() as any).name || "");
-          if (field) keys.push(...seasonKeyCandidates(field));
-          return keys.some((k) => sids.includes(k));
-        });
-        const snaps = await Promise.all([
-          getDocs(collection(db, `clubs/${clubUid}/seasons/${dash}/roster`)),
-          ...matched.map((d) => getDocs(collection(db, `clubs/${clubUid}/seasons/${d.id}/roster`))),
-        ]);
-        if (cancelled) return;
-        const ids = new Set<string>();
-        for (const s of snaps) {
-          for (const d of s.docs) {
-            const data = d.data() as any;
-            if (data?.registered === false) continue;
-            const sd = data?.seasonData && typeof data.seasonData === "object" ? data.seasonData : null;
-            const seasonsArr = Array.isArray(data?.seasons) ? data.seasons : null;
-            const hasMembership = sd
-              ? sids.some((k) => k in sd)
-              : seasonsArr
-                ? seasonsArr.some((s: any) => seasonKeyCandidates(String(s)).some((k) => sids.includes(k)))
-                : true; // シーズン情報なし(レガシー)は在籍とみなす（詳細画面と同じ緩い判定）
-            if (hasMembership) ids.add(d.id);
-          }
-        }
-        setSeasonPlayerIds(ids);
-      } catch {
-        if (!cancelled) setSeasonPlayerIds(new Set());
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [clubUid, selectedSeason]);
+  // 得点者候補 = 選手管理画面と同じロジック（player自身の seasons / seasonData で在籍判定。
+  // rosterコレクションは参照しないため取得失敗で空になる問題を回避。
+  // シーズン情報を持たない選手はレガシーとして在籍扱い＝選手管理画面の表示と一致）
+  const scorerCandidates = useMemo(() => {
+    if (!selectedSeason) return players;
+    const sids = seasonKeyCandidates(selectedSeason);
+    return players.filter((p) => {
+      const seasons = Array.isArray((p as any).seasons) ? ((p as any).seasons as string[]) : null;
+      const sd = (p as any).seasonData && typeof (p as any).seasonData === "object" ? ((p as any).seasonData as Record<string, unknown>) : null;
+      const hasSeasonInfo = (sd && Object.keys(sd).length > 0) || (seasons && seasons.length > 0);
+      if (!hasSeasonInfo) return true;
+      if (sd && sids.some((k) => k in sd)) return true;
+      if (seasons && seasons.some((s) => seasonKeyCandidates(String(s)).some((k) => sids.includes(k)))) return true;
+      return false;
+    });
+  }, [players, selectedSeason]);
 
   const markSaving = (key: string, on: boolean) => {
     setSavingKeys((prev) => {
@@ -954,8 +925,7 @@ export default function MatchSheetPage() {
       {scorerPick && (
         <ScorerWheelModal
           players={[
-            // rosterに見つからない選手は候補に出さない（roster未取得のシーズンは選手0件＋OGのみ）
-            ...players.filter((p) => seasonPlayerIds?.has(p.id) ?? false).map((p) => ({
+            ...scorerCandidates.map((p) => ({
               v: p.id,
               label: p.number != null ? `${p.number} ${p.name}` : p.name,
             })),
