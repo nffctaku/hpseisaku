@@ -32,7 +32,7 @@ import {
   updateMatchEventFields,
   updateSheetMatch,
 } from "@/lib/match-sheet";
-import { seasonKeyCandidates, toSlashSeason } from "@/lib/season";
+import { seasonKeyCandidates, toDashSeason, toSlashSeason } from "@/lib/season";
 
 type HAPref = "H" | "A";
 
@@ -255,9 +255,10 @@ export default function MatchSheetPage() {
     let cancelled = false;
     void (async () => {
       try {
-        // seasonsコレクションを走査し、docIDまたはseason/nameフィールドが選択シーズンに
-        // 一致するドキュメントを特定（"2027/28"/"2027-28"/自動IDなど表記ゆれ吸収）してからrosterを読む
+        // 詳細画面と同じロジック: seasons/{dashSeason}/roster を読み、
+        // seasonDataに該当キーがある / seasons配列に含まれる / シーズン情報なし(レガシー) のいずれかで在籍判定
         const sids = seasonKeyCandidates(selectedSeason);
+        const dash = toDashSeason(selectedSeason);
         const seasonsSnap = await getDocs(collection(db, `clubs/${clubUid}/seasons`));
         const matched = seasonsSnap.docs.filter((d) => {
           const keys = seasonKeyCandidates(d.id);
@@ -265,10 +266,26 @@ export default function MatchSheetPage() {
           if (field) keys.push(...seasonKeyCandidates(field));
           return keys.some((k) => sids.includes(k));
         });
-        const snaps = await Promise.all(matched.map((d) => getDocs(collection(db, `clubs/${clubUid}/seasons/${d.id}/roster`))));
+        const snaps = await Promise.all([
+          getDocs(collection(db, `clubs/${clubUid}/seasons/${dash}/roster`)),
+          ...matched.map((d) => getDocs(collection(db, `clubs/${clubUid}/seasons/${d.id}/roster`))),
+        ]);
         if (cancelled) return;
         const ids = new Set<string>();
-        for (const s of snaps) for (const d of s.docs) if ((d.data() as any).registered !== false) ids.add(d.id);
+        for (const s of snaps) {
+          for (const d of s.docs) {
+            const data = d.data() as any;
+            if (data?.registered === false) continue;
+            const sd = data?.seasonData && typeof data.seasonData === "object" ? data.seasonData : null;
+            const seasonsArr = Array.isArray(data?.seasons) ? data.seasons : null;
+            const hasMembership = sd
+              ? sids.some((k) => k in sd)
+              : seasonsArr
+                ? seasonsArr.some((s: any) => seasonKeyCandidates(String(s)).some((k) => sids.includes(k)))
+                : true; // シーズン情報なし(レガシー)は在籍とみなす（詳細画面と同じ緩い判定）
+            if (hasMembership) ids.add(d.id);
+          }
+        }
         setSeasonPlayerIds(ids);
       } catch {
         if (!cancelled) setSeasonPlayerIds(new Set());
