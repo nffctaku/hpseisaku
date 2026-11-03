@@ -372,8 +372,11 @@ export default function MatchSheetPage() {
         }
       }
       setRoundsByComp(roundsMap);
-      allRows.sort((a, b) => (a.matchDate || "9999").localeCompare(b.matchDate || "9999"));
-      setRows(allRows);
+      // 自チーム（mainTeamIdまたはclubUid）が出場する試合のみ表示
+      const ownIds = new Set([main, clubUid].filter(Boolean) as string[]);
+      const ownRows = allRows.filter((r) => ownIds.has(r.homeTeam) || ownIds.has(r.awayTeam));
+      ownRows.sort((a, b) => (a.matchDate || "9999").localeCompare(b.matchDate || "9999"));
+      setRows(ownRows);
 
       const seasons = [...new Set(comps.map((c) => (c.season || "").trim()).filter(Boolean))].map(toSlashSeason).sort().reverse();
       setSelectedSeason((prev) => prev || seasons[0] || "");
