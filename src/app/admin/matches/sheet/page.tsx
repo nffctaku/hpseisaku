@@ -204,7 +204,9 @@ const ResultBadge = ({ selfScore, oppScore }: { selfScore: number | null; oppSco
 
 const isOwnGoalEvent = (ev: MatchEvent, ownTeamId: string): boolean => {
   if (ev.type === "goal" && ev.teamId === ownTeamId) return true;
-  if (String(ev.type) === "og" && ev.teamId !== ownTeamId) return true; // 相手のOG=自チームの得点
+  // 相手側のオウンゴール=自チームの得点（旧type:"og"形式と構造化 own_goal 両対応）
+  if (String(ev.type) === "og" && ev.teamId !== ownTeamId) return true;
+  if (ev.type === "goal" && ev.goalKind === "own_goal" && ev.teamId !== ownTeamId) return true;
   return false;
 };
 
