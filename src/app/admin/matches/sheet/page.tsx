@@ -614,7 +614,15 @@ export default function MatchSheetPage() {
   };
 
   const openRoundPicker = (compId: string, current: string, onPick: (id: string) => void) => {
-    const rounds = roundsByComp.get(compId) || [];
+    // 節名を数値解釈して順序化（"第9節"→9、"第10節"→10。数値なしは末尾）
+    const rounds = [...(roundsByComp.get(compId) || [])].sort((a, b) => {
+      const na = parseInt(String(a.name).replace(/\D/g, ""), 10);
+      const nb = parseInt(String(b.name).replace(/\D/g, ""), 10);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      if (!isNaN(na)) return -1;
+      if (!isNaN(nb)) return 1;
+      return a.name.localeCompare(b.name, "ja");
+    });
     setPicker({
       title: "節・ラウンドを選択",
       value: current,
