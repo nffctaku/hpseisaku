@@ -32,7 +32,7 @@ import {
   updateMatchEventFields,
   updateSheetMatch,
 } from "@/lib/match-sheet";
-import { toDashSeason, toSlashSeason } from "@/lib/season";
+import { seasonKeyCandidates, toSlashSeason } from "@/lib/season";
 
 type HAPref = "H" | "A";
 
@@ -76,7 +76,7 @@ const formatSlashDate = (iso: string): string => {
 const WHEEL_ITEM_H = 56;
 const MONTH_ITEMS = Array.from({ length: 12 }, (_, i) => i + 1);
 
-const WheelColumn = ({ items, value, onPick, ariaLabel }: { items: { v: string; label: string }[]; value: string; onPick: (v: string) => void; ariaLabel: string }) => {
+const WheelColumn = ({ items, value, onPick, ariaLabel, alignLeft }: { items: { v: string; label: string }[]; value: string; onPick: (v: string) => void; ariaLabel: string; alignLeft?: boolean }) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const indexOf = (v: string) => Math.max(0, items.findIndex((i) => i.v === v));
   useEffect(() => {
@@ -104,7 +104,7 @@ const WheelColumn = ({ items, value, onPick, ariaLabel }: { items: { v: string; 
             onPick(item.v);
             ref.current?.scrollTo({ top: indexOf(item.v) * WHEEL_ITEM_H, behavior: "smooth" });
           }}
-          className={`flex h-14 cursor-pointer items-center justify-center [scroll-snap-align:center] text-[22px] font-bold ${item.v === value ? "text-blue-600" : "text-slate-400"}`}
+          className={`flex h-14 cursor-pointer items-center [scroll-snap-align:center] text-[22px] font-bold ${alignLeft ? "justify-start pl-6" : "justify-center"} ${item.v === value ? "text-blue-600" : "text-slate-400"}`}
         >
           {item.label}
         </div>
@@ -172,13 +172,13 @@ const ScorerWheelModal = ({
       <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#f4f4f6] shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex h-12 items-center justify-between border-b border-slate-300/80 bg-white px-4">
           <button type="button" className="text-base font-bold text-blue-500" onClick={onClose}>キャンセル</button>
-          <div className="text-sm font-bold text-slate-500">得点者を追加</div>
+          <div className="text-sm font-bold text-slate-500">得点時間（任意）と得点者を追加</div>
           <button type="button" className="text-base font-bold text-blue-500" onClick={() => playerId && onDone(playerId, minute)}>完了</button>
         </div>
         <div className="relative flex px-2">
           <div className="pointer-events-none absolute left-2 right-2 top-1/2 h-14 -translate-y-1/2 rounded-xl border-y border-slate-300/80 bg-blue-500/10" />
           <WheelColumn items={minuteItems} value={minute} onPick={setMinute} ariaLabel="試合時間" />
-          <WheelColumn items={players} value={playerId} onPick={setPlayerId} ariaLabel="選手" />
+          <WheelColumn items={players} value={playerId} onPick={setPlayerId} ariaLabel="選手" alignLeft />
         </div>
         <div className="border-t border-slate-300/80 bg-white px-4 py-2 text-center text-[12px] font-bold text-[#1B1F27]">
           {minute ? `${minute}' ` : ""}{preview}
@@ -255,11 +255,12 @@ export default function MatchSheetPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const sid = toDashSeason(selectedSeason);
-        const snap = await getDocs(collection(db, `clubs/${clubUid}/seasons/${sid}/roster`));
+        // 表記ゆれ("2027/28"/"2027-28"等)のどのキーにrosterがあるか分からないため全候補を検索
+        const sids = seasonKeyCandidates(selectedSeason);
+        const snaps = await Promise.all(sids.map((sid) => getDocs(collection(db, `clubs/${clubUid}/seasons/${sid}/roster`))));
         if (cancelled) return;
-        if (snap.empty) { setSeasonPlayerIds(null); return; }
-        const ids = new Set(snap.docs.filter((d) => (d.data() as any).registered !== false).map((d) => d.id));
+        const ids = new Set<string>();
+        for (const s of snaps) for (const d of s.docs) if ((d.data() as any).registered !== false) ids.add(d.id);
         setSeasonPlayerIds(ids.size ? ids : null);
       } catch {
         if (!cancelled) setSeasonPlayerIds(null);
