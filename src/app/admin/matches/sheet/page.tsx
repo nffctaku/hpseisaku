@@ -255,15 +255,23 @@ export default function MatchSheetPage() {
     let cancelled = false;
     void (async () => {
       try {
-        // 表記ゆれ("2027/28"/"2027-28"等)のどのキーにrosterがあるか分からないため全候補を検索
+        // seasonsコレクションを走査し、docIDまたはseason/nameフィールドが選択シーズンに
+        // 一致するドキュメントを特定（"2027/28"/"2027-28"/自動IDなど表記ゆれ吸収）してからrosterを読む
         const sids = seasonKeyCandidates(selectedSeason);
-        const snaps = await Promise.all(sids.map((sid) => getDocs(collection(db, `clubs/${clubUid}/seasons/${sid}/roster`))));
+        const seasonsSnap = await getDocs(collection(db, `clubs/${clubUid}/seasons`));
+        const matched = seasonsSnap.docs.filter((d) => {
+          const keys = seasonKeyCandidates(d.id);
+          const field = String((d.data() as any).season || (d.data() as any).name || "");
+          if (field) keys.push(...seasonKeyCandidates(field));
+          return keys.some((k) => sids.includes(k));
+        });
+        const snaps = await Promise.all(matched.map((d) => getDocs(collection(db, `clubs/${clubUid}/seasons/${d.id}/roster`))));
         if (cancelled) return;
         const ids = new Set<string>();
         for (const s of snaps) for (const d of s.docs) if ((d.data() as any).registered !== false) ids.add(d.id);
-        setSeasonPlayerIds(ids.size ? ids : null);
+        setSeasonPlayerIds(ids);
       } catch {
-        if (!cancelled) setSeasonPlayerIds(null);
+        if (!cancelled) setSeasonPlayerIds(new Set());
       }
     })();
     return () => { cancelled = true; };
