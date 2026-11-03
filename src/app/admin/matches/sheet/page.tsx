@@ -32,7 +32,7 @@ import {
   updateMatchEventFields,
   updateSheetMatch,
 } from "@/lib/match-sheet";
-import { toSlashSeason } from "@/lib/season";
+import { toDashSeason, toSlashSeason } from "@/lib/season";
 
 type HAPref = "H" | "A";
 
@@ -181,6 +181,8 @@ export default function MatchSheetPage() {
   const [roundsByComp, setRoundsByComp] = useState<Map<string, SheetRound[]>>(new Map());
   const [teams, setTeams] = useState<SheetTeam[]>([]);
   const [players, setPlayers] = useState<SheetPlayer[]>([]);
+  // 選択シーズンのroster選手ID。roster未整備の旧データは null（=全選手を候補に）
+  const [seasonPlayerIds, setSeasonPlayerIds] = useState<Set<string> | null>(null);
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
   const [rows, setRows] = useState<SheetMatchRow[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>("");
@@ -205,6 +207,25 @@ export default function MatchSheetPage() {
 
   const teamsMap = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const competitionsMap = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
+
+  // 選択シーズンのroster選手一覧を取得（得点者候補をそのシーズン在籍に絞る）
+  useEffect(() => {
+    if (!clubUid || !selectedSeason) { setSeasonPlayerIds(null); return; }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const sid = toDashSeason(selectedSeason);
+        const snap = await getDocs(collection(db, `clubs/${clubUid}/seasons/${sid}/roster`));
+        if (cancelled) return;
+        if (snap.empty) { setSeasonPlayerIds(null); return; }
+        const ids = new Set(snap.docs.filter((d) => (d.data() as any).registered !== false).map((d) => d.id));
+        setSeasonPlayerIds(ids.size ? ids : null);
+      } catch {
+        if (!cancelled) setSeasonPlayerIds(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [clubUid, selectedSeason]);
 
   const markSaving = (key: string, on: boolean) => {
     setSavingKeys((prev) => {
@@ -740,7 +761,10 @@ export default function MatchSheetPage() {
                               title: "得点者を追加",
                               value: "",
                               options: [
-                                ...players.map((p) => ({ value: p.id, label: p.name })),
+                                ...(seasonPlayerIds ? players.filter((p) => seasonPlayerIds.has(p.id)) : players).map((p) => ({
+                                  value: p.id,
+                                  label: p.number != null ? `${p.number} ${p.name}` : p.name,
+                                })),
                                 { value: "__og__", label: "OG（相手）" },
                               ],
                               onSelect: (v) => void addScorer(row, v),
