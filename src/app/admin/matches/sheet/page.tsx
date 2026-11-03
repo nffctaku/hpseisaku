@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCareer } from "@/contexts/CareerContext";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, getDocs, query, collection, where } from "firebase/firestore";
-import { CalendarDays, FilePenLine, Loader2, Plus, X } from "lucide-react";
+import { CalendarDays, FilePenLine, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +28,7 @@ import {
   fetchSheetRounds,
   fetchSheetTeams,
   matchDocPath,
+  deleteSheetMatch,
   moveMatchToRound,
   updateSheetMatch,
 } from "@/lib/match-sheet";
@@ -534,6 +535,25 @@ export default function MatchSheetPage() {
     }
   };
 
+  // 試合行の削除（doc本体+イベント+公開indexを1バッチで除去・確認後のみ実行）
+  const deleteRow = async (row: SheetMatchRow) => {
+    if (!clubUid) return;
+    const compName = competitionsMap.get(row.competitionId)?.name || "大会";
+    const roundName = (roundsByComp.get(row.competitionId) || []).find((r) => r.id === row.roundId)?.name || row.roundId;
+    if (!window.confirm(`${compName} ${roundName} のこの試合を削除しますか？この操作は取り消せません。`)) return;
+    markSaving(row.key, true);
+    try {
+      await deleteSheetMatch(db, clubUid, row.competitionId, row.roundId, row.matchId);
+      setRows((prev) => prev.filter((r) => r.key !== row.key));
+      toast.success("試合を削除しました。");
+    } catch (e) {
+      console.error(e);
+      toast.error("削除に失敗しました。");
+    } finally {
+      markSaving(row.key, false);
+    }
+  };
+
   const refreshRow = async (row: SheetMatchRow) => {
     if (!clubUid) return;
     const comp = competitionsMap.get(row.competitionId);
@@ -843,15 +863,25 @@ export default function MatchSheetPage() {
                         </button>
                       </div>
                     </td>
-                    {/* 詳細 */}
+                    {/* 詳細＋削除 */}
                     <td className={`${cellBase} text-center`}>
-                      <Link
-                        href={`/admin/competitions/${row.competitionId}/rounds/${row.roundId}/matches/${row.matchId}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#6B7280] hover:bg-[#3355FF12] hover:text-[#3355FF]"
-                        aria-label="詳細を開く"
-                      >
-                        <FilePenLine className="h-4 w-4" />
-                      </Link>
+                      <div className="inline-flex items-center gap-0.5">
+                        <Link
+                          href={`/admin/competitions/${row.competitionId}/rounds/${row.roundId}/matches/${row.matchId}`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#6B7280] hover:bg-[#3355FF12] hover:text-[#3355FF]"
+                          aria-label="詳細を開く"
+                        >
+                          <FilePenLine className="h-4 w-4" />
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => void deleteRow(row)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#9CA3AF] hover:bg-red-50 hover:text-red-500"
+                          aria-label="試合を削除"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                       {saving && <Loader2 className="ml-1 inline h-3 w-3 animate-spin text-[#9CA3AF]" />}
                     </td>
                   </tr>

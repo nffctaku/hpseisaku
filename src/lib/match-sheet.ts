@@ -16,6 +16,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
   type Firestore,
 } from 'firebase/firestore';
 import type { MatchEvent } from '@/types/match';
@@ -338,5 +339,23 @@ export const moveMatchToRound = async (
 
   // 新index生成（roundNameのみ差し替え）
   await syncIndex(db, clubUid, competition.id, toRound.id, matchId, srcSnap.data() as Record<string, unknown>, competition.name, toRound.name, teamsMap);
+  await bumpStatsCache(db, clubUid);
+};
+
+// 試合行の削除: match doc本体 + eventsミラー + public_match_index を1バッチで削除
+export const deleteSheetMatch = async (
+  db: Firestore,
+  clubUid: string,
+  competitionId: string,
+  roundId: string,
+  matchId: string
+) => {
+  const srcPath = matchDocPath(clubUid, competitionId, roundId, matchId);
+  const mirrorSnap = await getDocs(collection(db, `${srcPath}/events`));
+  const batch = writeBatch(db);
+  for (const m of mirrorSnap.docs) batch.delete(m.ref);
+  batch.delete(doc(db, srcPath));
+  batch.delete(doc(db, `clubs/${clubUid}/public_match_index/${competitionId}__${roundId}__${matchId}`));
+  await batch.commit();
   await bumpStatsCache(db, clubUid);
 };
