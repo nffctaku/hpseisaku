@@ -248,6 +248,45 @@ export default function MatchSheetPage() {
   const teamsMap = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const competitionsMap = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
 
+  // seasons/{dash}/roster も候補元として読む（roster側にのみ在籍が登録されている選手を拾う）
+  const [rosterPlayers, setRosterPlayers] = useState<{ id: string; name: string; number?: number; teamId?: string }[]>([]);
+  useEffect(() => {
+    if (!clubUid || !selectedSeason) { setRosterPlayers([]); return; }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const dash = toDashSeason(selectedSeason);
+        const snap = await getDocs(collection(db, `clubs/${clubUid}/seasons/${dash}/roster`));
+        if (cancelled) return;
+        const sids = seasonKeyCandidates(selectedSeason);
+        const out = snap.docs
+          .filter((d) => {
+            const data = d.data() as any;
+            if (data?.registered === false) return false;
+            const sd = data?.seasonData && typeof data.seasonData === "object" ? data.seasonData : null;
+            const arr = Array.isArray(data?.seasons) ? data.seasons : null;
+            if (sd) return sids.some((k) => k in sd);
+            if (arr && arr.length) return arr.some((s: any) => seasonKeyCandidates(String(s)).some((k) => sids.includes(k)));
+            return true;
+          })
+          .map((d) => {
+            const data = d.data() as any;
+            return {
+              id: typeof data?.playerId === "string" && data.playerId ? data.playerId : d.id,
+              name: data?.name || data?.playerName || "",
+              number: typeof data?.number === "number" ? data.number : undefined,
+              teamId: typeof data?.teamId === "string" ? data.teamId : undefined,
+            };
+          })
+          .filter((p) => p.name);
+        setRosterPlayers(out);
+      } catch {
+        if (!cancelled) setRosterPlayers([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [clubUid, selectedSeason]);
+
   // 得点者候補 = 選手管理画面と同じロジック（player自身の seasons / seasonData で在籍判定。
   // rosterコレクションは参照しないため取得失敗で空になる問題を回避。
   // シーズン情報を持たない選手はレガシーとして在籍扱い＝選手管理画面の表示と一致）
@@ -924,13 +963,19 @@ export default function MatchSheetPage() {
       )}
       {scorerPick && (
         <ScorerWheelModal
-          players={[
-            ...scorerCandidates.map((p) => ({
-              v: p.id,
-              label: p.number != null ? `${p.number} ${p.name}` : p.name,
-            })),
-            { v: "__og__", label: "OG（相手）" },
-          ]}
+          players={(() => {
+            const merged = new Map<string, { v: string; label: string }>();
+            for (const p of scorerCandidates) {
+              merged.set(p.id, { v: p.id, label: p.number != null ? `${p.number} ${p.name}` : p.name });
+            }
+            for (const p of rosterPlayers) {
+              if (!merged.has(p.id)) merged.set(p.id, { v: p.id, label: p.number != null ? `${p.number} ${p.name}` : p.name });
+            }
+            const opts = [...merged.values()];
+            opts.push({ v: "__og__", label: "OG（相手）" });
+            console.log("[sheet-scorer]", { season: selectedSeason, players: players.length, candidates: scorerCandidates.length, roster: rosterPlayers.length, options: opts.length - 1 });
+            return opts;
+          })()}
           onDone={(pid, min) => {
             void addScorer(scorerPick, pid, min);
             setScorerPick(null);
