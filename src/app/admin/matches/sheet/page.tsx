@@ -29,6 +29,7 @@ import {
   fetchSheetTeams,
   matchDocPath,
   moveMatchToRound,
+  updateMatchEventFields,
   updateSheetMatch,
 } from "@/lib/match-sheet";
 import { toDashSeason, toSlashSeason } from "@/lib/season";
@@ -478,6 +479,21 @@ export default function MatchSheetPage() {
   };
 
   // === セル用ピッカー ===
+  // 得点イベントの分を後入れ（同じイベントidを更新するため二重登録にならない）
+  const updateScorerMinute = async (row: SheetMatchRow, eventId: string, minute: string) => {
+    if (!clubUid) return;
+    const path = matchDocPath(clubUid, row.competitionId, row.roundId, row.matchId);
+    try {
+      await updateMatchEventFields(db, path, eventId, minute.trim() === "" ? { minute: undefined } : { minute: minute.trim() });
+      setRows((prev) => prev.map((r) => r.key === row.key
+        ? { ...r, events: (r.events || []).map((e) => e.id === eventId ? { ...e, minute: minute.trim() === "" ? undefined : minute.trim() } as MatchEvent : e) }
+        : r));
+    } catch (e) {
+      console.error(e);
+      toast.error("時間の更新に失敗しました。");
+    }
+  };
+
   const openCompetitionPicker = (current: string, onPick: (id: string) => void) => {
     // 選択中シーズンに登録されている大会のみ（season未設定の大会も含める・行表示と同じルール）
     const list = selectedSeason
@@ -719,10 +735,19 @@ export default function MatchSheetPage() {
                         {goals.map((ev) => (
                           <span key={ev.id} className="inline-flex items-center gap-1 rounded-full bg-[#3355FF12] px-2 py-1">
                             <span className="text-[11px] font-semibold text-[#1B1F27]">{goalEventLabel(ev)}</span>
-                            {/* 分は登録済みのみ表示（空欄 "" は Number("")=0 となり "0" が出るため生値で判定） */}
-                            {ev.minute != null && ev.minute !== "" && formatMinute(ev.minute) !== "" && (
-                              <span className="text-[11px] font-semibold text-[#6B7280]">{formatMinute(ev.minute)}'</span>
-                            )}
+                            {/* 分入力（空欄 "" は Number("")=0 となり "0" が出るため生値で初期値を決める） */}
+                            <input
+                              inputMode="numeric"
+                              defaultValue={ev.minute != null && ev.minute !== "" ? formatMinute(ev.minute) : ""}
+                              placeholder="例：23、45+2"
+                              title="得点時間（任意）"
+                              aria-label="得点時間（任意）"
+                              onBlur={(e) => {
+                                const v = e.target.value;
+                                if (v !== formatMinute(ev.minute)) void updateScorerMinute(row, ev.id, v);
+                              }}
+                              className="h-6 w-[76px] rounded border border-[#E2E4EA] bg-white text-center text-[11px] font-semibold text-[#1B1F27] placeholder:font-normal placeholder:text-[#9AA0AE]"
+                            />
                             <button type="button" onClick={() => void removeScorer(row, ev.id)} className="text-[#9CA3AF] hover:text-red-500" aria-label="削除">
                               <X className="h-3 w-3" />
                             </button>
