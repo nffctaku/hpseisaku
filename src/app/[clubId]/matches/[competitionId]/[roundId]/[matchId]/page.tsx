@@ -869,7 +869,8 @@ export default async function MatchDetailPage({ params }: PageProps) {
             <div className="space-y-0.5 text-right">
               {homeGoals.map((g) => {
                 const label = resolveScorerName(g, (pid) => playerMetaMap[pid]?.name || playerNameMap.get(pid));
-                const suffix = goalEventSuffix(g);
+                // ラベル自体にOG表示が含まれる場合はサフィックスを付けない（"OG（OG）"回避）
+                const suffix = label?.includes("OG") ? "" : goalEventSuffix(g);
                 return (
                   <div key={g.id}>
                     {`${label ? `${label}${suffix} ` : ''}${formatMinute(g.minute)}'`}
@@ -880,7 +881,8 @@ export default async function MatchDetailPage({ params }: PageProps) {
             <div className="space-y-0.5 text-left">
               {awayGoals.map((g) => {
                 const label = resolveScorerName(g, (pid) => playerMetaMap[pid]?.name || playerNameMap.get(pid));
-                const suffix = goalEventSuffix(g);
+                // ラベル自体にOG表示が含まれる場合はサフィックスを付けない
+                const suffix = label?.includes("OG") ? "" : goalEventSuffix(g);
                 return (
                   <div key={g.id}>
                     {`${formatMinute(g.minute)}'${label ? ` ${label}${suffix}` : ''}`}
@@ -891,24 +893,35 @@ export default async function MatchDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Tabs: Lineups / Stats / Events */}
+        {/* Tabs: Lineups / Stats / Events — 入力があるセクションのみ表示（見出しごと非表示） */}
+        {(hasLineups || hasTeamStats || hasEvents) && (
         <Tabs
-          defaultValue={hasLineups || (!hasTeamStats && !hasEvents) ? "lineups" : hasTeamStats ? "stats" : "events"}
+          defaultValue={hasLineups ? "lineups" : hasTeamStats ? "stats" : "events"}
           className="w-full"
         >
-          <TabsList className="mx-auto mb-6 grid w-[640px] max-w-full grid-cols-3 rounded-none border-0 border-b border-slate-800 bg-transparent p-0" style={{ '--active-border-color': homeBgColor || 'rgb(239 68 68)' } as React.CSSProperties}>
+          <TabsList
+            className="mx-auto mb-6 grid w-[640px] max-w-full rounded-none border-0 border-b border-slate-800 bg-transparent p-0"
+            style={{ '--active-border-color': homeBgColor || 'rgb(239 68 68)', gridTemplateColumns: `repeat(${[hasLineups, hasTeamStats, hasEvents].filter(Boolean).length}, minmax(0,1fr))` } as React.CSSProperties}
+          >
+            {hasLineups && (
             <TabsTrigger value="lineups" className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none [&[data-state=active]]:border-b-[var(--active-border-color)]">
               LINEUPS
             </TabsTrigger>
-            <TabsTrigger value="stats" disabled={!hasTeamStats} className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none [&[data-state=active]]:border-b-[var(--active-border-color)]">
+            )}
+            {hasTeamStats && (
+            <TabsTrigger value="stats" className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none [&[data-state=active]]:border-b-[var(--active-border-color)]">
               STATS
             </TabsTrigger>
-            <TabsTrigger value="events" disabled={!hasEvents} className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none [&[data-state=active]]:border-b-[var(--active-border-color)]">
+            )}
+            {hasEvents && (
+            <TabsTrigger value="events" className="rounded-none border-0 border-b-2 border-transparent bg-transparent pb-3 text-[10px] font-black uppercase tracking-widest text-white data-[state=active]:border-0 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none [&[data-state=active]]:border-b-[var(--active-border-color)]">
               EVENTS
             </TabsTrigger>
+            )}
           </TabsList>
 
           {/* LINEUPS */}
+          {hasLineups && (
           <TabsContent value="lineups" className="mt-4">
             {hasLineups ? (
               <section className="rounded-lg border border-slate-800 bg-[#0b111d] px-2 py-4 md:p-6">
@@ -985,8 +998,10 @@ export default async function MatchDetailPage({ params }: PageProps) {
               </div>
             )}
           </TabsContent>
+          )}
 
           {/* STATS */}
+          {hasTeamStats && (
           <TabsContent value="stats" className="mt-4">
             {hasTeamStats ? (
               <section className="mx-auto max-w-2xl p-4 md:p-6">
@@ -1027,8 +1042,10 @@ export default async function MatchDetailPage({ params }: PageProps) {
               </div>
             )}
           </TabsContent>
+          )}
 
           {/* EVENTS */}
+          {hasEvents && (
           <TabsContent value="events" className="mt-4">
             {hasEvents ? (
               <section className="p-4 md:p-6">
@@ -1234,7 +1251,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
               </div>
             )}
           </TabsContent>
+          )}
         </Tabs>
+        )}
       </div>
       <PartnerStripClient clubId={clubId} />
       <ClubFooter

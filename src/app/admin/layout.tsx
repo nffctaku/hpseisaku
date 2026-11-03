@@ -39,7 +39,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   const isPlainAdminPage = (pathname || '').startsWith('/admin/mypage');
   const isPublicAdminPage = pathname === '/admin/test-login';
 
-  const allowHorizontalScroll = pathname === '/admin/matches/calendar';
+  const allowHorizontalScroll = pathname === '/admin/matches/calendar' || pathname === '/admin/matches/sheet';
   const isClubHistoryPage = pathname === '/admin/club/history';
   const isPlayerRecordsPage = pathname.startsWith('/admin/club/history/players');
   const isPlayerRecordsRoot = pathname === '/admin/club/history/players';

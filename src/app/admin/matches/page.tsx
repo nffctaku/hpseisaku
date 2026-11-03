@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useCareer } from "@/contexts/CareerContext";
@@ -152,6 +153,15 @@ export default function MatchesPage() {
           />
         </>
       )}
+
+      <div className="mb-3 flex justify-center">
+        <Link
+          href="/admin/matches/sheet"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#E2E4EA] bg-white px-3 py-2 text-[12px] font-semibold text-[#3355FF] hover:bg-[#3355FF10]"
+        >
+          試合記録シート（公式戦）で入力
+        </Link>
+      </div>
 
       <div className="mt-6">
         {loadingMatches ? (
