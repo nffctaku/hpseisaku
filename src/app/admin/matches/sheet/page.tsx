@@ -54,6 +54,14 @@ const todayStr = () => {
 };
 
 // 自チーム視点の得点イベントを抽出（type:'goal'自チーム or type:'og'相手チーム）
+// スコア（自チーム視点）から勝敗バッジを生成。W=勝利(緑)/L=敗北(赤)/D=引分(灰)
+const ResultBadge = ({ selfScore, oppScore }: { selfScore: number | null; oppScore: number | null }) => {
+  if (selfScore === null || oppScore === null) return <span className="text-[#9CA3AF]">–</span>;
+  const r = selfScore > oppScore ? "W" : selfScore < oppScore ? "L" : "D";
+  const cls = r === "W" ? "bg-emerald-500 text-white" : r === "L" ? "bg-red-500 text-white" : "bg-gray-400 text-white";
+  return <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-black ${cls}`}>{r}</span>;
+};
+
 const isOwnGoalEvent = (ev: MatchEvent, ownTeamId: string): boolean => {
   if (ev.type === "goal" && ev.teamId === ownTeamId) return true;
   if (String(ev.type) === "og" && ev.teamId !== ownTeamId) return true; // 相手のOG=自チームの得点
@@ -482,6 +490,7 @@ export default function MatchSheetPage() {
                 <th className={`${cellBase} w-[140px]`}>対戦相手</th>
                 <th className={`${cellBase} w-[56px] text-center`}>H/A</th>
                 <th className={`${cellBase} w-[110px] text-center`}>スコア</th>
+                <th className={`${cellBase} w-[44px] text-center`}>勝敗</th>
                 <th className={`${cellBase} min-w-[220px]`}>得点者・時間</th>
                 <th className={`${cellBase} w-[64px] text-center`}>詳細</th>
               </tr>
@@ -546,7 +555,15 @@ export default function MatchSheetPage() {
                     {/* 対戦相手 */}
                     <td className={cellBase}>
                       <button type="button" className={selBtn} onClick={() => openOpponentPicker(d.opponentId, row.competitionId, (id) => setOpponent(row, id, d.ha || "H"))}>
-                        {d.opponentId ? teamsMap.get(d.opponentId)?.name || "未設定" : "相手を選択"}
+                        {d.opponentId ? (
+                          <span className="flex items-center gap-1.5">
+                            {teamsMap.get(d.opponentId)?.logoUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={teamsMap.get(d.opponentId)!.logoUrl} alt="" className="h-4 w-4 shrink-0 rounded-full object-contain" />
+                            )}
+                            <span className="truncate">{teamsMap.get(d.opponentId)?.name || "未設定"}</span>
+                          </span>
+                        ) : "相手を選択"}
                       </button>
                     </td>
                     {/* H/A */}
@@ -583,6 +600,10 @@ export default function MatchSheetPage() {
                           className="h-8 w-9 rounded-md border border-[#E2E4EA] bg-white text-center text-[14px] font-bold text-[#1B1F27]"
                         />
                       </div>
+                    </td>
+                    {/* 勝敗（スコア×H/Aから自動算出・編集不可） */}
+                    <td className={`${cellBase} text-center`}>
+                      <ResultBadge selfScore={d.selfScore} oppScore={d.oppScore} />
                     </td>
                     {/* 得点者・時間 */}
                     <td className={cellBase}>
@@ -673,7 +694,15 @@ export default function MatchSheetPage() {
                 </td>
                 <td className={cellBase}>
                   <button type="button" className={selBtn} onClick={() => openOpponentPicker(pending.opponentTeamId, pending.competitionId || null, (id) => updatePending({ opponentTeamId: id }))}>
-                    {pending.opponentTeamId ? teamsMap.get(pending.opponentTeamId)?.name : "相手を選択"}
+                    {pending.opponentTeamId ? (
+                      <span className="flex items-center gap-1.5">
+                        {teamsMap.get(pending.opponentTeamId)?.logoUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={teamsMap.get(pending.opponentTeamId)!.logoUrl} alt="" className="h-4 w-4 shrink-0 rounded-full object-contain" />
+                        )}
+                        <span className="truncate">{teamsMap.get(pending.opponentTeamId)?.name}</span>
+                      </span>
+                    ) : "相手を選択"}
                   </button>
                 </td>
                 <td className={`${cellBase} text-center`}>
@@ -708,6 +737,9 @@ export default function MatchSheetPage() {
                       className="h-8 w-9 rounded-md border border-dashed border-[#9CA3AF] bg-white text-center text-[14px] font-bold"
                     />
                   </div>
+                </td>
+                <td className={`${cellBase} text-center`}>
+                  <ResultBadge selfScore={pending.selfScore} oppScore={pending.oppScore} />
                 </td>
                 <td className={cellBase}>
                   <span className="px-1 text-[11px] text-[#9CA3AF]">大会と節を選ぶと記録できます</span>
