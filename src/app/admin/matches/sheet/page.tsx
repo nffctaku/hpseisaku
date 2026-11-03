@@ -967,8 +967,21 @@ export default function MatchSheetPage() {
                 <td className={cellBase}>
                   <span className="px-1 text-[11px] text-[#9CA3AF]">大会と節を選ぶと記録できます</span>
                 </td>
+                {/* 削除（1項目でも入力されていれば×で破棄できる） */}
                 <td className={`${cellBase} text-center`}>
-                  <span className="text-[#D1D5DB]">—</span>
+                  {(pending.competitionId || pending.roundId || pending.opponentTeamId || pending.selfScore != null || pending.oppScore != null || pending.ha !== "H" || pending.matchDate !== todayStr()) ? (
+                    <button
+                      type="button"
+                      onClick={() => setPending({ matchDate: todayStr(), competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null })}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#9CA3AF] hover:bg-red-50 hover:text-red-500"
+                      aria-label="入力行をクリア"
+                      title="入力内容をクリア"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <span className="text-[#D1D5DB]">—</span>
+                  )}
                 </td>
               </tr>
             </tbody>
