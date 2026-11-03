@@ -719,7 +719,8 @@ export default function MatchSheetPage() {
                         {goals.map((ev) => (
                           <span key={ev.id} className="inline-flex items-center gap-1 rounded-full bg-[#3355FF12] px-2 py-1">
                             <span className="text-[11px] font-semibold text-[#1B1F27]">{goalEventLabel(ev)}</span>
-                            {formatMinute(ev.minute) && (
+                            {/* 分は登録済みのみ表示（空欄 "" は Number("")=0 となり "0" が出るため生値で判定） */}
+                            {ev.minute != null && ev.minute !== "" && formatMinute(ev.minute) !== "" && (
                               <span className="text-[11px] font-semibold text-[#6B7280]">{formatMinute(ev.minute)}'</span>
                             )}
                             <button type="button" onClick={() => void removeScorer(row, ev.id)} className="text-[#9CA3AF] hover:text-red-500" aria-label="削除">
