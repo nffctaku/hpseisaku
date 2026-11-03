@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from 'react';
 export interface PickerOption {
   value: string;
   label: string;
+  /** ラベル左側に表示する画像（チームロゴ等。任意） */
+  iconUrl?: string;
 }
 
 export interface PickerRequest {
@@ -85,9 +87,13 @@ export function MobilePickerModal({ picker, onClose, mobileOnly = false }: Mobil
                     setPressedPickerValue(null);
                   }, 140);
                 }}
-                className={`block h-14 w-full scroll-mt-[22vh] [scroll-snap-align:center] truncate rounded-xl text-center text-[22px] font-bold leading-[56px] transition-colors ${isPressed ? 'bg-blue-500/25 text-blue-700' : isSelected ? 'bg-blue-500/10 text-blue-600' : 'text-slate-400'}`}
+                className={`flex h-14 w-full scroll-mt-[22vh] items-center justify-center gap-2 [scroll-snap-align:center] rounded-xl px-3 text-center text-[22px] font-bold leading-[56px] transition-colors ${isPressed ? 'bg-blue-500/25 text-blue-700' : isSelected ? 'bg-blue-500/10 text-blue-600' : 'text-slate-400'}`}
               >
-                {option.label}
+                {option.iconUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={option.iconUrl} alt="" className="h-8 w-8 shrink-0 rounded-full object-contain" />
+                )}
+                <span className="truncate">{option.label}</span>
               </button>
             );
           })}

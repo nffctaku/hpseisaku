@@ -412,13 +412,17 @@ export default function MatchSheetPage() {
   };
 
   const openOpponentPicker = (current: string, competitionId: string | null, onPick: (id: string) => void) => {
-    const candidates = teams.filter((t) => t.id !== mainTeamId);
+    // 大会が選ばれている場合は、その大会に登録されているチームのみ候補に出す
+    const registered = competitionId ? competitionsMap.get(competitionId)?.teams : undefined;
+    const candidates = teams
+      .filter((t) => t.id !== mainTeamId && (!registered || registered.includes(t.id)))
+      .sort((a, b) => a.name.localeCompare(b.name, "ja"));
     setPicker({
       title: "対戦相手を選択",
       value: current,
       options: [
         { value: NEW_VALUE, label: "＋ 新しいチームを追加" },
-        ...candidates.map((t) => ({ value: t.id, label: t.name })),
+        ...candidates.map((t) => ({ value: t.id, label: t.name, iconUrl: t.logoUrl })),
       ],
       onSelect: (v) => {
         if (v === NEW_VALUE) {
