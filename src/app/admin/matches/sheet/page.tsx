@@ -256,10 +256,20 @@ export default function MatchSheetPage() {
     void (async () => {
       try {
         const dash = toDashSeason(selectedSeason);
-        const snap = await getDocs(collection(db, `clubs/${clubUid}/seasons/${dash}/roster`));
+        const sids0 = seasonKeyCandidates(selectedSeason);
+        // seasonsコレクション内で docID/season/name が一致するdocもroster元に含める（自動ID対応）
+        const seasonsSnap = await getDocs(collection(db, `clubs/${clubUid}/seasons`));
+        const seasonDocIds = new Set([dash]);
+        for (const d of seasonsSnap.docs) {
+          const keys = seasonKeyCandidates(d.id);
+          const field = String((d.data() as any).season || (d.data() as any).name || "");
+          if (field) keys.push(...seasonKeyCandidates(field));
+          if (keys.some((k) => sids0.includes(k))) seasonDocIds.add(d.id);
+        }
+        const snaps = await Promise.all([...seasonDocIds].map((sid) => getDocs(collection(db, `clubs/${clubUid}/seasons/${sid}/roster`))));
         if (cancelled) return;
         const sids = seasonKeyCandidates(selectedSeason);
-        const out = snap.docs
+        const out = snaps.flatMap((s) => s.docs)
           .filter((d) => {
             const data = d.data() as any;
             if (data?.registered === false) return false;
@@ -336,10 +346,19 @@ export default function MatchSheetPage() {
       } catch { /* continue */ }
       setMainTeamId(main);
 
-      // 自チーム選手（得点者候補）
-      if (main) {
-        const ps = await getDocs(collection(db, `clubs/${clubUid}/teams/${main}/players`));
-        setPlayers(ps.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as SheetPlayer)).sort((a, b) => (a.number ?? 999) - (b.number ?? 999)));
+      // 自チーム選手（得点者候補）: mainTeamId配下＋Career方式の teams/{clubUid}/players を併用（ID重複除去）
+      if (main || clubUid) {
+        const paths = new Set<string>();
+        if (main) paths.add(`clubs/${clubUid}/teams/${main}/players`);
+        paths.add(`clubs/${clubUid}/teams/${clubUid}/players`);
+        const merged = new Map<string, SheetPlayer>();
+        for (const p of paths) {
+          try {
+            const ps = await getDocs(collection(db, p));
+            for (const d of ps.docs) merged.set(d.id, { id: d.id, ...(d.data() as any) } as SheetPlayer);
+          } catch { /* pathなし */ }
+        }
+        setPlayers([...merged.values()].sort((a, b) => (a.number ?? 999) - (b.number ?? 999)));
       }
 
       // 大会ごとの節＋試合
