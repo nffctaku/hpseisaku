@@ -76,11 +76,12 @@ const formatSlashDate = (iso: string): string => {
 const WHEEL_ITEM_H = 56;
 const MONTH_ITEMS = Array.from({ length: 12 }, (_, i) => i + 1);
 
-const WheelColumn = ({ items, value, onPick, ariaLabel }: { items: number[]; value: number; onPick: (v: number) => void; ariaLabel: string }) => {
+const WheelColumn = ({ items, value, onPick, ariaLabel }: { items: { v: string; label: string }[]; value: string; onPick: (v: string) => void; ariaLabel: string }) => {
   const ref = useRef<HTMLDivElement | null>(null);
+  const indexOf = (v: string) => Math.max(0, items.findIndex((i) => i.v === v));
   useEffect(() => {
     const el = ref.current;
-    if (el) el.scrollTop = Math.max(0, items.indexOf(value)) * WHEEL_ITEM_H;
+    if (el) el.scrollTop = indexOf(value) * WHEEL_ITEM_H;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
@@ -90,21 +91,22 @@ const WheelColumn = ({ items, value, onPick, ariaLabel }: { items: number[]; val
       aria-label={ariaLabel}
       onScroll={(e) => {
         const i = Math.max(0, Math.min(items.length - 1, Math.round(e.currentTarget.scrollTop / WHEEL_ITEM_H)));
-        if (items[i] !== undefined && items[i] !== value) onPick(items[i]);
+        const item = items[i];
+        if (item && item.v !== value) onPick(item.v);
       }}
       className="h-[280px] flex-1 overflow-y-auto py-[112px] [scroll-snap-type:y_mandatory] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      {items.map((v) => (
+      {items.map((item) => (
         <div
-          key={v}
-          data-picker-selected={v === value ? "true" : undefined}
+          key={item.v}
+          data-picker-selected={item.v === value ? "true" : undefined}
           onClick={() => {
-            onPick(v);
-            ref.current?.scrollTo({ top: items.indexOf(v) * WHEEL_ITEM_H, behavior: "smooth" });
+            onPick(item.v);
+            ref.current?.scrollTo({ top: indexOf(item.v) * WHEEL_ITEM_H, behavior: "smooth" });
           }}
-          className={`flex h-14 cursor-pointer items-center justify-center [scroll-snap-align:center] text-[22px] font-bold ${v === value ? "text-blue-600" : "text-slate-400"}`}
+          className={`flex h-14 cursor-pointer items-center justify-center [scroll-snap-align:center] text-[22px] font-bold ${item.v === value ? "text-blue-600" : "text-slate-400"}`}
         >
-          {v}
+          {item.label}
         </div>
       ))}
     </div>
@@ -136,12 +138,50 @@ const DateWheelModal = ({ initial, years, onDone, onClose }: { initial: string; 
         </div>
         <div className="relative flex px-2">
           <div className="pointer-events-none absolute left-2 right-2 top-1/2 h-14 -translate-y-1/2 rounded-xl border-y border-slate-300/80 bg-blue-500/10" />
-          <WheelColumn items={yearItems} value={y} onPick={(v) => { setY(v); setD((dd) => clampDay(v, m, dd)); }} ariaLabel="年" />
-          <WheelColumn items={MONTH_ITEMS} value={m} onPick={(v) => { setM(v); setD((dd) => clampDay(y, v, dd)); }} ariaLabel="月" />
-          <WheelColumn items={dayItems} value={Math.min(d, maxD)} onPick={setD} ariaLabel="日" />
+          <WheelColumn items={yearItems.map((n) => ({ v: String(n), label: String(n) }))} value={String(y)} onPick={(v) => { const ny = Number(v); setY(ny); setD((dd) => clampDay(ny, m, dd)); }} ariaLabel="年" />
+          <WheelColumn items={MONTH_ITEMS.map((n) => ({ v: String(n), label: String(n) }))} value={String(m)} onPick={(v) => { const nm = Number(v); setM(nm); setD((dd) => clampDay(y, nm, dd)); }} ariaLabel="月" />
+          <WheelColumn items={dayItems.map((n) => ({ v: String(n), label: String(n) }))} value={String(Math.min(d, maxD))} onPick={(v) => setD(Number(v))} ariaLabel="日" />
         </div>
         <div className="border-t border-slate-300/80 bg-white px-4 py-2 text-center text-[12px] font-bold text-[#1B1F27]">
           {y}/{m}/{Math.min(d, maxD)}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 得点者追加: 左列=試合時間(未入力〜120)、右列=選手+OG（日付ピッカーと同じ見た目の2列ホイール）
+const ScorerWheelModal = ({
+  players,
+  onDone,
+  onClose,
+}: {
+  players: { v: string; label: string }[];
+  onDone: (playerId: string, minute: string) => void;
+  onClose: () => void;
+}) => {
+  const minuteItems = useMemo(
+    () => [{ v: "", label: "未入力" }, ...Array.from({ length: 120 }, (_, i) => ({ v: String(i + 1), label: String(i + 1) }))],
+    []
+  );
+  const [minute, setMinute] = useState("");
+  const [playerId, setPlayerId] = useState(players[0]?.v ?? "");
+  const preview = players.find((p) => p.v === playerId)?.label ?? "";
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4" onClick={onClose}>
+      <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#f4f4f6] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex h-12 items-center justify-between border-b border-slate-300/80 bg-white px-4">
+          <button type="button" className="text-base font-bold text-blue-500" onClick={onClose}>キャンセル</button>
+          <div className="text-sm font-bold text-slate-500">得点者を追加</div>
+          <button type="button" className="text-base font-bold text-blue-500" onClick={() => playerId && onDone(playerId, minute)}>完了</button>
+        </div>
+        <div className="relative flex px-2">
+          <div className="pointer-events-none absolute left-2 right-2 top-1/2 h-14 -translate-y-1/2 rounded-xl border-y border-slate-300/80 bg-blue-500/10" />
+          <WheelColumn items={minuteItems} value={minute} onPick={setMinute} ariaLabel="試合時間" />
+          <WheelColumn items={players} value={playerId} onPick={setPlayerId} ariaLabel="選手" />
+        </div>
+        <div className="border-t border-slate-300/80 bg-white px-4 py-2 text-center text-[12px] font-bold text-[#1B1F27]">
+          {minute ? `${minute}' ` : ""}{preview}
         </div>
       </div>
     </div>
@@ -204,6 +244,7 @@ export default function MatchSheetPage() {
   } | null>(null);
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
   const [datePick, setDatePick] = useState<{ value: string; onDone: (v: string) => void } | null>(null);
+  const [scorerPick, setScorerPick] = useState<SheetMatchRow | null>(null);
 
   const teamsMap = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const competitionsMap = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
@@ -381,17 +422,18 @@ export default function MatchSheetPage() {
     return (row.events || []).filter((e) => ownTeamId && isOwnGoalEvent(e, ownTeamId));
   };
 
-  const addScorer = async (row: SheetMatchRow, playerId: string) => {
+  const addScorer = async (row: SheetMatchRow, playerId: string, minute = "") => {
     if (!clubUid) return;
     const { ownTeamId, opponentId } = describe(row);
     const path = matchDocPath(clubUid, row.competitionId, row.roundId, row.matchId);
     markSaving(row.key, true);
+    const min = minute.trim();
     try {
       if (playerId === "__og__") {
         await appendMatchEvent(db, path, {
           id: crypto.randomUUID(),
           type: "goal",
-          minute: "",
+          minute: min,
           teamId: ownTeamId,
           goalKind: "own_goal",
           playerName: "OG",
@@ -403,7 +445,7 @@ export default function MatchSheetPage() {
         await appendMatchEvent(db, path, {
           id: crypto.randomUUID(),
           type: "goal",
-          minute: "",
+          minute: min,
           teamId: ownTeamId,
           playerId: p.id,
           playerName: p.name,
@@ -756,20 +798,7 @@ export default function MatchSheetPage() {
                         <button
                           type="button"
                           disabled={!d.ownTeamId}
-                          onClick={() => {
-                            setPicker({
-                              title: "得点者を追加",
-                              value: "",
-                              options: [
-                                ...(seasonPlayerIds ? players.filter((p) => seasonPlayerIds.has(p.id)) : players).map((p) => ({
-                                  value: p.id,
-                                  label: p.number != null ? `${p.number} ${p.name}` : p.name,
-                                })),
-                                { value: "__og__", label: "OG（相手）" },
-                              ],
-                              onSelect: (v) => void addScorer(row, v),
-                            });
-                          }}
+                          onClick={() => setScorerPick(row)}
                           className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-[#9CA3AF] text-[#6B7280] hover:text-[#3355FF] disabled:opacity-40"
                           aria-label="得点者を追加"
                         >
@@ -894,6 +923,22 @@ export default function MatchSheetPage() {
             setDatePick(null);
           }}
           onClose={() => setDatePick(null)}
+        />
+      )}
+      {scorerPick && (
+        <ScorerWheelModal
+          players={[
+            ...(seasonPlayerIds ? players.filter((p) => seasonPlayerIds.has(p.id)) : players).map((p) => ({
+              v: p.id,
+              label: p.number != null ? `${p.number} ${p.name}` : p.name,
+            })),
+            { v: "__og__", label: "OG（相手）" },
+          ]}
+          onDone={(pid, min) => {
+            void addScorer(scorerPick, pid, min);
+            setScorerPick(null);
+          }}
+          onClose={() => setScorerPick(null)}
         />
       )}
 
