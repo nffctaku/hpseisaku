@@ -21,7 +21,6 @@ import {
   type SheetPlayer,
   type SheetRound,
   type SheetTeam,
-  createOpponentTeam,
   createSheetMatch,
   createSheetRound,
   fetchSheetCompetitions,
@@ -420,27 +419,9 @@ export default function MatchSheetPage() {
     setPicker({
       title: "対戦相手を選択",
       value: current,
-      options: [
-        { value: NEW_VALUE, label: "＋ 新しいチームを追加" },
-        ...candidates.map((t) => ({ value: t.id, label: t.name, iconUrl: t.logoUrl })),
-      ],
-      onSelect: (v) => {
-        if (v === NEW_VALUE) {
-          setNewTextPrompt({
-            title: "新しい対戦相手のチーム名",
-            placeholder: "例: FC山梨",
-            value: "",
-            onSubmit: async (text) => {
-              if (!clubUid || !text.trim()) return;
-              const created = await createOpponentTeam(db, clubUid, competitionId, text.trim());
-              setTeams((prev) => [...prev, created]);
-              onPick(created.id);
-            },
-          });
-          return;
-        }
-        onPick(v);
-      },
+      // 大会に登録済みのチームのみ選択（セルからの新規チーム追加は行わない）
+      options: candidates.map((t) => ({ value: t.id, label: t.name, iconUrl: t.logoUrl })),
+      onSelect: (v) => onPick(v),
     });
   };
 
