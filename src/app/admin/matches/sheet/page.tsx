@@ -378,6 +378,9 @@ export default function MatchSheetPage() {
       const ownRows = allRows.filter((r) => ownIds.has(r.homeTeam) || ownIds.has(r.awayTeam));
       ownRows.sort((a, b) => (a.matchDate || "9999").localeCompare(b.matchDate || "9999"));
       setRows(ownRows);
+      // 新規入力行の日付初期値 = 直近試合の日付（近い日程からホイールでスクロールできるよう）
+      const latest = ownRows[ownRows.length - 1]?.matchDate;
+      if (latest) setPending((p) => p.matchDate === todayStr() && !p.competitionId && !p.roundId && !p.opponentTeamId && p.selfScore == null && p.oppScore == null ? { ...p, matchDate: latest } : p);
 
       const seasons = [...new Set(comps.map((c) => (c.season || "").trim()).filter(Boolean))].map(toSlashSeason).sort().reverse();
       setSelectedSeason((prev) => prev || seasons[0] || "");
@@ -583,7 +586,7 @@ export default function MatchSheetPage() {
         homeTeam, awayTeam, scoreHome, scoreAway,
       }, teamsMap);
       toast.success("試合カードを作成しました。");
-      setPending({ matchDate: todayStr(), competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null });
+      setPending({ matchDate: rows[rows.length - 1]?.matchDate || todayStr(), competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null });
       await loadAll();
     } catch (e) {
       console.error(e);
@@ -982,7 +985,7 @@ export default function MatchSheetPage() {
                       type="button"
                       onClick={() => {
                         if (!window.confirm("入力中の内容を消去しますか？")) return;
-                        setPending({ matchDate: todayStr(), competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null });
+                        setPending({ matchDate: rows[rows.length - 1]?.matchDate || todayStr(), competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null });
                       }}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#9CA3AF] hover:bg-red-50 hover:text-red-500"
                       aria-label="入力行をクリア"
