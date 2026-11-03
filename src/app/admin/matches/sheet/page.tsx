@@ -301,13 +301,8 @@ export default function MatchSheetPage() {
   // rosterコレクションは参照しないため取得失敗で空になる問題を回避。
   // シーズン情報を持たない選手はレガシーとして在籍扱い＝選手管理画面の表示と一致）
   const scorerCandidates = useMemo(() => {
-    // rosterに該当シーズンの選手がいる場合はその名簿を使用（詳細画面のスタメン選択と同じ）
-    if (rosterPlayers.length > 0) {
-      const rosterIds = new Set(rosterPlayers.map((p) => p.id));
-      return players.filter((p) => rosterIds.has(p.id));
-    }
-    // rosterが空（未登録シーズン）の場合は詳細画面と同じくチーム全選手を候補にする
-    return players;
+    const rosterIds = new Set(rosterPlayers.map((p) => p.id));
+    return players.filter((p) => rosterIds.has(p.id));
   }, [players, rosterPlayers]);
 
   const markSaving = (key: string, on: boolean) => {
