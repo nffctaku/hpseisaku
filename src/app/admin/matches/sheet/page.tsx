@@ -54,6 +54,46 @@ const todayStr = () => {
 };
 
 // 自チーム視点の得点イベントを抽出（type:'goal'自チーム or type:'og'相手チーム）
+// 日付セル: シーズンの年のみ選択可能な年・月・日プルダウン（matchDateは "YYYY-MM-DD" 文字列）
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const daysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
+
+const seasonYearsOf = (season: string): number[] => {
+  const m = season.match(/^(\d{4})(?:\/(\d{2,4}))?$/);
+  if (!m) return [];
+  const y1 = Number(m[1]);
+  const y2 = m[2] ? (Number(m[2]) < 100 ? 2000 + Number(m[2]) : Number(m[2])) : y1;
+  return y2 === y1 ? [y1] : [y1, y2];
+};
+
+const dateSelCls = "h-8 rounded-md border border-[#E2E4EA] bg-white px-1 text-[12px] font-semibold text-[#1B1F27]";
+
+const DateSelect = ({ value, years, onChange }: { value: string; years: number[]; onChange: (v: string) => void }) => {
+  const [py, pm, pd] = (value || "").split("-").map(Number);
+  const yearOptions = [...new Set([...(py ? [py] : []), ...years])].sort((a, b) => a - b);
+  const maxDay = py && pm ? daysInMonth(py, pm) : 31;
+  const commit = (ny: number, nm: number, nd: number) => {
+    if (!ny || !nm || !nd) return;
+    onChange(`${ny}-${pad2(nm)}-${pad2(Math.min(nd, daysInMonth(ny, nm)))}`);
+  };
+  return (
+    <div className="flex items-center gap-0.5">
+      <select value={py || ""} onChange={(e) => commit(Number(e.target.value), pm || 1, pd || 1)} className={`${dateSelCls} w-[68px]`} aria-label="年">
+        {!py && <option value="" disabled>年</option>}
+        {yearOptions.map((yy) => <option key={yy} value={yy}>{yy}</option>)}
+      </select>
+      <select value={pm || ""} onChange={(e) => commit(py || years[0] || new Date().getFullYear(), Number(e.target.value), pd || 1)} className={`${dateSelCls} w-[52px]`} aria-label="月">
+        {!pm && <option value="" disabled>月</option>}
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((mm) => <option key={mm} value={mm}>{mm}</option>)}
+      </select>
+      <select value={pd || ""} onChange={(e) => commit(py || years[0] || new Date().getFullYear(), pm || 1, Number(e.target.value))} className={`${dateSelCls} w-[52px]`} aria-label="日">
+        {!pd && <option value="" disabled>日</option>}
+        {Array.from({ length: maxDay }, (_, i) => i + 1).map((dd) => <option key={dd} value={dd}>{dd}</option>)}
+      </select>
+    </div>
+  );
+};
+
 // スコア（自チーム視点）から勝敗バッジを生成。W=勝利(緑)/L=敗北(赤)/D=引分(灰)
 const ResultBadge = ({ selfScore, oppScore }: { selfScore: number | null; oppScore: number | null }) => {
   if (selfScore === null || oppScore === null) return <span className="text-[#9CA3AF]">–</span>;
@@ -510,13 +550,12 @@ export default function MatchSheetPage() {
                 const goals = ownGoals(row);
                 return (
                   <tr key={row.key} className="border-b border-[#E2E4EA] last:border-b-0 hover:bg-[#F8F9FB]/60">
-                    {/* 日付 */}
+                    {/* 日付（選択シーズンの年のみ・年/月/日プルダウン） */}
                     <td className={cellBase}>
-                      <input
-                        type="date"
+                      <DateSelect
                         value={row.matchDate}
-                        onChange={(e) => void saveField(row, { matchDate: e.target.value })}
-                        className="h-8 w-[104px] rounded-md border border-[#E2E4EA] bg-white px-1.5 text-[12px] text-[#1B1F27]"
+                        years={seasonYearsOf(selectedSeason)}
+                        onChange={(v) => void saveField(row, { matchDate: v })}
                       />
                     </td>
                     {/* 大会名（既存行は参照のみ） */}
@@ -670,11 +709,10 @@ export default function MatchSheetPage() {
               {/* 新規行（pending） */}
               <tr className="bg-[#F8F9FB]/70">
                 <td className={cellBase}>
-                  <input
-                    type="date"
+                  <DateSelect
                     value={pending.matchDate}
-                    onChange={(e) => updatePending({ matchDate: e.target.value })}
-                    className="h-8 w-[104px] rounded-md border border-dashed border-[#9CA3AF] bg-white px-1.5 text-[12px]"
+                    years={seasonYearsOf(selectedSeason)}
+                    onChange={(v) => updatePending({ matchDate: v })}
                   />
                 </td>
                 <td className={cellBase}>
