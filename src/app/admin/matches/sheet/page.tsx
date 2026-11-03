@@ -29,6 +29,7 @@ import {
   fetchSheetRounds,
   fetchSheetTeams,
   matchDocPath,
+  moveMatchToRound,
   updateMatchEventFields,
   updateSheetMatch,
 } from "@/lib/match-sheet";
@@ -528,9 +529,34 @@ export default function MatchSheetPage() {
                     <td className={cellBase}>
                       <span className="block truncate px-1 text-[12px] text-[#1B1F27]">{row.competitionName}</span>
                     </td>
-                    {/* 節 */}
+                    {/* 節（同一大会内での移動可。大会名は参照専用） */}
                     <td className={cellBase}>
-                      <span className="block truncate px-1 text-[12px] text-[#1B1F27]">{row.roundName}</span>
+                      <button
+                        type="button"
+                        className={selBtn}
+                        onClick={() =>
+                          openRoundPicker(row.competitionId, row.roundId, async (newRoundId) => {
+                            if (!clubUid || newRoundId === row.roundId) return;
+                            const comp = competitionsMap.get(row.competitionId);
+                            const fromRound = (roundsByComp.get(row.competitionId) || []).find((r) => r.id === row.roundId);
+                            const toRound = (roundsByComp.get(row.competitionId) || []).find((r) => r.id === newRoundId);
+                            if (!comp || !fromRound || !toRound) return;
+                            if (!window.confirm(`${fromRound.name} から ${toRound.name} へこの試合を移動しますか？`)) return;
+                            markSaving(row.key, true);
+                            try {
+                              await moveMatchToRound(db, clubUid, comp, fromRound, toRound, row.matchId, teamsMap);
+                              toast.success(`${toRound.name}へ移動しました。`);
+                              await loadAll();
+                            } catch (e: any) {
+                              toast.error(e?.message || "移動に失敗しました。");
+                            } finally {
+                              markSaving(row.key, false);
+                            }
+                          })
+                        }
+                      >
+                        {row.roundName}
+                      </button>
                     </td>
                     {/* 対戦相手 */}
                     <td className={cellBase}>

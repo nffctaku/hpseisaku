@@ -295,3 +295,49 @@ export const updateMatchEventFields = async (
     tx.set(mirrorRef, clean, { merge: true });
   });
 };
+
+// 同一大会内での節移動（第9節→第10節など）。
+// match docは round配下の物理パスにあるため、doc本体 + eventsサブコレクション(mirror)
+// + public_match_index を1バッチで移動する（成功/失敗が分かれないよう原子的に）。
+// 移動先に同じIDの試合がある場合は上書きせずエラーとする。
+export const moveMatchToRound = async (
+  db: Firestore,
+  clubUid: string,
+  competition: SheetCompetition,
+  fromRound: SheetRound,
+  toRound: SheetRound,
+  matchId: string,
+  teamsMap: Map<string, SheetTeam>
+): Promise<void> => {
+  if (fromRound.id === toRound.id) return;
+  const base = `clubs/${clubUid}/competitions/${competition.id}/rounds`;
+  const srcPath = `${base}/${fromRound.id}/matches/${matchId}`;
+  const dstPath = `${base}/${toRound.id}/matches/${matchId}`;
+
+  const srcSnap = await getDoc(doc(db, srcPath));
+  if (!srcSnap.exists()) throw new Error('移動元の試合が見つかりません。');
+  const dstSnap = await getDoc(doc(db, dstPath));
+  if (dstSnap.exists()) throw new Error('移動先に同じIDの試合が既にあります。上書きはしません。');
+
+  // eventsサブコレクション(mirror)を取得
+  const mirrorSnap = await getDocs(collection(db, `${srcPath}/events`));
+
+  const { writeBatch } = await import('firebase/firestore');
+  const batch = writeBatch(db);
+  // 新パスへdoc＋mirrorを複写
+  batch.set(doc(db, dstPath), srcSnap.data());
+  for (const m of mirrorSnap.docs) {
+    batch.set(doc(db, `${dstPath}/events/${m.id}`), m.data());
+  }
+  // 旧doc・旧mirror・旧indexを削除
+  for (const m of mirrorSnap.docs) {
+    batch.delete(doc(db, `${srcPath}/events/${m.id}`));
+  }
+  batch.delete(doc(db, srcPath));
+  batch.delete(doc(db, `clubs/${clubUid}/public_match_index/${competition.id}__${fromRound.id}__${matchId}`));
+  await batch.commit();
+
+  // 新index生成（roundNameのみ差し替え）
+  await syncIndex(db, clubUid, competition.id, toRound.id, matchId, srcSnap.data() as Record<string, unknown>, competition.name, toRound.name, teamsMap);
+  await bumpStatsCache(db, clubUid);
+};
