@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCareer } from "@/contexts/CareerContext";
@@ -54,7 +54,7 @@ const todayStr = () => {
 };
 
 // 自チーム視点の得点イベントを抽出（type:'goal'自チーム or type:'og'相手チーム）
-// シーズン文字列 → 選択可能な日付範囲（min/max）。例: "2027/28"→2027-01-01〜2028-12-31、"2027"→2027年のみ
+// シーズン文字列 → 選択可能な年一覧。例: "2027/28"→[2027,2028]、"2027"→[2027]
 const seasonYearsOf = (season: string): number[] => {
   const m = season.match(/^(\d{4})(?:\/(\d{2,4}))?$/);
   if (!m) return [];
@@ -63,10 +63,89 @@ const seasonYearsOf = (season: string): number[] => {
   return y2 === y1 ? [y1] : [y1, y2];
 };
 
-const seasonDateRange = (season: string): { min?: string; max?: string } => {
-  const years = seasonYearsOf(season);
-  if (!years.length) return {};
-  return { min: `${years[0]}-01-01`, max: `${years[years.length - 1]}-12-31` };
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const daysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
+// "2028-10-15" → "2028/10/15"（ゼロ埋めなし・既存表示形式）
+const formatSlashDate = (iso: string): string => {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  return y && m && d ? `${y}/${m}/${d}` : iso;
+};
+
+// ホイール式日付ピッカー（年｜月｜日 3列・中央帯・scroll-snap）
+const WHEEL_ITEM_H = 56;
+const MONTH_ITEMS = Array.from({ length: 12 }, (_, i) => i + 1);
+
+const WheelColumn = ({ items, value, onPick, ariaLabel }: { items: number[]; value: number; onPick: (v: number) => void; ariaLabel: string }) => {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) el.scrollTop = Math.max(0, items.indexOf(value)) * WHEEL_ITEM_H;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div
+      ref={ref}
+      role="listbox"
+      aria-label={ariaLabel}
+      onScroll={(e) => {
+        const i = Math.max(0, Math.min(items.length - 1, Math.round(e.currentTarget.scrollTop / WHEEL_ITEM_H)));
+        if (items[i] !== undefined && items[i] !== value) onPick(items[i]);
+      }}
+      className="h-[280px] flex-1 overflow-y-auto py-[112px] [scroll-snap-type:y_mandatory] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      {items.map((v) => (
+        <div
+          key={v}
+          data-picker-selected={v === value ? "true" : undefined}
+          onClick={() => {
+            onPick(v);
+            ref.current?.scrollTo({ top: items.indexOf(v) * WHEEL_ITEM_H, behavior: "smooth" });
+          }}
+          className={`flex h-14 cursor-pointer items-center justify-center [scroll-snap-align:center] text-[22px] font-bold ${v === value ? "text-blue-600" : "text-slate-400"}`}
+        >
+          {v}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const DateWheelModal = ({ initial, years, onDone, onClose }: { initial: string; years: number[]; onDone: (v: string) => void; onClose: () => void }) => {
+  const [iy, im, id] = (initial || todayStr()).split("-").map(Number);
+  const [y, setY] = useState(iy || years[0] || new Date().getFullYear());
+  const [m, setM] = useState(im || 1);
+  const [d, setD] = useState(id || 1);
+  const maxD = daysInMonth(y, m);
+  const clampDay = (ny: number, nm: number, nd: number) => Math.min(nd, daysInMonth(ny, nm));
+  const yearItems = useMemo(() => [...new Set([...years, y])].sort((a, b) => a - b), [years, y]);
+  const dayItems = useMemo(() => Array.from({ length: maxD }, (_, i) => i + 1), [maxD]);
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4" onClick={onClose}>
+      <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-[#f4f4f6] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex h-12 items-center justify-between border-b border-slate-300/80 bg-white px-4">
+          <button type="button" className="text-base font-bold text-blue-500" onClick={onClose}>キャンセル</button>
+          <div className="text-sm font-bold text-slate-500">試合日を選択</div>
+          <button
+            type="button"
+            className="text-base font-bold text-blue-500"
+            onClick={() => onDone(`${y}-${pad2(m)}-${pad2(Math.min(d, maxD))}`)}
+          >
+            完了
+          </button>
+        </div>
+        <div className="relative flex px-2">
+          <div className="pointer-events-none absolute left-2 right-2 top-1/2 h-14 -translate-y-1/2 rounded-xl border-y border-slate-300/80 bg-blue-500/10" />
+          <WheelColumn items={yearItems} value={y} onPick={(v) => { setY(v); setD((dd) => clampDay(v, m, dd)); }} ariaLabel="年" />
+          <WheelColumn items={MONTH_ITEMS} value={m} onPick={(v) => { setM(v); setD((dd) => clampDay(y, v, dd)); }} ariaLabel="月" />
+          <WheelColumn items={dayItems} value={Math.min(d, maxD)} onPick={setD} ariaLabel="日" />
+        </div>
+        <div className="border-t border-slate-300/80 bg-white px-4 py-2 text-center text-[12px] font-bold text-[#1B1F27]">
+          {y}/{m}/{Math.min(d, maxD)}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // スコア（自チーム視点）から勝敗バッジを生成。W=勝利(緑)/L=敗北(赤)/D=引分(灰)
@@ -122,6 +201,7 @@ export default function MatchSheetPage() {
     onSubmit: (text: string) => Promise<void>;
   } | null>(null);
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
+  const [datePick, setDatePick] = useState<{ value: string; onDone: (v: string) => void } | null>(null);
 
   const teamsMap = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const competitionsMap = useMemo(() => new Map(competitions.map((c) => [c.id, c])), [competitions]);
@@ -525,15 +605,16 @@ export default function MatchSheetPage() {
                 const goals = ownGoals(row);
                 return (
                   <tr key={row.key} className="border-b border-[#E2E4EA] last:border-b-0 hover:bg-[#F8F9FB]/60">
-                    {/* 日付（日付ピッカー・選択シーズンの年のみ選択可） */}
+                    {/* 日付（ホイール式ピッカー「試合日を選択」で編集・表示は YYYY/M/D） */}
                     <td className={cellBase}>
-                      <input
-                        type="date"
-                        value={row.matchDate}
-                        {...seasonDateRange(selectedSeason)}
-                        onChange={(e) => void saveField(row, { matchDate: e.target.value })}
-                        className="h-8 w-[104px] rounded-md border border-[#E2E4EA] bg-white px-1.5 text-[12px] text-[#1B1F27]"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setDatePick({ value: row.matchDate, onDone: (v) => void saveField(row, { matchDate: v }) })}
+                        className="flex h-8 w-[104px] items-center gap-1 rounded-md border border-[#E2E4EA] bg-white px-1.5 text-[12px] font-semibold text-[#1B1F27]"
+                      >
+                        <CalendarDays className="h-3.5 w-3.5 shrink-0 text-[#9AA0AE]" />
+                        <span className="truncate">{formatSlashDate(row.matchDate) || "—"}</span>
+                      </button>
                     </td>
                     {/* 大会名（既存行は参照のみ） */}
                     <td className={cellBase}>
@@ -686,13 +767,14 @@ export default function MatchSheetPage() {
               {/* 新規行（pending） */}
               <tr className="bg-[#F8F9FB]/70">
                 <td className={cellBase}>
-                  <input
-                    type="date"
-                    value={pending.matchDate}
-                    {...seasonDateRange(selectedSeason)}
-                    onChange={(e) => updatePending({ matchDate: e.target.value })}
-                    className="h-8 w-[104px] rounded-md border border-dashed border-[#9CA3AF] bg-white px-1.5 text-[12px] text-[#1B1F27]"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setDatePick({ value: pending.matchDate, onDone: (v) => updatePending({ matchDate: v }) })}
+                    className="flex h-8 w-[104px] items-center gap-1 rounded-md border border-dashed border-[#9CA3AF] bg-white px-1.5 text-[12px] font-semibold text-[#1B1F27]"
+                  >
+                    <CalendarDays className="h-3.5 w-3.5 shrink-0 text-[#9AA0AE]" />
+                    <span className="truncate">{formatSlashDate(pending.matchDate) || "—"}</span>
+                  </button>
                 </td>
                 <td className={cellBase}>
                   <button type="button" className={selBtn} onClick={() => openCompetitionPicker(pending.competitionId, (id) => updatePending({ competitionId: id, roundId: "" }))}>
@@ -775,6 +857,17 @@ export default function MatchSheetPage() {
       </div>
 
       <MobilePickerModal picker={picker} onClose={() => setPicker(null)} />
+      {datePick && (
+        <DateWheelModal
+          initial={datePick.value}
+          years={seasonYearsOf(selectedSeason)}
+          onDone={(v) => {
+            datePick.onDone(v);
+            setDatePick(null);
+          }}
+          onClose={() => setDatePick(null)}
+        />
+      )}
 
       {/* 節・対戦相手の新規追加プロンプト */}
       {newTextPrompt && (
