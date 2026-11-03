@@ -729,9 +729,6 @@ export default function MatchSheetPage() {
                     </td>
                     {/* 得点者・時間 */}
                     <td className={cellBase}>
-                      {d.ownTeamId && (
-                        <span className="mb-0.5 block text-[10px] leading-tight text-[#9AA0AE]">得点時間（任意）</span>
-                      )}
                       <div className="flex flex-wrap items-center gap-1">
                         {goals.map((ev) => (
                           <span key={ev.id} className="inline-flex items-center gap-1 rounded-full bg-[#3355FF12] px-2 py-1">
