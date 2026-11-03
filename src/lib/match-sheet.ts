@@ -314,28 +314,26 @@ export const moveMatchToRound = async (
   const srcPath = `${base}/${fromRound.id}/matches/${matchId}`;
   const dstPath = `${base}/${toRound.id}/matches/${matchId}`;
 
+  // mirror一覧はtx外で取得（クライアントSDKのTransactionはQuery不可）。
+  // 移動元/移動先の存在確認はtx内で行い、チェック後に別操作が同じ移動先へ
+  // 書き込んだ場合もトランザクションがリトライ/失敗するため上書きされない。
   const srcSnap = await getDoc(doc(db, srcPath));
   if (!srcSnap.exists()) throw new Error('移動元の試合が見つかりません。');
-  const dstSnap = await getDoc(doc(db, dstPath));
-  if (dstSnap.exists()) throw new Error('移動先に同じIDの試合が既にあります。上書きはしません。');
-
-  // eventsサブコレクション(mirror)を取得
   const mirrorSnap = await getDocs(collection(db, `${srcPath}/events`));
 
-  const { writeBatch } = await import('firebase/firestore');
-  const batch = writeBatch(db);
-  // 新パスへdoc＋mirrorを複写
-  batch.set(doc(db, dstPath), srcSnap.data());
-  for (const m of mirrorSnap.docs) {
-    batch.set(doc(db, `${dstPath}/events/${m.id}`), m.data());
-  }
-  // 旧doc・旧mirror・旧indexを削除
-  for (const m of mirrorSnap.docs) {
-    batch.delete(doc(db, `${srcPath}/events/${m.id}`));
-  }
-  batch.delete(doc(db, srcPath));
-  batch.delete(doc(db, `clubs/${clubUid}/public_match_index/${competition.id}__${fromRound.id}__${matchId}`));
-  await batch.commit();
+  await runTransaction(db, async (tx) => {
+    const srcNow = await tx.get(doc(db, srcPath));
+    if (!srcNow.exists()) throw new Error('移動元の試合が見つかりません。');
+    const dstNow = await tx.get(doc(db, dstPath));
+    if (dstNow.exists()) throw new Error('移動先に同じIDの試合が既にあります。上書きはしません。');
+    tx.set(doc(db, dstPath), srcNow.data());
+    for (const m of mirrorSnap.docs) {
+      tx.set(doc(db, `${dstPath}/events/${m.id}`), m.data());
+      tx.delete(doc(db, `${srcPath}/events/${m.id}`));
+    }
+    tx.delete(doc(db, srcPath));
+    tx.delete(doc(db, `clubs/${clubUid}/public_match_index/${competition.id}__${fromRound.id}__${matchId}`));
+  });
 
   // 新index生成（roundNameのみ差し替え）
   await syncIndex(db, clubUid, competition.id, toRound.id, matchId, srcSnap.data() as Record<string, unknown>, competition.name, toRound.name, teamsMap);

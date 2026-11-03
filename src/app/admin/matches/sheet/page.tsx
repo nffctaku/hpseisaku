@@ -541,7 +541,7 @@ export default function MatchSheetPage() {
                             const fromRound = (roundsByComp.get(row.competitionId) || []).find((r) => r.id === row.roundId);
                             const toRound = (roundsByComp.get(row.competitionId) || []).find((r) => r.id === newRoundId);
                             if (!comp || !fromRound || !toRound) return;
-                            if (!window.confirm(`${fromRound.name} から ${toRound.name} へこの試合を移動しますか？`)) return;
+                            if (!window.confirm(`${fromRound.name} から ${toRound.name} へこの試合を移動しますか？\n節を変更すると公開ページのURLが変わり、以前のリンクは開けなくなります。`)) return;
                             markSaving(row.key, true);
                             try {
                               await moveMatchToRound(db, clubUid, comp, fromRound, toRound, row.matchId, teamsMap);
@@ -601,6 +601,9 @@ export default function MatchSheetPage() {
                     </td>
                     {/* 得点者・時間 */}
                     <td className={cellBase}>
+                      {d.ownTeamId && (
+                        <span className="mb-0.5 block text-[10px] leading-tight text-[#9AA0AE]">得点時間（任意）</span>
+                      )}
                       <div className="flex flex-wrap items-center gap-1">
                         {goals.map((ev) => (
                           <span key={ev.id} className="inline-flex items-center gap-1 rounded-full bg-[#3355FF12] px-2 py-1">
@@ -608,12 +611,14 @@ export default function MatchSheetPage() {
                             <input
                               inputMode="numeric"
                               defaultValue={formatMinute(ev.minute)}
-                              placeholder="分"
+                              placeholder="例：23、45+2"
+                              title="得点時間（任意）"
+                              aria-label="得点時間（任意）"
                               onBlur={(e) => {
                                 const v = e.target.value;
                                 if (v !== formatMinute(ev.minute)) void updateScorerMinute(row, ev.id, v);
                               }}
-                              className="h-6 w-10 rounded border border-[#E2E4EA] bg-white text-center text-[11px]"
+                              className="h-6 w-[76px] rounded border border-[#E2E4EA] bg-white text-center text-[11px] font-semibold text-[#1B1F27] placeholder:font-normal placeholder:text-[#9AA0AE]"
                             />
                             <button type="button" onClick={() => void removeScorer(row, ev.id)} className="text-[#9CA3AF] hover:text-red-500" aria-label="削除">
                               <X className="h-3 w-3" />
