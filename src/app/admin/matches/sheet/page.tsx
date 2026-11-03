@@ -159,10 +159,17 @@ const ScorerWheelModal = ({
   onDone: (playerId: string, minute: string) => void;
   onClose: () => void;
 }) => {
-  const minuteItems = useMemo(
-    () => [{ v: "", label: "未入力" }, ...Array.from({ length: 120 }, (_, i) => ({ v: String(i + 1), label: String(i + 1) }))],
-    []
-  );
+  const minuteItems = useMemo(() => {
+    const items = [{ v: "", label: "未入力" }];
+    for (let i = 1; i <= 120; i++) {
+      items.push({ v: String(i), label: String(i) });
+      // 45/90/105分の直後にロスタイム候補（45+1〜45+10 等）を時系列順で挿入
+      if (i === 45 || i === 90 || i === 105) {
+        for (let e = 1; e <= 10; e++) items.push({ v: `${i}+${e}`, label: `${i}+${e}` });
+      }
+    }
+    return items;
+  }, []);
   const [minute, setMinute] = useState("");
   const [playerId, setPlayerId] = useState(players[0]?.v ?? "");
   const preview = players.find((p) => p.v === playerId)?.label ?? "";
