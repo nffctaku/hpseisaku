@@ -972,7 +972,10 @@ export default function MatchSheetPage() {
                   {(pending.competitionId || pending.roundId || pending.opponentTeamId || pending.selfScore != null || pending.oppScore != null || pending.ha !== "H" || pending.matchDate !== todayStr()) ? (
                     <button
                       type="button"
-                      onClick={() => setPending({ matchDate: todayStr(), competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null })}
+                      onClick={() => {
+                        if (!window.confirm("入力中の内容を消去しますか？")) return;
+                        setPending({ matchDate: todayStr(), competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null });
+                      }}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#9CA3AF] hover:bg-red-50 hover:text-red-500"
                       aria-label="入力行をクリア"
                       title="入力内容をクリア"
