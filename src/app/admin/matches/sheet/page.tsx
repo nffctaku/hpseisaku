@@ -929,7 +929,8 @@ export default function MatchSheetPage() {
       {scorerPick && (
         <ScorerWheelModal
           players={[
-            ...(seasonPlayerIds ? players.filter((p) => seasonPlayerIds.has(p.id)) : players).map((p) => ({
+            // rosterに見つからない選手は候補に出さない（roster未取得のシーズンは選手0件＋OGのみ）
+            ...players.filter((p) => seasonPlayerIds?.has(p.id) ?? false).map((p) => ({
               v: p.id,
               label: p.number != null ? `${p.number} ${p.name}` : p.name,
             })),
