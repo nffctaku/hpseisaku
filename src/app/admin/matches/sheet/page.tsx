@@ -301,18 +301,14 @@ export default function MatchSheetPage() {
   // rosterコレクションは参照しないため取得失敗で空になる問題を回避。
   // シーズン情報を持たない選手はレガシーとして在籍扱い＝選手管理画面の表示と一致）
   const scorerCandidates = useMemo(() => {
-    if (!selectedSeason) return players;
-    const sids = seasonKeyCandidates(selectedSeason);
-    return players.filter((p) => {
-      const seasons = Array.isArray((p as any).seasons) ? ((p as any).seasons as string[]) : null;
-      const sd = (p as any).seasonData && typeof (p as any).seasonData === "object" ? ((p as any).seasonData as Record<string, unknown>) : null;
-      const hasSeasonInfo = (sd && Object.keys(sd).length > 0) || (seasons && seasons.length > 0);
-      if (!hasSeasonInfo) return true;
-      if (sd && sids.some((k) => k in sd)) return true;
-      if (seasons && seasons.some((s) => seasonKeyCandidates(String(s)).some((k) => sids.includes(k)))) return true;
-      return false;
-    });
-  }, [players, selectedSeason]);
+    // rosterに該当シーズンの選手がいる場合はその名簿を使用（詳細画面のスタメン選択と同じ）
+    if (rosterPlayers.length > 0) {
+      const rosterIds = new Set(rosterPlayers.map((p) => p.id));
+      return players.filter((p) => rosterIds.has(p.id));
+    }
+    // rosterが空（未登録シーズン）の場合は詳細画面と同じくチーム全選手を候補にする
+    return players;
+  }, [players, rosterPlayers]);
 
   const markSaving = (key: string, on: boolean) => {
     setSavingKeys((prev) => {
