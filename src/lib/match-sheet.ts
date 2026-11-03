@@ -38,6 +38,7 @@ export interface SheetCompetition {
   season?: string;
   format?: string;
   teams?: string[];
+  logoUrl?: string;
 }
 
 export interface SheetPlayer {

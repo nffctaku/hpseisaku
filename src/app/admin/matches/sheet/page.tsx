@@ -472,10 +472,14 @@ export default function MatchSheetPage() {
 
   // === セル用ピッカー ===
   const openCompetitionPicker = (current: string, onPick: (id: string) => void) => {
+    // 選択中シーズンに登録されている大会のみ（season未設定の大会も含める・行表示と同じルール）
+    const list = selectedSeason
+      ? competitions.filter((c) => toSlashSeason(c.season || "") === selectedSeason || !c.season)
+      : competitions;
     setPicker({
       title: "大会を選択",
       value: current,
-      options: competitions.map((c) => ({ value: c.id, label: c.name })),
+      options: list.map((c) => ({ value: c.id, label: c.name, iconUrl: c.logoUrl })),
       onSelect: onPick,
     });
   };
