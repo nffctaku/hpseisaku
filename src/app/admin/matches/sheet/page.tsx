@@ -587,7 +587,7 @@ export default function MatchSheetPage() {
         </div>
 
         <div className="overflow-x-auto rounded-[10px] border border-[#E2E4EA] bg-white">
-          <table className="w-full min-w-[980px] border-collapse text-[12px]">
+          <table className="w-full min-w-[1120px] border-collapse text-[12px]">
             <thead>
               <tr className="border-b border-[#E2E4EA] bg-[#F8F9FB] text-left text-[11px] font-semibold text-[#6B7280]">
                 <th className={`${cellBase} w-[108px]`}>日付</th>
@@ -597,7 +597,7 @@ export default function MatchSheetPage() {
                 <th className={`${cellBase} w-[56px] text-center`}>H/A</th>
                 <th className={`${cellBase} w-[110px] text-center`}>スコア</th>
                 <th className={`${cellBase} w-[44px] text-center`}>勝敗</th>
-                <th className={`${cellBase} min-w-[220px]`}>得点者・時間</th>
+                <th className={`${cellBase} min-w-[360px]`}>得点者・時間</th>
                 <th className={`${cellBase} w-[64px] text-center`}>詳細</th>
               </tr>
             </thead>
