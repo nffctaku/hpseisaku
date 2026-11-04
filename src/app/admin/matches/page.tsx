@@ -114,8 +114,14 @@ export default function MatchesPage() {
         </div>
       ) : (
         <>
-          <div className="mb-3 flex justify-center">
-            <div className="w-full sm:w-[220px]">
+          <MatchesFilters
+            teams={teams}
+            competitions={competitions}
+            competitionTeamIds={competitionTeamIds}
+            initialTeamId={initialTeamId}
+            fixedSeason={selectedSeason}
+            hideSeasonSelect
+            leading={
               <Select value={selectedSeason} onValueChange={(value) => {
                 setSelectedSeason(value);
                 setHasSearched(false);
@@ -123,7 +129,7 @@ export default function MatchesPage() {
                 clearMatches();
                 router.replace(`/admin/matches?season=${encodeURIComponent(value)}`);
               }}>
-                <SelectTrigger className="w-full bg-white text-gray-900">
+                <SelectTrigger className="w-full sm:w-[200px] bg-white text-gray-900">
                   <SelectValue placeholder="シーズン" />
                 </SelectTrigger>
                 <SelectContent>
@@ -134,16 +140,7 @@ export default function MatchesPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-
-          <MatchesFilters
-            teams={teams}
-            competitions={competitions}
-            competitionTeamIds={competitionTeamIds}
-            initialTeamId={initialTeamId}
-            fixedSeason={selectedSeason}
-            hideSeasonSelect
+            }
             loading={loadingMatches}
             onSearch={async (v) => {
               setHasSearched(true);

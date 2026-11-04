@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { CompetitionOption, Team } from "../hooks/useMatchesData";
@@ -18,11 +18,13 @@ export function MatchesFilters(props: {
   initialTeamId: string;
   fixedSeason?: string;
   hideSeasonSelect?: boolean;
+  /** 先頭に差し込む要素（例: ページ側のシーズン選択を横並びにする） */
+  leading?: ReactNode;
   onSearch: (v: MatchesFiltersValue) => void;
   onClear: () => void;
   loading: boolean;
 }) {
-  const { teams, competitions, competitionTeamIds, initialTeamId, fixedSeason, hideSeasonSelect, onSearch, onClear, loading } = props;
+  const { teams, competitions, competitionTeamIds, initialTeamId, fixedSeason, hideSeasonSelect, leading, onSearch, onClear, loading } = props;
 
   const [season, setSeason] = useState<string>(typeof fixedSeason === "string" && fixedSeason.trim().length > 0 ? fixedSeason : "all");
   const [competitionId, setCompetitionId] = useState<string>("all");
@@ -78,7 +80,8 @@ export function MatchesFilters(props: {
 
   return (
     <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 sm:gap-4 w-full">
-      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 flex-1">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-3 flex-1">
+        {leading}
         {hideSeasonSelect ? null : (
           <Select value={season} onValueChange={setSeason}>
             <SelectTrigger className="w-full sm:w-[220px] bg-white text-gray-900">
@@ -95,7 +98,7 @@ export function MatchesFilters(props: {
         )}
 
         <Select value={competitionId} onValueChange={setCompetitionId}>
-          <SelectTrigger className="w-full sm:w-[220px] bg-white text-gray-900">
+          <SelectTrigger className="w-full sm:w-[200px] bg-white text-gray-900">
             <SelectValue placeholder="すべての大会" />
           </SelectTrigger>
           <SelectContent>
@@ -109,7 +112,7 @@ export function MatchesFilters(props: {
         </Select>
 
         <Select value={teamId} onValueChange={setTeamId}>
-          <SelectTrigger className="w-full sm:w-[220px] bg-white text-gray-900">
+          <SelectTrigger className="w-full sm:w-[200px] bg-white text-gray-900">
             <SelectValue placeholder="チームを選択" />
           </SelectTrigger>
           <SelectContent>
@@ -139,7 +142,7 @@ export function MatchesFilters(props: {
           type="button"
           disabled={loading}
           onClick={() => onSearch({ season, competitionId, teamId })}
-          className="w-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 px-6 py-2 rounded-md whitespace-nowrap text-center text-sm"
+          className="w-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 px-4 py-2 rounded-md whitespace-nowrap text-center text-sm"
         >
           表示
         </button>
@@ -152,7 +155,7 @@ export function MatchesFilters(props: {
             setTeamId(initialTeamId && teams.some((t) => t.id === initialTeamId) ? initialTeamId : "all");
             onClear();
           }}
-          className="w-full rounded-md border bg-white px-6 py-2 text-sm text-gray-900 shadow-sm hover:bg-gray-50 disabled:opacity-60"
+          className="w-full rounded-md border bg-white px-4 py-2 text-sm text-gray-900 shadow-sm hover:bg-gray-50 disabled:opacity-60"
         >
           クリア
         </button>
