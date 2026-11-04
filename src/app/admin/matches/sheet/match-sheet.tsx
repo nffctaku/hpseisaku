@@ -629,7 +629,21 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
       }, teamsMap);
       toast.success("試合カードを作成しました。");
       setPending({ matchDate: "", competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null, pkSelf: null, pkOpp: null });
-      await loadAll();
+      // 全件リロードせず作成した行だけローカル追加（日付順を維持）
+      const newRow: SheetMatchRow = {
+        key: `${comp.id}__${round.id}__${matchId}`,
+        matchId,
+        competitionId: comp.id,
+        roundId: round.id,
+        competitionName: comp.name,
+        roundName: round.name,
+        matchDate: next.matchDate || "",
+        homeTeam, awayTeam, scoreHome, scoreAway,
+        pkScoreHome: next.ha === "H" ? next.pkSelf : next.pkOpp,
+        pkScoreAway: next.ha === "H" ? next.pkOpp : next.pkSelf,
+        events: [],
+      };
+      setRows((prev) => [...prev, newRow].sort((a, b) => (a.matchDate || "9999").localeCompare(b.matchDate || "9999")));
     } catch (e) {
       console.error(e);
       toast.error("作成に失敗しました。");
