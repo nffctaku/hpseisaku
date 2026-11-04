@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useCareer } from "@/contexts/CareerContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MatchSheet } from "./sheet/match-sheet";
 import { MatchesFilters } from "./components/MatchesFilters";
-import { MatchesList } from "./components/MatchesList";
 import { useMatchesData } from "./hooks/useMatchesData";
 import { toSlashSeason } from "@/lib/season";
 
@@ -17,21 +15,17 @@ export default function MatchesPage() {
   const searchParams = useSearchParams();
   const { activeCareer, loading: careerLoading } = useCareer();
   const clubUid = activeCareer?.clubUid;
-  const { teams, competitions, competitionTeamIds, mainTeamId, matches, loadingBootstrap, loadingMatches, runSearch, clearMatches } =
+  const { teams, competitions, competitionTeamIds, mainTeamId, loadingBootstrap } =
     useMatchesData(clubUid);
 
-  const [hasSearched, setHasSearched] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
-  const [lastTeamId, setLastTeamId] = useState<string>("all");
   // 上部フィルターの条件を記録シートへ連動させるための保持値
   const [sheetFilters, setSheetFilters] = useState({ competitionId: "all", teamId: "all" });
 
   useEffect(() => {
-    setHasSearched(false);
-    setLastTeamId("all");
     setSelectedSeason(null);
-    clearMatches();
-  }, [clubUid, clearMatches]);
+    setSheetFilters({ competitionId: "all", teamId: "all" });
+  }, [clubUid]);
 
   const initialTeamId = useMemo(() => {
     if (typeof mainTeamId === 'string' && mainTeamId.length > 0) return mainTeamId;
@@ -63,20 +57,16 @@ export default function MatchesPage() {
     }
     if (qSeason && seasonButtons.includes(qSeason)) {
       setSelectedSeason(qSeason);
-      setHasSearched(false);
-      clearMatches();
       return;
     }
     // season未指定・無効指定は有効な最新シーズンへ。候補が無ければ空表示のまま
     if (seasonButtons.length > 0) {
       setSelectedSeason(seasonButtons[0]);
-      setHasSearched(false);
-      clearMatches();
       if (qSeason !== seasonButtons[0]) {
         router.replace(`/admin/matches?season=${encodeURIComponent(seasonButtons[0])}`);
       }
     }
-  }, [loadingBootstrap, searchParams, seasonButtons, selectedSeason, clearMatches, router]);
+  }, [loadingBootstrap, searchParams, seasonButtons, selectedSeason, router]);
 
   if (careerLoading || loadingBootstrap) {
     return (
@@ -94,9 +84,7 @@ export default function MatchesPage() {
           <div className="w-full sm:w-[220px]">
             <Select value="" onValueChange={(value) => {
               setSelectedSeason(value);
-              setHasSearched(false);
               setSheetFilters({ competitionId: "all", teamId: "all" });
-              clearMatches();
               router.replace(`/admin/matches?season=${encodeURIComponent(value)}`);
             }}>
               <SelectTrigger className="w-full bg-white text-gray-900">
@@ -124,9 +112,7 @@ export default function MatchesPage() {
             leading={
               <Select value={selectedSeason} onValueChange={(value) => {
                 setSelectedSeason(value);
-                setHasSearched(false);
                 setSheetFilters({ competitionId: "all", teamId: "all" });
-                clearMatches();
                 router.replace(`/admin/matches?season=${encodeURIComponent(value)}`);
               }}>
                 <SelectTrigger className="w-full min-w-[130px] flex-1 sm:w-[200px] sm:flex-none bg-white text-gray-900">
@@ -141,18 +127,12 @@ export default function MatchesPage() {
                 </SelectContent>
               </Select>
             }
-            loading={loadingMatches}
-            onSearch={async (v) => {
-              setHasSearched(true);
-              setLastTeamId(v.teamId);
+            loading={false}
+            onSearch={(v) => {
               setSheetFilters({ competitionId: v.competitionId, teamId: v.teamId });
-              await runSearch(v);
             }}
             onClear={() => {
-              setHasSearched(false);
-              setLastTeamId("all");
               setSheetFilters({ competitionId: "all", teamId: "all" });
-              clearMatches();
             }}
           />
 
@@ -169,30 +149,6 @@ export default function MatchesPage() {
         </>
       )}
 
-      <div className="mb-3 flex justify-center">
-        <Link
-          href="/admin/matches/sheet"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[#E2E4EA] bg-white px-3 py-2 text-[12px] font-semibold text-[#3355FF] hover:bg-[#3355FF10]"
-        >
-          試合記録シート（公式戦）で入力
-        </Link>
-      </div>
-
-      <div className="mt-6">
-        {loadingMatches ? (
-          <div className="flex justify-center items-center py-10">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        ) : hasSearched ? (
-          <MatchesList matches={matches} perspectiveTeamId={lastTeamId !== 'all' ? lastTeamId : undefined} />
-        ) : selectedSeason === null ? (
-          <div className="text-center py-10 text-muted-foreground">上でシーズンを選択してください。</div>
-        ) : (
-          <div className="flex justify-center py-6">
-            <div className="text-xs text-muted-foreground whitespace-nowrap">表示したいシーズン、大会、チームを選択して表示を押してください</div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
