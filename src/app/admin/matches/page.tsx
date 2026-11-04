@@ -23,6 +23,8 @@ export default function MatchesPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   const [lastTeamId, setLastTeamId] = useState<string>("all");
+  // 上部フィルターの条件を記録シートへ連動させるための保持値
+  const [sheetFilters, setSheetFilters] = useState({ competitionId: "all", teamId: "all" });
 
   useEffect(() => {
     setHasSearched(false);
@@ -93,6 +95,7 @@ export default function MatchesPage() {
             <Select value="" onValueChange={(value) => {
               setSelectedSeason(value);
               setHasSearched(false);
+              setSheetFilters({ competitionId: "all", teamId: "all" });
               clearMatches();
               router.replace(`/admin/matches?season=${encodeURIComponent(value)}`);
             }}>
@@ -116,6 +119,7 @@ export default function MatchesPage() {
               <Select value={selectedSeason} onValueChange={(value) => {
                 setSelectedSeason(value);
                 setHasSearched(false);
+                setSheetFilters({ competitionId: "all", teamId: "all" });
                 clearMatches();
                 router.replace(`/admin/matches?season=${encodeURIComponent(value)}`);
               }}>
@@ -144,18 +148,25 @@ export default function MatchesPage() {
             onSearch={async (v) => {
               setHasSearched(true);
               setLastTeamId(v.teamId);
+              setSheetFilters({ competitionId: v.competitionId, teamId: v.teamId });
               await runSearch(v);
             }}
             onClear={() => {
               setHasSearched(false);
               setLastTeamId("all");
+              setSheetFilters({ competitionId: "all", teamId: "all" });
               clearMatches();
             }}
           />
 
-          {/* 試合記録シート（公式戦）: フィルター直下に埋め込み。シーズンはURLの ?season= に追従 */}
+          {/* 試合記録シート（公式戦）: フィルター直下に埋め込み。シーズン・大会・チームは上部フィルターに追従 */}
           <div className="mt-8">
-            <MatchSheet key={selectedSeason} initialSeason={selectedSeason} />
+            <MatchSheet
+              key={selectedSeason}
+              initialSeason={selectedSeason}
+              filterCompetitionId={sheetFilters.competitionId}
+              filterTeamId={sheetFilters.teamId}
+            />
           </div>
         </>
       )}

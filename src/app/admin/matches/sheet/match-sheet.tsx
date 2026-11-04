@@ -225,7 +225,7 @@ const goalEventLabel = (ev: MatchEvent): string => {
   return ev.playerName || "不明";
 };
 
-export function MatchSheet({ initialSeason }: { initialSeason?: string }) {
+export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId }: { initialSeason?: string; filterCompetitionId?: string; filterTeamId?: string }) {
   const { user } = useAuth();
   const { activeCareer, loading: careerLoading } = useCareer();
   // activeCareer未解決（Career未作成の旧ユーザー等）は uid フォールバック（EventForm等と同じ）
@@ -729,12 +729,18 @@ export function MatchSheet({ initialSeason }: { initialSeason?: string }) {
   const seasonComps = selectedSeason
     ? competitions.filter((c) => toSlashSeason(c.season || "") === selectedSeason || !c.season)
     : competitions;
-  const visibleRows = selectedSeason
+  const visibleRows = (selectedSeason
     ? rows.filter((r) => {
         const comp = competitionsMap.get(r.competitionId);
         return !comp?.season || toSlashSeason(comp.season) === selectedSeason;
       })
-    : rows;
+    : rows
+  ).filter((r) => {
+    // 上部フィルター連動: 大会・チーム（自/相どちらかに該当すれば表示）
+    if (filterCompetitionId && filterCompetitionId !== "all" && r.competitionId !== filterCompetitionId) return false;
+    if (filterTeamId && filterTeamId !== "all" && r.homeTeam !== filterTeamId && r.awayTeam !== filterTeamId) return false;
+    return true;
+  });
 
   const cellBase = "border-r border-[#E2E4EA] px-1.5 py-1 align-middle";
   const selBtn = "w-full min-w-[92px] h-8 rounded-md border border-[#E2E4EA] bg-white px-2 text-left text-[12px] text-[#1B1F27] truncate";
