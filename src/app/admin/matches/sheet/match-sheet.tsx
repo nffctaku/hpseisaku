@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCareer } from "@/contexts/CareerContext";
@@ -257,6 +258,9 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
   const [pkOpenPending, setPkOpenPending] = useState(false);
   // 新規入力行は「＋試合を追加」を押した時だけ表示
   const [pendingVisible, setPendingVisible] = useState(false);
+  // FABをbodyへportal描画するためのマウント判定（SSR/初回描画ではdocumentが無い）
+  const [fabMounted, setFabMounted] = useState(false);
+  useEffect(() => { setFabMounted(true); }, []);
   // 親ページ（/admin/matches）からの初期シーズン指定に追従
   useEffect(() => { if (initialSeason) setSelectedSeason(toSlashSeason(initialSeason)); }, [initialSeason]);
   const [newTextPrompt, setNewTextPrompt] = useState<{
@@ -1146,19 +1150,23 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
       </div>
 
       <MobilePickerModal picker={picker} onClose={() => setPicker(null)} />
-      {/* 試合追加ボタン: 画面下部中央に常時固定表示 */}
-      <div className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2">
-        <button
-          type="button"
-          onClick={() => {
-            setPendingVisible(true);
-            requestAnimationFrame(() => document.getElementById("sheet-pending-date")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
-          }}
-          className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#9CA3AF] bg-white px-5 py-2.5 text-[13px] font-semibold text-[#3355FF] shadow-lg hover:bg-[#3355FF10]"
-        >
-          ＋ 試合を追加
-        </button>
-      </div>
+      {/* 試合追加ボタン: 画面下部中央に固定表示（入力行表示中は重ならないよう隠す）。
+          祖先のtransformでfixedが効かないケースに備えbodyへportal描画 */}
+      {fabMounted && !pendingVisible && createPortal(
+        <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2">
+          <button
+            type="button"
+            onClick={() => {
+              setPendingVisible(true);
+              requestAnimationFrame(() => document.getElementById("sheet-pending-date")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+            }}
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#9CA3AF] bg-white px-5 py-2.5 text-[13px] font-semibold text-[#3355FF] shadow-lg hover:bg-[#3355FF10]"
+          >
+            ＋ 試合を追加
+          </button>
+        </div>,
+        document.body
+      )}
       {datePick && (
         <DateWheelModal
           initial={datePick.value}
