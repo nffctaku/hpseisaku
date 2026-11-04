@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useCareer } from "@/contexts/CareerContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MatchSheet } from "./sheet/match-sheet";
 import { MatchesFilters } from "./components/MatchesFilters";
 import { MatchesList } from "./components/MatchesList";
 import { useMatchesData } from "./hooks/useMatchesData";
@@ -151,6 +152,11 @@ export default function MatchesPage() {
               clearMatches();
             }}
           />
+
+          {/* 試合記録シート（公式戦）: フィルター直下に埋め込み。シーズンはURLの ?season= に追従 */}
+          <div className="mt-8">
+            <MatchSheet key={selectedSeason} initialSeason={selectedSeason} />
+          </div>
         </>
       )}
 
