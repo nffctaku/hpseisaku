@@ -79,12 +79,12 @@ export function MatchesFilters(props: {
   }, [visibleTeams, teamId]);
 
   return (
-    <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 sm:gap-4 w-full">
-      <div className="flex flex-col sm:flex-row gap-3 sm:gap-3 flex-1">
+    <div className="flex flex-row flex-wrap items-end gap-2 sm:gap-4 w-full">
+      <div className="flex flex-row flex-wrap gap-2 sm:gap-3 flex-1 min-w-0">
         {leading}
         {hideSeasonSelect ? null : (
           <Select value={season} onValueChange={setSeason}>
-            <SelectTrigger className="w-full sm:w-[220px] bg-white text-gray-900">
+            <SelectTrigger className="w-full min-w-[130px] flex-1 sm:w-[200px] sm:flex-none bg-white text-gray-900">
               <SelectValue placeholder="すべてのシーズン" />
             </SelectTrigger>
             <SelectContent>
@@ -98,7 +98,7 @@ export function MatchesFilters(props: {
         )}
 
         <Select value={competitionId} onValueChange={setCompetitionId}>
-          <SelectTrigger className="w-full sm:w-[200px] bg-white text-gray-900">
+          <SelectTrigger className="w-full min-w-[130px] flex-1 sm:w-[200px] sm:flex-none bg-white text-gray-900">
             <SelectValue placeholder="すべての大会" />
           </SelectTrigger>
           <SelectContent>
@@ -112,7 +112,7 @@ export function MatchesFilters(props: {
         </Select>
 
         <Select value={teamId} onValueChange={setTeamId}>
-          <SelectTrigger className="w-full sm:w-[200px] bg-white text-gray-900">
+          <SelectTrigger className="w-full min-w-[130px] flex-1 sm:w-[200px] sm:flex-none bg-white text-gray-900">
             <SelectValue placeholder="チームを選択" />
           </SelectTrigger>
           <SelectContent>

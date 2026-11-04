@@ -129,7 +129,7 @@ export default function MatchesPage() {
                 clearMatches();
                 router.replace(`/admin/matches?season=${encodeURIComponent(value)}`);
               }}>
-                <SelectTrigger className="w-full sm:w-[200px] bg-white text-gray-900">
+                <SelectTrigger className="w-full min-w-[130px] flex-1 sm:w-[200px] sm:flex-none bg-white text-gray-900">
                   <SelectValue placeholder="シーズン" />
                 </SelectTrigger>
                 <SelectContent>
