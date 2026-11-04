@@ -235,7 +235,7 @@ export default function MatchSheetPage() {
   const [rows, setRows] = useState<SheetMatchRow[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>("");
   const [pending, setPending] = useState<PendingRow>({
-    matchDate: todayStr(),
+    matchDate: "",
     competitionId: "",
     roundId: "",
     opponentTeamId: "",
@@ -378,9 +378,6 @@ export default function MatchSheetPage() {
       const ownRows = allRows.filter((r) => ownIds.has(r.homeTeam) || ownIds.has(r.awayTeam));
       ownRows.sort((a, b) => (a.matchDate || "9999").localeCompare(b.matchDate || "9999"));
       setRows(ownRows);
-      // 新規入力行の日付初期値 = 直近試合の日付（近い日程からホイールでスクロールできるよう）
-      const latest = ownRows[ownRows.length - 1]?.matchDate;
-      if (latest) setPending((p) => p.matchDate === todayStr() && !p.competitionId && !p.roundId && !p.opponentTeamId && p.selfScore == null && p.oppScore == null ? { ...p, matchDate: latest } : p);
 
       const seasons = [...new Set(comps.map((c) => (c.season || "").trim()).filter(Boolean))].map(toSlashSeason).sort().reverse();
       setSelectedSeason((prev) => prev || seasons[0] || "");
@@ -406,6 +403,15 @@ export default function MatchSheetPage() {
   }, [clubUid, careerLoading, loadAll]);
 
   // === 行の表示用導出 ===
+  // 新規行ホイールの開始位置: 直近の日付入り試合（なければ今日）
+  const latestRowDate = () => {
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const d = rows[i].matchDate;
+      if (d) return d;
+    }
+    return todayStr();
+  };
+
   const describe = (row: SheetMatchRow) => {
     const own = mainTeamId;
     let ha: HAPref | "" = "";
@@ -586,7 +592,7 @@ export default function MatchSheetPage() {
         homeTeam, awayTeam, scoreHome, scoreAway,
       }, teamsMap);
       toast.success("試合カードを作成しました。");
-      setPending({ matchDate: rows[rows.length - 1]?.matchDate || todayStr(), competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null });
+      setPending({ matchDate: "", competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null });
       await loadAll();
     } catch (e) {
       console.error(e);
@@ -904,11 +910,13 @@ export default function MatchSheetPage() {
                 <td className={cellBase}>
                   <button
                     type="button"
-                    onClick={() => setDatePick({ value: pending.matchDate, onDone: (v) => updatePending({ matchDate: v }) })}
+                    onClick={() => setDatePick({ value: pending.matchDate || latestRowDate(), onDone: (v) => updatePending({ matchDate: v }) })}
                     className="flex h-8 w-[104px] items-center gap-1 rounded-md border border-dashed border-[#9CA3AF] bg-white px-1.5 text-[12px] font-semibold text-[#1B1F27]"
                   >
                     <CalendarDays className="h-3.5 w-3.5 shrink-0 text-[#9AA0AE]" />
-                    <span className="truncate">{formatSlashDate(pending.matchDate) || "—"}</span>
+                    <span className={`truncate ${pending.matchDate ? "" : "text-[#9AA0AE] font-normal"}`}>
+                      {pending.matchDate ? formatSlashDate(pending.matchDate) : "日付を選択"}
+                    </span>
                   </button>
                 </td>
                 <td className={cellBase}>
@@ -980,12 +988,12 @@ export default function MatchSheetPage() {
                 </td>
                 {/* 削除（1項目でも入力されていれば×で破棄できる） */}
                 <td className={`${cellBase} text-center`}>
-                  {(pending.competitionId || pending.roundId || pending.opponentTeamId || pending.selfScore != null || pending.oppScore != null || pending.ha !== "H" || pending.matchDate !== todayStr()) ? (
+                  {(pending.competitionId || pending.roundId || pending.opponentTeamId || pending.selfScore != null || pending.oppScore != null || pending.ha !== "H" || pending.matchDate !== "") ? (
                     <button
                       type="button"
                       onClick={() => {
                         if (!window.confirm("入力中の内容を消去しますか？")) return;
-                        setPending({ matchDate: rows[rows.length - 1]?.matchDate || todayStr(), competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null });
+                        setPending({ matchDate: "", competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null });
                       }}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#9CA3AF] hover:bg-red-50 hover:text-red-500"
                       aria-label="入力行をクリア"
