@@ -371,6 +371,10 @@ export function PlayerForm({
     } catch {
       // 計測失敗でフォーム処理を止めない
     }
+    const flat = flattenErrors(errors);
+    if (flat.length > 0) {
+      console.warn("[PlayerForm] validation failed", { paths: flat, errors });
+    }
     const first = findFirstErrorPath(errors);
     if (first) {
       const mapped = getSectionForPath(first);
