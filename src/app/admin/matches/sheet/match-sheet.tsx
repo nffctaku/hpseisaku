@@ -255,6 +255,8 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
   // PK入力枠の展開状態（行keyごと）＋新規行用フラグ
   const [pkOpenRows, setPkOpenRows] = useState<Record<string, boolean>>({});
   const [pkOpenPending, setPkOpenPending] = useState(false);
+  // 新規入力行は「＋試合を追加」を押した時だけ表示
+  const [pendingVisible, setPendingVisible] = useState(false);
   // 親ページ（/admin/matches）からの初期シーズン指定に追従
   useEffect(() => { if (initialSeason) setSelectedSeason(toSlashSeason(initialSeason)); }, [initialSeason]);
   const [newTextPrompt, setNewTextPrompt] = useState<{
@@ -629,6 +631,7 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
       }, teamsMap);
       toast.success("試合カードを作成しました。");
       setPending({ matchDate: "", competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null, pkSelf: null, pkOpp: null });
+      setPendingVisible(false); // 作成後は入力行を閉じ、次は「＋試合を追加」で開く
       // 全件リロードせず作成した行だけローカル追加（日付順を維持）
       const newRow: SheetMatchRow = {
         key: `${comp.id}__${round.id}__${matchId}`,
@@ -995,7 +998,8 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
                 );
               })}
 
-              {/* 新規行（pending） */}
+              {/* 新規行（pending）「＋試合を追加」で表示 */}
+              {pendingVisible && (
               <tr className="bg-[#F8F9FB]/70">
                 <td className={cellBase}>
                   <button
@@ -1117,6 +1121,7 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
                       onClick={() => {
                         if (!window.confirm("入力中の内容を消去しますか？")) return;
                         setPending({ matchDate: "", competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null, pkSelf: null, pkOpp: null });
+                        setPendingVisible(false);
                       }}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#9CA3AF] hover:bg-red-50 hover:text-red-500"
                       aria-label="入力行をクリア"
@@ -1129,13 +1134,17 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
                   )}
                 </td>
               </tr>
+              )}
 
               {/* 末尾: 試合追加ボタン（押すと新規入力行へスクロール） */}
               <tr>
                 <td colSpan={9} className="border-t border-[#E2E4EA] px-2 py-2 text-center">
                   <button
                     type="button"
-                    onClick={() => document.getElementById("sheet-pending-date")?.scrollIntoView({ behavior: "smooth", block: "nearest" })}
+                    onClick={() => {
+                      setPendingVisible(true);
+                      requestAnimationFrame(() => document.getElementById("sheet-pending-date")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+                    }}
                     className="inline-flex items-center gap-1 rounded-md border border-dashed border-[#9CA3AF] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#3355FF] hover:bg-[#3355FF10]"
                   >
                     ＋ 試合を追加
