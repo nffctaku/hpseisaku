@@ -166,6 +166,7 @@ export default function MatchesPage() {
               initialSeason={selectedSeason}
               filterCompetitionId={sheetFilters.competitionId}
               filterTeamId={sheetFilters.teamId}
+              hideSeasonSelect
             />
           </div>
         </>

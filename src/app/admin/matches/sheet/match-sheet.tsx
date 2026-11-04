@@ -225,7 +225,7 @@ const goalEventLabel = (ev: MatchEvent): string => {
   return ev.playerName || "不明";
 };
 
-export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId }: { initialSeason?: string; filterCompetitionId?: string; filterTeamId?: string }) {
+export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, hideSeasonSelect }: { initialSeason?: string; filterCompetitionId?: string; filterTeamId?: string; hideSeasonSelect?: boolean }) {
   const { user } = useAuth();
   const { activeCareer, loading: careerLoading } = useCareer();
   // activeCareer未解決（Career未作成の旧ユーザー等）は uid フォールバック（EventForm等と同じ）
@@ -753,18 +753,20 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId }:
             <h1 className="text-[18px] font-bold text-white">試合記録シート（公式戦）</h1>
             <p className="mt-0.5 text-[12px] text-white/60">セルをタップして編集・自動保存。詳細入力は右端「詳細」から。</p>
           </div>
-          <div className="w-[180px]">
-            <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-              <SelectTrigger className="h-9 border-[#E2E4EA] bg-white text-[#1B1F27]">
-                <SelectValue placeholder="シーズン" />
-              </SelectTrigger>
-              <SelectContent>
-                {[...new Set(competitions.map((c) => toSlashSeason(c.season || "")).filter(Boolean))].sort().reverse().map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!hideSeasonSelect && (
+            <div className="w-[180px]">
+              <Select value={selectedSeason} onValueChange={setSelectedSeason}>
+                <SelectTrigger className="h-9 border-[#E2E4EA] bg-white text-[#1B1F27]">
+                  <SelectValue placeholder="シーズン" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[...new Set(competitions.map((c) => toSlashSeason(c.season || "")).filter(Boolean))].sort().reverse().map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto rounded-[10px] border border-[#E2E4EA] bg-white">
