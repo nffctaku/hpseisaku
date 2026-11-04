@@ -986,6 +986,7 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
                 <td className={cellBase}>
                   <button
                     type="button"
+                    id="sheet-pending-date"
                     onClick={() => setDatePick({ value: pending.matchDate || latestRowDate(), onDone: (v) => updatePending({ matchDate: v }) })}
                     className="flex h-8 w-[104px] items-center gap-1 rounded-md border border-dashed border-[#9CA3AF] bg-white px-1.5 text-[12px] font-semibold text-[#1B1F27]"
                   >
@@ -1112,6 +1113,19 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
                   ) : (
                     <span className="text-[#D1D5DB]">—</span>
                   )}
+                </td>
+              </tr>
+
+              {/* 末尾: 試合追加ボタン（押すと新規入力行へスクロール） */}
+              <tr>
+                <td colSpan={9} className="border-t border-[#E2E4EA] px-2 py-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById("sheet-pending-date")?.scrollIntoView({ behavior: "smooth", block: "nearest" })}
+                    className="inline-flex items-center gap-1 rounded-md border border-dashed border-[#9CA3AF] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#3355FF] hover:bg-[#3355FF10]"
+                  >
+                    ＋ 試合を追加
+                  </button>
                 </td>
               </tr>
             </tbody>
