@@ -78,13 +78,17 @@ export function MatchesFilters(props: {
     if (!ok) setTeamId("all");
   }, [visibleTeams, teamId]);
 
+  // 濃紺パネル仕様: セレクトは濃紺背景・白文字・細いグレー枠・角丸、高さ40〜44px
+  const fieldCls = "h-11 w-full rounded-lg border border-[#4a5b80] bg-[#0d1f4c] px-3 text-[13px] text-white";
+
   return (
-    <div className="flex flex-row flex-wrap items-end gap-2 sm:gap-4 w-full">
-      <div className="flex flex-row flex-wrap gap-2 sm:gap-3 flex-1 min-w-0">
+    <div className="rounded-xl border border-[#3d5178] bg-[#13254d] p-3">
+      {/* 1段目: シーズン・大会を左右同幅 */}
+      <div className="grid grid-cols-2 gap-2.5">
         {leading}
-        {hideSeasonSelect ? null : (
+        {!hideSeasonSelect && (
           <Select value={season} onValueChange={setSeason}>
-            <SelectTrigger className="w-full min-w-[130px] flex-1 sm:w-[200px] sm:flex-none bg-white text-gray-900">
+            <SelectTrigger className={fieldCls}>
               <SelectValue placeholder="すべてのシーズン" />
             </SelectTrigger>
             <SelectContent>
@@ -96,9 +100,8 @@ export function MatchesFilters(props: {
             </SelectContent>
           </Select>
         )}
-
         <Select value={competitionId} onValueChange={setCompetitionId}>
-          <SelectTrigger className="w-full min-w-[130px] flex-1 sm:w-[200px] sm:flex-none bg-white text-gray-900">
+          <SelectTrigger className={fieldCls}>
             <SelectValue placeholder="すべての大会" />
           </SelectTrigger>
           <SelectContent>
@@ -110,26 +113,29 @@ export function MatchesFilters(props: {
             ))}
           </SelectContent>
         </Select>
+      </div>
 
+      {/* 2段目: チームを横幅いっぱい（ロゴ＋名前＋下矢印はトリガー内） */}
+      <div className="mt-2.5">
         <Select value={teamId} onValueChange={setTeamId}>
-          <SelectTrigger className="w-full min-w-[130px] flex-1 sm:w-[200px] sm:flex-none bg-white text-gray-900">
+          <SelectTrigger className={fieldCls}>
             <SelectValue placeholder="チームを選択" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">チームを選択</SelectItem>
             {visibleTeams.map((team) => (
               <SelectItem key={team.id} value={team.id}>
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   {team.logoUrl && (
                     <Image
                       src={team.logoUrl}
                       alt={team.name}
                       width={20}
                       height={20}
-                      className="rounded-full object-contain"
+                      className="h-5 w-5 shrink-0 rounded-full object-contain"
                     />
                   )}
-                  <span>{team.name}</span>
+                  <span className="truncate">{team.name}</span>
                 </div>
               </SelectItem>
             ))}
@@ -137,12 +143,13 @@ export function MatchesFilters(props: {
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
+      {/* 3段目: 表示・クリアを左右同幅 */}
+      <div className="mt-2.5 grid grid-cols-2 gap-2.5">
         <button
           type="button"
           disabled={loading}
           onClick={() => onSearch({ season, competitionId, teamId })}
-          className="w-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 px-4 py-2 rounded-md whitespace-nowrap text-center text-sm"
+          className="h-11 w-full rounded-lg bg-emerald-500 text-sm font-bold text-white transition-colors hover:bg-emerald-400 disabled:opacity-60"
         >
           表示
         </button>
@@ -155,7 +162,7 @@ export function MatchesFilters(props: {
             setTeamId(initialTeamId && teams.some((t) => t.id === initialTeamId) ? initialTeamId : "all");
             onClear();
           }}
-          className="w-full rounded-md border bg-white px-4 py-2 text-sm text-gray-900 shadow-sm hover:bg-gray-50 disabled:opacity-60"
+          className="h-11 w-full rounded-lg border border-[#8ea2c8] bg-[#0d1f4c] text-sm font-semibold text-white transition-colors hover:bg-[#16305e] disabled:opacity-60"
         >
           クリア
         </button>

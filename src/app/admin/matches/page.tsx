@@ -102,6 +102,16 @@ export default function MatchesPage() {
         </div>
       ) : (
         <>
+          {/* 濃紺ヘッダー: タイトル＋絞り込みパネル＋案内行 */}
+          <div className="rounded-2xl bg-[#0b1a3a] px-4 py-4 sm:px-5">
+            <div className="mb-3 flex items-center gap-3">
+              <span className="h-9 w-[3px] shrink-0 rounded bg-emerald-400" />
+              <div>
+                <div className="text-[10px] font-semibold tracking-[0.3em] text-slate-400">MATCH RECORD</div>
+                <div className="text-[20px] font-bold leading-tight text-white">試合記録シート</div>
+              </div>
+            </div>
+
           <MatchesFilters
             teams={teams}
             competitions={competitions}
@@ -115,7 +125,7 @@ export default function MatchesPage() {
                 setSheetFilters({ competitionId: "all", teamId: "all" });
                 router.replace(`/admin/matches?season=${encodeURIComponent(value)}`);
               }}>
-                <SelectTrigger className="w-full min-w-[130px] flex-1 sm:w-[200px] sm:flex-none bg-white text-gray-900">
+                <SelectTrigger className="h-11 w-full rounded-lg border border-[#4a5b80] bg-[#0d1f4c] px-3 text-[13px] text-white">
                   <SelectValue placeholder="シーズン" />
                 </SelectTrigger>
                 <SelectContent>
@@ -135,6 +145,16 @@ export default function MatchesPage() {
               setSheetFilters({ competitionId: "all", teamId: "all" });
             }}
           />
+
+            {/* パネル下の案内行 */}
+            <div className="mt-3 flex items-center justify-between text-[11px] text-slate-300">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                自動保存
+              </span>
+              <span>横にスワイプ →</span>
+            </div>
+          </div>
 
           {/* 試合記録シート（公式戦）: フィルター直下に埋め込み。シーズン・大会・チームは上部フィルターに追従 */}
           <div className="mt-8">
