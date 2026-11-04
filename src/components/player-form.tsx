@@ -146,41 +146,69 @@ export function PlayerForm({
     [defaultSeason]
   );
 
+  // DBには「明示クリア=null」で保存される項目があるため、フォーム既定値では
+  // nullをundefinedへ再帰的に正規化する（zodのstring/enum検証を通すため）
+  const nullsToUndefined = (v: any): any => {
+    if (v === null) return undefined;
+    if (Array.isArray(v)) return v.map(nullsToUndefined);
+    if (v && typeof v === "object") {
+      const out: any = {};
+      for (const k of Object.keys(v)) out[k] = nullsToUndefined(v[k]);
+      return out;
+    }
+    return v;
+  };
+
+  const sanitizedDefaults = useMemo(() => nullsToUndefined(defaultValues ?? {}), [defaultValues]);
+
   const normalizedDefaults: PlayerFormValues = useMemo(
     () => ({
       ...baseDefaults,
-      ...(defaultValues as any),
-      mainPosition: (defaultValues as any)?.mainPosition ?? (baseDefaults as any).mainPosition,
-      subPositions: Array.isArray((defaultValues as any)?.subPositions)
-        ? ((defaultValues as any)?.subPositions as any[]).filter((p) => typeof p === "string")
+      ...(sanitizedDefaults as any),
+      mainPosition: (sanitizedDefaults as any)?.mainPosition ?? (baseDefaults as any).mainPosition,
+      subPositions: Array.isArray((sanitizedDefaults as any)?.subPositions)
+        ? ((sanitizedDefaults as any)?.subPositions as any[]).filter((p) => typeof p === "string")
         : ((baseDefaults as any).subPositions ?? []),
       contractEndYear:
-        typeof (defaultValues as any)?.contractEndDate === "string" && /^\d{4}-\d{2}$/.test((defaultValues as any)?.contractEndDate)
-          ? Number(String((defaultValues as any)?.contractEndDate).slice(0, 4))
-          : (defaultValues as any)?.contractEndYear,
+        typeof (sanitizedDefaults as any)?.contractEndDate === "string" && /^\d{4}-\d{2}$/.test((sanitizedDefaults as any)?.contractEndDate)
+          ? Number(String((sanitizedDefaults as any)?.contractEndDate).slice(0, 4))
+          : (sanitizedDefaults as any)?.contractEndYear,
       contractEndMonth:
-        typeof (defaultValues as any)?.contractEndDate === "string" && /^\d{4}-\d{2}$/.test((defaultValues as any)?.contractEndDate)
-          ? Number(String((defaultValues as any)?.contractEndDate).slice(5, 7))
-          : (defaultValues as any)?.contractEndMonth,
+        typeof (sanitizedDefaults as any)?.contractEndDate === "string" && /^\d{4}-\d{2}$/.test((sanitizedDefaults as any)?.contractEndDate)
+          ? Number(String((sanitizedDefaults as any)?.contractEndDate).slice(5, 7))
+          : (sanitizedDefaults as any)?.contractEndMonth,
       snsLinks: {
         ...(baseDefaults.snsLinks as any),
-        ...(((defaultValues as any)?.snsLinks || {}) as any),
+        ...(((sanitizedDefaults as any)?.snsLinks || {}) as any),
       },
       params: {
         ...(baseDefaults.params as any),
-        ...(((defaultValues as any)?.params || {}) as any),
+        ...(((sanitizedDefaults as any)?.params || {}) as any),
         overall:
-          typeof (defaultValues as any)?.params?.overall === "number"
-            ? (defaultValues as any)?.params?.overall
+          typeof (sanitizedDefaults as any)?.params?.overall === "number"
+            ? (sanitizedDefaults as any)?.params?.overall
             : (baseDefaults as any)?.params?.overall,
         items: Array.from({ length: 6 }, (_, i) => {
           const baseItem = (baseDefaults as any)?.params?.items?.[i] ?? { label: "", value: undefined };
-          const dvItem = (defaultValues as any)?.params?.items?.[i] ?? {};
+          const dvItem = (sanitizedDefaults as any)?.params?.items?.[i] ?? {};
           return { ...baseItem, ...dvItem };
         }),
       },
-      manualCompetitionStats: Array.isArray((defaultValues as any)?.manualCompetitionStats)
-        ? ((defaultValues as any)?.manualCompetitionStats as any[]).map((r) => ({
+      // joinType/loanEndSeason はDB上「明示クリア=null」で保存されるため、
+      // フォームでは未入力(undefined)に正規化してzodのstring検証を通す
+      joinType:
+        (sanitizedDefaults as any)?.joinType === "permanent" ||
+        (sanitizedDefaults as any)?.joinType === "loan" ||
+        (sanitizedDefaults as any)?.joinType === "loan_return" ||
+        (sanitizedDefaults as any)?.joinType === "promotion"
+          ? (sanitizedDefaults as any).joinType
+          : undefined,
+      loanEndSeason:
+        typeof (sanitizedDefaults as any)?.loanEndSeason === "string" && (sanitizedDefaults as any).loanEndSeason.trim().length > 0
+          ? (sanitizedDefaults as any).loanEndSeason
+          : undefined,
+      manualCompetitionStats: Array.isArray((sanitizedDefaults as any)?.manualCompetitionStats)
+        ? ((sanitizedDefaults as any)?.manualCompetitionStats as any[]).map((r) => ({
             competitionId: typeof (r as any)?.competitionId === "string" ? (r as any).competitionId : "",
             matches: typeof (r as any)?.matches === "number" ? (r as any).matches : undefined,
             minutes: typeof (r as any)?.minutes === "number" ? (r as any).minutes : undefined,
@@ -192,7 +220,7 @@ export function PlayerForm({
           }))
         : [],
     }),
-    [baseDefaults, defaultValues]
+    [baseDefaults, sanitizedDefaults]
   );
 
   const form = useForm<PlayerFormValues>({
@@ -373,7 +401,8 @@ export function PlayerForm({
     }
     const flat = flattenErrors(errors);
     if (flat.length > 0) {
-      console.warn("[PlayerForm] validation failed", { paths: flat, errors });
+      console.warn("[PlayerForm] validation failed paths=", flat.join(", "));
+      console.warn("[PlayerForm] validation failed errors=", JSON.stringify(errors, null, 2));
     }
     const first = findFirstErrorPath(errors);
     if (first) {
