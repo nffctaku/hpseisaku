@@ -750,8 +750,7 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
       <div className="mx-auto w-full max-w-[1200px] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 px-1">
           <div>
-            <h1 className="text-[18px] font-bold text-white">試合記録シート（公式戦）</h1>
-            <p className="mt-0.5 text-[12px] text-white/60">セルをタップして編集・自動保存。詳細入力は右端「詳細」から。</p>
+            <p className="text-[11px] text-[#6B7280]">セルをタップして編集・自動保存。詳細入力は右端「詳細」から。</p>
           </div>
           {!hideSeasonSelect && (
             <div className="w-[180px]">
