@@ -114,6 +114,8 @@ const syncIndex = async (
       awayTeamLogo: away?.logoUrl || merged.awayTeamLogo,
       scoreHome: typeof merged.scoreHome === 'number' ? merged.scoreHome : (merged.scoreHome ?? null),
       scoreAway: typeof merged.scoreAway === 'number' ? merged.scoreAway : (merged.scoreAway ?? null),
+      pkScoreHome: typeof merged.pkScoreHome === 'number' ? merged.pkScoreHome : (merged.pkScoreHome ?? null),
+      pkScoreAway: typeof merged.pkScoreAway === 'number' ? merged.pkScoreAway : (merged.pkScoreAway ?? null),
     };
     if (typeof merged.matchTime === 'string') row.matchTime = merged.matchTime;
     for (const k of Object.keys(row)) {
@@ -137,6 +139,8 @@ export const createSheetMatch = async (
     awayTeam?: string;
     scoreHome?: number | null;
     scoreAway?: number | null;
+    pkScoreHome?: number | null;
+    pkScoreAway?: number | null;
   },
   teamsMap: Map<string, SheetTeam>
 ): Promise<string> => {
@@ -147,8 +151,8 @@ export const createSheetMatch = async (
     awayTeam: fields.awayTeam ?? '',
     scoreHome: fields.scoreHome ?? null,
     scoreAway: fields.scoreAway ?? null,
-    pkScoreHome: null,
-    pkScoreAway: null,
+    pkScoreHome: fields.pkScoreHome ?? null,
+    pkScoreAway: fields.pkScoreAway ?? null,
     ownerUid: clubUid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

@@ -44,6 +44,8 @@ interface PendingRow {
   ha: HAPref;
   selfScore: number | null;
   oppScore: number | null;
+  pkSelf: number | null;
+  pkOpp: number | null;
 }
 
 const NEW_VALUE = "__new__";
@@ -196,9 +198,13 @@ const ScorerWheelModal = ({
 };
 
 // スコア（自チーム視点）から勝敗バッジを生成。W=勝利(緑)/L=敗北(赤)/D=引分(灰)
-const ResultBadge = ({ selfScore, oppScore }: { selfScore: number | null; oppScore: number | null }) => {
+// 通常スコア同点＋両PK入力済み＋PK不分 → PKで勝敗確定（片側のみ/PK同点は従来判定＝D）
+const ResultBadge = ({ selfScore, oppScore, pkSelf, pkOpp }: { selfScore: number | null; oppScore: number | null; pkSelf?: number | null; pkOpp?: number | null }) => {
   if (selfScore === null || oppScore === null) return <span className="text-[#9CA3AF]">–</span>;
-  const r = selfScore > oppScore ? "W" : selfScore < oppScore ? "L" : "D";
+  const pkDecisive = selfScore === oppScore && pkSelf != null && pkOpp != null && pkSelf !== pkOpp;
+  const effSelf = pkDecisive ? pkSelf : selfScore;
+  const effOpp = pkDecisive ? pkOpp : oppScore;
+  const r = effSelf > effOpp ? "W" : effSelf < effOpp ? "L" : "D";
   const cls = r === "W" ? "bg-emerald-500 text-white" : r === "L" ? "bg-red-500 text-white" : "bg-gray-400 text-white";
   return <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-black ${cls}`}>{r}</span>;
 };
@@ -242,8 +248,13 @@ export default function MatchSheetPage() {
     ha: "H",
     selfScore: null,
     oppScore: null,
+    pkSelf: null,
+    pkOpp: null,
   });
   const [picker, setPicker] = useState<PickerRequest | null>(null);
+  // PK入力枠の展開状態（行keyごと）＋新規行用フラグ
+  const [pkOpenRows, setPkOpenRows] = useState<Record<string, boolean>>({});
+  const [pkOpenPending, setPkOpenPending] = useState(false);
   const [newTextPrompt, setNewTextPrompt] = useState<{
     title: string;
     placeholder: string;
@@ -425,8 +436,10 @@ export default function MatchSheetPage() {
     }
     const selfScore = ha === "A" ? row.scoreAway : ha === "H" ? row.scoreHome : row.scoreHome;
     const oppScore = ha === "A" ? row.scoreHome : ha === "H" ? row.scoreAway : row.scoreAway;
+    const pkSelf = ha === "A" ? row.pkScoreAway : row.pkScoreHome;
+    const pkOpp = ha === "A" ? row.pkScoreHome : row.pkScoreAway;
     const ownTeamId = ha === "A" ? row.awayTeam : ha === "H" ? row.homeTeam : own || row.homeTeam;
-    return { ha, opponentId, selfScore, oppScore, ownTeamId };
+    return { ha, opponentId, selfScore, oppScore, pkSelf, pkOpp, ownTeamId };
   };
 
   // === 自動保存 ===
@@ -482,6 +495,24 @@ export default function MatchSheetPage() {
     }
     void saveField(row, patch);
   };
+
+  // PKスコア（自/相 → pkScoreHome/pkScoreAway。H/Aに応じてhome/away変換）
+  const setPkScore = (row: SheetMatchRow, side: "self" | "opp", raw: string) => {
+    const { ha } = describe(row);
+    const value = raw === "" ? null : Math.max(0, Math.min(99, parseInt(raw, 10) || 0));
+    const patch = ha === "A"
+      ? (side === "self" ? { pkScoreAway: value } : { pkScoreHome: value })
+      : (side === "self" ? { pkScoreHome: value } : { pkScoreAway: value });
+    void saveField(row, patch);
+  };
+
+  // PK欄を出すか: カップ/カップ・リーグ戦 かつ 通常スコアが同点（両方入力済み）
+  const isCupFormat = (compId: string) => {
+    const f = competitionsMap.get(compId)?.format;
+    return f === "cup" || f === "league_cup";
+  };
+  const showPkUi = (compId: string, selfScore: number | null, oppScore: number | null) =>
+    isCupFormat(compId) && selfScore !== null && oppScore !== null && selfScore === oppScore;
 
   // === 得点者セル ===
   const ownGoals = (row: SheetMatchRow): MatchEvent[] => {
@@ -590,9 +621,11 @@ export default function MatchSheetPage() {
       const matchId = await createSheetMatch(db, clubUid, comp, round, {
         matchDate: next.matchDate,
         homeTeam, awayTeam, scoreHome, scoreAway,
+        pkScoreHome: next.ha === "H" ? next.pkSelf : next.pkOpp,
+        pkScoreAway: next.ha === "H" ? next.pkOpp : next.pkSelf,
       }, teamsMap);
       toast.success("試合カードを作成しました。");
-      setPending({ matchDate: "", competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null });
+      setPending({ matchDate: "", competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null, pkSelf: null, pkOpp: null });
       await loadAll();
     } catch (e) {
       console.error(e);
@@ -828,29 +861,61 @@ export default function MatchSheetPage() {
                         ))}
                       </div>
                     </td>
-                    {/* スコア（自–相・nullは空欄表示） */}
-                    <td className={`${cellBase} text-center`}>
-                      <div className="flex items-center justify-center gap-1">
-                        <input
-                          inputMode="numeric"
-                          value={d.selfScore ?? ""}
-                          placeholder="–"
-                          onChange={(e) => setScore(row, "self", e.target.value)}
-                          className="h-8 w-9 rounded-md border border-[#E2E4EA] bg-white text-center text-[14px] font-bold text-[#1B1F27]"
-                        />
-                        <span className="text-[#9CA3AF]">–</span>
-                        <input
-                          inputMode="numeric"
-                          value={d.oppScore ?? ""}
-                          placeholder="–"
-                          onChange={(e) => setScore(row, "opp", e.target.value)}
-                          className="h-8 w-9 rounded-md border border-[#E2E4EA] bg-white text-center text-[14px] font-bold text-[#1B1F27]"
-                        />
-                      </div>
+                    {/* スコア（自–相・nullは空欄表示）＋PK（カップ戦の引分時のみ展開） */}
+                    <td className={`${cellBase} relative text-center`}>
+                      {(() => {
+                        const pkEligible = showPkUi(row.competitionId, d.selfScore, d.oppScore);
+                        const pkOpen = pkEligible && !!pkOpenRows[row.key];
+                        return (
+                          <>
+                            {pkOpen ? (
+                              <div className="flex items-center justify-center gap-0.5">
+                                <input inputMode="numeric" value={d.selfScore ?? ""} placeholder="–" onChange={(e) => setScore(row, "self", e.target.value)} className="h-7 w-8 rounded-md border border-[#E2E4EA] bg-white text-center text-[12px] font-bold text-[#1B1F27]" />
+                                <span className="text-[9px] font-black text-emerald-600">[</span>
+                                <input inputMode="numeric" value={d.pkSelf ?? ""} placeholder="–" onChange={(e) => setPkScore(row, "self", e.target.value)} className="h-6 w-5 rounded border border-emerald-300 bg-emerald-50 text-center text-[10px] font-bold text-emerald-700" title="PK（自）" />
+                                <span className="text-[9px] font-black text-emerald-600">]</span>
+                                <span className="text-[11px] text-[#9CA3AF]">−</span>
+                                <span className="text-[9px] font-black text-emerald-600">[</span>
+                                <input inputMode="numeric" value={d.pkOpp ?? ""} placeholder="–" onChange={(e) => setPkScore(row, "opp", e.target.value)} className="h-6 w-5 rounded border border-emerald-300 bg-emerald-50 text-center text-[10px] font-bold text-emerald-700" title="PK（相）" />
+                                <span className="text-[9px] font-black text-emerald-600">]</span>
+                                <input inputMode="numeric" value={d.oppScore ?? ""} placeholder="–" onChange={(e) => setScore(row, "opp", e.target.value)} className="h-7 w-8 rounded-md border border-[#E2E4EA] bg-white text-center text-[12px] font-bold text-[#1B1F27]" />
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center gap-1">
+                                <input
+                                  inputMode="numeric"
+                                  value={d.selfScore ?? ""}
+                                  placeholder="–"
+                                  onChange={(e) => setScore(row, "self", e.target.value)}
+                                  className="h-8 w-9 rounded-md border border-[#E2E4EA] bg-white text-center text-[14px] font-bold text-[#1B1F27]"
+                                />
+                                <span className="text-[#9CA3AF]">–</span>
+                                <input
+                                  inputMode="numeric"
+                                  value={d.oppScore ?? ""}
+                                  placeholder="–"
+                                  onChange={(e) => setScore(row, "opp", e.target.value)}
+                                  className="h-8 w-9 rounded-md border border-[#E2E4EA] bg-white text-center text-[14px] font-bold text-[#1B1F27]"
+                                />
+                              </div>
+                            )}
+                            {pkEligible && (
+                              <button
+                                type="button"
+                                onClick={() => setPkOpenRows((prev) => ({ ...prev, [row.key]: !pkOpen }))}
+                                className={`absolute right-0.5 top-0.5 rounded px-1 text-[8px] font-black leading-4 ${pkOpen ? "bg-emerald-500 text-white" : "bg-emerald-100 text-emerald-700"}`}
+                                title="PKスコアを入力"
+                              >
+                                PK
+                              </button>
+                            )}
+                          </>
+                        );
+                      })()}
                     </td>
-                    {/* 勝敗（スコア×H/Aから自動算出・編集不可） */}
+                    {/* 勝敗（スコア×H/Aから自動算出・編集不可。PK決着時はPKで判定） */}
                     <td className={`${cellBase} text-center`}>
-                      <ResultBadge selfScore={d.selfScore} oppScore={d.oppScore} />
+                      <ResultBadge selfScore={d.selfScore} oppScore={d.oppScore} pkSelf={d.pkSelf} pkOpp={d.pkOpp} />
                     </td>
                     {/* 得点者・時間 */}
                     <td className={cellBase}>
@@ -961,27 +1026,59 @@ export default function MatchSheetPage() {
                     ))}
                   </div>
                 </td>
-                <td className={`${cellBase} text-center`}>
-                  <div className="flex items-center justify-center gap-1">
-                    <input
-                      inputMode="numeric"
-                      value={pending.selfScore ?? ""}
-                      placeholder="–"
-                      onChange={(e) => updatePending({ selfScore: e.target.value === "" ? null : Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0)) })}
-                      className="h-8 w-9 rounded-md border border-dashed border-[#9CA3AF] bg-white text-center text-[14px] font-bold"
-                    />
-                    <span className="text-[#9CA3AF]">–</span>
-                    <input
-                      inputMode="numeric"
-                      value={pending.oppScore ?? ""}
-                      placeholder="–"
-                      onChange={(e) => updatePending({ oppScore: e.target.value === "" ? null : Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0)) })}
-                      className="h-8 w-9 rounded-md border border-dashed border-[#9CA3AF] bg-white text-center text-[14px] font-bold"
-                    />
-                  </div>
+                <td className={`${cellBase} relative text-center`}>
+                  {(() => {
+                    const pkEligible = showPkUi(pending.competitionId, pending.selfScore, pending.oppScore);
+                    const pkOpen = pkEligible && pkOpenPending;
+                    return (
+                      <>
+                        {pkOpen ? (
+                          <div className="flex items-center justify-center gap-0.5">
+                            <input inputMode="numeric" value={pending.selfScore ?? ""} placeholder="–" onChange={(e) => updatePending({ selfScore: e.target.value === "" ? null : Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0)) })} className="h-7 w-8 rounded-md border border-[#E2E4EA] bg-white text-center text-[12px] font-bold" />
+                            <span className="text-[9px] font-black text-emerald-600">[</span>
+                            <input inputMode="numeric" value={pending.pkSelf ?? ""} placeholder="–" onChange={(e) => updatePending({ pkSelf: e.target.value === "" ? null : Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0)) })} className="h-6 w-5 rounded border border-emerald-300 bg-emerald-50 text-center text-[10px] font-bold text-emerald-700" title="PK（自）" />
+                            <span className="text-[9px] font-black text-emerald-600">]</span>
+                            <span className="text-[11px] text-[#9CA3AF]">−</span>
+                            <span className="text-[9px] font-black text-emerald-600">[</span>
+                            <input inputMode="numeric" value={pending.pkOpp ?? ""} placeholder="–" onChange={(e) => updatePending({ pkOpp: e.target.value === "" ? null : Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0)) })} className="h-6 w-5 rounded border border-emerald-300 bg-emerald-50 text-center text-[10px] font-bold text-emerald-700" title="PK（相）" />
+                            <span className="text-[9px] font-black text-emerald-600">]</span>
+                            <input inputMode="numeric" value={pending.oppScore ?? ""} placeholder="–" onChange={(e) => updatePending({ oppScore: e.target.value === "" ? null : Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0)) })} className="h-7 w-8 rounded-md border border-[#E2E4EA] bg-white text-center text-[12px] font-bold" />
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              inputMode="numeric"
+                              value={pending.selfScore ?? ""}
+                              placeholder="–"
+                              onChange={(e) => updatePending({ selfScore: e.target.value === "" ? null : Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0)) })}
+                              className="h-8 w-9 rounded-md border border-dashed border-[#9CA3AF] bg-white text-center text-[14px] font-bold"
+                            />
+                            <span className="text-[#9CA3AF]">–</span>
+                            <input
+                              inputMode="numeric"
+                              value={pending.oppScore ?? ""}
+                              placeholder="–"
+                              onChange={(e) => updatePending({ oppScore: e.target.value === "" ? null : Math.max(0, Math.min(99, parseInt(e.target.value, 10) || 0)) })}
+                              className="h-8 w-9 rounded-md border border-dashed border-[#9CA3AF] bg-white text-center text-[14px] font-bold"
+                            />
+                          </div>
+                        )}
+                        {pkEligible && (
+                          <button
+                            type="button"
+                            onClick={() => setPkOpenPending((v) => !v)}
+                            className={`absolute right-0.5 top-0.5 rounded px-1 text-[8px] font-black leading-4 ${pkOpen ? "bg-emerald-500 text-white" : "bg-emerald-100 text-emerald-700"}`}
+                            title="PKスコアを入力"
+                          >
+                            PK
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
                 </td>
                 <td className={`${cellBase} text-center`}>
-                  <ResultBadge selfScore={pending.selfScore} oppScore={pending.oppScore} />
+                  <ResultBadge selfScore={pending.selfScore} oppScore={pending.oppScore} pkSelf={pending.pkSelf} pkOpp={pending.pkOpp} />
                 </td>
                 <td className={cellBase}>
                   <span className="px-1 text-[11px] text-[#9CA3AF]">大会と節を選ぶと記録できます</span>
@@ -993,7 +1090,7 @@ export default function MatchSheetPage() {
                       type="button"
                       onClick={() => {
                         if (!window.confirm("入力中の内容を消去しますか？")) return;
-                        setPending({ matchDate: "", competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null });
+                        setPending({ matchDate: "", competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null, pkSelf: null, pkOpp: null });
                       }}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#9CA3AF] hover:bg-red-50 hover:text-red-500"
                       aria-label="入力行をクリア"

@@ -69,6 +69,8 @@ interface Match {
   awayTeamLogo?: string;
   scoreHome?: number | null;
   scoreAway?: number | null;
+  pkScoreHome?: number | null;
+  pkScoreAway?: number | null;
 }
 
 function getSeasonFromMatchDate(matchDate: string): string | null {
@@ -237,6 +239,8 @@ async function getMatchesForClub(clubId: string) {
                 awayTeamLogo: awayTeam?.logoUrl,
                 scoreHome: matchData.scoreHome,
                 scoreAway: matchData.scoreAway,
+                pkScoreHome: matchData.pkScoreHome,
+                pkScoreAway: matchData.pkScoreAway,
               } as Match;
             });
           })
@@ -288,6 +292,8 @@ async function getMatchesForClub(clubId: string) {
             awayTeamLogo: matchData.awayTeamLogo || awayTeam?.logoUrl,
             scoreHome: matchData.scoreHome,
             scoreAway: matchData.scoreAway,
+            pkScoreHome: matchData.pkScoreHome,
+            pkScoreAway: matchData.pkScoreAway,
         });
     });
 

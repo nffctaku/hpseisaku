@@ -163,6 +163,8 @@ async function getMatchDetail(
         matchTime: data.matchTime,
         scoreHome: data.scoreHome ?? null,
         scoreAway: data.scoreAway ?? null,
+        pkScoreHome: data.pkScoreHome ?? null,
+        pkScoreAway: data.pkScoreAway ?? null,
         userId: ownerUid,
         teamStats: (data.teamStats || []) as TeamStat[],
         playerStats: (data.playerStats || []) as PlayerStats[],
@@ -272,6 +274,8 @@ async function getMatchDetail(
       matchTime: data.matchTime,
       scoreHome: data.scoreHome ?? null,
       scoreAway: data.scoreAway ?? null,
+      pkScoreHome: data.pkScoreHome ?? null,
+      pkScoreAway: data.pkScoreAway ?? null,
       userId: ownerUid,
       teamStats: (data.teamStats || []) as TeamStat[],
       playerStats: (data.playerStats || []) as PlayerStats[],
@@ -394,6 +398,8 @@ async function getMatchDetail(
     matchTime: data.matchTime,
     scoreHome: data.scoreHome ?? null,
     scoreAway: data.scoreAway ?? null,
+    pkScoreHome: data.pkScoreHome ?? null,
+    pkScoreAway: data.pkScoreAway ?? null,
     userId: ownerUid,
     teamStats: (data.teamStats || []) as TeamStat[],
     playerStats: (data.playerStats || []) as PlayerStats[],
@@ -843,6 +849,9 @@ export default async function MatchDetailPage({ params }: PageProps) {
                 <span className="text-4xl font-black text-white md:text-5xl">-</span>
                 <span className="text-white">{typeof match.scoreAway === "number" ? match.scoreAway : "-"}</span>
               </div>
+              {match.pkScoreHome != null && match.pkScoreAway != null && (
+                <div className="text-sm font-bold text-emerald-300">PK {match.pkScoreHome} - {match.pkScoreAway}</div>
+              )}
             </div>
 
             {/* Away side */}

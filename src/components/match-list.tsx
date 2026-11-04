@@ -27,6 +27,8 @@ interface EnrichedMatch {
   awayTeamLogo?: string;
   scoreHome?: number | null;
   scoreAway?: number | null;
+  pkScoreHome?: number | null;
+  pkScoreAway?: number | null;
 }
 
 interface MatchListProps {
@@ -376,6 +378,9 @@ export function MatchList({ allMatches, clubId, clubSlug, clubName, initialSelec
                                             {isFinished ? (
                                               <>
                                                 <div className="text-lg font-black leading-none tracking-tight text-gray-950">{match.scoreHome} - {match.scoreAway}</div>
+                                                {match.pkScoreHome != null && match.pkScoreAway != null && (
+                                                  <div className="text-[9px] font-bold text-emerald-600">PK {match.pkScoreHome}-{match.pkScoreAway}</div>
+                                                )}
                                                 <div className={`mx-auto mt-0.5 w-fit rounded-full px-1.5 py-0.5 text-[7px] font-black ${scoreBgClass || 'bg-gray-500 text-white'}`}>{scoreBgClass.includes('emerald') ? 'WIN' : scoreBgClass.includes('red') ? 'LOSS' : 'DRAW'}</div>
                                               </>
                                             ) : <div className="text-[10px] font-bold text-gray-500">{match.matchTime || 'VS'}</div>}

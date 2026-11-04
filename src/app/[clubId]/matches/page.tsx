@@ -66,6 +66,8 @@ type MatchIndexRow = {
   awayTeamLogo?: string;
   scoreHome?: number | null;
   scoreAway?: number | null;
+  pkScoreHome?: number | null;
+  pkScoreAway?: number | null;
 };
 
 async function backfillPublicMatchIndex(ownerUid: string) {
@@ -113,6 +115,8 @@ async function backfillPublicMatchIndex(ownerUid: string) {
               awayTeamLogo: awayTeam?.logoUrl || m.awayTeamLogo,
               scoreHome: typeof m.scoreHome === 'number' ? m.scoreHome : (m.scoreHome ?? null),
               scoreAway: typeof m.scoreAway === 'number' ? m.scoreAway : (m.scoreAway ?? null),
+              pkScoreHome: typeof m.pkScoreHome === 'number' ? m.pkScoreHome : (m.pkScoreHome ?? null),
+              pkScoreAway: typeof m.pkScoreAway === 'number' ? m.pkScoreAway : (m.pkScoreAway ?? null),
             };
             return row;
           });
@@ -226,6 +230,8 @@ async function getClubMatches(clubId: string): Promise<{
         matchTime: r.matchTime,
         scoreHome: r.scoreHome ?? null,
         scoreAway: r.scoreAway ?? null,
+        pkScoreHome: r.pkScoreHome ?? null,
+        pkScoreAway: r.pkScoreAway ?? null,
       }))
       .sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
 
@@ -268,6 +274,8 @@ async function getClubMatches(clubId: string): Promise<{
         matchTime: r.matchTime,
         scoreHome: r.scoreHome ?? null,
         scoreAway: r.scoreAway ?? null,
+        pkScoreHome: r.pkScoreHome ?? null,
+        pkScoreAway: r.pkScoreAway ?? null,
       }))
       .sort((a, b) => getMatchSortMs(a) - getMatchSortMs(b));
 
@@ -357,7 +365,12 @@ const MatchItem = ({ clubId, match }: { clubId: string; match: MatchDetails }) =
           </div>
           <div className="text-center">
               {match.scoreHome !== null && match.scoreAway !== null ? (
-                  <span className="text-lg md:text-xl font-bold">{match.scoreHome} - {match.scoreAway}</span>
+                  <span className="text-lg md:text-xl font-bold">
+                    {match.scoreHome} - {match.scoreAway}
+                    {match.pkScoreHome != null && match.pkScoreAway != null && (
+                      <span className="ml-1 text-[10px] font-bold text-emerald-600">(PK {match.pkScoreHome}-{match.pkScoreAway})</span>
+                    )}
+                  </span>
               ) : (
                   <span className="text-xs text-gray-500">{format(new Date(match.matchDate), 'HH:mm')}</span>
               )}
