@@ -769,7 +769,8 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
           )}
         </div>
 
-        <div className="overflow-x-auto rounded-[10px] border border-[#E2E4EA] bg-white">
+        {/* スマホでは親の余白を突き抜けて画面幅いっぱいにテーブルを表示（PCは従来どおり中央コンテナ内） */}
+        <div className="overflow-x-auto rounded-[10px] border border-[#E2E4EA] bg-white max-sm:relative max-sm:left-1/2 max-sm:w-screen max-sm:-translate-x-1/2">
           <table className="w-full min-w-[1120px] border-collapse text-[12px]">
             <thead>
               <tr className="border-b border-[#E2E4EA] bg-[#F8F9FB] text-left text-[11px] font-semibold text-[#6B7280]">
