@@ -767,7 +767,7 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
   const selBtn = "w-full min-w-[92px] h-8 rounded-md border border-[#E2E4EA] bg-white px-2 text-left text-[12px] text-[#1B1F27] truncate";
 
   return (
-    <div className="w-full py-6 px-2 sm:px-4">
+    <div className={`w-full py-6 px-2 sm:px-4 ${pendingVisible ? "pb-24" : ""}`}>
       <div className="mx-auto w-full max-w-[1200px] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 px-1">
           <div>
@@ -1152,7 +1152,7 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
       <MobilePickerModal picker={picker} onClose={() => setPicker(null)} />
       {/* 試合追加ボタン: 画面下部中央に固定表示（入力行表示中は重ならないよう隠す）。
           祖先のtransformでfixedが効かないケースに備えbodyへportal描画 */}
-      {fabMounted && !pendingVisible && createPortal(
+      {fabMounted && createPortal(
         <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2">
           <button
             type="button"
