@@ -103,7 +103,7 @@ export default function MatchesPage() {
       ) : (
         <>
           {/* 濃紺ヘッダー: タイトル＋絞り込みパネル＋案内行 */}
-          <div className="rounded-2xl bg-[#0b1a3a] px-4 py-4 sm:px-5">
+          <div className="rounded-2xl bg-[#0b1a3a] px-4 py-4 sm:px-5 max-sm:relative max-sm:left-1/2 max-sm:w-screen max-sm:-translate-x-1/2">
             <div className="mb-3 flex items-center gap-3">
               <span className="h-9 w-[3px] shrink-0 rounded bg-emerald-400" />
               <div>
