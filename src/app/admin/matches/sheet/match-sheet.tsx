@@ -1136,21 +1136,6 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
               </tr>
               )}
 
-              {/* 末尾: 試合追加ボタン（押すと新規入力行へスクロール） */}
-              <tr>
-                <td colSpan={9} className="border-t border-[#E2E4EA] px-2 py-2 text-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPendingVisible(true);
-                      requestAnimationFrame(() => document.getElementById("sheet-pending-date")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
-                    }}
-                    className="inline-flex items-center gap-1 rounded-md border border-dashed border-[#9CA3AF] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#3355FF] hover:bg-[#3355FF10]"
-                  >
-                    ＋ 試合を追加
-                  </button>
-                </td>
-              </tr>
             </tbody>
           </table>
         </div>
@@ -1161,6 +1146,19 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
       </div>
 
       <MobilePickerModal picker={picker} onClose={() => setPicker(null)} />
+      {/* 試合追加ボタン: 画面下部中央に常時固定表示 */}
+      <div className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2">
+        <button
+          type="button"
+          onClick={() => {
+            setPendingVisible(true);
+            requestAnimationFrame(() => document.getElementById("sheet-pending-date")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+          }}
+          className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#9CA3AF] bg-white px-5 py-2.5 text-[13px] font-semibold text-[#3355FF] shadow-lg hover:bg-[#3355FF10]"
+        >
+          ＋ 試合を追加
+        </button>
+      </div>
       {datePick && (
         <DateWheelModal
           initial={datePick.value}
