@@ -135,50 +135,48 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
     const bootstrap = async () => {
       // タブ復帰による再取得(reloadTick)ではスピナーを出さない
       if (clubChanged) setLoadingBootstrap(true);
+      const t0 = performance.now();
+      const mark = (label: string) => console.log(`[useMatchesData] ${label}: ${Math.round(performance.now() - t0)}ms`);
       try {
-        const teamsMap = new Map<string, Team>();
         const teamsQueryRef = query(collection(db, `clubs/${clubUid}/teams`));
-        const teamsSnap = await getDocs(teamsQueryRef);
+        const competitionsQueryRef = query(collection(db, `clubs/${clubUid}/competitions`));
+        const mainTeamDocRef = doc(db, "club_profiles", clubUid);
+        const mainTeamByOwnerQuery = query(collection(db, "club_profiles"), where("ownerUid", "==", clubUid));
+
+        const [teamsSnap, competitionsSnap] = await Promise.all([
+          getDocs(teamsQueryRef),
+          getDocs(competitionsQueryRef),
+        ]);
+
+        const teamsMap = new Map<string, Team>();
         teamsSnap.forEach((d) => teamsMap.set(d.id, { id: d.id, ...(d.data() as any) } as Team));
         if (cancelled) return;
         teamsMapRef.current = teamsMap;
 
-        const competitionsQueryRef = query(collection(db, `clubs/${clubUid}/competitions`));
-        const competitionsSnap = await getDocs(competitionsQueryRef);
-
         const competitionMeta = new Map<string, { name: string; season?: string }>();
+        const competitionOptions: CompetitionOption[] = [];
+        const compTeams = new Map<string, string[]>();
         competitionsSnap.docs.forEach((d) => {
           const data = d.data() as any;
           competitionMeta.set(d.id, {
             name: (data?.name as string) || d.id,
             season: typeof data?.season === "string" ? data.season : undefined,
           });
-        });
-        if (cancelled) return;
-        competitionMetaRef.current = competitionMeta;
-
-        const competitionOptions: CompetitionOption[] = competitionsSnap.docs.map((d) => {
-          const data = d.data() as any;
-          return {
+          competitionOptions.push({
             id: d.id,
             name: (data?.name as string) || d.id,
             season: (data?.season as string) || undefined,
             format: typeof data?.format === "string" ? data.format : undefined,
             teams: Array.isArray(data?.teams) ? data.teams.filter((x: any) => typeof x === "string") : undefined,
             logoUrl: typeof data?.logoUrl === "string" ? data.logoUrl : undefined,
-          };
-        });
-        competitionOptions.sort((a, b) => a.name.localeCompare(b.name));
-        if (cancelled) return;
-        setCompetitions(competitionOptions);
-
-        const compTeams = new Map<string, string[]>();
-        competitionsSnap.docs.forEach((d) => {
-          const data = d.data() as any;
+          });
           const ids = Array.isArray(data?.teams) ? data.teams.filter((x: any) => typeof x === "string") : [];
           compTeams.set(d.id, ids);
         });
+        competitionOptions.sort((a, b) => a.name.localeCompare(b.name));
         if (cancelled) return;
+        competitionMetaRef.current = competitionMeta;
+        setCompetitions(competitionOptions);
         setCompetitionTeamIds(compTeams);
 
         const teamsForDropdown = Array.from(teamsMap.values());
@@ -188,14 +186,13 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
         // mainTeamId (new schema docId == clubUid, old schema ownerUid==clubUid)
         let main: string | null = null;
         try {
-          const p = await getDoc(doc(db, "club_profiles", clubUid));
-          if (p.exists()) {
-            const data = p.data() as any;
+          const pSnap = await getDoc(mainTeamDocRef);
+          if (pSnap.exists()) {
+            const data = pSnap.data() as any;
             if (typeof data?.mainTeamId === "string") main = String(data.mainTeamId).trim();
           }
           if (!main) {
-            const q = query(collection(db, "club_profiles"), where("ownerUid", "==", clubUid));
-            const snap = await getDocs(q);
+            const snap = await getDocs(mainTeamByOwnerQuery);
             if (!snap.empty) {
               const data = snap.docs[0].data() as any;
               if (typeof data?.mainTeamId === "string") main = String(data.mainTeamId).trim();
@@ -206,6 +203,7 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
         }
         if (cancelled) return;
         setMainTeamId(main);
+        mark(`bootstrap done (teams=${teamsSnap.size}, competitions=${competitionsSnap.size})`);
       } catch (error) {
         if (cancelled) return;
         console.error("[useMatchesData] bootstrap failed", error);

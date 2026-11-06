@@ -263,6 +263,12 @@ export function MatchSheet({
   const [mainTeamId, setMainTeamId] = useState<string | null>(null);
   const [rows, setRows] = useState<SheetMatchRow[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<string>("");
+
+  const loadAllRunRef = useRef(0);
+  const loadAllPromiseRef = useRef<Promise<void> | null>(null);
+  const loadAllKeyRef = useRef<string>("");
+  const renderReadyRef = useRef(false);
+
   const [pending, setPending] = useState<PendingRow>({
     matchDate: "",
     competitionId: "",
@@ -363,96 +369,120 @@ export function MatchSheet({
     });
   };
 
-  const loadAll = useCallback(async () => {
-    if (!clubUid) return;
+  const loadAll = useCallback((): Promise<void> => {
+    if (!clubUid) return Promise.resolve();
+    const runId = ++loadAllRunRef.current;
+    const key = `${clubUid}:${initialSeason || ""}`;
+    if (loadAllKeyRef.current === key && loadAllPromiseRef.current) {
+      console.log(`[MatchSheet] loadAll #${runId} deduped (in-flight for key=${key})`);
+      return loadAllPromiseRef.current;
+    }
+    loadAllKeyRef.current = key;
     const t0 = performance.now();
     setLoading(true);
-    try {
-      const comps = (externalCompetitions as SheetCompetition[] | undefined) ?? (await fetchSheetCompetitions(db, clubUid));
-      setCompetitions(comps);
+    console.log(`[MatchSheet] loadAll #${runId} start: key=${key}, t=${Math.round(performance.now())}`);
 
-      const teamList = (externalTeams as SheetTeam[] | undefined) ?? (await fetchSheetTeams(db, clubUid));
-      setTeams(teamList);
+    loadAllPromiseRef.current = (async () => {
+      try {
+        const comps = (externalCompetitions as SheetCompetition[] | undefined) ?? (await fetchSheetCompetitions(db, clubUid));
+        setCompetitions(comps);
 
-      // mainTeamId
-      let main: string | null = null;
-      if (externalMainTeamId !== undefined) {
-        main = externalMainTeamId;
-      } else {
-        try {
-          const p = await getDoc(doc(db, "club_profiles", clubUid));
-          if (p.exists() && typeof p.data()?.mainTeamId === "string") main = p.data().mainTeamId;
-          if (!main) {
-            const q = await getDocs(query(collection(db, "club_profiles"), where("ownerUid", "==", clubUid)));
-            const d0 = q.docs[0]?.data() as any;
-            if (typeof d0?.mainTeamId === "string") main = d0.mainTeamId;
-          }
-        } catch { /* continue */ }
-      }
-      setMainTeamId(main);
+        const teamList = (externalTeams as SheetTeam[] | undefined) ?? (await fetchSheetTeams(db, clubUid));
+        setTeams(teamList);
 
-      // 自チーム選手（得点者候補）: mainTeamId配下＋Career方式の teams/{clubUid}/players を併用（ID重複除去）
-      if (main || clubUid) {
-        const paths = new Set<string>();
-        if (main) paths.add(`clubs/${clubUid}/teams/${main}/players`);
-        paths.add(`clubs/${clubUid}/teams/${clubUid}/players`);
-        const snaps = await Promise.all(
-          [...paths].map((p) => getDocs(collection(db, p)).catch(() => ({ docs: [] })))
-        );
-        const merged = new Map<string, SheetPlayer>();
-        for (const ps of snaps) {
-          for (const d of ps.docs) merged.set(d.id, { id: d.id, ...(d.data() as any) } as SheetPlayer);
+        // mainTeamId
+        let main: string | null = null;
+        if (externalMainTeamId !== undefined) {
+          main = externalMainTeamId;
+        } else {
+          try {
+            const p = await getDoc(doc(db, "club_profiles", clubUid));
+            if (p.exists() && typeof p.data()?.mainTeamId === "string") main = p.data().mainTeamId;
+            if (!main) {
+              const q = await getDocs(query(collection(db, "club_profiles"), where("ownerUid", "==", clubUid)));
+              const d0 = q.docs[0]?.data() as any;
+              if (typeof d0?.mainTeamId === "string") main = d0.mainTeamId;
+            }
+          } catch { /* continue */ }
         }
-        setPlayers([...merged.values()].sort((a, b) => (a.number ?? 999) - (b.number ?? 999)));
+        setMainTeamId(main);
+
+        const targetSeason = initialSeason ? toSlashSeason(initialSeason) : "";
+        const seasonComps = targetSeason
+          ? comps.filter((c) => !c.season || toSlashSeason(c.season) === targetSeason)
+          : comps;
+
+        const init = initialSeason ? toSlashSeason(initialSeason) : "";
+        const seasons = [...new Set(comps.map((c) => (c.season || "").trim()).filter(Boolean))].map(toSlashSeason).sort().reverse();
+        setSelectedSeason((prev) => prev || (init && seasons.includes(init) ? init : seasons[0]) || "");
+
+        // 選手取得と節・試合取得は独立なので並列化
+        const fetchPlayers = async () => {
+          if (!main && !clubUid) return;
+          const paths = new Set<string>();
+          if (main) paths.add(`clubs/${clubUid}/teams/${main}/players`);
+          paths.add(`clubs/${clubUid}/teams/${clubUid}/players`);
+          const snaps = await Promise.all(
+            [...paths].map((p) => getDocs(collection(db, p)).catch(() => ({ docs: [] })))
+          );
+          const merged = new Map<string, SheetPlayer>();
+          for (const ps of snaps) {
+            for (const d of ps.docs) merged.set(d.id, { id: d.id, ...(d.data() as any) } as SheetPlayer);
+          }
+          setPlayers([...merged.values()].sort((a, b) => (a.number ?? 999) - (b.number ?? 999)));
+        };
+
+        const fetchMatches = async () => {
+          const roundsMap = new Map<string, SheetRound[]>();
+          const allRows: SheetMatchRow[] = [];
+
+          const roundPromises = seasonComps.map(async (comp) => {
+            const rounds = await fetchSheetRounds(db, clubUid, comp.id);
+            return { comp, rounds };
+          });
+          const roundResults = await Promise.all(roundPromises);
+          for (const { comp, rounds } of roundResults) roundsMap.set(comp.id, rounds);
+
+          const matchPromises = roundResults.flatMap(({ comp, rounds }) =>
+            rounds.map((round) => fetchSheetMatches(db, clubUid, comp, round).then((matches) => ({ matches })))
+          );
+          const matchResults = await Promise.all(matchPromises);
+          for (const { matches } of matchResults) allRows.push(...matches);
+
+          setRoundsByComp(roundsMap);
+          // 自チーム（mainTeamIdまたはclubUid）が出場する試合のみ表示
+          const ownIds = new Set([main, clubUid].filter(Boolean) as string[]);
+          const ownRows = allRows.filter((r) => ownIds.has(r.homeTeam) || ownIds.has(r.awayTeam));
+          ownRows.sort((a, b) => (a.matchDate || "9999").localeCompare(b.matchDate || "9999"));
+          setRows(ownRows);
+
+          return {
+            roundCount: roundResults.reduce((sum, { rounds }) => sum + rounds.length, 0),
+            all: allRows.length,
+            own: ownRows.length,
+          };
+        };
+
+        const [{ roundCount, all, own }] = await Promise.all([fetchMatches(), fetchPlayers()]);
+
+        const elapsed = Math.round(performance.now() - t0);
+        console.log(
+          `[MatchSheet] loadAll #${runId} done: ${elapsed}ms, season=${targetSeason || "all"}, comps=${seasonComps.length}, rounds=${roundCount}, matches=${all}, own=${own}`
+        );
+      } catch (e) {
+        console.error(e);
+        toast.error("試合データの読み込みに失敗しました。");
+      } finally {
+        setLoading(false);
+        loadAllPromiseRef.current = null;
       }
+    })();
 
-      // 選択シーズンの大会のみ対象にし、節・試合取得を並列化
-      const targetSeason = initialSeason ? toSlashSeason(initialSeason) : "";
-      const seasonComps = targetSeason
-        ? comps.filter((c) => !c.season || toSlashSeason(c.season) === targetSeason)
-        : comps;
-
-      const roundsMap = new Map<string, SheetRound[]>();
-      const allRows: SheetMatchRow[] = [];
-
-      const roundPromises = seasonComps.map(async (comp) => {
-        const rounds = await fetchSheetRounds(db, clubUid, comp.id);
-        return { comp, rounds };
-      });
-      const roundResults = await Promise.all(roundPromises);
-      for (const { comp, rounds } of roundResults) roundsMap.set(comp.id, rounds);
-
-      const matchPromises = roundResults.flatMap(({ comp, rounds }) =>
-        rounds.map((round) => fetchSheetMatches(db, clubUid, comp, round).then((matches) => ({ matches })))
-      );
-      const matchResults = await Promise.all(matchPromises);
-      for (const { matches } of matchResults) allRows.push(...matches);
-
-      setRoundsByComp(roundsMap);
-      // 自チーム（mainTeamIdまたはclubUid）が出場する試合のみ表示
-      const ownIds = new Set([main, clubUid].filter(Boolean) as string[]);
-      const ownRows = allRows.filter((r) => ownIds.has(r.homeTeam) || ownIds.has(r.awayTeam));
-      ownRows.sort((a, b) => (a.matchDate || "9999").localeCompare(b.matchDate || "9999"));
-      setRows(ownRows);
-
-      const seasons = [...new Set(comps.map((c) => (c.season || "").trim()).filter(Boolean))].map(toSlashSeason).sort().reverse();
-      const init = initialSeason ? toSlashSeason(initialSeason) : "";
-      setSelectedSeason((prev) => prev || (init && seasons.includes(init) ? init : seasons[0]) || "");
-
-      const elapsed = Math.round(performance.now() - t0);
-      const roundCount = roundResults.reduce((sum, { rounds }) => sum + rounds.length, 0);
-      console.log(
-        `[MatchSheet] loadAll: ${elapsed}ms, season=${targetSeason || "all"}, comps=${seasonComps.length}, rounds=${roundCount}, matches=${allRows.length}, own=${ownRows.length}`
-      );
-    } catch (e) {
-      console.error(e);
-      toast.error("試合データの読み込みに失敗しました。");
-    } finally {
-      setLoading(false);
-    }
+    return loadAllPromiseRef.current;
   }, [clubUid, initialSeason, externalCompetitions, externalTeams, externalMainTeamId]);
 
   useEffect(() => {
+    renderReadyRef.current = false;
     setRows([]);
     setCompetitions([]);
     setRoundsByComp(new Map());
@@ -462,8 +492,16 @@ export function MatchSheet({
     setSelectedSeason("");
     if (careerLoading) return;
     if (!clubUid) { setLoading(false); return; }
+    console.log(`[MatchSheet] effect trigger: clubUid=${clubUid}, careerLoading=${careerLoading}, initialSeason=${initialSeason}, t=${Math.round(performance.now())}`);
     void loadAll();
-  }, [clubUid, careerLoading, loadAll]);
+  }, [clubUid, careerLoading, loadAll, initialSeason]);
+
+  useEffect(() => {
+    if (!loading && !renderReadyRef.current) {
+      renderReadyRef.current = true;
+      console.log(`[MatchSheet] render ready: t=${Math.round(performance.now())}ms, rows=${rows.length}`);
+    }
+  }, [loading, rows]);
 
   // === 行の表示用導出 ===
   // 新規行ホイールの開始位置: 直近の日付入り試合（なければ今日）

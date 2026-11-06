@@ -23,6 +23,10 @@ export default function MatchesPage() {
   const [sheetFilters, setSheetFilters] = useState({ competitionId: "all", teamId: "all" });
 
   useEffect(() => {
+    console.log(`[MatchesPage] mount: t=${Math.round(performance.now())}ms, clubUid=${clubUid ?? ""}`);
+  }, []);
+
+  useEffect(() => {
     setSelectedSeason(null);
     setSheetFilters({ competitionId: "all", teamId: "all" });
   }, [clubUid]);
