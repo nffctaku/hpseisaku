@@ -27,6 +27,10 @@ export default function MatchesPage() {
   }, []);
 
   useEffect(() => {
+    console.log(`[MatchesPage] flags: t=${Math.round(performance.now())}ms, careerLoading=${careerLoading}, loadingBootstrap=${loadingBootstrap}, clubUid=${clubUid ?? ""}`);
+  }, [careerLoading, loadingBootstrap, clubUid]);
+
+  useEffect(() => {
     setSelectedSeason(null);
     setSheetFilters({ competitionId: "all", teamId: "all" });
   }, [clubUid]);

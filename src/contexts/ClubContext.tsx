@@ -32,6 +32,8 @@ export function ClubProvider({ children }: { children: ReactNode }) {
   const lastClubUidRef = useRef<string | null | undefined>(undefined);
 
   const fetchClubInfo = useCallback(async () => {
+    const t0 = performance.now();
+    console.log(`[ClubContext] fetch start: t=${Math.round(t0)}ms, careerLoading=${careerLoading}, hasUser=${!!user}, activeClubUid=${activeCareer?.clubUid ?? ""}`);
     // activeCareer.clubUid が唯一のデータ取得先。ownerUid / user.uid へのフォールバックは行わない。
     const clubUid = user && !careerLoading ? activeCareer?.clubUid ?? null : null;
     const gen = ++fetchGenRef.current;
@@ -110,6 +112,7 @@ export function ClubProvider({ children }: { children: ReactNode }) {
         });
         setMainTeamId(resolvedMainTeamId);
         setClubProfileId(nextClubProfileId);
+        console.log(`[ClubContext] resolved: ${Math.round(performance.now() - t0)}ms, clubUid=${clubUid}, mainTeamId=${resolvedMainTeamId}`);
       } catch (error) {
         console.error("Error fetching club info for context:", error);
       }
@@ -117,6 +120,7 @@ export function ClubProvider({ children }: { children: ReactNode }) {
   }, [user, careerLoading, activeCareer?.clubUid, activeCareer?.id]);
 
   useEffect(() => {
+    console.log(`[ClubContext] effect triggered: t=${Math.round(performance.now())}ms, careerLoading=${careerLoading}, hasUser=${!!user}, activeClubUid=${activeCareer?.clubUid ?? ""}`);
     fetchClubInfo();
   }, [fetchClubInfo]);
 

@@ -46,6 +46,8 @@ export function CareerProvider({ children }: { children: ReactNode }) {
   }, [careers]);
 
   const load = useCallback(async (uid: string) => {
+    const t0 = performance.now();
+    console.log(`[CareerContext] load start uid=${uid}, t=${Math.round(t0)}`);
     setLoading(true);
     setError(null);
     try {
@@ -63,10 +65,12 @@ export function CareerProvider({ children }: { children: ReactNode }) {
       setActiveCareer(resolved);
     } finally {
       setLoading(false);
+      console.log(`[CareerContext] load done: ${Math.round(performance.now() - t0)}ms, careers=${careersRef.current.length}`);
     }
   }, []);
 
   useEffect(() => {
+    console.log(`[CareerContext] effect triggered: t=${Math.round(performance.now())}ms, hasUser=${!!user?.uid}, userReady=${!!user}`);
     if (!user?.uid) {
       setCareers([]);
       setActiveCareer(null);

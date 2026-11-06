@@ -36,6 +36,14 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  useEffect(() => {
+    console.log(`[AdminLayout] mount: t=${Math.round(performance.now())}ms, authLoading=${loading}, hasUser=${!!user}`);
+  }, []);
+
+  useEffect(() => {
+    console.log(`[AdminLayout] auth state: t=${Math.round(performance.now())}ms, authLoading=${loading}, hasUser=${!!user}`);
+  }, [loading, user]);
+
   const isPlainAdminPage = (pathname || '').startsWith('/admin/mypage');
   const isPublicAdminPage = pathname === '/admin/test-login';
 
