@@ -12,19 +12,11 @@ import {
   where,
 } from "firebase/firestore";
 import { toast } from "sonner";
+import type { SheetCompetition, SheetTeam } from "@/lib/match-sheet";
 
-export interface Team {
-  id: string;
-  name: string;
-  logoUrl?: string;
-}
+export type Team = SheetTeam;
 
-export interface CompetitionOption {
-  id: string;
-  name: string;
-  season?: string;
-  logoUrl?: string;
-}
+export type CompetitionOption = SheetCompetition;
 
 export interface EnrichedMatch {
   id: string;
@@ -171,6 +163,8 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
             id: d.id,
             name: (data?.name as string) || d.id,
             season: (data?.season as string) || undefined,
+            format: typeof data?.format === "string" ? data.format : undefined,
+            teams: Array.isArray(data?.teams) ? data.teams.filter((x: any) => typeof x === "string") : undefined,
             logoUrl: typeof data?.logoUrl === "string" ? data.logoUrl : undefined,
           };
         });

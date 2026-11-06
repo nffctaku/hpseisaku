@@ -164,6 +164,9 @@ export default function MatchesPage() {
               filterCompetitionId={sheetFilters.competitionId}
               filterTeamId={sheetFilters.teamId}
               hideSeasonSelect
+              competitions={competitions}
+              teams={teams}
+              mainTeamId={mainTeamId}
             />
           </div>
         </>

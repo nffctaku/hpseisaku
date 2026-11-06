@@ -232,7 +232,23 @@ const goalEventLabel = (ev: MatchEvent): string => {
   return ev.playerName || "不明";
 };
 
-export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, hideSeasonSelect }: { initialSeason?: string; filterCompetitionId?: string; filterTeamId?: string; hideSeasonSelect?: boolean }) {
+export function MatchSheet({
+  initialSeason,
+  filterCompetitionId,
+  filterTeamId,
+  hideSeasonSelect,
+  competitions: externalCompetitions,
+  teams: externalTeams,
+  mainTeamId: externalMainTeamId,
+}: {
+  initialSeason?: string;
+  filterCompetitionId?: string;
+  filterTeamId?: string;
+  hideSeasonSelect?: boolean;
+  competitions?: SheetCompetition[];
+  teams?: SheetTeam[];
+  mainTeamId?: string | null;
+}) {
   const { user } = useAuth();
   const { activeCareer, loading: careerLoading } = useCareer();
   // activeCareer未解決（Career未作成の旧ユーザー等）は uid フォールバック（EventForm等と同じ）
@@ -349,26 +365,30 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
 
   const loadAll = useCallback(async () => {
     if (!clubUid) return;
+    const t0 = performance.now();
     setLoading(true);
     try {
-      const [comps, teamList] = await Promise.all([
-        fetchSheetCompetitions(db, clubUid),
-        fetchSheetTeams(db, clubUid),
-      ]);
+      const comps = (externalCompetitions as SheetCompetition[] | undefined) ?? (await fetchSheetCompetitions(db, clubUid));
       setCompetitions(comps);
+
+      const teamList = (externalTeams as SheetTeam[] | undefined) ?? (await fetchSheetTeams(db, clubUid));
       setTeams(teamList);
 
       // mainTeamId
       let main: string | null = null;
-      try {
-        const p = await getDoc(doc(db, "club_profiles", clubUid));
-        if (p.exists() && typeof p.data()?.mainTeamId === "string") main = p.data().mainTeamId;
-        if (!main) {
-          const q = await getDocs(query(collection(db, "club_profiles"), where("ownerUid", "==", clubUid)));
-          const d0 = q.docs[0]?.data() as any;
-          if (typeof d0?.mainTeamId === "string") main = d0.mainTeamId;
-        }
-      } catch { /* continue */ }
+      if (externalMainTeamId !== undefined) {
+        main = externalMainTeamId;
+      } else {
+        try {
+          const p = await getDoc(doc(db, "club_profiles", clubUid));
+          if (p.exists() && typeof p.data()?.mainTeamId === "string") main = p.data().mainTeamId;
+          if (!main) {
+            const q = await getDocs(query(collection(db, "club_profiles"), where("ownerUid", "==", clubUid)));
+            const d0 = q.docs[0]?.data() as any;
+            if (typeof d0?.mainTeamId === "string") main = d0.mainTeamId;
+          }
+        } catch { /* continue */ }
+      }
       setMainTeamId(main);
 
       // 自チーム選手（得点者候補）: mainTeamId配下＋Career方式の teams/{clubUid}/players を併用（ID重複除去）
@@ -376,27 +396,38 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
         const paths = new Set<string>();
         if (main) paths.add(`clubs/${clubUid}/teams/${main}/players`);
         paths.add(`clubs/${clubUid}/teams/${clubUid}/players`);
+        const snaps = await Promise.all(
+          [...paths].map((p) => getDocs(collection(db, p)).catch(() => ({ docs: [] })))
+        );
         const merged = new Map<string, SheetPlayer>();
-        for (const p of paths) {
-          try {
-            const ps = await getDocs(collection(db, p));
-            for (const d of ps.docs) merged.set(d.id, { id: d.id, ...(d.data() as any) } as SheetPlayer);
-          } catch { /* pathなし */ }
+        for (const ps of snaps) {
+          for (const d of ps.docs) merged.set(d.id, { id: d.id, ...(d.data() as any) } as SheetPlayer);
         }
         setPlayers([...merged.values()].sort((a, b) => (a.number ?? 999) - (b.number ?? 999)));
       }
 
-      // 大会ごとの節＋試合
+      // 選択シーズンの大会のみ対象にし、節・試合取得を並列化
+      const targetSeason = initialSeason ? toSlashSeason(initialSeason) : "";
+      const seasonComps = targetSeason
+        ? comps.filter((c) => !c.season || toSlashSeason(c.season) === targetSeason)
+        : comps;
+
       const roundsMap = new Map<string, SheetRound[]>();
       const allRows: SheetMatchRow[] = [];
-      for (const comp of comps) {
+
+      const roundPromises = seasonComps.map(async (comp) => {
         const rounds = await fetchSheetRounds(db, clubUid, comp.id);
-        roundsMap.set(comp.id, rounds);
-        for (const round of rounds) {
-          const matches = await fetchSheetMatches(db, clubUid, comp, round);
-          allRows.push(...matches);
-        }
-      }
+        return { comp, rounds };
+      });
+      const roundResults = await Promise.all(roundPromises);
+      for (const { comp, rounds } of roundResults) roundsMap.set(comp.id, rounds);
+
+      const matchPromises = roundResults.flatMap(({ comp, rounds }) =>
+        rounds.map((round) => fetchSheetMatches(db, clubUid, comp, round).then((matches) => ({ matches })))
+      );
+      const matchResults = await Promise.all(matchPromises);
+      for (const { matches } of matchResults) allRows.push(...matches);
+
       setRoundsByComp(roundsMap);
       // 自チーム（mainTeamIdまたはclubUid）が出場する試合のみ表示
       const ownIds = new Set([main, clubUid].filter(Boolean) as string[]);
@@ -407,13 +438,19 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
       const seasons = [...new Set(comps.map((c) => (c.season || "").trim()).filter(Boolean))].map(toSlashSeason).sort().reverse();
       const init = initialSeason ? toSlashSeason(initialSeason) : "";
       setSelectedSeason((prev) => prev || (init && seasons.includes(init) ? init : seasons[0]) || "");
+
+      const elapsed = Math.round(performance.now() - t0);
+      const roundCount = roundResults.reduce((sum, { rounds }) => sum + rounds.length, 0);
+      console.log(
+        `[MatchSheet] loadAll: ${elapsed}ms, season=${targetSeason || "all"}, comps=${seasonComps.length}, rounds=${roundCount}, matches=${allRows.length}, own=${ownRows.length}`
+      );
     } catch (e) {
       console.error(e);
       toast.error("試合データの読み込みに失敗しました。");
     } finally {
       setLoading(false);
     }
-  }, [clubUid]);
+  }, [clubUid, initialSeason, externalCompetitions, externalTeams, externalMainTeamId]);
 
   useEffect(() => {
     setRows([]);
