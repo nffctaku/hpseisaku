@@ -59,6 +59,11 @@ export function MatchesFilters(props: {
     return competitions.filter((c) => c.season === season);
   }, [competitions, season]);
 
+  const selectedCompetition = useMemo(() =>
+    visibleCompetitions.find((c) => c.id === competitionId),
+    [visibleCompetitions, competitionId]
+  );
+
   const visibleTeams = useMemo(() => {
     if (competitionId === "all") return teams;
     const ids = competitionTeamIds.get(competitionId) || [];
@@ -102,13 +107,45 @@ export function MatchesFilters(props: {
         )}
         <Select value={competitionId} onValueChange={setCompetitionId}>
           <SelectTrigger className={fieldCls}>
-            <SelectValue placeholder="すべての大会" />
+            <span data-slot="select-value" className="flex min-w-0 items-center gap-2 truncate">
+              {selectedCompetition ? (
+                <>
+                  {selectedCompetition.logoUrl && (
+                    <Image
+                      src={selectedCompetition.logoUrl}
+                      alt={selectedCompetition.name}
+                      width={16}
+                      height={16}
+                      className="h-4 w-4 shrink-0 rounded-full object-contain"
+                    />
+                  )}
+                  <span className="truncate">
+                    {selectedCompetition.season ? `${selectedCompetition.name} (${selectedCompetition.season})` : selectedCompetition.name}
+                  </span>
+                </>
+              ) : (
+                <span className="truncate text-white/70">すべての大会</span>
+              )}
+            </span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">すべての大会</SelectItem>
             {visibleCompetitions.map((comp) => (
               <SelectItem key={comp.id} value={comp.id}>
-                {comp.season ? `${comp.name} (${comp.season})` : comp.name}
+                <div className="flex min-w-0 items-center gap-2">
+                  {comp.logoUrl && (
+                    <Image
+                      src={comp.logoUrl}
+                      alt={comp.name}
+                      width={20}
+                      height={20}
+                      className="h-5 w-5 shrink-0 rounded-full object-contain"
+                    />
+                  )}
+                  <span className="truncate">
+                    {comp.season ? `${comp.name} (${comp.season})` : comp.name}
+                  </span>
+                </div>
               </SelectItem>
             ))}
           </SelectContent>

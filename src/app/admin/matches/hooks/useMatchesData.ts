@@ -23,6 +23,7 @@ export interface CompetitionOption {
   id: string;
   name: string;
   season?: string;
+  logoUrl?: string;
 }
 
 export interface EnrichedMatch {
@@ -164,11 +165,15 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
         if (cancelled) return;
         competitionMetaRef.current = competitionMeta;
 
-        const competitionOptions: CompetitionOption[] = competitionsSnap.docs.map((d) => ({
-          id: d.id,
-          name: ((d.data() as any)?.name as string) || d.id,
-          season: ((d.data() as any)?.season as string) || undefined,
-        }));
+        const competitionOptions: CompetitionOption[] = competitionsSnap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            name: (data?.name as string) || d.id,
+            season: (data?.season as string) || undefined,
+            logoUrl: typeof data?.logoUrl === "string" ? data.logoUrl : undefined,
+          };
+        });
         competitionOptions.sort((a, b) => a.name.localeCompare(b.name));
         if (cancelled) return;
         setCompetitions(competitionOptions);
