@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, type UserProfile } from "@/contexts/AuthContext";
 import type { Career, CareerInput } from "@/lib/career";
 import {
   getCareerContextData,
@@ -45,32 +45,60 @@ export function CareerProvider({ children }: { children: ReactNode }) {
     careersRef.current = careers;
   }, [careers]);
 
-  const load = useCallback(async (uid: string) => {
+  const buildInitialCareer = useCallback((profile: UserProfile): Career | null => {
+    if (!profile.activeCareerId || !profile.clubUid) return null;
+    return {
+      id: profile.activeCareerId,
+      ownerId: profile.uid,
+      clubUid: profile.clubUid,
+      name: profile.clubName || profile.activeCareerId,
+      gameTitle: "FC26",
+      clubName: profile.clubName || "",
+      clubId: profile.clubId || null,
+      clubLogo: profile.logoUrl || null,
+      startSeason: null,
+      latestSeason: null,
+      seasonCount: 0,
+      isPublic: false,
+      status: "active",
+      createdAt: undefined,
+      updatedAt: undefined,
+    };
+  }, []);
+
+  const load = useCallback(async (uid: string, silent = false) => {
     const t0 = performance.now();
-    console.log(`[CareerContext] load start uid=${uid}, t=${Math.round(t0)}`);
-    setLoading(true);
+    console.log(`[CareerContext] load start uid=${uid}, silent=${silent}, t=${Math.round(t0)}`);
+    if (!silent) setLoading(true);
     setError(null);
+    let list: Career[] = [];
+    let resolved: Career | null = null;
     try {
-      const { careers: list, activeCareerId } = await getCareerContextData();
+      const { careers: fetched, activeCareerId } = await getCareerContextData();
+      list = fetched;
       if (list.length === 0) {
         const defaulted = await ensureDefaultCareer(uid);
         setCareers([defaulted]);
         setActiveCareer(defaulted);
+        resolved = defaulted;
         return;
       }
       setCareers(list);
 
       const nonDeleted = list.filter((c) => c.status !== "deleted");
-      const resolved = nonDeleted.find((c) => c.id === activeCareerId) || nonDeleted[0] || null;
+      resolved = nonDeleted.find((c) => c.id === activeCareerId) || nonDeleted[0] || null;
       setActiveCareer(resolved);
+    } catch (e: any) {
+      console.error("[CareerContext] load failed", e);
+      setError(e?.message || "Career一覧の取得に失敗しました");
     } finally {
-      setLoading(false);
-      console.log(`[CareerContext] load done: ${Math.round(performance.now() - t0)}ms, careers=${careersRef.current.length}`);
+      if (!silent) setLoading(false);
+      console.log(`[CareerContext] load done: ${Math.round(performance.now() - t0)}ms, careers=${list.length}, active=${resolved?.id ?? "none"}`);
     }
   }, []);
 
   useEffect(() => {
-    console.log(`[CareerContext] effect triggered: t=${Math.round(performance.now())}ms, hasUser=${!!user?.uid}, userReady=${!!user}`);
+    console.log(`[CareerContext] effect triggered: t=${Math.round(performance.now())}ms, hasUser=${!!user?.uid}, activeCareerId=${user?.activeCareerId ?? ""}, clubUid=${user?.clubUid ?? ""}`);
     if (!user?.uid) {
       setCareers([]);
       setActiveCareer(null);
@@ -78,13 +106,22 @@ export function CareerProvider({ children }: { children: ReactNode }) {
       return;
     }
     const uid = user.uid;
+    const initial = buildInitialCareer(user as UserProfile);
+    const silent = !!initial;
+    if (initial) {
+      console.log(`[CareerContext] active career ready from AuthContext: t=${Math.round(performance.now())}ms`, { id: initial.id, clubUid: initial.clubUid });
+      setCareers([initial]);
+      setActiveCareer(initial);
+      setLoading(false);
+      setError(null);
+    }
 
     let unsub: (() => void) | null = null;
     let cancelled = false;
 
     void (async () => {
       try {
-        await load(uid);
+        await load(uid, silent);
       } catch (e: any) {
         console.error("[CareerContext] initial load failed", e);
         setError(e?.message || "Career一覧の取得に失敗しました");
