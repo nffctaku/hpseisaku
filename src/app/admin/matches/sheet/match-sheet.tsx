@@ -857,7 +857,13 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
                     </td>
                     {/* 大会名（既存行は参照のみ） */}
                     <td className={cellBase}>
-                      <span className="block truncate px-1 text-[12px] text-[#1B1F27]">{row.competitionName}</span>
+                      <div className="flex items-center gap-1.5 px-1">
+                        {competitionsMap.get(row.competitionId)?.logoUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={competitionsMap.get(row.competitionId)!.logoUrl} alt="" className="h-5 w-5 shrink-0 rounded-full object-contain" />
+                        )}
+                        <span className="truncate text-[12px] text-[#1B1F27]">{row.competitionName}</span>
+                      </div>
                     </td>
                     {/* 節（同一大会内での移動可。大会名は参照専用） */}
                     <td className={cellBase}>
@@ -1046,7 +1052,15 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
                 </td>
                 <td className={cellBase}>
                   <button type="button" className={selBtn} onClick={() => openCompetitionPicker(pending.competitionId, (id) => updatePending({ competitionId: id, roundId: "" }))}>
-                    {pending.competitionId ? competitionsMap.get(pending.competitionId)?.name : "大会を選択"}
+                    <span className="flex items-center gap-1.5">
+                      {pending.competitionId && competitionsMap.get(pending.competitionId)?.logoUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={competitionsMap.get(pending.competitionId)!.logoUrl} alt="" className="h-5 w-5 shrink-0 rounded-full object-contain" />
+                      )}
+                      <span className="truncate">
+                        {pending.competitionId ? competitionsMap.get(pending.competitionId)?.name : "大会を選択"}
+                      </span>
+                    </span>
                   </button>
                 </td>
                 <td className={cellBase}>
