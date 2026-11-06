@@ -860,7 +860,7 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
                       <div className="flex items-center gap-1.5 px-1">
                         {competitionsMap.get(row.competitionId)?.logoUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={competitionsMap.get(row.competitionId)!.logoUrl} alt="" className="h-5 w-5 shrink-0 rounded-full object-contain" />
+                          <img src={competitionsMap.get(row.competitionId)!.logoUrl} alt="" className="h-5 w-5 shrink-0 object-contain" />
                         )}
                         <span className="truncate text-[12px] text-[#1B1F27]">{row.competitionName}</span>
                       </div>
@@ -1055,7 +1055,7 @@ export function MatchSheet({ initialSeason, filterCompetitionId, filterTeamId, h
                     <span className="flex items-center gap-1.5">
                       {pending.competitionId && competitionsMap.get(pending.competitionId)?.logoUrl && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={competitionsMap.get(pending.competitionId)!.logoUrl} alt="" className="h-5 w-5 shrink-0 rounded-full object-contain" />
+                        <img src={competitionsMap.get(pending.competitionId)!.logoUrl} alt="" className="h-5 w-5 shrink-0 object-contain" />
                       )}
                       <span className="truncate">
                         {pending.competitionId ? competitionsMap.get(pending.competitionId)?.name : "大会を選択"}
