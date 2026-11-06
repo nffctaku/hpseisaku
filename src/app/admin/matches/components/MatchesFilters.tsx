@@ -107,16 +107,16 @@ export function MatchesFilters(props: {
         )}
         <Select value={competitionId} onValueChange={setCompetitionId}>
           <SelectTrigger className={fieldCls}>
-            <span data-slot="select-value" className="flex min-w-0 items-center gap-2 truncate">
+            <span className="flex min-w-0 items-center gap-2 truncate">
               {selectedCompetition ? (
                 <>
                   {selectedCompetition.logoUrl && (
                     <Image
                       src={selectedCompetition.logoUrl}
                       alt={selectedCompetition.name}
-                      width={16}
-                      height={16}
-                      className="h-4 w-4 shrink-0 rounded-full object-contain"
+                      width={20}
+                      height={20}
+                      className="h-5 w-5 shrink-0 rounded-full object-contain"
                     />
                   )}
                   <span className="truncate">
