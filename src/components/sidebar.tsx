@@ -91,6 +91,7 @@ export function Sidebar() {
       title: '記録・分析',
       items: [
         { href: bookletHref, label: '選手名鑑', icon: BookOpen },
+        { href: `/admin/dashboard`, label: 'ダッシュボード', icon: LayoutGrid },
         { href: `/admin/analysis`, label: '分析管理', icon: LineChart },
         { href: `/admin/club/history`, label: 'クラブ史', icon: History },
         { href: `/admin/club/history/trophies`, label: 'トロフィールーム', icon: Trophy },
