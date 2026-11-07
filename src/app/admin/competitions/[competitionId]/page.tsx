@@ -18,6 +18,7 @@ import { format, parse, isValid, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { MatchEditor } from '@/components/match-editor';
 import { Match, Team } from '@/types/match';
+import { createSheetRound, getRoundSortKey, TOURNAMENT_ROUNDS } from '@/lib/match-sheet';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +43,9 @@ interface Competition {
 interface Round {
   id: string;
   name: string;
+  kind?: 'section' | 'tournament';
+  roundKey?: string;
+  order?: number;
   matches: Match[];
 }
 
@@ -123,32 +127,6 @@ function normalizeDate(raw: string): string | null {
   return null;
 }
 
-function getRoundSortKey(name: string): number {
-  const s = (name || '').trim();
-  if (!s) return Number.POSITIVE_INFINITY;
-
-  const league = s.match(/^第?\s*(\d+)\s*節$/);
-  if (league) return Number(league[1]);
-
-  const cup = s.match(/^第?\s*(\d+)\s*回戦$/);
-  if (cup) return 100 + Number(cup[1]);
-
-  const special: Record<string, number> = {
-    '予選': 10,
-    '予備予選': 5,
-    'プレーオフ': 700,
-    'ラウンド16': 800,
-    'ベスト16': 800,
-    '準々決勝': 900,
-    '準決勝': 950,
-    '3位決定戦': 975,
-    '決勝': 1000,
-  };
-  if (s in special) return special[s];
-
-  return 100000;
-}
-
 function isLeagueRoundName(name: string | undefined): boolean {
   const s = (name || '').trim();
   if (!s) return false;
@@ -187,6 +165,7 @@ export default function CompetitionDetailPage() {
     value: string;
   } | null>(null);
   const [tempDateValue, setTempDateValue] = useState<string>('');
+  const [selectedTournamentRound, setSelectedTournamentRound] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fetchGenRef = useRef(0);
 
@@ -249,7 +228,15 @@ export default function CompetitionDetailPage() {
             const matchesSnap = await getDocs(query(matchesColRef));
             const matchesData = matchesSnap.docs.map(matchDoc => ({ id: matchDoc.id, ...matchDoc.data() } as Match));
             matchesData.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
-            return { id: roundDoc.id, name: roundDoc.data().name, matches: matchesData };
+            const data = roundDoc.data() as any;
+            return {
+              id: roundDoc.id,
+              name: data.name,
+              kind: data.kind ?? 'section',
+              roundKey: data.roundKey,
+              order: data.order,
+              matches: matchesData,
+            };
           } catch (e) {
             console.error('[CompetitionDetailPage] Failed to fetch matches for round', { clubUid, competitionId, roundId: roundDoc.id, path: `clubs/${clubUid}/competitions/${competitionId}/rounds/${roundDoc.id}/matches`, error: e });
             throw e;
@@ -260,8 +247,8 @@ export default function CompetitionDetailPage() {
         throw e;
       }
       roundsData.sort((a, b) => {
-        const ka = getRoundSortKey(a.name);
-        const kb = getRoundSortKey(b.name);
+        const ka = a.order ?? getRoundSortKey(a.name);
+        const kb = b.order ?? getRoundSortKey(b.name);
         if (ka !== kb) return ka - kb;
         return a.name.localeCompare(b.name, undefined, { numeric: true });
       });
@@ -774,13 +761,42 @@ export default function CompetitionDetailPage() {
     }
   };
 
+  const nextRoundOrder = (existing: Round[]) =>
+    Math.max(0, ...existing.map((r) => r.order ?? getRoundSortKey(r.name))) + 1;
+
   const handleAddRound = async () => {
     if (!user || !clubUid) return;
-    const newRoundName = `第${rounds.length + 1}節`;
-    const roundRef = await addDoc(collection(db, `clubs/${clubUid}/competitions`, competitionId, 'rounds'), { name: newRoundName });
-    setRounds([...rounds, { id: roundRef.id, name: newRoundName, matches: [] }]);
+    const sectionCount = rounds.filter((r) => (r.kind ?? 'section') === 'section').length;
+    const newRoundName = `第${sectionCount + 1}節`;
+    const created = await createSheetRound(db, clubUid, competitionId, newRoundName, {
+      order: nextRoundOrder(rounds),
+    });
+    setRounds([...rounds, { ...created, matches: [] }]);
     setCurrentRoundIndex(rounds.length);
     toast.success(`${newRoundName}を追加しました。`);
+  };
+
+  const handleAddTournamentRound = async (roundKey: string) => {
+    if (!user || !clubUid) return;
+    const round = TOURNAMENT_ROUNDS.find((t) => t.roundKey === roundKey);
+    if (!round) return;
+    const existing = rounds.find(
+      (r) => r.roundKey === roundKey || r.name === round.name
+    );
+    if (existing) {
+      toast.error(`${round.name}は既に追加されています。`);
+      setSelectedTournamentRound('');
+      return;
+    }
+    const created = await createSheetRound(db, clubUid, competitionId, round.name, {
+      kind: 'tournament',
+      roundKey: round.roundKey,
+      order: nextRoundOrder(rounds),
+    });
+    setRounds([...rounds, { ...created, matches: [] }]);
+    setCurrentRoundIndex(rounds.length);
+    setSelectedTournamentRound('');
+    toast.success(`${round.name}を追加しました。`);
   };
 
   const handleDeleteMatch = async (match: Match) => {
@@ -954,16 +970,39 @@ export default function CompetitionDetailPage() {
               節の選択
             </div>
             {currentRoundIndex === rounds.length - 1 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAddRound}
-                title="節を追加"
-                className="h-8 rounded-lg border-white/10 bg-[#0B1120]/80 px-3 text-xs font-medium text-[#F3F4F6] hover:bg-[#111827] hover:text-[#F3F4F6]"
-              >
-                <PlusCircle className="h-5 w-5 stroke-[1.5]" />
-                節を追加
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddRound}
+                  title="節を追加"
+                  className="h-8 rounded-lg border-white/10 bg-[#0B1120]/80 px-3 text-xs font-medium text-[#F3F4F6] hover:bg-[#111827] hover:text-[#F3F4F6]"
+                >
+                  <PlusCircle className="h-5 w-5 stroke-[1.5]" />
+                  節を追加
+                </Button>
+                {competition?.format !== 'league' && (
+                  <Select
+                    value={selectedTournamentRound}
+                    onValueChange={(v) => {
+                      setSelectedTournamentRound(v);
+                      handleAddTournamentRound(v);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[10rem] rounded-lg border-white/10 bg-[#0B1120]/80 px-3 text-xs font-medium text-[#F3F4F6] hover:bg-[#111827]">
+                      <PlusCircle className="mr-1 h-4 w-4 stroke-[1.5]" />
+                      <SelectValue placeholder="トーナメント" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TOURNAMENT_ROUNDS.filter(
+                        (t) => !rounds.some((r) => r.roundKey === t.roundKey || r.name === t.name)
+                      ).map((t) => (
+                        <SelectItem key={t.roundKey} value={t.roundKey}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             )}
           </div>
 

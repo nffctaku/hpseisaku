@@ -32,6 +32,9 @@ import {
   deleteSheetMatch,
   moveMatchToRound,
   updateSheetMatch,
+  getRoundSortKey,
+  TOURNAMENT_ROUNDS,
+  type TournamentRoundKey,
 } from "@/lib/match-sheet";
 import { seasonKeyCandidates, toDashSeason, toSlashSeason } from "@/lib/season";
 
@@ -50,6 +53,8 @@ interface PendingRow {
 }
 
 const NEW_VALUE = "__new__";
+const NEW_SECTION = "__new_section__";
+const NEW_TOURNAMENT = "__new_tournament__";
 
 const todayStr = () => {
   const d = new Date();
@@ -776,31 +781,59 @@ export function MatchSheet({
   };
 
   const openRoundPicker = (compId: string, current: string, onPick: (id: string) => void) => {
-    // 節名を数値解釈して順序化（"第9節"→9、"第10節"→10。数値なしは末尾）
-    const rounds = [...(roundsByComp.get(compId) || [])].sort((a, b) => {
-      const na = parseInt(String(a.name).replace(/\D/g, ""), 10);
-      const nb = parseInt(String(b.name).replace(/\D/g, ""), 10);
-      if (!isNaN(na) && !isNaN(nb)) return na - nb;
-      if (!isNaN(na)) return -1;
-      if (!isNaN(nb)) return 1;
-      return a.name.localeCompare(b.name, "ja");
-    });
+    const comp = competitionsMap.get(compId);
+    const format = comp?.format;
+    const rawRounds = roundsByComp.get(compId) || [];
+    const rounds = [...rawRounds].sort(
+      (a, b) => (a.order ?? getRoundSortKey(a.name)) - (b.order ?? getRoundSortKey(b.name))
+    );
+    const sectionCount = rawRounds.filter((r) => (r.kind ?? "section") === "section").length;
+    const nextOrder = Math.max(0, ...rawRounds.map((r) => r.order ?? getRoundSortKey(r.name))) + 1;
+    const canAddTournament = format !== "league";
+    const options = [
+      { value: NEW_SECTION, label: "＋ 新しい節を追加" },
+      ...(canAddTournament ? [{ value: NEW_TOURNAMENT, label: "＋ トーナメントラウンドを追加" }] : []),
+      ...rounds.map((r) => ({ value: r.id, label: r.name })),
+    ];
     setPicker({
       title: "節・ラウンドを選択",
       value: current,
-      options: [
-        { value: NEW_VALUE, label: "＋ 新しい節を追加" },
-        ...rounds.map((r) => ({ value: r.id, label: r.name })),
-      ],
+      options,
       onSelect: (v) => {
-        if (v === NEW_VALUE) {
+        if (v === NEW_SECTION) {
           setNewTextPrompt({
-            title: "新しい節・ラウンド名",
+            title: "新しい節名",
             placeholder: "例: 第10節",
-            value: `第${rounds.length + 1}節`,
+            value: `第${sectionCount + 1}節`,
             onSubmit: async (text) => {
               if (!clubUid || !text.trim()) return;
-              const created = await createSheetRound(db, clubUid, compId, text.trim());
+              const created = await createSheetRound(db, clubUid, compId, text.trim(), { order: nextOrder });
+              setRoundsByComp((prev) => {
+                const next = new Map(prev);
+                next.set(compId, [...(next.get(compId) || []), created]);
+                return next;
+              });
+              onPick(created.id);
+            },
+          });
+          return;
+        }
+        if (v === NEW_TOURNAMENT) {
+          const available = TOURNAMENT_ROUNDS.filter(
+            (t) => !rawRounds.some((r) => r.roundKey === t.roundKey || r.name === t.name)
+          );
+          setPicker({
+            title: "トーナメントラウンドを追加",
+            value: "",
+            options: available.map((t) => ({ value: t.roundKey, label: t.name })),
+            onSelect: async (key) => {
+              const round = TOURNAMENT_ROUNDS.find((t) => t.roundKey === key);
+              if (!clubUid || !round) return;
+              const created = await createSheetRound(db, clubUid, compId, round.name, {
+                kind: "tournament",
+                roundKey: round.roundKey,
+                order: nextOrder,
+              });
               setRoundsByComp((prev) => {
                 const next = new Map(prev);
                 next.set(compId, [...(next.get(compId) || []), created]);

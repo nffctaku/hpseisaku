@@ -28,10 +28,56 @@ export interface SheetTeam {
   logoUrl?: string;
 }
 
+export type RoundKind = 'section' | 'tournament';
+
 export interface SheetRound {
   id: string;
   name: string;
+  kind?: RoundKind;
+  roundKey?: string;
+  order?: number;
 }
+
+export const getRoundSortKey = (name: string): number => {
+  const s = (name || '').trim();
+  if (!s) return Number.POSITIVE_INFINITY;
+
+  const league = s.match(/^第?\s*(\d+)\s*節$/);
+  if (league) return Number(league[1]);
+
+  const cup = s.match(/^第?\s*(\d+)\s*回戦$/);
+  if (cup) return 100 + Number(cup[1]);
+
+  const special: Record<string, number> = {
+    '予選': 10,
+    '予備予選': 5,
+    'プレーオフ': 700,
+    'ラウンド16': 800,
+    'ベスト16': 800,
+    '準々決勝': 900,
+    '準決勝': 950,
+    '3位決定戦': 975,
+    '決勝': 1000,
+  };
+  if (s in special) return special[s];
+
+  return 100000;
+};
+
+export const TOURNAMENT_ROUNDS = [
+  { roundKey: 'r1', name: '1回戦' },
+  { roundKey: 'r2', name: '2回戦' },
+  { roundKey: 'r3', name: '3回戦' },
+  { roundKey: 'r4', name: '4回戦' },
+  { roundKey: 'r5', name: '5回戦' },
+  { roundKey: 'r6', name: '6回戦' },
+  { roundKey: 'quarter', name: '準々決勝' },
+  { roundKey: 'semi', name: '準決勝' },
+  { roundKey: 'third_place', name: '3位決定戦' },
+  { roundKey: 'final', name: '決勝' },
+] as const;
+
+export type TournamentRoundKey = (typeof TOURNAMENT_ROUNDS)[number]['roundKey'];
 
 export interface SheetCompetition {
   id: string;
@@ -183,18 +229,37 @@ export const updateSheetMatch = async (
   await bumpStatsCache(db, clubUid);
 };
 
+export interface CreateSheetRoundOptions {
+  kind?: RoundKind;
+  roundKey?: string;
+  order?: number;
+}
+
 // 節・ラウンドをセルから新規登録
 export const createSheetRound = async (
   db: Firestore,
   clubUid: string,
   competitionId: string,
-  name: string
+  name: string,
+  options?: CreateSheetRoundOptions
 ): Promise<SheetRound> => {
+  const payload: Record<string, unknown> = {
+    name,
+    kind: options?.kind ?? 'section',
+  };
+  if (options?.roundKey) payload.roundKey = options.roundKey;
+  if (typeof options?.order === 'number') payload.order = options.order;
   const ref = await addDoc(
     collection(db, `clubs/${clubUid}/competitions/${competitionId}/rounds`),
-    { name }
+    payload
   );
-  return { id: ref.id, name };
+  return {
+    id: ref.id,
+    name,
+    kind: options?.kind ?? 'section',
+    roundKey: options?.roundKey,
+    order: options?.order,
+  };
 };
 
 // 対戦相手をセルから新規登録（teamsコレクション＋大会のteams一覧へも登録して次回から候補に出す）
