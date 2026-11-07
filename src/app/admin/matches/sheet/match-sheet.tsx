@@ -53,8 +53,9 @@ interface PendingRow {
 }
 
 const NEW_VALUE = "__new__";
-const NEW_SECTION = "__new_section__";
-const NEW_TOURNAMENT = "__new_tournament__";
+const ADD_SECTION = "__add_section__";
+const KIND_SECTION = "__kind_section__";
+const KIND_TOURNAMENT = "__kind_tournament__";
 
 const todayStr = () => {
   const d = new Date();
@@ -789,61 +790,95 @@ export function MatchSheet({
     );
     const sectionCount = rawRounds.filter((r) => (r.kind ?? "section") === "section").length;
     const nextOrder = Math.max(0, ...rawRounds.map((r) => r.order ?? getRoundSortKey(r.name))) + 1;
-    const canAddTournament = format !== "league";
-    const options = [
-      { value: NEW_SECTION, label: "＋ 新しい節を追加" },
-      ...(canAddTournament ? [{ value: NEW_TOURNAMENT, label: "＋ トーナメントラウンドを追加" }] : []),
-      ...rounds.map((r) => ({ value: r.id, label: r.name })),
-    ];
+
+    const openSectionPrompt = () => {
+      setPicker(null);
+      setNewTextPrompt({
+        title: "新しい節名",
+        placeholder: "例: 第10節",
+        value: `第${sectionCount + 1}節`,
+        onSubmit: async (text) => {
+          if (!clubUid || !text.trim()) return;
+          const created = await createSheetRound(db, clubUid, compId, text.trim(), { order: nextOrder });
+          setRoundsByComp((prev) => {
+            const next = new Map(prev);
+            next.set(compId, [...(next.get(compId) || []), created]);
+            return next;
+          });
+          onPick(created.id);
+        },
+      });
+    };
+
+    const openTournamentPicker = () => {
+      const available = TOURNAMENT_ROUNDS.filter(
+        (t) => !rawRounds.some((r) => r.roundKey === t.roundKey || r.name === t.name)
+      );
+      setPicker({
+        title: "トーナメントラウンドを追加",
+        value: "",
+        variant: "sheet",
+        autoClose: false,
+        options: available.map((t) => ({ value: t.roundKey, label: t.name })),
+        onSelect: async (key) => {
+          const round = TOURNAMENT_ROUNDS.find((t) => t.roundKey === key);
+          if (!clubUid || !round) return;
+          const created = await createSheetRound(db, clubUid, compId, round.name, {
+            kind: "tournament",
+            roundKey: round.roundKey,
+            order: nextOrder,
+          });
+          setRoundsByComp((prev) => {
+            const next = new Map(prev);
+            next.set(compId, [...(next.get(compId) || []), created]);
+            return next;
+          });
+          onPick(created.id);
+          setPicker(null);
+        },
+      });
+    };
+
+    const addLabel = format === "league" ? "＋ 新しい節を追加" : "＋ セクションを追加";
+
     setPicker({
       title: "節・ラウンドを選択",
       value: current,
-      options,
+      variant: "sheet",
+      autoClose: false,
+      options: [
+        { value: ADD_SECTION, label: addLabel },
+        ...rounds.map((r) => ({ value: r.id, label: r.name })),
+      ],
       onSelect: (v) => {
-        if (v === NEW_SECTION) {
-          setNewTextPrompt({
-            title: "新しい節名",
-            placeholder: "例: 第10節",
-            value: `第${sectionCount + 1}節`,
-            onSubmit: async (text) => {
-              if (!clubUid || !text.trim()) return;
-              const created = await createSheetRound(db, clubUid, compId, text.trim(), { order: nextOrder });
-              setRoundsByComp((prev) => {
-                const next = new Map(prev);
-                next.set(compId, [...(next.get(compId) || []), created]);
-                return next;
-              });
-              onPick(created.id);
-            },
-          });
-          return;
-        }
-        if (v === NEW_TOURNAMENT) {
-          const available = TOURNAMENT_ROUNDS.filter(
-            (t) => !rawRounds.some((r) => r.roundKey === t.roundKey || r.name === t.name)
-          );
+        if (v === ADD_SECTION) {
+          if (format === "league") {
+            openSectionPrompt();
+            return;
+          }
           setPicker({
-            title: "トーナメントラウンドを追加",
+            title: "追加する種類を選択",
             value: "",
-            options: available.map((t) => ({ value: t.roundKey, label: t.name })),
-            onSelect: async (key) => {
-              const round = TOURNAMENT_ROUNDS.find((t) => t.roundKey === key);
-              if (!clubUid || !round) return;
-              const created = await createSheetRound(db, clubUid, compId, round.name, {
-                kind: "tournament",
-                roundKey: round.roundKey,
-                order: nextOrder,
-              });
-              setRoundsByComp((prev) => {
-                const next = new Map(prev);
-                next.set(compId, [...(next.get(compId) || []), created]);
-                return next;
-              });
-              onPick(created.id);
+            variant: "sheet",
+            autoClose: false,
+            options: [
+              { value: KIND_SECTION, label: "節を追加" },
+              { value: KIND_TOURNAMENT, label: "トーナメントラウンドを追加" },
+            ],
+            onSelect: (kind) => {
+              if (kind === KIND_SECTION) {
+                openSectionPrompt();
+                return;
+              }
+              if (kind === KIND_TOURNAMENT) {
+                openTournamentPicker();
+                return;
+              }
             },
           });
           return;
         }
+        setPicker(null);
         onPick(v);
       },
     });
