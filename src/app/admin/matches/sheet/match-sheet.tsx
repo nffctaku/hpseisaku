@@ -162,10 +162,12 @@ const DateWheelModal = ({ initial, years, onDone, onClose }: { initial: string; 
 // 得点者追加: 左列=試合時間(未入力〜120)、右列=選手+OG（日付ピッカーと同じ見た目の2列ホイール）
 const ScorerWheelModal = ({
   players,
+  initialMinute,
   onDone,
   onClose,
 }: {
   players: { v: string; label: string }[];
+  initialMinute?: string;
   onDone: (playerId: string, minute: string) => void;
   onClose: () => void;
 }) => {
@@ -180,7 +182,7 @@ const ScorerWheelModal = ({
     }
     return items;
   }, []);
-  const [minute, setMinute] = useState("");
+  const [minute, setMinute] = useState(initialMinute ?? "");
   const [playerId, setPlayerId] = useState(players[0]?.v ?? "");
   const preview = players.find((p) => p.v === playerId)?.label ?? "";
   return (
@@ -1365,6 +1367,13 @@ export function MatchSheet({
       )}
       {scorerPick && (
         <ScorerWheelModal
+          key={scorerPick.key}
+          initialMinute={(() => {
+            const last = scorerPick.events
+              .filter((e) => e.type === "goal" && e.minute != null)
+              .pop();
+            return last ? String(last.minute) : "";
+          })()}
           players={(() => {
             const merged = new Map<string, { v: string; label: string }>();
             for (const p of scorerCandidates) {
