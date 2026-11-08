@@ -276,6 +276,7 @@ export function MatchSheet({
   const loadAllPromiseRef = useRef<Promise<void> | null>(null);
   const loadAllKeyRef = useRef<string>("");
   const renderReadyRef = useRef(false);
+  const justCreatedRoundRef = useRef<SheetRound | null>(null);
 
   const [pending, setPending] = useState<PendingRow>({
     matchDate: "",
@@ -703,7 +704,11 @@ export function MatchSheet({
   const materializePending = async (next: PendingRow) => {
     if (!clubUid || !next.competitionId || !next.roundId || !mainTeamId) return;
     const comp = competitionsMap.get(next.competitionId);
-    const round = pendingRoundOptions.find((r) => r.id === next.roundId);
+    let round = pendingRoundOptions.find((r) => r.id === next.roundId);
+    if (!round && justCreatedRoundRef.current?.id === next.roundId) {
+      round = justCreatedRoundRef.current;
+      justCreatedRoundRef.current = null;
+    }
     if (!comp || !round) return;
     try {
       const homeTeam = next.ha === "H" ? mainTeamId : next.opponentTeamId;
@@ -807,6 +812,7 @@ export function MatchSheet({
             next.set(compId, [...(next.get(compId) || []), created]);
             return next;
           });
+          justCreatedRoundRef.current = created;
           onPick(created.id);
         },
       });
@@ -835,6 +841,7 @@ export function MatchSheet({
             next.set(compId, [...(next.get(compId) || []), created]);
             return next;
           });
+          justCreatedRoundRef.current = created;
           onPick(created.id);
           setPicker(null);
         },
@@ -1344,6 +1351,8 @@ export function MatchSheet({
           <button
             type="button"
             onClick={() => {
+              // 開くタイミングで pending をリセット（materialize 直後の state 不整合を防ぐ）
+              setPending({ matchDate: "", competitionId: "", roundId: "", opponentTeamId: "", ha: "H", selfScore: null, oppScore: null, pkSelf: null, pkOpp: null });
               setPendingVisible(true);
               requestAnimationFrame(() => document.getElementById("sheet-pending-date")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
             }}

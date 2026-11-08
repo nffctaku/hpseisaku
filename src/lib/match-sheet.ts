@@ -207,10 +207,8 @@ export const createSheetMatch = async (
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
-  const ref = await addDoc(
-    collection(db, `clubs/${clubUid}/competitions/${competition.id}/rounds/${round.id}/matches`),
-    payload
-  );
+  const matchPath = `clubs/${clubUid}/competitions/${competition.id}/rounds/${round.id}/matches`;
+  const ref = await addDoc(collection(db, matchPath), payload);
   await syncIndex(db, clubUid, competition.id, round.id, ref.id, payload, competition.name, round.name, teamsMap);
   await bumpStatsCache(db, clubUid);
   return ref.id;
@@ -253,10 +251,8 @@ export const createSheetRound = async (
   };
   if (options?.roundKey) payload.roundKey = options.roundKey;
   if (typeof options?.order === 'number') payload.order = options.order;
-  const ref = await addDoc(
-    collection(db, `clubs/${clubUid}/competitions/${competitionId}/rounds`),
-    payload
-  );
+  const path = `clubs/${clubUid}/competitions/${competitionId}/rounds`;
+  const ref = await addDoc(collection(db, path), payload);
   return {
     id: ref.id,
     name,
