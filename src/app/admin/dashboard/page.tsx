@@ -1,6 +1,7 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Loader2, Shield, UserRound } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select,
@@ -9,26 +10,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useClub } from "@/contexts/ClubContext";
 import { useDashboardData } from "./hooks/useDashboardData";
 import {
   BarChart,
   Bar,
   XAxis,
   YAxis,
-  Tooltip,
+  Tooltip as ReTooltip,
   CartesianGrid,
   ResponsiveContainer,
   Legend,
   ComposedChart,
   Line,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
+import "./dashboard.css";
+
+const colors = {
+  bg: "#0a0a0c",
+  surface: "#141419",
+  surfaceHighlight: "#1c1c23",
+  text: "#f5f5f5",
+  sub: "#9ca3af",
+  muted: "#6b7280",
+  border: "#27272a",
+  accent: "#8b5cf6",
+  win: "#22c55e",
+  draw: "#9ca3af",
+  loss: "#ef4444",
+};
+
+const chartTooltipStyle = {
+  backgroundColor: colors.surfaceHighlight,
+  border: `1px solid ${colors.border}`,
+  borderRadius: "8px",
+  color: colors.text,
+};
+
+const chartLabelStyle = { fill: colors.sub, fontSize: 12 };
+const chartAxisStyle = { stroke: colors.border };
 
 export default function DashboardPage() {
+  const { clubInfo } = useClub();
   const {
     loading,
     activeCareer,
-    careers,
-    switchCareer,
     seasons,
     selectedSeason,
     setSelectedSeason,
@@ -42,265 +71,73 @@ export default function DashboardPage() {
     monthly,
   } = useDashboardData();
 
+  const clubName = clubInfo?.clubName || activeCareer?.clubName || "クラブ名未設定";
+
   if (loading) {
     return (
-      <div className="flex h-[60vh] items-center justify-center bg-[#F8FAFC]">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="flex h-[60vh] items-center justify-center" style={{ backgroundColor: colors.bg }}>
+        <Loader2 className="h-8 w-8 animate-spin" style={{ color: colors.text }} />
       </div>
     );
   }
 
-  const goalsForPct = overview.goalsFor + overview.goalsAgainst || 1;
-
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#111827]">
-      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">ダッシュボード</h1>
-            <p className="mt-1 text-sm text-[#64748B]">既存の試合記録から自動集計</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Select value={activeCareer?.id} onValueChange={(v) => switchCareer(v)}>
-              <SelectTrigger className="h-9 w-[140px] bg-white text-sm">
-                <SelectValue placeholder="キャリア" />
-              </SelectTrigger>
-              <SelectContent>
-                {careers.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name || c.clubName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedSeason} onValueChange={setSelectedSeason}>
-              <SelectTrigger className="h-9 w-[120px] bg-white text-sm">
-                <SelectValue placeholder="シーズン" />
-              </SelectTrigger>
-              <SelectContent>
-                {seasons.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
-              <SelectTrigger className="h-9 w-[160px] bg-white text-sm">
-                <SelectValue placeholder="大会" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全大会</SelectItem>
-                <SelectItem value="league">リーグ戦</SelectItem>
-                {competitionOptions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+    <div className="fc-dashboard min-h-screen" style={{ backgroundColor: colors.bg, color: colors.text }}>
+      <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+        <DashboardHeader
+          clubName={clubName}
+          logoUrl={clubInfo?.logoUrl}
+          seasons={seasons}
+          selectedSeason={selectedSeason}
+          setSelectedSeason={setSelectedSeason}
+          competitionOptions={competitionOptions}
+          selectedCompetition={selectedCompetition}
+          setSelectedCompetition={setSelectedCompetition}
+        />
 
         <Tabs defaultValue="overview" className="w-full">
-          <div className="overflow-x-auto pb-1">
-            <TabsList className="mb-4 min-w-max">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="matches">試合成績</TabsTrigger>
-              <TabsTrigger value="goals">得点分析</TabsTrigger>
-              <TabsTrigger value="players">選手ランキング</TabsTrigger>
-              <TabsTrigger value="monthly">月別成績</TabsTrigger>
+          <div className="overflow-x-auto pb-px">
+            <TabsList
+              className="!h-auto !w-full !min-w-max !bg-transparent !p-0"
+              style={{ borderBottom: `1px solid ${colors.border}` }}
+            >
+              {[
+                { value: "overview", label: "Overview" },
+                { value: "matches", label: "試合成績" },
+                { value: "goals", label: "得点分析" },
+                { value: "players", label: "選手ランキング" },
+                { value: "monthly", label: "月別成績" },
+              ].map((tab) => (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className="!rounded-none !bg-transparent !px-3 !py-2.5 text-sm font-medium whitespace-nowrap !shadow-none data-[state=active]:border-b-2 data-[state=active]:border-white data-[state=active]:text-white"
+                  style={{ color: colors.sub }}
+                >
+                  {tab.label}
+                </TabsTrigger>
+              ))}
             </TabsList>
           </div>
 
-          <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-              <Kpi label="試合数" value={overview.matches} />
-              <Kpi label="勝" value={overview.wins} color="text-emerald-600" />
-              <Kpi label="分" value={overview.draws} color="text-amber-600" />
-              <Kpi label="敗" value={overview.losses} color="text-rose-600" />
-              <Kpi label="勝率" value={`${overview.winRate.toFixed(1)}%`} />
-              <Kpi label="敗率" value={`${overview.lossRate.toFixed(1)}%`} />
-              <Kpi label="引分率" value={`${overview.drawRate.toFixed(1)}%`} />
-            </div>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Kpi label="リーグ勝点" value={overview.leaguePoints} color="text-blue-600" />
-              <Kpi label="総得点" value={overview.goalsFor} color="text-emerald-600" />
-              <Kpi label="総失点" value={overview.goalsAgainst} color="text-rose-600" />
-              <Kpi label="クリーンシート" value={overview.cleanSheets} />
-            </div>
-            <Card title="得失点バランス">
-              <div className="h-4 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
-                <div
-                  className="h-full bg-emerald-500"
-                  style={{
-                    width: `${(overview.goalsFor / goalsForPct) * 100}%`,
-                  }}
-                />
-              </div>
-              <div className="mt-2 flex justify-between text-xs text-[#64748B]">
-                <span>得点 {overview.goalsFor}</span>
-                <span>失点 {overview.goalsAgainst}</span>
-              </div>
-            </Card>
+          <TabsContent value="overview" className="mt-4 space-y-3">
+            <OverviewTab overview={overview} />
           </TabsContent>
 
-          <TabsContent value="matches" className="space-y-4">
-            <Card title="H/A 分析">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[500px] text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-[#64748B]">
-                      <th className="py-2">場所</th>
-                      <th className="py-2">試合</th>
-                      <th className="py-2">勝</th>
-                      <th className="py-2">分</th>
-                      <th className="py-2">敗</th>
-                      <th className="py-2">勝点</th>
-                      <th className="py-2">得点</th>
-                      <th className="py-2">失点</th>
-                      <th className="py-2">勝率</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {matchStats.homeAway.map((r) => (
-                      <tr key={r.location} className="border-b">
-                        <td className="py-2 font-medium">
-                          {r.location === "home" ? "ホーム" : r.location === "away" ? "アウェイ" : "合計"}
-                        </td>
-                        <td className="py-2 tabular-nums">{r.matches}</td>
-                        <td className="py-2 tabular-nums text-emerald-600">{r.wins}</td>
-                        <td className="py-2 tabular-nums text-amber-600">{r.draws}</td>
-                        <td className="py-2 tabular-nums text-rose-600">{r.losses}</td>
-                        <td className="py-2 tabular-nums font-semibold">{r.points}</td>
-                        <td className="py-2 tabular-nums">{r.goalsFor}</td>
-                        <td className="py-2 tabular-nums">{r.goalsAgainst}</td>
-                        <td className="py-2 tabular-nums">{r.winRate.toFixed(1)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <Kpi label="最大連勝" value={matchStats.streaks.longestWinStreak} />
-              <Kpi label="最大連敗" value={matchStats.streaks.longestLossStreak} />
-              <Kpi label="1点差勝利" value={matchStats.scoreAnalysis.oneGoalWins} />
-              <Kpi label="2点差以上勝利" value={matchStats.scoreAnalysis.twoPlusGoalWins} />
-              <Kpi label="最大得点" value={matchStats.scoreAnalysis.maxGoalsFor} />
-              <Kpi label="複数失点試合" value={matchStats.scoreAnalysis.multiGoalsAgainstMatches} />
-              <Kpi label="最大失点" value={matchStats.scoreAnalysis.maxGoalsAgainst} />
-            </div>
+          <TabsContent value="matches" className="mt-4 space-y-3">
+            <MatchesTab matchStats={matchStats} />
           </TabsContent>
 
-          <TabsContent value="goals" className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Kpi label="前半得点" value={goalAnalysis.firstHalfGoals} />
-              <Kpi label="後半得点" value={goalAnalysis.secondHalfGoals} />
-              <Kpi label="前半比率" value={`${goalAnalysis.firstHalfRatio.toFixed(1)}%`} />
-              <Kpi label="後半比率" value={`${goalAnalysis.secondHalfGoalsRatio.toFixed(1)}%`} />
-              <Kpi label="未登録得点" value={goalAnalysis.unregisteredGoals} />
-            </div>
-            <Card title="得点時間分布">
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={Object.entries(goalAnalysis.buckets).map(([k, v]) => ({ bucket: k, goals: v }))}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="bucket" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Bar dataKey="goals" fill="#1fd760" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
+          <TabsContent value="goals" className="mt-4 space-y-3">
+            <GoalsTab goalAnalysis={goalAnalysis} />
           </TabsContent>
 
-          <TabsContent value="players" className="space-y-4">
-            <Card title="得点ランキング">
-              <div className="space-y-3">
-                {playerRanking.slice(0, 20).map((p) => (
-                  <div key={p.playerId} className="flex items-center gap-3">
-                    <span className="w-6 text-center text-sm font-semibold text-[#64748B]">{p.rank}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{p.playerName}</span>
-                        <span className="tabular-nums font-semibold">{p.goals} 点</span>
-                      </div>
-                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
-                        <div
-                          className="h-full bg-blue-500"
-                          style={{ width: `${Math.min(100, p.share * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {playerRanking.length === 0 && (
-                  <p className="text-sm text-[#64748B]">対象の得点データがありません</p>
-                )}
-              </div>
-            </Card>
+          <TabsContent value="players" className="mt-4 space-y-3">
+            <PlayersTab playerRanking={playerRanking} />
           </TabsContent>
 
-          <TabsContent value="monthly" className="space-y-4">
-            <Card title="月別成績">
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={monthly.chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis yAxisId="left" allowDecimals={false} />
-                    <YAxis yAxisId="right" orientation="right" domain={[0, 100]} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar yAxisId="left" dataKey="wins" stackId="a" name="勝利" fill="#10b981" />
-                    <Bar yAxisId="left" dataKey="draws" stackId="a" name="引分" fill="#f59e0b" />
-                    <Bar yAxisId="left" dataKey="losses" stackId="a" name="敗北" fill="#f43f5e" />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="winRate"
-                      name="勝率(%)"
-                      stroke="#2563eb"
-                      dot={false}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[600px] text-sm">
-                <thead>
-                  <tr className="border-b text-left text-[#64748B]">
-                    <th className="py-2">月</th>
-                    <th className="py-2">試合</th>
-                    <th className="py-2">勝</th>
-                    <th className="py-2">分</th>
-                    <th className="py-2">敗</th>
-                    <th className="py-2">得点</th>
-                    <th className="py-2">失点</th>
-                    <th className="py-2">得失差</th>
-                    <th className="py-2">勝率</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthly.months.map((m) => (
-                    <tr key={m.month} className="border-b">
-                      <td className="py-2 font-medium">{m.month}</td>
-                      <td className="py-2 tabular-nums">{m.matches}</td>
-                      <td className="py-2 tabular-nums text-emerald-600">{m.wins}</td>
-                      <td className="py-2 tabular-nums text-amber-600">{m.draws}</td>
-                      <td className="py-2 tabular-nums text-rose-600">{m.losses}</td>
-                      <td className="py-2 tabular-nums">{m.goalsFor}</td>
-                      <td className="py-2 tabular-nums">{m.goalsAgainst}</td>
-                      <td className="py-2 tabular-nums">{m.goalDifference}</td>
-                      <td className="py-2 tabular-nums">{m.winRate.toFixed(1)}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <TabsContent value="monthly" className="mt-4 space-y-3">
+            <MonthlyTab monthly={monthly} />
           </TabsContent>
         </Tabs>
       </div>
@@ -308,21 +145,544 @@ export default function DashboardPage() {
   );
 }
 
-function Kpi({ label, value, color }: { label: string; value: string | number; color?: string }) {
+function DashboardHeader({
+  clubName,
+  logoUrl,
+  seasons,
+  selectedSeason,
+  setSelectedSeason,
+  competitionOptions,
+  selectedCompetition,
+  setSelectedCompetition,
+}: {
+  clubName: string;
+  logoUrl?: string | null;
+  seasons: string[];
+  selectedSeason: string;
+  setSelectedSeason: (v: string) => void;
+  competitionOptions: { id: string; name: string }[];
+  selectedCompetition: string;
+  setSelectedCompetition: (v: string) => void;
+}) {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white p-3">
-      <div className="text-xs text-[#64748B]">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold tabular-nums ${color ?? "text-[#111827]"}`}>
+    <div className="mb-4 flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+      <div className="flex min-w-0 items-center gap-3">
+        <ClubEmblem name={clubName} src={logoUrl} />
+        <div className="min-w-0">
+          <h1 className="truncate text-base font-bold sm:text-lg">{clubName}</h1>
+          <p className="text-xs" style={{ color: colors.sub }}>
+            クラブダッシュボード
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={selectedSeason} onValueChange={setSelectedSeason}>
+          <SelectTrigger
+            className="fc-dashboard-select h-9 w-auto min-w-[110px] border text-xs"
+            style={{ backgroundColor: colors.surfaceHighlight, borderColor: colors.border, color: colors.text }}
+          >
+            <SelectValue placeholder="シーズン" />
+          </SelectTrigger>
+          <SelectContent className="fc-dashboard-select" style={{ borderColor: colors.border }}>
+            {seasons.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={selectedCompetition} onValueChange={setSelectedCompetition}>
+          <SelectTrigger
+            className="fc-dashboard-select h-9 w-auto min-w-[120px] border text-xs"
+            style={{ backgroundColor: colors.surfaceHighlight, borderColor: colors.border, color: colors.text }}
+          >
+            <SelectValue placeholder="大会" />
+          </SelectTrigger>
+          <SelectContent className="fc-dashboard-select" style={{ borderColor: colors.border }}>
+            <SelectItem value="all">全大会</SelectItem>
+            <SelectItem value="league">リーグ戦</SelectItem>
+            {competitionOptions.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+function ClubEmblem({ name, src }: { name: string; src?: string | null }) {
+  const [error, setError] = useState(false);
+  const showFallback = !src || error;
+
+  return (
+    <div
+      className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border"
+      style={{ backgroundColor: colors.surfaceHighlight, borderColor: colors.border }}
+    >
+      {showFallback ? (
+        <Shield size={20} style={{ color: colors.sub }} />
+      ) : (
+        <img
+          src={src}
+          alt={name}
+          className="h-full w-full object-contain p-1"
+          onError={() => setError(true)}
+        />
+      )}
+    </div>
+  );
+}
+
+function OverviewTab({ overview }: { overview: ReturnType<typeof import("@/lib/dashboard-stats").computeOverviewStats> }) {
+  const donutData = useMemo(
+    () => [
+      { name: "勝", value: overview.wins, color: colors.win },
+      { name: "分", value: overview.draws, color: colors.draw },
+      { name: "敗", value: overview.losses, color: colors.loss },
+    ],
+    [overview.wins, overview.draws, overview.losses]
+  );
+
+  const concluded = Math.max(1, overview.wins + overview.draws + overview.losses);
+  const avgGoalsFor = (overview.goalsFor / concluded).toFixed(2);
+  const avgGoalsAgainst = (overview.goalsAgainst / concluded).toFixed(2);
+  const maxGoals = Math.max(overview.goalsFor, overview.goalsAgainst, 1);
+
+  return (
+    <div className="space-y-3">
+      {/* 基本成績サマリー */}
+      <DashboardSection className="p-3">
+        <div className="grid grid-cols-4">
+          {[
+            { label: "試合数", value: overview.matches },
+            { label: "勝", value: overview.wins, color: colors.win },
+            { label: "分", value: overview.draws, color: colors.draw },
+            { label: "敗", value: overview.losses, color: colors.loss },
+          ].map((item, i) => (
+            <div
+              key={item.label}
+              className={`px-1 py-2 text-center ${i > 0 ? "border-l" : ""}`}
+              style={{ borderColor: colors.border }}
+            >
+              <DashboardKpi label={item.label} value={item.value} color={item.color} />
+            </div>
+          ))}
+        </div>
+      </DashboardSection>
+
+      {/* 主要成績サマリー */}
+      <DashboardSection className="p-3">
+        <div className="grid grid-cols-4 gap-2">
+          <DashboardKpi label="勝率" value={`${overview.winRate.toFixed(1)}%`} />
+          <DashboardKpi label="総得点" value={overview.goalsFor} color={colors.win} />
+          <DashboardKpi label="総失点" value={overview.goalsAgainst} color={colors.loss} />
+          <DashboardKpi
+            label="得失点差"
+            value={overview.goalDifference > 0 ? `+${overview.goalDifference}` : overview.goalDifference}
+          />
+        </div>
+      </DashboardSection>
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <DashboardSection title="勝敗分布" className="p-4">
+          <div className="h-48 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={donutData}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius="55%"
+                  outerRadius="80%"
+                  paddingAngle={2}
+                  label={({ name, value }) => (value ? `${name} ${value}` : "")}
+                  labelLine={false}
+                  stroke={colors.surface}
+                  strokeWidth={2}
+                >
+                  {donutData.map((entry, i) => (
+                    <Cell key={`cell-${i}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <ReTooltip contentStyle={chartTooltipStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-2 flex justify-center gap-4 text-xs" style={{ color: colors.sub }}>
+            <span style={{ color: colors.win }}>勝 {overview.wins} ({overview.winRate.toFixed(1)}%)</span>
+            <span style={{ color: colors.draw }}>分 {overview.draws} ({overview.drawRate.toFixed(1)}%)</span>
+            <span style={{ color: colors.loss }}>敗 {overview.losses} ({overview.lossRate.toFixed(1)}%)</span>
+          </div>
+        </DashboardSection>
+
+        <DashboardSection title="得失点バランス" className="p-4">
+          <div className="space-y-4">
+            <BarRow label="総得点" value={overview.goalsFor} max={maxGoals} color={colors.win} />
+            <BarRow label="総失点" value={overview.goalsAgainst} max={maxGoals} color={colors.loss} />
+            <div className="flex items-center justify-between rounded-lg border p-3" style={{ backgroundColor: colors.surfaceHighlight, borderColor: colors.border }}>
+              <span className="text-sm" style={{ color: colors.sub }}>得失点差</span>
+              <span className="text-2xl font-bold tabular-nums" style={{ color: overview.goalDifference >= 0 ? colors.win : colors.loss }}>
+                {overview.goalDifference > 0 ? `+${overview.goalDifference}` : overview.goalDifference}
+              </span>
+            </div>
+          </div>
+        </DashboardSection>
+      </div>
+
+      {/* 補助指標 */}
+      <DashboardSection className="p-3">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+          <MiniStat label="リーグ勝点" value={overview.leaguePoints} testId="リーグ勝点" />
+          <MiniStat label="クリーンシート" value={overview.cleanSheets} testId="クリーンシート" />
+          <MiniStat label="引分率" value={`${overview.drawRate.toFixed(1)}%`} testId="引分率" />
+          <MiniStat label="平均得点／試合" value={avgGoalsFor} />
+          <MiniStat label="平均失点／試合" value={avgGoalsAgainst} />
+          <MiniStat label="敗率" value={`${overview.lossRate.toFixed(1)}%`} testId="敗率" />
+        </div>
+      </DashboardSection>
+    </div>
+  );
+}
+
+function MatchesTab({ matchStats }: { matchStats: ReturnType<typeof import("@/lib/dashboard-stats").computeMatchStats> }) {
+  return (
+    <div className="space-y-3">
+      <DashboardSection title="H/A 分析" className="p-3">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] text-sm">
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>場所</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>試合</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>勝</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>分</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>敗</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>勝点</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>得点</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>失点</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>勝率</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matchStats.homeAway.map((r) => (
+                <tr key={r.location} style={{ borderBottom: `1px solid ${colors.border}` }}>
+                  <td className="py-2 font-medium">
+                    {r.location === "home" ? "ホーム" : r.location === "away" ? "アウェイ" : "合計"}
+                  </td>
+                  <td className="py-2 tabular-nums">{r.matches}</td>
+                  <td className="py-2 tabular-nums" style={{ color: colors.win }}>{r.wins}</td>
+                  <td className="py-2 tabular-nums" style={{ color: colors.draw }}>{r.draws}</td>
+                  <td className="py-2 tabular-nums" style={{ color: colors.loss }}>{r.losses}</td>
+                  <td className="py-2 tabular-nums font-semibold">{r.points}</td>
+                  <td className="py-2 tabular-nums">{r.goalsFor}</td>
+                  <td className="py-2 tabular-nums">{r.goalsAgainst}</td>
+                  <td className="py-2 tabular-nums">{r.winRate.toFixed(1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </DashboardSection>
+
+      <DashboardSection title="ストリーク / スコア分析" className="p-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <DashboardKpi label="最大連勝" value={matchStats.streaks.longestWinStreak} color={colors.win} />
+          <DashboardKpi label="最大連敗" value={matchStats.streaks.longestLossStreak} color={colors.loss} />
+          <DashboardKpi label="1点差勝利" value={matchStats.scoreAnalysis.oneGoalWins} />
+          <DashboardKpi label="2点差以上勝利" value={matchStats.scoreAnalysis.twoPlusGoalWins} />
+          <DashboardKpi label="最大得点" value={matchStats.scoreAnalysis.maxGoalsFor} color={colors.win} />
+          <DashboardKpi label="複数失点試合" value={matchStats.scoreAnalysis.multiGoalsAgainstMatches} color={colors.loss} />
+          <DashboardKpi label="最大失点" value={matchStats.scoreAnalysis.maxGoalsAgainst} />
+        </div>
+      </DashboardSection>
+    </div>
+  );
+}
+
+function GoalsTab({ goalAnalysis }: { goalAnalysis: ReturnType<typeof import("@/lib/dashboard-stats").computeGoalAnalysis> }) {
+  const totalRegistered = goalAnalysis.firstHalfGoals + goalAnalysis.secondHalfGoals;
+
+  const timeData = useMemo(
+    () =>
+      (Object.entries(goalAnalysis.buckets) as [import("@/lib/dashboard-stats").GoalTimeBucket, number][]).map(
+        ([bucket, goals]) => ({ bucket, goals })
+      ),
+    [goalAnalysis.buckets]
+  );
+
+  return (
+    <div className="space-y-3">
+      <DashboardSection className="p-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+          <DashboardKpi label="前半得点" value={goalAnalysis.firstHalfGoals} color={colors.accent} />
+          <DashboardKpi label="後半得点" value={goalAnalysis.secondHalfGoals} color={colors.sub} />
+          <DashboardKpi label="前半比率" value={`${goalAnalysis.firstHalfRatio.toFixed(1)}%`} />
+          <DashboardKpi label="後半比率" value={`${goalAnalysis.secondHalfGoalsRatio.toFixed(1)}%`} />
+          <DashboardKpi label="未登録得点" value={goalAnalysis.unregisteredGoals} />
+        </div>
+      </DashboardSection>
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <DashboardSection title="前後半得点バランス" className="p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold tabular-nums" style={{ color: colors.accent }}>{goalAnalysis.firstHalfGoals}</div>
+              <div className="text-xs" style={{ color: colors.sub }}>前半</div>
+            </div>
+            <div className="flex-1 px-2">
+              <div className="h-3 w-full overflow-hidden rounded-full" style={{ backgroundColor: colors.surfaceHighlight }}>
+                <div
+                  className="h-full"
+                  style={{
+                    backgroundColor: colors.accent,
+                    width: `${totalRegistered ? (goalAnalysis.firstHalfGoals / totalRegistered) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+              <div className="mt-1 flex justify-between text-xs" style={{ color: colors.sub }}>
+                <span>前半 {goalAnalysis.firstHalfRatio.toFixed(1)}%</span>
+                <span>後半 {goalAnalysis.secondHalfGoalsRatio.toFixed(1)}%</span>
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold tabular-nums" style={{ color: colors.sub }}>{goalAnalysis.secondHalfGoals}</div>
+              <div className="text-xs" style={{ color: colors.sub }}>後半</div>
+            </div>
+          </div>
+        </DashboardSection>
+
+        <DashboardSection title="得点時間分布" className="p-4">
+          <div className="h-48 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={timeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+                <XAxis dataKey="bucket" tick={chartLabelStyle} axisLine={chartAxisStyle} tickLine={chartAxisStyle} />
+                <YAxis allowDecimals={false} tick={chartLabelStyle} axisLine={chartAxisStyle} tickLine={chartAxisStyle} />
+                <ReTooltip contentStyle={chartTooltipStyle} />
+                <Bar dataKey="goals" radius={[4, 4, 0, 0]} fill={colors.accent} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </DashboardSection>
+      </div>
+    </div>
+  );
+}
+
+function PlayersTab({ playerRanking }: { playerRanking: ReturnType<typeof import("@/lib/dashboard-stats").computePlayerRanking> }) {
+  return (
+    <DashboardSection title="得点ランキング" className="p-3">
+      <div className="space-y-3">
+        {playerRanking.slice(0, 20).map((p) => (
+          <PlayerRow key={p.playerId} player={p} />
+        ))}
+        {playerRanking.length === 0 && (
+          <p className="text-sm" style={{ color: colors.sub }}>対象の得点データがありません</p>
+        )}
+      </div>
+    </DashboardSection>
+  );
+}
+
+function PlayerRow({ player }: { player: import("@/lib/dashboard-stats").PlayerRankingEntry }) {
+  const [error, setError] = useState(false);
+  const isFirst = player.rank === 1;
+  const barColor = isFirst ? colors.accent : colors.sub;
+
+  return (
+    <div className="flex items-center gap-3">
+      <div
+        className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold"
+        style={{ backgroundColor: isFirst ? colors.accent : colors.surfaceHighlight, color: colors.text }}
+      >
+        {player.rank}
+      </div>
+
+      <div
+        className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg border"
+        style={{ backgroundColor: colors.surfaceHighlight, borderColor: colors.border }}
+      >
+        {player.playerImage && !error ? (
+          <img
+            src={player.playerImage}
+            alt={player.playerName}
+            className="h-full w-full object-cover"
+            onError={() => setError(true)}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center" style={{ color: colors.sub }}>
+            <UserRound size={20} />
+          </div>
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between text-sm">
+          <span className="truncate font-medium">{player.playerName}</span>
+          <span className="tabular-nums font-semibold" style={{ color: isFirst ? colors.accent : colors.text }}>
+            {player.goals} 点
+          </span>
+        </div>
+        <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full" style={{ backgroundColor: colors.surfaceHighlight }}>
+          <div
+            className="h-full rounded-full"
+            style={{ backgroundColor: barColor, width: `${Math.min(100, player.share * 100)}%` }}
+          />
+        </div>
+        <div className="mt-0.5 text-right text-[10px]" style={{ color: colors.sub }}>
+          シェア {(player.share * 100).toFixed(1)}%
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MonthlyTab({ monthly }: { monthly: ReturnType<typeof import("@/lib/dashboard-stats").computeMonthlyStats> }) {
+  return (
+    <div className="space-y-3">
+      <DashboardSection title="月別成績" className="p-4">
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={monthly.chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+              <XAxis dataKey="month" tick={chartLabelStyle} axisLine={chartAxisStyle} tickLine={chartAxisStyle} />
+              <YAxis yAxisId="left" allowDecimals={false} tick={chartLabelStyle} axisLine={chartAxisStyle} tickLine={chartAxisStyle} />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                domain={[0, 100]}
+                tick={chartLabelStyle}
+                axisLine={chartAxisStyle}
+                tickLine={chartAxisStyle}
+              />
+              <ReTooltip contentStyle={chartTooltipStyle} />
+              <Legend wrapperStyle={{ color: colors.sub }} />
+              <Bar yAxisId="left" dataKey="wins" stackId="a" name="勝利" fill={colors.win} radius={[0, 0, 0, 0]} />
+              <Bar yAxisId="left" dataKey="draws" stackId="a" name="引分" fill={colors.draw} radius={[0, 0, 0, 0]} />
+              <Bar yAxisId="left" dataKey="losses" stackId="a" name="敗北" fill={colors.loss} radius={[4, 4, 0, 0]} />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="winRate"
+                name="勝率(%)"
+                stroke={colors.text}
+                strokeWidth={2}
+                dot={{ r: 3, fill: colors.text, stroke: colors.surface }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </DashboardSection>
+
+      <DashboardSection title="月別テーブル" className="p-3">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] text-sm">
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>月</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>試合</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>勝</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>分</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>敗</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>得点</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>失点</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>得失差</th>
+                <th className="py-2 text-left" style={{ color: colors.sub }}>勝率</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthly.months.map((m) => (
+                <tr key={m.month} style={{ borderBottom: `1px solid ${colors.border}` }}>
+                  <td className="py-2 font-medium">{m.month}</td>
+                  <td className="py-2 tabular-nums">{m.matches}</td>
+                  <td className="py-2 tabular-nums" style={{ color: colors.win }}>{m.wins}</td>
+                  <td className="py-2 tabular-nums" style={{ color: colors.draw }}>{m.draws}</td>
+                  <td className="py-2 tabular-nums" style={{ color: colors.loss }}>{m.losses}</td>
+                  <td className="py-2 tabular-nums">{m.goalsFor}</td>
+                  <td className="py-2 tabular-nums">{m.goalsAgainst}</td>
+                  <td className="py-2 tabular-nums">{m.goalDifference}</td>
+                  <td className="py-2 tabular-nums">{m.winRate.toFixed(1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </DashboardSection>
+    </div>
+  );
+}
+
+function BarRow({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  const width = max > 0 ? `${((value / max) * 100).toFixed(1)}%` : "0%";
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-sm">
+        <span style={{ color }}>{label}</span>
+        <span className="font-semibold tabular-nums" style={{ color }}>{value}</span>
+      </div>
+      <div className="h-3 w-full overflow-hidden rounded-full" style={{ backgroundColor: colors.surfaceHighlight }}>
+        <div className="h-full rounded-full" style={{ backgroundColor: color, width }} />
+      </div>
+    </div>
+  );
+}
+
+function DashboardKpi({
+  label,
+  value,
+  color = colors.text,
+}: {
+  label: string;
+  value: string | number;
+  color?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <div className="text-[10px] font-medium uppercase tracking-wider" style={{ color: colors.sub }}>
+        {label}
+      </div>
+      <div
+        className="text-xl font-bold tabular-nums leading-tight sm:text-2xl"
+        data-testid={label}
+        style={{ color }}
+      >
         {value}
       </div>
     </div>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function MiniStat({ label, value, testId }: { label: string; value: string | number; testId?: string }) {
   return (
-    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
-      <h3 className="mb-3 text-base font-semibold">{title}</h3>
+    <div className="flex items-center justify-between border-b py-2" style={{ borderColor: colors.border }}>
+      <span className="text-xs" style={{ color: colors.sub }}>{label}</span>
+      <span className="text-sm font-semibold tabular-nums" data-testid={testId} style={{ color: colors.text }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function DashboardSection({
+  title,
+  children,
+  className = "",
+}: {
+  title?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-xl border ${className}`}
+      style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+    >
+      {title && <h3 className="mb-3 text-sm font-semibold" style={{ color: colors.text }}>{title}</h3>}
       {children}
     </div>
   );

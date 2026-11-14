@@ -1,0 +1,14 @@
+/* Dashboard dark theme token overrides (page-local) */
+
+.fc-dashboard-select,
+.fc-dashboard-select [data-slot="select-item"] {
+  background-color: #1c1c23 !important;
+  color: #f5f5f5 !important;
+  border-color: #27272a !important;
+}
+
+.fc-dashboard-select [data-slot="select-item"]:hover,
+.fc-dashboard-select [data-slot="select-item"][data-state="checked"] {
+  background-color: #27272a !important;
+  color: #f5f5f5 !important;
+}
