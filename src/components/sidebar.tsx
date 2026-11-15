@@ -146,7 +146,7 @@ export function Sidebar() {
                 const isDisabled = Boolean(item.disabled);
 
                 const badge = item.badge ? (
-                  <span className="shrink-0 rounded bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-gray-900">
+                  <span className="shrink-0 rounded-sm bg-emerald-400 px-1 py-px text-[9px] font-bold leading-none text-white">
                     {item.badge}
                   </span>
                 ) : null;
@@ -164,8 +164,8 @@ export function Sidebar() {
                       )}
                     >
                       <Icon className="h-4 w-4" />
-                      <span className="flex flex-1 items-center justify-between gap-2">
-                        {item.label}
+                      <span className="flex flex-1 items-center justify-between gap-2 min-w-0">
+                        <span className="truncate">{item.label}</span>
                         {badge}
                       </span>
                     </a>
@@ -179,8 +179,8 @@ export function Sidebar() {
                       aria-disabled="true"
                     >
                       <Icon className="h-4 w-4" />
-                      <span className="flex flex-1 items-center justify-between gap-2">
-                        {item.label}
+                      <span className="flex flex-1 items-center justify-between gap-2 min-w-0">
+                        <span className="truncate">{item.label}</span>
                         {badge}
                       </span>
                     </div>
@@ -195,8 +195,8 @@ export function Sidebar() {
                       )}
                     >
                       <Icon className="h-4 w-4" />
-                      <span className="flex flex-1 items-center justify-between gap-2">
-                        {item.label}
+                      <span className="flex flex-1 items-center justify-between gap-2 min-w-0">
+                        <span className="truncate">{item.label}</span>
                         {badge}
                       </span>
                     </Link>
