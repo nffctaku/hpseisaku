@@ -22,6 +22,7 @@ import {
   computeGoalAnalysis,
   computePlayerRanking,
   computeMonthlyStats,
+  computeLeaguePositionSeries,
   type DashboardFilter,
 } from "@/lib/dashboard-stats";
 import { toSlashSeason } from "@/lib/season";
@@ -174,6 +175,7 @@ export function useDashboardData() {
   const goalAnalysis = useMemo(() => computeGoalAnalysis(filteredViews), [filteredViews]);
   const playerRanking = useMemo(() => computePlayerRanking(filteredViews, players), [filteredViews, players]);
   const monthly = useMemo(() => computeMonthlyStats(filteredViews), [filteredViews]);
+  const standings = useMemo(() => computeLeaguePositionSeries(filteredViews, competitions), [filteredViews, competitions]);
 
   return {
     loading: loading || careerLoading,
@@ -184,6 +186,7 @@ export function useDashboardData() {
     seasons,
     selectedSeason,
     setSelectedSeason,
+    competitions,
     competitionOptions,
     selectedCompetition,
     setSelectedCompetition,
@@ -192,6 +195,7 @@ export function useDashboardData() {
     goalAnalysis,
     playerRanking,
     monthly,
+    standings,
     players,
   };
 }

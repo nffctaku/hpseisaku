@@ -34,7 +34,6 @@ import {
   updateSheetMatch,
   getRoundSortKey,
   TOURNAMENT_ROUNDS,
-  type TournamentRoundKey,
 } from "@/lib/match-sheet";
 import { seasonKeyCandidates, toDashSeason, toSlashSeason } from "@/lib/season";
 
@@ -52,7 +51,6 @@ interface PendingRow {
   pkOpp: number | null;
 }
 
-const NEW_VALUE = "__new__";
 const ADD_SECTION = "__add_section__";
 const KIND_SECTION = "__kind_section__";
 const KIND_TOURNAMENT = "__kind_tournament__";
@@ -327,7 +325,8 @@ export function MatchSheet({
         const seasonDocIds = new Set([dash]);
         for (const d of seasonsSnap.docs) {
           const keys = seasonKeyCandidates(d.id);
-          const field = String((d.data() as any).season || (d.data() as any).name || "");
+          const seasonData = d.data() as Record<string, unknown>;
+          const field = String((typeof seasonData?.season === "string" ? seasonData.season : typeof seasonData?.name === "string" ? seasonData.name : "") || "");
           if (field) keys.push(...seasonKeyCandidates(field));
           if (keys.some((k) => sids0.includes(k))) seasonDocIds.add(d.id);
         }
@@ -336,19 +335,19 @@ export function MatchSheet({
         const sids = seasonKeyCandidates(selectedSeason);
         const out = snaps.flatMap((s) => s.docs)
           .filter((d) => {
-            const data = d.data() as any;
+            const data = d.data() as Record<string, unknown>;
             if (data?.registered === false) return false;
-            const sd = data?.seasonData && typeof data.seasonData === "object" ? data.seasonData : null;
+            const sd = data?.seasonData && typeof data.seasonData === "object" ? (data.seasonData as Record<string, unknown>) : null;
             const arr = Array.isArray(data?.seasons) ? data.seasons : null;
             if (sd) return sids.some((k) => k in sd);
-            if (arr && arr.length) return arr.some((s: any) => seasonKeyCandidates(String(s)).some((k) => sids.includes(k)));
+            if (arr && arr.length) return arr.some((s) => seasonKeyCandidates(String(s)).some((k) => sids.includes(k)));
             return true;
           })
           .map((d) => {
-            const data = d.data() as any;
+            const data = d.data() as Record<string, unknown>;
             return {
               id: typeof data?.playerId === "string" && data.playerId ? data.playerId : d.id,
-              name: data?.name || data?.playerName || "",
+              name: String(data?.name || data?.playerName || ""),
               number: typeof data?.number === "number" ? data.number : undefined,
               teamId: typeof data?.teamId === "string" ? data.teamId : undefined,
             };
@@ -409,8 +408,8 @@ export function MatchSheet({
             if (p.exists() && typeof p.data()?.mainTeamId === "string") main = p.data().mainTeamId;
             if (!main) {
               const q = await getDocs(query(collection(db, "club_profiles"), where("ownerUid", "==", clubUid)));
-              const d0 = q.docs[0]?.data() as any;
-              if (typeof d0?.mainTeamId === "string") main = d0.mainTeamId;
+              const d0 = q.docs[0]?.data() as Record<string, unknown> | undefined;
+              if (d0 && typeof d0.mainTeamId === "string") main = d0.mainTeamId;
             }
           } catch { /* continue */ }
         }
@@ -436,7 +435,7 @@ export function MatchSheet({
           );
           const merged = new Map<string, SheetPlayer>();
           for (const ps of snaps) {
-            for (const d of ps.docs) merged.set(d.id, { id: d.id, ...(d.data() as any) } as SheetPlayer);
+            for (const d of ps.docs) merged.set(d.id, { id: d.id, ...(d.data() as Record<string, unknown>) } as SheetPlayer);
           }
           setPlayers([...merged.values()].sort((a, b) => (a.number ?? 999) - (b.number ?? 999)));
         };
@@ -607,6 +606,27 @@ export function MatchSheet({
   const showPkUi = (compId: string, selfScore: number | null, oppScore: number | null) =>
     isCupFormat(compId) && selfScore !== null && oppScore !== null && selfScore === oppScore;
 
+  // 順位入力対象か（リーグ戦のみ）
+  const isLeagueRow = (row: SheetMatchRow) => {
+    const comp = competitionsMap.get(row.competitionId);
+    return comp?.format === "league";
+  };
+
+  const getTeamCount = (row: SheetMatchRow): number => {
+    const comp = competitionsMap.get(row.competitionId);
+    const teamCount = comp?.teamCount;
+    if (typeof teamCount === "number" && Number.isFinite(teamCount) && teamCount > 0) return teamCount;
+    const teamsLen = comp?.teams?.length ?? 0;
+    if (teamsLen > 0) return teamsLen;
+    return 40;
+  };
+
+  const setLeaguePosition = (row: SheetMatchRow, raw: string) => {
+    if (!isLeagueRow(row)) return;
+    const value = raw === "" ? null : Math.max(1, Math.min(getTeamCount(row), parseInt(raw, 10) || 1));
+    void saveField(row, { leaguePositionAfterMatch: value });
+  };
+
   // === 得点者セル ===
   const ownGoals = (row: SheetMatchRow): MatchEvent[] => {
     const { ownTeamId } = describe(row);
@@ -737,6 +757,7 @@ export function MatchSheet({
         pkScoreHome: next.ha === "H" ? next.pkSelf : next.pkOpp,
         pkScoreAway: next.ha === "H" ? next.pkOpp : next.pkSelf,
         events: [],
+        leaguePositionAfterMatch: null,
       };
       setRows((prev) => [...prev, newRow].sort((a, b) => (a.matchDate || "9999").localeCompare(b.matchDate || "9999")));
     } catch (e) {
@@ -977,6 +998,7 @@ export function MatchSheet({
                   <span className="block text-[8px] font-semibold tracking-wide text-[#9CA3AF]">H − A</span>
                 </th>
                 <th className={`${cellBase} w-[44px] text-center`}>勝敗</th>
+                <th className={`${cellBase} min-w-[72px] w-[72px] whitespace-nowrap text-center`}>順位</th>
                 <th className={`${cellBase} min-w-[360px]`}>得点者・時間</th>
                 <th className={`${cellBase} w-[64px] text-center`}>詳細</th>
               </tr>
@@ -984,7 +1006,7 @@ export function MatchSheet({
             <tbody>
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-[#9CA3AF]">
+                  <td colSpan={9} className="px-4 py-10 text-center text-[#9CA3AF]">
                     <CalendarDays className="mx-auto mb-2 h-8 w-8" strokeWidth={1.5} />
                     このシーズンの試合カードはありません。
                   </td>
@@ -1132,6 +1154,23 @@ export function MatchSheet({
                     {/* 勝敗（ホーム−アウェイ×H/Aから自動算出・編集不可。PK決着時はPKで判定） */}
                     <td className={`${cellBase} text-center`}>
                       <ResultBadge ha={d.ha} homeScore={row.scoreHome} awayScore={row.scoreAway} pkHome={row.pkScoreHome} pkAway={row.pkScoreAway} />
+                    </td>
+                    {/* 順位（リーグ戦のみ） */}
+                    <td className={`${cellBase} text-center`}>
+                      {isLeagueRow(row) ? (
+                        <select
+                          value={row.leaguePositionAfterMatch ?? ""}
+                          onChange={(e) => setLeaguePosition(row, e.target.value)}
+                          className="h-8 w-full rounded-md border border-[#E2E4EA] bg-white px-1 text-center text-[12px] font-bold text-[#1B1F27] focus:outline-none focus:ring-1 focus:ring-[#3355FF]"
+                        >
+                          <option value="">—</option>
+                          {Array.from({ length: getTeamCount(row) }, (_, i) => i + 1).map((n) => (
+                            <option key={n} value={n}>{n}位</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-[#9CA3AF]">—</span>
+                      )}
                     </td>
                     {/* 得点者・時間 */}
                     <td className={cellBase}>

@@ -66,6 +66,12 @@ export const getRoundSortKey = (name: string): number => {
   return 100000;
 };
 
+export function isLeagueRoundName(name: string | undefined): boolean {
+  const s = (name || '').trim();
+  if (!s) return false;
+  return /^第?\s*\d+\s*節$/.test(s);
+}
+
 export const TOURNAMENT_ROUNDS = [
   { roundKey: 'r1', name: '1回戦' },
   { roundKey: 'r2', name: '2回戦' },
@@ -89,6 +95,7 @@ export interface SheetCompetition {
   season?: string;
   format?: string;
   teams?: string[];
+  teamCount?: number;
   logoUrl?: string;
 }
 
@@ -114,6 +121,7 @@ export interface SheetMatchRow {
   pkScoreAway: number | null;
   events: MatchEvent[];
   matchDuration?: number;
+  leaguePositionAfterMatch?: number | null;
 }
 
 export const matchDocPath = (
@@ -166,6 +174,8 @@ const syncIndex = async (
       scoreAway: typeof merged.scoreAway === 'number' ? merged.scoreAway : (merged.scoreAway ?? null),
       pkScoreHome: typeof merged.pkScoreHome === 'number' ? merged.pkScoreHome : (merged.pkScoreHome ?? null),
       pkScoreAway: typeof merged.pkScoreAway === 'number' ? merged.pkScoreAway : (merged.pkScoreAway ?? null),
+      leaguePositionAfterMatch:
+        typeof merged.leaguePositionAfterMatch === 'number' ? merged.leaguePositionAfterMatch : (merged.leaguePositionAfterMatch ?? null),
     };
     if (typeof merged.matchTime === 'string') row.matchTime = merged.matchTime;
     for (const k of Object.keys(row)) {
@@ -203,6 +213,7 @@ export const createSheetMatch = async (
     scoreAway: fields.scoreAway ?? null,
     pkScoreHome: fields.pkScoreHome ?? null,
     pkScoreAway: fields.pkScoreAway ?? null,
+    leaguePositionAfterMatch: null,
     ownerUid: clubUid,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -288,19 +299,23 @@ export const createOpponentTeam = async (
 // シートの大会取得（公式戦のみ: competitions コレクションの全件）
 export const fetchSheetCompetitions = async (db: Firestore, clubUid: string): Promise<SheetCompetition[]> => {
   const snap = await getDocs(collection(db, `clubs/${clubUid}/competitions`));
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as SheetCompetition));
+  return snap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    const teamCount = typeof data.teamCount === 'number' && Number.isFinite(data.teamCount) ? data.teamCount : undefined;
+    return { id: d.id, ...data, teamCount } as SheetCompetition;
+  });
 };
 
 export const fetchSheetTeams = async (db: Firestore, clubUid: string): Promise<SheetTeam[]> => {
   const snap = await getDocs(collection(db, `clubs/${clubUid}/teams`));
   return snap.docs
-    .map((d) => ({ id: d.id, ...(d.data() as any) } as SheetTeam))
+    .map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) } as SheetTeam))
     .sort((a, b) => a.name.localeCompare(b.name));
 };
 
 export const fetchSheetRounds = async (db: Firestore, clubUid: string, competitionId: string): Promise<SheetRound[]> => {
   const snap = await getDocs(collection(db, `clubs/${clubUid}/competitions/${competitionId}/rounds`));
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as SheetRound));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) } as SheetRound));
 };
 
 export const fetchSheetMatches = async (
@@ -313,7 +328,11 @@ export const fetchSheetMatches = async (
     collection(db, `clubs/${clubUid}/competitions/${competition.id}/rounds/${round.id}/matches`)
   );
   return snap.docs.map((d) => {
-    const data = d.data() as any;
+    const data = d.data() as Record<string, unknown>;
+    const leaguePositionAfterMatch =
+      typeof data.leaguePositionAfterMatch === 'number' && Number.isFinite(data.leaguePositionAfterMatch)
+        ? data.leaguePositionAfterMatch
+        : null;
     return {
       key: `${competition.id}__${round.id}__${d.id}`,
       matchId: d.id,
@@ -330,6 +349,7 @@ export const fetchSheetMatches = async (
       pkScoreAway: data.pkScoreAway ?? null,
       events: Array.isArray(data.events) ? (data.events as MatchEvent[]) : [],
       matchDuration: typeof data.matchDuration === 'number' ? data.matchDuration : undefined,
+      leaguePositionAfterMatch,
     } as SheetMatchRow;
   });
 };

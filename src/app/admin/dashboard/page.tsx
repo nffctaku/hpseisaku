@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Loader2, Shield, UserRound } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -12,6 +12,10 @@ import {
 } from "@/components/ui/select";
 import { useClub } from "@/contexts/ClubContext";
 import { useDashboardData } from "./hooks/useDashboardData";
+import type { SheetCompetition, SheetTeam } from "@/lib/match-sheet";
+import { fetchSheetTeams } from "@/lib/match-sheet";
+import { db } from "@/lib/firebase";
+import type { LeaguePositionPoint } from "@/lib/dashboard-stats";
 import {
   BarChart,
   Bar,
@@ -22,6 +26,7 @@ import {
   ResponsiveContainer,
   Legend,
   ComposedChart,
+  LineChart,
   Line,
   PieChart,
   Pie,
@@ -53,6 +58,104 @@ const chartTooltipStyle = {
 const chartLabelStyle = { fill: colors.sub, fontSize: 12 };
 const chartAxisStyle = { stroke: colors.border };
 
+interface TeamInfo {
+  name: string;
+  logoUrl?: string;
+}
+
+function PositionTooltip({
+  active,
+  payload,
+  label,
+  teamMap,
+}: {
+  active?: boolean;
+  payload?: Array<{ value?: number; payload?: unknown }>;
+  label?: string;
+  teamMap: Map<string, TeamInfo>;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const point = payload[0].payload as LeaguePositionPoint;
+  const rank = payload[0].value as number;
+  const team = teamMap.get(point.opponentTeamId);
+  const opponent = team?.name || point.opponentTeamId || "—";
+  const homeAway = point.isHome ? "（H）" : "（A）";
+  const score =
+    typeof point.selfScore === "number" && typeof point.oppScore === "number"
+      ? `${point.selfScore} - ${point.oppScore}`
+      : "—";
+  const pts = typeof point.points === "number" ? `${point.points}` : "—";
+  return (
+    <div
+      className="rounded border p-2 text-xs"
+      style={{ backgroundColor: colors.surfaceHighlight, borderColor: colors.border, color: colors.text }}
+    >
+      <div className="font-semibold">{label}</div>
+      <div>対戦相手: {opponent}{homeAway}</div>
+      <div>スコア: {score}</div>
+      <div>順位: {rank}位</div>
+      <div>勝点: {pts}</div>
+    </div>
+  );
+}
+
+interface PositionDotProps extends React.SVGProps<SVGGElement> {
+  payload?: LeaguePositionPoint;
+  value?: number;
+  index?: number;
+  cx?: number;
+  cy?: number;
+  dataKey?: string;
+  teamMap: Map<string, TeamInfo>;
+  emblemSize: number;
+}
+
+function PositionDot({ cx = 0, cy = 0, payload, teamMap, emblemSize }: PositionDotProps) {
+  const [error, setError] = useState(false);
+  if (!payload) return null;
+  const team = teamMap.get(payload.opponentTeamId);
+  const logoUrl = team?.logoUrl;
+  const gap = 6;
+  const size = emblemSize;
+  const x = cx - size / 2;
+  const y = cy - size - gap;
+  return (
+    <g>
+      {logoUrl && !error ? (
+        <foreignObject
+          x={x}
+          y={y}
+          width={size}
+          height={size}
+          pointerEvents="none"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={logoUrl}
+            alt=""
+            className="h-full w-full object-contain"
+            style={{ pointerEvents: "none" }}
+            onError={() => setError(true)}
+          />
+        </foreignObject>
+      ) : null}
+      <circle cx={cx} cy={cy} r={4} fill={colors.accent} />
+      {typeof payload.points === 'number' ? (
+        <text
+          x={cx}
+          y={cy + 14}
+          textAnchor="middle"
+          fontSize={9}
+          fill={colors.sub}
+          className="tabular-nums"
+        >
+          {payload.points}
+        </text>
+      ) : null}
+    </g>
+  );
+}
+
 export default function DashboardPage() {
   const { clubInfo } = useClub();
   const {
@@ -69,6 +172,8 @@ export default function DashboardPage() {
     goalAnalysis,
     playerRanking,
     monthly,
+    standings,
+    competitions,
   } = useDashboardData();
 
   const clubName = clubInfo?.clubName || activeCareer?.clubName || "クラブ名未設定";
@@ -125,7 +230,12 @@ export default function DashboardPage() {
           </TabsContent>
 
           <TabsContent value="matches" className="mt-4 space-y-3">
-            <MatchesTab matchStats={matchStats} />
+            <MatchesTab
+              matchStats={matchStats}
+              standings={standings}
+              selectedCompetition={selectedCompetition}
+              competitions={competitions}
+            />
           </TabsContent>
 
           <TabsContent value="goals" className="mt-4 space-y-3">
@@ -349,9 +459,250 @@ function OverviewTab({ overview }: { overview: ReturnType<typeof import("@/lib/d
   );
 }
 
-function MatchesTab({ matchStats }: { matchStats: ReturnType<typeof import("@/lib/dashboard-stats").computeMatchStats> }) {
+function MatchesTab({
+  matchStats,
+  standings,
+  selectedCompetition,
+  competitions,
+}: {
+  matchStats: ReturnType<typeof import("@/lib/dashboard-stats").computeMatchStats>;
+  standings: ReturnType<typeof import("@/lib/dashboard-stats").computeLeaguePositionSeries>;
+  selectedCompetition: string;
+  competitions: SheetCompetition[];
+}) {
+  const [chartCompetitionId, setChartCompetitionId] = useState<string | null>(null);
+  const chartWrapRef = useRef<HTMLDivElement>(null);
+  const chartPlotRef = useRef<HTMLDivElement>(null);
+  const [isOverflow, setIsOverflow] = useState(false);
+  const [plotWidth, setPlotWidth] = useState(0);
+  const { clubProfileId } = useClub();
+  const [teamMap, setTeamMap] = useState<Map<string, TeamInfo>>(new Map());
+
+  useEffect(() => {
+    const clubUid = clubProfileId;
+    if (!clubUid) return;
+    let cancelled = false;
+    fetchSheetTeams(db, clubUid).then((teams) => {
+      if (cancelled) return;
+      const map = new Map<string, TeamInfo>();
+      for (const t of teams) map.set(t.id, { name: t.name, logoUrl: t.logoUrl });
+      setTeamMap(map);
+    });
+    return () => { cancelled = true; };
+  }, [clubProfileId]);
+
+  const selectedSeries = useMemo(() => {
+    if (selectedCompetition !== "all" && selectedCompetition !== "league") {
+      return standings.find((s) => s.competitionId === selectedCompetition) ?? null;
+    }
+    if (chartCompetitionId) {
+      return standings.find((s) => s.competitionId === chartCompetitionId) ?? standings[0] ?? null;
+    }
+    return standings[0] ?? null;
+  }, [standings, selectedCompetition, chartCompetitionId]);
+
+  const canSelectCompetition = selectedCompetition === "all" || selectedCompetition === "league";
+
+  useEffect(() => {
+    if (!canSelectCompetition) {
+      setChartCompetitionId(null);
+      return;
+    }
+    const exists = standings.some((s) => s.competitionId === chartCompetitionId);
+    if (!exists && standings.length > 0) {
+      setChartCompetitionId(standings[0].competitionId);
+    }
+  }, [standings, canSelectCompetition, chartCompetitionId]);
+
+  const chartPoints = useMemo(() => {
+    if (!selectedSeries) return [];
+    return [...selectedSeries.points].sort((a, b) => {
+      const dateA = a.matchDate || "";
+      const dateB = b.matchDate || "";
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      return a.sortKey - b.sortKey;
+    });
+  }, [selectedSeries]);
+
+  useEffect(() => {
+    const el = chartWrapRef.current;
+    if (!el) return;
+    const update = () => setIsOverflow(el.scrollWidth > el.clientWidth);
+    update();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    return () => { ro?.disconnect(); };
+  }, [chartPoints.length]);
+
+  useEffect(() => {
+    const el = chartPlotRef.current;
+    if (!el) return;
+    const update = () => setPlotWidth(el.getBoundingClientRect().width);
+    update();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    return () => { ro?.disconnect(); };
+  }, [chartPoints.length]);
+
+  const teamCount = useMemo(() => {
+    if (!selectedSeries) return 0;
+    const comp = competitions.find((c) => c.id === selectedSeries.competitionId);
+    if (comp?.teamCount && Number.isFinite(comp.teamCount) && comp.teamCount > 0) return comp.teamCount;
+    if (comp?.teams && comp.teams.length > 0) return comp.teams.length;
+    return 0;
+  }, [selectedSeries, competitions]);
+
+  const dataMax = useMemo(() => {
+    if (chartPoints.length === 0) return 1;
+    return Math.max(1, ...chartPoints.map((p) => p.position));
+  }, [chartPoints]);
+
+  const maxRank = useMemo(() => {
+    const base = teamCount > 0 ? teamCount : dataMax;
+    return Math.max(base, dataMax, 2);
+  }, [teamCount, dataMax]);
+
+  const yTicks = useMemo(() => {
+    if (maxRank <= 1) return [1];
+    const desired = 5;
+    const step = Math.max(1, Math.ceil((maxRank - 1) / desired));
+    const ticks: number[] = [];
+    for (let v = 1; v <= maxRank; v += step) ticks.push(v);
+    if (ticks[ticks.length - 1] !== maxRank) ticks.push(maxRank);
+    return ticks;
+  }, [maxRank]);
+
+  const plotTop = 38;
+  const plotBottom = 50;
+  const plotLeft = 30;
+  const plotRight = 20;
+  const chartHeight = 288;
+  const plotHeight = chartHeight - plotTop - plotBottom;
+
+  const emblemSize = useMemo(() => {
+    if (plotWidth <= 0 || chartPoints.length <= 1) return 16;
+    const plotArea = plotWidth - plotLeft - plotRight;
+    const spacing = plotArea / (chartPoints.length - 1);
+    return Math.min(20, Math.max(12, spacing - 2));
+  }, [plotWidth, chartPoints.length]);
+
   return (
     <div className="space-y-3">
+      <DashboardSection title="順位推移" className="p-3">
+        {standings.length === 0 ? (
+          <div className="py-6 text-center text-sm" style={{ color: colors.sub }}>
+            リーグ戦の順位データがありません。
+            <br />
+            試合記録シートのリーグ戦行から順位を登録してください。
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {canSelectCompetition && standings.length > 1 && (
+              <Select
+                value={selectedSeries?.competitionId ?? ""}
+                onValueChange={(v) => {
+                  setChartCompetitionId(v);
+                }}
+              >
+                <SelectTrigger className="fc-dashboard-select h-9 w-full max-w-xs border text-xs" style={{ borderColor: colors.border }}>
+                  <SelectValue placeholder="リーグを選択" />
+                </SelectTrigger>
+                <SelectContent className="fc-dashboard-select" style={{ borderColor: colors.border }}>
+                  {standings.map((s) => (
+                    <SelectItem key={s.competitionId} value={s.competitionId}>
+                      {s.competitionName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {selectedSeries ? (
+              <div className="relative" data-testid="league-position-chart">
+                <div className="flex h-72 w-full">
+                  <div
+                    data-testid="league-position-yaxis"
+                    className="relative h-72 w-10 flex-shrink-0"
+                    style={{ color: colors.sub }}
+                  >
+                    <div className="absolute left-0 right-0" style={{ top: plotTop, bottom: plotBottom }}>
+                      {yTicks.map((v) => {
+                        const top = ((v - 1) / Math.max(1, maxRank - 1)) * plotHeight;
+                        return (
+                          <div
+                            key={v}
+                            className="absolute right-1 text-[10px] tabular-nums leading-none"
+                            style={{ top: `${top}px`, transform: "translateY(-50%)" }}
+                          >
+                            {v}位
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div
+                    ref={chartWrapRef}
+                    data-testid="league-position-scroll"
+                    className="league-position-scroll min-w-0 flex-1 overflow-x-auto overscroll-x-contain"
+                    style={{ scrollbarWidth: "thin", WebkitOverflowScrolling: "touch" }}
+                  >
+                    <div
+                      ref={chartPlotRef}
+                      data-testid="league-position-plot"
+                      className="league-position-plot h-72"
+                      style={{ "--point-count": chartPoints.length } as CSSProperties}
+                    >
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={chartPoints}
+                          margin={{ top: plotTop, right: plotRight, bottom: plotBottom, left: plotLeft }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+                          <XAxis
+                            dataKey="label"
+                            tick={chartLabelStyle}
+                            axisLine={chartAxisStyle}
+                            tickLine={chartAxisStyle}
+                            interval="preserveStartEnd"
+                            minTickGap={10}
+                          />
+                          <YAxis
+                            domain={[1, maxRank]}
+                            reversed
+                            allowDecimals={false}
+                            hide
+                            ticks={yTicks}
+                          />
+                          <ReTooltip content={<PositionTooltip teamMap={teamMap} />} />
+                          <Line
+                            type="monotone"
+                            dataKey="position"
+                            name={selectedSeries.competitionName}
+                            stroke={colors.accent}
+                            strokeWidth={2}
+                            dot={<PositionDot teamMap={teamMap} emblemSize={emblemSize} />}
+                            activeDot={<PositionDot teamMap={teamMap} emblemSize={emblemSize} />}
+                            isAnimationActive={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+                {isOverflow && (
+                  <div className="mt-1 text-right text-[10px]" style={{ color: colors.sub }}>
+                    ← スワイプで他の節を表示 →
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="py-6 text-center text-sm" style={{ color: colors.sub }}>
+                選択中の大会に順位データがありません。
+              </div>
+            )}
+          </div>
+        )}
+      </DashboardSection>
+
       <DashboardSection title="H/A 分析" className="p-3">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-sm">

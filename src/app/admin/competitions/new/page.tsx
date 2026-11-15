@@ -72,6 +72,7 @@ const formSchema = z.object({
   leagueRounds: z.number().int().positive("1以上の数値を入力してください。").optional(),
   cupRounds: z.array(z.object({ name: z.string().min(1, "回戦名は必須です。") })).optional(),
   teams: z.array(z.string()).min(1, "最低1チームは選択してください。"),
+  teamCount: z.number().int().positive("1以上の整数を入力してください。").optional(),
   logoUrl: z.string().url().optional().or(z.literal("")),
   showOnHome: z.boolean().default(false),
   showOnTable: z.boolean().default(false),
@@ -94,6 +95,14 @@ const formSchema = z.object({
 }, {
   message: "総節数を入力してください。",
   path: ["leagueRounds"],
+}).refine((data) => {
+  if (data.format === "league" || data.format === "league_cup") {
+    return !!data.teamCount && data.teamCount > 0;
+  }
+  return true;
+}, {
+  message: "参加チーム数を入力してください。",
+  path: ["teamCount"],
 }).refine((data) => {
   if (data.format === "cup" || data.format === "league_cup") {
     return !!data.cupRounds && data.cupRounds.length > 0;
@@ -161,6 +170,7 @@ export default function NewCompetitionPage() {
       leagueRounds: undefined,
       cupRounds: [],
       teams: [],
+      teamCount: undefined,
       logoUrl: "",
       showOnHome: false,
       showOnTable: false,
@@ -458,6 +468,7 @@ export default function NewCompetitionPage() {
           leagueRounds: data.leagueRounds,
           cupRounds: data.cupRounds,
           teams: data.teams,
+          teamCount: data.teamCount,
           logoUrl: data.logoUrl,
           showOnHome: data.showOnHome,
           showOnTable: data.showOnTable,
@@ -784,6 +795,33 @@ export default function NewCompetitionPage() {
                   value={field.value ?? ""}
                   onChange={(e) => {
                     const n = Number(e.target.value);
+                    field.onChange(Number.isNaN(n) ? undefined : n);
+                  }}
+                  className="h-12 w-full border-white/[0.08] bg-[#111c2d] text-[#f0f4ff]"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {/* 参加チーム数 */}
+      {(selectedFormat === "league" || selectedFormat === "league_cup") && (
+        <FormField
+          control={form.control}
+          name="teamCount"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-[#f0f4ff]">参加チーム数</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={1}
+                  placeholder="20"
+                  value={field.value ?? ""}
+                  onChange={(e) => {
+                    const n = e.target.value === "" ? undefined : Number(e.target.value);
                     field.onChange(Number.isNaN(n) ? undefined : n);
                   }}
                   className="h-12 w-full border-white/[0.08] bg-[#111c2d] text-[#f0f4ff]"
@@ -1347,6 +1385,12 @@ export default function NewCompetitionPage() {
               <div className="rounded-xl border border-white/[0.08] bg-[#0d1520] p-3">
                 <p className="text-xs text-[#94a3b8]">総節数</p>
                 <p className="font-bold text-[#f0f4ff]">{data.leagueRounds}節</p>
+              </div>
+            )}
+            {(data.format === "league" || data.format === "league_cup") && (
+              <div className="rounded-xl border border-white/[0.08] bg-[#0d1520] p-3">
+                <p className="text-xs text-[#94a3b8]">参加チーム数</p>
+                <p className="font-bold text-[#f0f4ff]">{data.teamCount ?? 0}チーム</p>
               </div>
             )}
             {(data.format === "cup" || data.format === "league_cup") && (

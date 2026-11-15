@@ -18,6 +18,7 @@ interface CreateCompetitionBody {
   leagueRounds?: number;
   cupRounds?: CompetitionRound[];
   teams: string[];
+  teamCount?: number;
   logoUrl?: string;
   showOnHome: boolean;
   showOnTable: boolean;
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
       leagueRounds,
       cupRounds,
       teams,
+      teamCount,
       logoUrl,
       showOnHome,
       showOnTable,
@@ -120,6 +122,9 @@ export async function POST(req: NextRequest) {
       ownerUid: uid,
       clubProfileId: clubUid,
     };
+    if (typeof teamCount === "number" && Number.isFinite(teamCount) && teamCount > 0) {
+      competitionData.teamCount = teamCount;
+    }
 
     const batch = db.batch();
     batch.set(seasonRef, { id: seasonId }, { merge: true });

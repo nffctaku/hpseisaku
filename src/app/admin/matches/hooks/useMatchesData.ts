@@ -168,6 +168,7 @@ export function useMatchesData(clubUid: string | null | undefined): UseMatchesDa
             season: (data?.season as string) || undefined,
             format: typeof data?.format === "string" ? data.format : undefined,
             teams: Array.isArray(data?.teams) ? data.teams.filter((x: any) => typeof x === "string") : undefined,
+            teamCount: typeof data?.teamCount === "number" && Number.isFinite(data.teamCount) ? data.teamCount : undefined,
             logoUrl: typeof data?.logoUrl === "string" ? data.logoUrl : undefined,
           });
           const ids = Array.isArray(data?.teams) ? data.teams.filter((x: any) => typeof x === "string") : [];

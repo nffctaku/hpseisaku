@@ -47,6 +47,7 @@ const formSchema = z.object({
   name: z.string().min(1, "大会名は必須です。"),
   season: z.string().min(1, "シーズンを選択してください。"),
   teams: z.array(z.string()).min(1, "最低1チームは選択してください。"),
+  teamCount: z.number().int().positive("1以上の整数を入力してください。").optional(),
   logoUrl: z.string().url().optional().or(z.literal('')),
   rankLabels: z
     .array(
@@ -85,6 +86,7 @@ export default function EditCompetitionPage() {
 
   const [loading, setLoading] = useState(true);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [competitionFormat, setCompetitionFormat] = useState<string | undefined>(undefined);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema) as any,
@@ -92,6 +94,7 @@ export default function EditCompetitionPage() {
       name: "",
       season: "",
       teams: [],
+      teamCount: undefined,
       logoUrl: "",
       rankLabels: [],
     },
@@ -131,10 +134,13 @@ export default function EditCompetitionPage() {
         if (cancelled) return;
         if (docSnap.exists()) {
           const data = docSnap.data();
+          const format = typeof data.format === 'string' ? data.format : undefined;
+          setCompetitionFormat(format);
           form.reset({
             name: data.name,
             season: data.season,
             teams: data.teams || [],
+            teamCount: typeof data.teamCount === 'number' && Number.isFinite(data.teamCount) ? data.teamCount : undefined,
             logoUrl: data.logoUrl || "",
             rankLabels: normalizeRankLabels((data as any).rankLabels),
           });
@@ -165,6 +171,7 @@ export default function EditCompetitionPage() {
         name: data.name,
         season: data.season,
         teams: data.teams, // Save array of team IDs
+        teamCount: data.teamCount ?? null,
         logoUrl: data.logoUrl || null,
         rankLabels: Array.isArray((data as any).rankLabels) ? (data as any).rankLabels : [],
       });
@@ -248,6 +255,33 @@ export default function EditCompetitionPage() {
           {/* セクション2: 参加チーム */}
           <div className="rounded-xl border border-white/10 bg-white/5 p-6">
             <h2 className="text-sm font-semibold text-white/80 mb-4">参加チーム <span className="text-red-500 text-xs">必須</span></h2>
+            {(competitionFormat === "league" || competitionFormat === "league_cup") && (
+              <FormField
+                control={form.control}
+                name="teamCount"
+                render={({ field }) => (
+                  <FormItem className="mb-4">
+                    <FormLabel className="text-white">参加チーム数 <span className="text-red-500 text-xs">必須</span></FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={field.value ?? ""}
+                        onChange={(e) => {
+                          const n = e.target.value === "" ? undefined : Number(e.target.value);
+                          field.onChange(Number.isNaN(n) ? undefined : n);
+                        }}
+                        className="h-10 w-full bg-white/10 text-white border-white/20"
+                      />
+                    </FormControl>
+                    <FormDescription className="text-white/50 text-xs">
+                      リーグ順位プルダウンの選択肢に使用します。
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <FormField
             control={form.control}
             name="teams"

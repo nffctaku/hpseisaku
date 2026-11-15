@@ -12,3 +12,20 @@
   background-color: #27272a !important;
   color: #f5f5f5 !important;
 }
+
+/* リーグ順位推移: スマートフォンでは横スクロール、PCは全節表示 */
+.league-position-scroll {
+  container-type: inline-size;
+  container-name: league-position;
+}
+
+.league-position-plot {
+  --point-width: 36px;
+  width: 100%;
+}
+
+@container league-position (max-width: 768px) {
+  .league-position-plot {
+    width: max(100%, calc(var(--point-count) * var(--point-width))) !important;
+  }
+}

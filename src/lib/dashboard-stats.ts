@@ -1,4 +1,5 @@
 import type { SheetMatchRow, SheetCompetition } from "./match-sheet";
+import { getRoundSortKey } from "./match-sheet";
 import type { MatchEvent } from "@/types/match";
 import { toSlashSeason } from "./season";
 
@@ -431,4 +432,80 @@ export function getCompetitionFilterOptions(competitions: SheetCompetition[]): C
   return competitions
     .map((c) => ({ id: c.id, name: c.name, logoUrl: c.logoUrl }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export interface LeaguePositionPoint {
+  matchId: string;
+  competitionId: string;
+  competitionName: string;
+  roundName: string;
+  matchDate: string;
+  sortKey: number;
+  position: number;
+  label: string;
+  opponentTeamId: string;
+  selfScore: number | null;
+  oppScore: number | null;
+  isHome: boolean;
+  points?: number;
+}
+
+export interface LeaguePositionSeries {
+  competitionId: string;
+  competitionName: string;
+  points: LeaguePositionPoint[];
+}
+
+export function computeLeaguePositionSeries(
+  views: DashboardMatchView[],
+  competitions: SheetCompetition[]
+): LeaguePositionSeries[] {
+  const compMap = new Map(competitions.map((c) => [c.id, c]));
+  const byComp = new Map<string, DashboardMatchView[]>();
+
+  for (const v of views) {
+    const comp = compMap.get(v.row.competitionId);
+    if (!comp || comp.format !== 'league') continue;
+    if (!isNumber(v.row.leaguePositionAfterMatch)) continue;
+    const list = byComp.get(comp.id) ?? [];
+    list.push(v);
+    byComp.set(comp.id, list);
+  }
+
+  const result: LeaguePositionSeries[] = [];
+  for (const [compId, list] of byComp) {
+    const comp = compMap.get(compId)!;
+    const sorted = [...list].sort((a, b) => {
+      const roundA = getRoundSortKey(a.row.roundName);
+      const roundB = getRoundSortKey(b.row.roundName);
+      if (roundA !== roundB) return roundA - roundB;
+      const dateCmp = (a.row.matchDate || '').localeCompare(b.row.matchDate || '');
+      if (dateCmp !== 0) return dateCmp;
+      return (a.row.matchId || '').localeCompare(b.row.matchId || '');
+    });
+
+    let cumulativePoints = 0;
+    const points: LeaguePositionPoint[] = sorted.map((v, idx) => {
+      const resultPoints = v.result === 'W' ? 3 : v.result === 'D' ? 1 : 0;
+      cumulativePoints += resultPoints;
+      return {
+        matchId: v.row.matchId,
+        competitionId: compId,
+        competitionName: comp.name,
+        roundName: v.row.roundName,
+        matchDate: v.row.matchDate,
+        sortKey: idx,
+        position: v.row.leaguePositionAfterMatch as number,
+        label: v.row.roundName || `第${idx + 1}節`,
+        opponentTeamId: v.opponentTeamId,
+        selfScore: v.selfScore,
+        oppScore: v.oppScore,
+        isHome: v.isHome,
+        points: cumulativePoints,
+      };
+    });
+    result.push({ competitionId: compId, competitionName: comp.name, points });
+  }
+
+  return result.sort((a, b) => a.competitionName.localeCompare(b.competitionName));
 }
