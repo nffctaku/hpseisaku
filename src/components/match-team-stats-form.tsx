@@ -355,6 +355,38 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
     return typeof n === 'number' ? n : 0;
   };
 
+  const decimalStatIds = new Set([
+    'expectedGoals',
+    'possession',
+    'shotAccuracy',
+    'passAccuracy',
+    'passSuccessRate',
+    'dribbleSuccessRate',
+  ]);
+  const decimalStatNames = new Set([
+    'ゴール期待値',
+    'ポゼッション',
+    '支配率',
+    'シュート精度',
+    'パス精度',
+    'パス成功率',
+    'ドリブル成功率',
+  ]);
+  const isDecimalStat = (id: string, name: string) =>
+    decimalStatIds.has(id) || decimalStatNames.has(name);
+
+  const sanitizeNumericInput = (value: string, allowDecimal: boolean): string => {
+    if (allowDecimal) {
+      let s = value.replace(/[^0-9.]/g, '');
+      const parts = s.split('.');
+      if (parts.length > 2) {
+        s = `${parts[0]}.${parts.slice(1).join('').replace(/\./g, '')}`;
+      }
+      return s;
+    }
+    return value.replace(/[^0-9]/g, '');
+  };
+
   const getEventCardCounts = () => {
     const counts = {
       yellow: { home: 0, away: 0, hasEvents: false },
@@ -617,6 +649,7 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
             const homeVal = toComparable(String(form.watch(`teamStats.${index}.homeValue`) ?? ''));
             const awayVal = toComparable(String(form.watch(`teamStats.${index}.awayValue`) ?? ''));
             const isReadOnly = statId === 'yellowCards' || statId === 'redCards' || statName === 'イエロー' || statName === 'レッド';
+            const allowDecimal = isDecimalStat(statId, statName);
 
             return (
               <div
@@ -634,10 +667,10 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                     render={({ field }) => (
                       <Input
                         value={typeof field.value === 'string' ? field.value : ''}
-                        onChange={(e) => field.onChange(e.target.value)}
+                        onChange={(e) => field.onChange(sanitizeNumericInput(e.target.value, allowDecimal))}
                         type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
+                        inputMode={allowDecimal ? 'decimal' : 'numeric'}
+                        pattern={allowDecimal ? '[0-9.]*' : '[0-9]*'}
                         className={`w-16 border-slate-700 bg-slate-900 text-center text-sm font-bold text-slate-100 placeholder:text-slate-500 focus-visible:ring-emerald-400 sm:w-24 sm:text-lg ${homeVal > awayVal ? 'border-emerald-400 bg-emerald-500/90 text-white' : ''}`}
                       />
                     )}
@@ -671,10 +704,10 @@ export function MatchTeamStatsForm({ match, userId, competitionId, roundId, matc
                     render={({ field }) => (
                       <Input
                         value={typeof field.value === 'string' ? field.value : ''}
-                        onChange={(e) => field.onChange(e.target.value)}
+                        onChange={(e) => field.onChange(sanitizeNumericInput(e.target.value, allowDecimal))}
                         type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
+                        inputMode={allowDecimal ? 'decimal' : 'numeric'}
+                        pattern={allowDecimal ? '[0-9.]*' : '[0-9]*'}
                         className={`w-16 border-slate-700 bg-slate-900 text-center text-sm font-bold text-slate-100 placeholder:text-slate-500 focus-visible:ring-emerald-400 sm:w-24 sm:text-lg ${awayVal > homeVal ? 'border-emerald-400 bg-emerald-500/90 text-white' : ''}`}
                       />
                     )}
