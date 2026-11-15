@@ -65,7 +65,7 @@ export function Sidebar() {
     );
   };
 
-  type NavItem = { href: string; label: string; icon: LucideIcon | ((props: { className?: string }) => ReactElement); external?: boolean; disabled?: boolean };
+  type NavItem = { href: string; label: string; icon: LucideIcon | ((props: { className?: string }) => ReactElement); external?: boolean; disabled?: boolean; badge?: string };
 
   const navSections: Array<{ title: string; items: NavItem[] }> = [
     {
@@ -73,7 +73,7 @@ export function Sidebar() {
       items: [
         { href: `/admin/competitions`, label: '大会管理', icon: Trophy },
         { href: `/admin/teams`, label: 'チーム登録', icon: Shield },
-        { href: `/admin/matches`, label: '試合管理', icon: Calendar },
+        { href: `/admin/matches`, label: '試合管理', icon: Calendar, badge: 'UPDATE' },
         { href: `/admin/friendly-matches`, label: '単発試合', icon: Calendar },
         { href: `/admin/players`, label: '選手管理', icon: Users },
       ],
@@ -91,7 +91,7 @@ export function Sidebar() {
       title: '記録・分析',
       items: [
         { href: bookletHref, label: '選手名鑑', icon: BookOpen },
-        { href: `/admin/dashboard`, label: 'ダッシュボード', icon: LayoutGrid },
+        { href: `/admin/dashboard`, label: 'ダッシュボード', icon: LayoutGrid, badge: 'UPDATE' },
         { href: `/admin/analysis`, label: '分析管理', icon: LineChart },
         { href: `/admin/club/history`, label: 'クラブ史', icon: History },
         { href: `/admin/club/history/trophies`, label: 'トロフィールーム', icon: Trophy },
@@ -145,6 +145,12 @@ export function Sidebar() {
                 const isExternal = Boolean(item.external);
                 const isDisabled = Boolean(item.disabled);
 
+                const badge = item.badge ? (
+                  <span className="shrink-0 rounded bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-gray-900">
+                    {item.badge}
+                  </span>
+                ) : null;
+
                 return (
                   isExternal ? (
                     <a
@@ -158,7 +164,10 @@ export function Sidebar() {
                       )}
                     >
                       <Icon className="h-4 w-4" />
-                      {item.label}
+                      <span className="flex flex-1 items-center justify-between gap-2">
+                        {item.label}
+                        {badge}
+                      </span>
                     </a>
                   ) : isDisabled ? (
                     <div
@@ -170,7 +179,10 @@ export function Sidebar() {
                       aria-disabled="true"
                     >
                       <Icon className="h-4 w-4" />
-                      {item.label}
+                      <span className="flex flex-1 items-center justify-between gap-2">
+                        {item.label}
+                        {badge}
+                      </span>
                     </div>
                   ) : (
                     <Link
@@ -183,7 +195,10 @@ export function Sidebar() {
                       )}
                     >
                       <Icon className="h-4 w-4" />
-                      {item.label}
+                      <span className="flex flex-1 items-center justify-between gap-2">
+                        {item.label}
+                        {badge}
+                      </span>
                     </Link>
                   )
                 );
