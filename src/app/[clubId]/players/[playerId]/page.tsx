@@ -17,6 +17,11 @@ import { cache, Suspense } from "react";
 import type { CSSProperties } from "react";
 import { isOwnTeamId } from "@/lib/public-own-team";
 import { resolvePublicClubProfile } from "@/lib/public-club-profile";
+import {
+  deriveEventPlayerCounts,
+  buildNameToIdFromStats,
+  resolvePlayerMatchStats,
+} from "@/lib/match-event-stats";
 
 export const revalidate = 300;
 
@@ -420,6 +425,8 @@ async function getRegisteredSeasonIds(ownerUid: string, playerId: string, player
 interface PlayerStats {
   appearances: number;
   minutes: number;
+  minutesKnownCount: number;
+  avgMinutes: number | null;
   goals: number;
   assists: number;
   yellowCards: number;
@@ -628,7 +635,9 @@ type PlayerMatchRecord = {
   competitionLogoUrl?: string;
   competitionSeason: string;
   appearances: number;
-  minutes: number;
+  minutes: number | null;
+  played: boolean;
+  isBench: boolean;
   goals: number;
   assists: number;
   yellowCards: number;
@@ -691,28 +700,60 @@ async function fetchAllPlayerMatchRecordsRaw(
       );
 
       for (const matchData of matchesByRound.flat()) {
-        if (!Array.isArray(matchData?.playerStats)) continue;
-        const playerStat = matchData.playerStats.find((stat: any) => stat?.playerId === playerId);
-        if (!playerStat) continue;
+        const playerStats: any[] = Array.isArray(matchData?.playerStats) ? matchData.playerStats : [];
+        const events: any[] = Array.isArray(matchData?.events) ? matchData.events : [];
+        const matchDuration = typeof matchData?.matchDuration === "number" ? matchData.matchDuration : 90;
 
-        const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
-        const goals = Number(playerStat.goals) || 0;
-        const assists = Number(playerStat.assists) || 0;
-        const yellowCards = Number(playerStat.yellowCards) || 0;
-        const redCards = Number(playerStat.redCards) || 0;
-        const rating = Number(playerStat.rating);
+        const evDerived =
+          events.length > 0 || playerStats.length > 0
+            ? deriveEventPlayerCounts(events, buildNameToIdFromStats(playerStats), matchDuration)
+            : null;
+
+        const byPlayer = new Map<string, any>();
+        for (const s of playerStats) {
+          const pid = typeof s?.playerId === "string" ? s.playerId : "";
+          if (pid) byPlayer.set(pid, s);
+        }
+
+        if (evDerived) {
+          for (const pid of evDerived.involved) {
+            if (pid.startsWith("custom_") || byPlayer.has(pid)) continue;
+            byPlayer.set(pid, {
+              playerId: pid,
+              teamId: evDerived.teamIdByPlayer.get(pid) || "",
+            });
+          }
+        }
+
+        if (!byPlayer.has(playerId)) continue;
+
+        const playerStat = byPlayer.get(playerId);
+        const resolved = resolvePlayerMatchStats(playerStat, evDerived || {
+          goals: new Map(),
+          assists: new Map(),
+          yellowCards: new Map(),
+          redCards: new Map(),
+          involved: new Set(),
+          played: new Set(),
+          teamIdByPlayer: new Map(),
+          subMinutes: new Map(),
+        }, playerId, matchDuration);
+
+        const rating = Number(playerStat?.rating);
 
         allRecords.push({
           competitionId: id,
           competitionName,
           competitionLogoUrl,
           competitionSeason,
-          appearances: minutesPlayed > 0 ? 1 : 0,
-          minutes: minutesPlayed,
-          goals,
-          assists,
-          yellowCards,
-          redCards,
+          appearances: resolved.played ? 1 : 0,
+          minutes: resolved.minutesPlayed,
+          played: resolved.played,
+          isBench: resolved.isBench,
+          goals: resolved.goals,
+          assists: resolved.assists,
+          yellowCards: resolved.yellowCards,
+          redCards: resolved.redCards,
           ratingSum: Number.isFinite(rating) && rating > 0 ? rating : 0,
           ratingCount: Number.isFinite(rating) && rating > 0 ? 1 : 0,
         });
@@ -746,6 +787,7 @@ async function getAllPlayerMatchRecords(
 
     const m = Number.isFinite(manual.matches as any) ? Number(manual.matches) : 0;
     const r = Number.isFinite(manual.avgRating as any) ? Number(manual.avgRating) : NaN;
+    const manualMinutes = Number.isFinite(manual.minutes as any) ? Number(manual.minutes) : null;
     manualRecords.push({
       competitionId,
       competitionName: c?.name ?? competitionId,
@@ -754,7 +796,9 @@ async function getAllPlayerMatchRecords(
         ? toSlashSeason(manual.season)
         : (c?.season ?? ""),
       appearances: m,
-      minutes: Number.isFinite(manual.minutes as any) ? Number(manual.minutes) : 0,
+      minutes: manualMinutes,
+      played: m > 0,
+      isBench: false,
       goals: Number.isFinite(manual.goals as any) ? Number(manual.goals) : 0,
       assists: Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0,
       yellowCards: Number.isFinite(manual.yellowCards as any) ? Number(manual.yellowCards) : 0,
@@ -780,7 +824,8 @@ function getPlayerStats(records: PlayerMatchRecord[], targetSeason?: string | nu
   const totals = filtered.reduce(
     (acc, r) => ({
       appearances: acc.appearances + r.appearances,
-      minutes: acc.minutes + r.minutes,
+      minutes: acc.minutes + (r.minutes ?? 0),
+      minutesKnownCount: acc.minutesKnownCount + (r.minutes != null ? 1 : 0),
       goals: acc.goals + r.goals,
       assists: acc.assists + r.assists,
       yellowCards: acc.yellowCards + r.yellowCards,
@@ -791,6 +836,7 @@ function getPlayerStats(records: PlayerMatchRecord[], targetSeason?: string | nu
     {
       appearances: 0,
       minutes: 0,
+      minutesKnownCount: 0,
       goals: 0,
       assists: 0,
       yellowCards: 0,
@@ -801,6 +847,7 @@ function getPlayerStats(records: PlayerMatchRecord[], targetSeason?: string | nu
   );
   return {
     ...totals,
+    avgMinutes: totals.minutesKnownCount > 0 ? totals.minutes / totals.minutesKnownCount : null,
     avgRating: totals.ratingCount > 0 ? totals.ratingSum / totals.ratingCount : null,
   };
 }
@@ -896,7 +943,9 @@ async function PlayerStatsSection({
             </div>
             <div className="border rounded-md p-2">
               <p className="text-[10px] text-muted-foreground">出場時間</p>
-              <p className="text-xl font-bold tabular-nums">{stats.minutes}</p>
+              <p className="text-xl font-bold tabular-nums">
+                {stats.minutesKnownCount === 0 && stats.appearances > 0 ? "—" : stats.minutes}
+              </p>
             </div>
             <div className="border rounded-md p-2">
               <p className="text-[10px] text-muted-foreground">ゴール</p>
@@ -932,7 +981,9 @@ async function PlayerStatsSection({
             </div>
             <div className="border rounded-md p-2">
               <p className="text-[10px] text-muted-foreground">出場時間</p>
-              <p className="text-xl font-bold tabular-nums">{careerStats.minutes}</p>
+              <p className="text-xl font-bold tabular-nums">
+                {careerStats.minutesKnownCount === 0 && careerStats.appearances > 0 ? "—" : careerStats.minutes}
+              </p>
             </div>
             <div className="border rounded-md p-2">
               <p className="text-[10px] text-muted-foreground">ゴール</p>

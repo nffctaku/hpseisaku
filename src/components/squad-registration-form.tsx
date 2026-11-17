@@ -35,7 +35,7 @@ const formSchema = z.object({
       role: z.string().optional(),
       starterSlot: z.coerce.number().int().min(0).max(10).optional(),
       rating: z.coerce.number().min(4.0).max(10.0).step(0.1).optional(),
-      minutesPlayed: z.coerce.number().min(0).optional(),
+      minutesPlayed: z.union([z.null(), z.coerce.number().min(0)]).optional(),
       goals: z.coerce.number().min(0).optional(),
       assists: z.coerce.number().min(0).optional(),
       yellowCards: z.coerce.number().min(0).optional(),
@@ -165,7 +165,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
               role: 'starter',
               starterSlot: index,
               rating: undefined,
-              minutesPlayed: 90,
+              minutesPlayed: null,
               goals: 0,
               assists: 0,
               yellowCards: 0,
@@ -186,7 +186,7 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
               teamId: teamId,
               role: 'sub',
               rating: undefined,
-              minutesPlayed: 0,
+              minutesPlayed: null,
               goals: 0,
               assists: 0,
               yellowCards: 0,
@@ -473,7 +473,8 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
     });
 
     // イベント参照中の選手を無言で試合メンバーから外さない:
-    // デフォルトラインナップに含まれない参照中選手はベンチとして保持する。
+    // デフォルトラインナップに含まれない参照中選手は、既存の role / minutes を保持する。
+    // 機械的に role: 'sub' / minutesPlayed: 0 とはしない。
     const nextIds = new Set(nextPlayerStats.map((ps: any) => ps.playerId));
     const keptReferenced: any[] = [];
     currentStats.forEach((ps: any) => {
@@ -482,9 +483,9 @@ export function SquadRegistrationForm({ match, homePlayers, awayPlayers, roundId
       if (!playerReferencedByEvents(currentEvents, pid)) return;
       keptReferenced.push({
         ...ps,
-        role: 'sub',
-        starterSlot: undefined,
-        minutesPlayed: inMinuteMaps.get(pid) ?? 0,
+        role: ps.role ?? 'sub',
+        starterSlot: ps.role === 'starter' ? ps.starterSlot : undefined,
+        minutesPlayed: inMinuteMaps.get(pid) ?? ps.minutesPlayed ?? null,
       });
     });
     nextPlayerStats.push(...keptReferenced);

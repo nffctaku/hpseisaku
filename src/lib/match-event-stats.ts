@@ -17,6 +17,8 @@ export interface DerivedPlayerCounts {
   redCards: Map<string, number>;
   /** 得点/アシスト/カード/交代イベントに登場した選手（出場の傍証） */
   involved: Set<string>;
+  /** 出場とみなすイベント（得点/アシスト/交代IN/交代OUT）に登場した選手 */
+  played: Set<string>;
   /** 選手 → 所属イベントのteamId（最初に見つけたもの） */
   teamIdByPlayer: Map<string, string>;
   /** 交代IN選手の出場時間（minutesPlayed行がない場合の推定値） */
@@ -37,7 +39,22 @@ interface EventLike {
   [key: string]: unknown;
 }
 
+export interface ResolvedPlayerStats {
+  minutesPlayed: number | null;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+  played: boolean;
+  isBench: boolean;
+}
+
 const asStr = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
+
+const toNum = (v: unknown): number => {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
 
 export function deriveEventPlayerCounts(
   events: EventLike[] | unknown,
@@ -51,6 +68,7 @@ export function deriveEventPlayerCounts(
   const yellowCards = new Map<string, number>();
   const redCards = new Map<string, number>();
   const involved = new Set<string>();
+  const played = new Set<string>();
   const teamIdByPlayer = new Map<string, string>();
   const subMinutes = new Map<string, number>();
 
@@ -58,7 +76,7 @@ export function deriveEventPlayerCounts(
   const noteTeam = (pid: string, teamId?: string) => {
     if (teamId && !teamIdByPlayer.has(pid)) teamIdByPlayer.set(pid, teamId);
   };
-  // ロスタイム表記の分を数値化（"90+3" → 93相当ではなく base=90 ルールに合わせる）
+  // ロスタイム表記の分を数値化（"90+3" → 90相当。subMinutesは最低1分を保証）
   const baseMinute = (m: unknown): number => {
     if (typeof m === "number" && Number.isFinite(m)) return Math.floor(m);
     const s = String(m ?? "");
@@ -80,12 +98,14 @@ export function deriveEventPlayerCounts(
       if (scorerId) {
         bump(goals, scorerId);
         involved.add(scorerId);
+        played.add(scorerId);
         noteTeam(scorerId, teamId);
       }
       const assistId = asStr(ev.assistPlayerId);
       if (assistId) {
         bump(assists, assistId);
         involved.add(assistId);
+        played.add(assistId);
         noteTeam(assistId, teamId);
       }
       continue;
@@ -94,15 +114,15 @@ export function deriveEventPlayerCounts(
     if (type === "card" || type === "yellow" || type === "red") {
       const pid = asStr(ev.playerId);
       const color = type === "card" ? ev.cardColor : type;
-      if (pid && color === "yellow") {
-        bump(yellowCards, pid);
+      if (pid) {
         involved.add(pid);
         noteTeam(pid, teamId);
       }
+      if (pid && color === "yellow") {
+        bump(yellowCards, pid);
+      }
       if (pid && color === "red") {
         bump(redCards, pid);
-        involved.add(pid);
-        noteTeam(pid, teamId);
       }
       continue;
     }
@@ -112,8 +132,8 @@ export function deriveEventPlayerCounts(
       const outId = asStr(ev.outPlayerId);
       if (inId) {
         involved.add(inId);
+        played.add(inId);
         noteTeam(inId, teamId);
-        // 行なし選手の出場時間推定（交代INから残り時間。1分でも計上するため最低1）
         const m = baseMinute(ev.minute);
         const cur = subMinutes.get(inId);
         const derived = Math.max(1, matchDuration - m);
@@ -121,12 +141,78 @@ export function deriveEventPlayerCounts(
       }
       if (outId) {
         involved.add(outId);
+        played.add(outId);
         noteTeam(outId, teamId);
       }
     }
   }
 
-  return { goals, assists, yellowCards, redCards, involved, teamIdByPlayer, subMinutes };
+  return { goals, assists, yellowCards, redCards, involved, played, teamIdByPlayer, subMinutes };
+}
+
+// 既存 playerStats 行とイベント導出値を統合し、出場・ベンチ判定を付与する。
+// 出場時間が記録されていればそれを優先。0分だが出場を示すイベントがある場合は
+// 「不明（null）」として扱い、ベンチとは区別する。
+export function resolvePlayerMatchStats(
+  stat: { playerId?: string; teamId?: string; minutesPlayed?: number | string | null; role?: string | null; goals?: number | string; assists?: number | string; yellowCards?: number | string; redCards?: number | string } | null | undefined,
+  derived: DerivedPlayerCounts,
+  playerId: string,
+  matchDuration = 90
+): ResolvedPlayerStats {
+  const storedMinutesRaw = stat?.minutesPlayed;
+  let storedMinutes: number | null = null;
+  if (storedMinutesRaw !== undefined && storedMinutesRaw !== null) {
+    const n = Number(storedMinutesRaw);
+    if (Number.isFinite(n)) storedMinutes = n;
+  }
+
+  const derivedMinutes = derived.subMinutes.get(playerId) ?? null;
+  const derivedGoals = derived.goals.get(playerId) || 0;
+  const derivedAssists = derived.assists.get(playerId) || 0;
+  const derivedYellow = derived.yellowCards.get(playerId) || 0;
+  const derivedRed = derived.redCards.get(playerId) || 0;
+
+  const storedGoals = toNum(stat?.goals);
+  const storedAssists = toNum(stat?.assists);
+  const storedYellow = toNum(stat?.yellowCards);
+  const storedRed = toNum(stat?.redCards);
+
+  const goals = Math.max(storedGoals, derivedGoals);
+  const assists = Math.max(storedAssists, derivedAssists);
+  const yellowCards = Math.max(storedYellow, derivedYellow);
+  const redCards = Math.max(storedRed, derivedRed);
+
+  const hasSubIn = derived.subMinutes.has(playerId);
+  const hasPlayEvidence = goals > 0 || assists > 0 || hasSubIn;
+
+  let minutesPlayed: number | null;
+  if (stat) {
+    if (storedMinutes !== null) {
+      // 記録が 0 分だが、出場を示すイベントがある場合は「不明」にする
+      // （終了間際の途中出場など、記録上 0 分でも出場しているケース）
+      if (storedMinutes === 0 && hasPlayEvidence) {
+        minutesPlayed = derivedMinutes ?? null;
+      } else {
+        minutesPlayed = storedMinutes;
+      }
+    } else {
+      minutesPlayed = derivedMinutes ?? (hasPlayEvidence ? null : null);
+    }
+  } else {
+    minutesPlayed = derivedMinutes ?? (hasPlayEvidence ? null : null);
+  }
+
+  const role = stat?.role ?? undefined;
+  const played =
+    role === "starter" ||
+    (minutesPlayed !== null && minutesPlayed > 0) ||
+    hasPlayEvidence;
+
+  // ベンチと確認できるのは「サブ登録かつ出場を示す情報がない」場合のみ。
+  // minutesPlayed === 0 だけでベンチと判定しない（終了間際の途中出場等で 0 分のこともある）。
+  const isBench = role === "sub" && !played;
+
+  return { minutesPlayed, goals, assists, yellowCards, redCards, played, isBench };
 }
 
 // 選手IDがイベントから参照されているか（削除保護用）。

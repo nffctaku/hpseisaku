@@ -31,7 +31,7 @@ export async function MatchStatsSlide({
               return new Date(ms).toLocaleDateString("ja-JP", { year: "numeric", month: "numeric", day: "numeric" });
             })();
             const scoreText = m.scoreHome == null || m.scoreAway == null ? "-" : `${m.scoreHome} - ${m.scoreAway}`;
-            const minutesNumText = m.isBench ? "B" : !m.minutesPlayed ? "-" : `${m.minutesPlayed}`;
+            const minutesNumText = m.isBench ? "B" : m.minutesPlayed == null ? "—" : `${m.minutesPlayed}`;
             const goalsNumText = !m.goals ? "-" : `${m.goals}`;
             const assistsNumText = !m.assists ? "-" : `${m.assists}`;
             const outcomeClass = (() => {

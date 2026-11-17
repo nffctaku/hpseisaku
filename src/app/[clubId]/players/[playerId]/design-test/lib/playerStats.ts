@@ -5,6 +5,11 @@ import { expandSeasonVariants, getSeasonDataEntry, toSlashSeason } from "./seaso
 import type { SimplePlayerStats, SeasonCompetitionStatsRow, PlayerSeasonSummaryRow, SeasonCompetitionBreakdownRow } from "./types";
 import { PlayerSeasonBreakdownRow } from "./types";
 import { buildManualStatsMapFromPlayer, buildManualStatsMapBySeason } from "./manualStats";
+import {
+  deriveEventPlayerCounts,
+  buildNameToIdFromStats,
+  resolvePlayerMatchStats,
+} from "@/lib/match-event-stats";
 
 export type { SimplePlayerStats, SeasonCompetitionStatsRow, PlayerSeasonSummaryRow, SeasonCompetitionBreakdownRow, PlayerSeasonBreakdownRow } from "./types";
 
@@ -22,12 +27,13 @@ type PlayerMatchRecord = {
   roundName?: string;
   matchId: string;
   matchDate?: string;
-  minutesPlayed: number;
+  minutesPlayed: number | null;
   goals: number;
   assists: number;
   yellowCards: number;
   redCards: number;
   rating: number;
+  played: boolean;
   isBench: boolean;
 };
 
@@ -70,17 +76,45 @@ async function fetchAllPlayerMatchRecords(
       for (const { matchDoc, roundId, roundName } of matchesByRound.flat()) {
         const m = matchDoc.data() as any;
         const ps = Array.isArray(m?.playerStats) ? (m.playerStats as any[]) : [];
-        const stat = ps.find((s: any) => s?.playerId === playerId);
-        if (!stat) continue;
+        const events = Array.isArray(m?.events) ? (m.events as any[]) : [];
+        const matchDuration = typeof m?.matchDuration === "number" ? m.matchDuration : 90;
 
-        const minutesPlayed = Number(stat.minutesPlayed) || 0;
-        const goals = Number(stat.goals) || 0;
-        const assists = Number(stat.assists) || 0;
-        const yellowCards = Number(stat.yellowCards) || 0;
-        const redCards = Number(stat.redCards) || 0;
-        const rating = Number(stat.rating);
-        const role = typeof stat?.role === "string" ? String(stat.role) : "";
-        const isBench = Boolean(role) && role !== "starter" && minutesPlayed === 0;
+        const evDerived =
+          events.length > 0 || ps.length > 0
+            ? deriveEventPlayerCounts(events, buildNameToIdFromStats(ps), matchDuration)
+            : null;
+
+        const byPlayer = new Map<string, any>();
+        for (const s of ps) {
+          const pid = typeof s?.playerId === "string" ? s.playerId : "";
+          if (pid) byPlayer.set(pid, s);
+        }
+
+        if (evDerived) {
+          for (const pid of evDerived.involved) {
+            if (pid.startsWith("custom_") || byPlayer.has(pid)) continue;
+            byPlayer.set(pid, {
+              playerId: pid,
+              teamId: evDerived.teamIdByPlayer.get(pid) || "",
+            });
+          }
+        }
+
+        if (!byPlayer.has(playerId)) continue;
+
+        const stat = byPlayer.get(playerId);
+        const resolved = resolvePlayerMatchStats(stat, evDerived || {
+          goals: new Map(),
+          assists: new Map(),
+          yellowCards: new Map(),
+          redCards: new Map(),
+          involved: new Set(),
+          played: new Set(),
+          teamIdByPlayer: new Map(),
+          subMinutes: new Map(),
+        }, playerId, matchDuration);
+
+        const rating = Number(stat?.rating);
 
         matches.push({
           competitionId: compDoc.id,
@@ -88,13 +122,14 @@ async function fetchAllPlayerMatchRecords(
           roundName,
           matchId: matchDoc.id,
           matchDate: typeof m?.matchDate === "string" ? m.matchDate : undefined,
-          minutesPlayed,
-          goals,
-          assists,
-          yellowCards,
-          redCards,
+          minutesPlayed: resolved.minutesPlayed,
+          goals: resolved.goals,
+          assists: resolved.assists,
+          yellowCards: resolved.yellowCards,
+          redCards: resolved.redCards,
           rating: Number.isFinite(rating) && rating > 0 ? rating : 0,
-          isBench,
+          played: resolved.played,
+          isBench: resolved.isBench,
         });
       }
     })
@@ -251,8 +286,8 @@ export async function getLeaguePlayerStats(
     const compMatches = matchesMap.get(c.id) || [];
     for (const r of compMatches) {
       if (r.isBench) continue;
-      aggregated.minutes += r.minutesPlayed;
-      aggregated.appearances += r.minutesPlayed > 0 ? 1 : 0;
+      if (r.minutesPlayed != null) aggregated.minutes += r.minutesPlayed;
+      aggregated.appearances += r.played ? 1 : 0;
       aggregated.goals += r.goals;
       aggregated.assists += r.assists;
       if (r.rating > 0) {
@@ -306,8 +341,8 @@ export async function getSeasonCompetitionStats(
     } else {
       const compMatches = matchesMap.get(c.id) || [];
       for (const r of compMatches) {
-        stats.minutes += r.minutesPlayed;
-        stats.appearances += r.minutesPlayed > 0 ? 1 : 0;
+        if (r.minutesPlayed != null) stats.minutes += r.minutesPlayed;
+        stats.appearances += r.played ? 1 : 0;
         stats.goals += r.goals;
         stats.assists += r.assists;
         if (r.rating > 0) {
@@ -372,19 +407,50 @@ export async function getPlayerSeasonSummaries(
     );
 
     for (const matchData of matchesByRound.flat()) {
-      if (!matchData?.playerStats || !Array.isArray(matchData.playerStats)) continue;
-      const playerStat = matchData.playerStats.find((stat: any) => stat?.playerId === playerId);
-      if (!playerStat) continue;
+      const playerStats: any[] = Array.isArray(matchData?.playerStats) ? matchData.playerStats : [];
+      const events: any[] = Array.isArray(matchData?.events) ? matchData.events : [];
+      const matchDuration = typeof matchData?.matchDuration === "number" ? matchData.matchDuration : 90;
 
-      const minutesPlayed = Number(playerStat.minutesPlayed) || 0;
-      const goals = Number(playerStat.goals) || 0;
-      const assists = Number(playerStat.assists) || 0;
+      const evDerived =
+        events.length > 0 || playerStats.length > 0
+          ? deriveEventPlayerCounts(events, buildNameToIdFromStats(playerStats), matchDuration)
+          : null;
+
+      const byPlayer = new Map<string, any>();
+      for (const s of playerStats) {
+        const pid = typeof s?.playerId === "string" ? s.playerId : "";
+        if (pid) byPlayer.set(pid, s);
+      }
+
+      if (evDerived) {
+        for (const pid of evDerived.involved) {
+          if (pid.startsWith("custom_") || byPlayer.has(pid)) continue;
+          byPlayer.set(pid, {
+            playerId: pid,
+            teamId: evDerived.teamIdByPlayer.get(pid) || "",
+          });
+        }
+      }
+
+      if (!byPlayer.has(playerId)) continue;
+
+      const playerStat = byPlayer.get(playerId);
+      const resolved = resolvePlayerMatchStats(playerStat, evDerived || {
+        goals: new Map(),
+        assists: new Map(),
+        yellowCards: new Map(),
+        redCards: new Map(),
+        involved: new Set(),
+        played: new Set(),
+        teamIdByPlayer: new Map(),
+        subMinutes: new Map(),
+      }, playerId, matchDuration);
 
       if (!manual) {
-        agg.minutes += minutesPlayed;
-        agg.appearances += minutesPlayed > 0 ? 1 : 0;
-        agg.goals += goals;
-        agg.assists += assists;
+        if (resolved.minutesPlayed != null) agg.minutes += resolved.minutesPlayed;
+        if (resolved.played) agg.appearances += 1;
+        agg.goals += resolved.goals;
+        agg.assists += resolved.assists;
       }
     }
 
@@ -465,8 +531,8 @@ export async function getPlayerSeasonBreakdowns(
       compRow.stats.assists = Number.isFinite(manual.assists as any) ? Number(manual.assists) : 0;
     } else {
       for (const r of compMatches) {
-        compRow.stats.minutes += r.minutesPlayed;
-        compRow.stats.appearances += r.minutesPlayed > 0 ? 1 : 0;
+        if (r.minutesPlayed != null) compRow.stats.minutes += r.minutesPlayed;
+        compRow.stats.appearances += r.played ? 1 : 0;
         compRow.stats.goals += r.goals;
         compRow.stats.assists += r.assists;
       }
@@ -546,11 +612,29 @@ export async function getPlayerMatchResults(
       for (const matchDoc of matchesSnap.docs) {
         const m = matchDoc.data() as any;
         const ps = Array.isArray(m?.playerStats) ? (m.playerStats as any[]) : [];
-        const stat = ps.find((s) => s?.playerId === playerId);
         const events = Array.isArray(m?.events) ? (m.events as any[]) : [];
-        const playerEvents = events.filter((e) => e?.playerId === playerId || e?.assistPlayerId === playerId);
-        const eventGoals = playerEvents.filter((e) => e?.type === "goal" && e?.playerId === playerId).length;
-        const eventAssists = playerEvents.filter((e) => e?.type === "goal" && e?.assistPlayerId === playerId).length;
+        const matchDuration = typeof m?.matchDuration === "number" ? m.matchDuration : 90;
+
+        const evDerived =
+          events.length > 0 || ps.length > 0
+            ? deriveEventPlayerCounts(events, buildNameToIdFromStats(ps), matchDuration)
+            : null;
+
+        const byPlayer = new Map<string, any>();
+        for (const s of ps) {
+          const pid = typeof s?.playerId === "string" ? s.playerId : "";
+          if (pid) byPlayer.set(pid, s);
+        }
+
+        if (evDerived) {
+          for (const pid of evDerived.involved) {
+            if (pid.startsWith("custom_") || byPlayer.has(pid)) continue;
+            byPlayer.set(pid, {
+              playerId: pid,
+              teamId: evDerived.teamIdByPlayer.get(pid) || "",
+            });
+          }
+        }
 
         const homeTeamId = typeof m?.homeTeam === "string" ? m.homeTeam : "";
         const awayTeamId = typeof m?.awayTeam === "string" ? m.awayTeam : "";
@@ -563,10 +647,28 @@ export async function getPlayerMatchResults(
         const isBenchAway = squadListHasPlayerId(awaySubs, playerId);
         const isBenchRegistered = isBenchHome || isBenchAway;
 
-        if (!stat && !isBenchRegistered && playerEvents.length === 0) continue;
+        const hasEvents = evDerived ? evDerived.involved.has(playerId) : false;
+        if (!byPlayer.has(playerId) && !isBenchRegistered && !hasEvents) continue;
 
-        const eventTeamId = typeof playerEvents[0]?.teamId === "string" ? playerEvents[0].teamId : "";
-        const playerTeamId = typeof stat?.teamId === "string" ? stat.teamId : eventTeamId;
+        let stat: any = byPlayer.get(playerId);
+        if (!stat && isBenchRegistered) {
+          stat = { playerId, role: "sub" };
+        } else if (stat && isBenchRegistered && !stat.role) {
+          stat = { ...stat, role: "sub" };
+        }
+
+        const resolved = resolvePlayerMatchStats(stat, evDerived || {
+          goals: new Map(),
+          assists: new Map(),
+          yellowCards: new Map(),
+          redCards: new Map(),
+          involved: new Set(),
+          played: new Set(),
+          teamIdByPlayer: new Map(),
+          subMinutes: new Map(),
+        }, playerId, matchDuration);
+
+        const playerTeamId = (typeof stat?.teamId === "string" && stat.teamId) || (evDerived?.teamIdByPlayer.get(playerId) ?? "");
         const isHome = Boolean(playerTeamId) ? playerTeamId === homeTeamId : isBenchHome;
         const isAway = Boolean(playerTeamId) ? playerTeamId === awayTeamId : isBenchAway;
         const opponentName = isHome ? awayTeamName : isAway ? homeTeamName : awayTeamName;
@@ -579,15 +681,7 @@ export async function getPlayerMatchResults(
         const scoreHome = typeof m?.scoreHome === "number" ? m.scoreHome : (m?.scoreHome ?? null);
         const scoreAway = typeof m?.scoreAway === "number" ? m.scoreAway : (m?.scoreAway ?? null);
 
-        const minutesPlayed = stat?.minutesPlayed == null ? null : Number(stat.minutesPlayed);
-        const goals = stat?.goals == null ? (eventGoals > 0 ? eventGoals : null) : Number(stat.goals);
-        const assists = stat?.assists == null ? (eventAssists > 0 ? eventAssists : null) : Number(stat.assists);
-
-        const minutesPlayedNum = Number.isFinite(minutesPlayed) ? (minutesPlayed as number) : null;
-        const didPlay = (minutesPlayedNum ?? 0) > 0;
-        const role = typeof stat?.role === "string" ? String(stat.role) : "";
-        const isBenchByRole = Boolean(role) && role !== "starter" && !didPlay;
-        const isBench = (isBenchRegistered || isBenchByRole) && !didPlay;
+        const isBench = resolved.isBench || (isBenchRegistered && !resolved.played);
 
         rows.push({
           matchId: matchDoc.id,
@@ -606,11 +700,11 @@ export async function getPlayerMatchResults(
           ha,
           scoreHome,
           scoreAway,
-          minutesPlayed: minutesPlayedNum,
+          minutesPlayed: resolved.minutesPlayed,
           isBench: isBench ? true : undefined,
           rating: typeof stat?.rating === "number" && Number.isFinite(stat.rating) ? stat.rating : null,
-          goals: Number.isFinite(goals) ? goals : null,
-          assists: Number.isFinite(assists) ? assists : null,
+          goals: resolved.goals > 0 ? resolved.goals : null,
+          assists: resolved.assists > 0 ? resolved.assists : null,
         });
       }
     }

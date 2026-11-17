@@ -400,18 +400,18 @@ function OverviewTab({ overview }: { overview: ReturnType<typeof import("@/lib/d
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <DashboardSection title="勝敗分布" className="p-4">
-          <div className="h-48 w-full">
+          <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
+              <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                 <Pie
                   data={donutData}
                   dataKey="value"
                   nameKey="name"
+                  cx="50%"
+                  cy="50%"
                   innerRadius="55%"
-                  outerRadius="80%"
+                  outerRadius="75%"
                   paddingAngle={2}
-                  label={({ name, value }) => (value ? `${name} ${value}` : "")}
-                  labelLine={false}
                   stroke={colors.surface}
                   strokeWidth={2}
                 >
@@ -423,10 +423,10 @@ function OverviewTab({ overview }: { overview: ReturnType<typeof import("@/lib/d
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-2 flex justify-center gap-4 text-xs" style={{ color: colors.sub }}>
-            <span style={{ color: colors.win }}>勝 {overview.wins} ({overview.winRate.toFixed(1)}%)</span>
-            <span style={{ color: colors.draw }}>分 {overview.draws} ({overview.drawRate.toFixed(1)}%)</span>
-            <span style={{ color: colors.loss }}>敗 {overview.losses} ({overview.lossRate.toFixed(1)}%)</span>
+          <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs" style={{ color: colors.sub }}>
+            <span className="whitespace-nowrap" style={{ color: colors.win }}>勝 {overview.wins} ({overview.winRate.toFixed(1)}%)</span>
+            <span className="whitespace-nowrap" style={{ color: colors.draw }}>分 {overview.draws} ({overview.drawRate.toFixed(1)}%)</span>
+            <span className="whitespace-nowrap" style={{ color: colors.loss }}>敗 {overview.losses} ({overview.lossRate.toFixed(1)}%)</span>
           </div>
         </DashboardSection>
 
@@ -757,6 +757,14 @@ function MatchesTab({
 
 function GoalsTab({ goalAnalysis }: { goalAnalysis: ReturnType<typeof import("@/lib/dashboard-stats").computeGoalAnalysis> }) {
   const totalRegistered = goalAnalysis.firstHalfGoals + goalAnalysis.secondHalfGoals;
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 640);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   const timeData = useMemo(
     () =>
@@ -769,13 +777,21 @@ function GoalsTab({ goalAnalysis }: { goalAnalysis: ReturnType<typeof import("@/
   return (
     <div className="space-y-3">
       <DashboardSection className="p-3">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <DashboardKpi label="前半得点" value={goalAnalysis.firstHalfGoals} color={colors.accent} />
           <DashboardKpi label="後半得点" value={goalAnalysis.secondHalfGoals} color={colors.sub} />
           <DashboardKpi label="前半比率" value={`${goalAnalysis.firstHalfRatio.toFixed(1)}%`} />
           <DashboardKpi label="後半比率" value={`${goalAnalysis.secondHalfGoalsRatio.toFixed(1)}%`} />
-          <DashboardKpi label="未登録得点" value={goalAnalysis.unregisteredGoals} />
         </div>
+        {goalAnalysis.unregisteredGoals > 0 ? (
+          <p className="mt-2 text-xs" style={{ color: colors.text }}>
+            ※未登録の得点が{goalAnalysis.unregisteredGoals}件あります
+          </p>
+        ) : (
+          <p className="mt-2 text-xs" style={{ color: colors.muted }}>
+            ※未登録の得点はありません
+          </p>
+        )}
       </DashboardSection>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -815,7 +831,7 @@ function GoalsTab({ goalAnalysis }: { goalAnalysis: ReturnType<typeof import("@/
                 <XAxis dataKey="bucket" tick={chartLabelStyle} axisLine={chartAxisStyle} tickLine={chartAxisStyle} />
                 <YAxis allowDecimals={false} tick={chartLabelStyle} axisLine={chartAxisStyle} tickLine={chartAxisStyle} />
                 <ReTooltip contentStyle={chartTooltipStyle} />
-                <Bar dataKey="goals" radius={[4, 4, 0, 0]} fill={colors.accent} />
+                <Bar dataKey="goals" radius={[4, 4, 0, 0]} fill={colors.accent} maxBarSize={isMobile ? 20 : undefined} />
               </BarChart>
             </ResponsiveContainer>
           </div>

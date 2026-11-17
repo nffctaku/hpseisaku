@@ -27,12 +27,12 @@ test('playerReferencedByEvents: 全参照フィールドを検出', () => {
   assert.equal(playerReferencedByEvents(pk, 'custom_1'), true);
 });
 
-test('recomputeRoleChangedMinutes: 整合イベント由来値を優先、矛盾は既定値', () => {
+test('recomputeRoleChangedMinutes: 整合イベント由来値を優先、矛盾・不足は null', () => {
   const prevRole = new Map([
-    ['p-out', 'starter'],   // starter→sub: OUTイベントあり→不整合→0
-    ['p-in', 'sub'],        // sub→starter: INイベントあり→不整合→90
-    ['p-x', 'starter'],     // starter→sub: 交代イベントなし→0
-    ['p-y', 'sub'],         // sub→starter: 交代イベントなし→90
+    ['p-out', 'starter'],   // starter→sub: OUTイベントは新ロールと不整合→null
+    ['p-in', 'sub'],        // sub→starter: INイベントは新ロールと不整合→null
+    ['p-x', 'starter'],     // starter→sub: 交代イベントなし→null（90分で補完しない）
+    ['p-y', 'sub'],         // sub→starter: 交代イベントなし→null（0分で補完しない）
     ['p-z', 'sub'],         // ロール不変→値保持
   ]);
   const stats = [
@@ -43,10 +43,10 @@ test('recomputeRoleChangedMinutes: 整合イベント由来値を優先、矛盾
     { playerId: 'p-z', teamId: 'T1', role: 'sub', minutesPlayed: 33 }, // 手入力値保持
   ];
   const out = recomputeRoleChangedMinutes(stats, events, 'T1', 90, prevRole);
-  assert.equal(out[0].minutesPlayed, 0);   // starter→sub、OUTイベントは不整合→既定0
-  assert.equal(out[1].minutesPlayed, 90);  // sub→starter、INイベントは不整合→既定90
-  assert.equal(out[2].minutesPlayed, 0);   // イベントなし→sub既定0
-  assert.equal(out[3].minutesPlayed, 90);  // イベントなし→starter既定90
+  assert.equal(out[0].minutesPlayed, null);   // starter→sub、OUTイベントは不整合→null
+  assert.equal(out[1].minutesPlayed, null);  // sub→starter、INイベントは不整合→null
+  assert.equal(out[2].minutesPlayed, null);   // イベントなし→null（既定0を使用しない）
+  assert.equal(out[3].minutesPlayed, null);  // イベントなし→null（既定90を使用しない）
   assert.equal(out[4].minutesPlayed, 33);  // ロール不変→保持
 });
 

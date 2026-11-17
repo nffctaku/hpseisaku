@@ -271,6 +271,18 @@ export function PlayerStatsTable({ teamId, allPlayers, matchDuration = 90, onFor
 
       const role = ps.role ?? 'starter';
       const curRaw = ps.minutesPlayed;
+
+      // 出場時間が不明（null）の場合、交代イベント由来値がなければ 90分/0分で補完しない
+      if (curRaw === null) {
+        const hasEventDerived =
+          role === 'starter'
+            ? derivedStarterMinutes.has(pid)
+            : role === 'sub'
+            ? derivedBenchMinutes.has(pid)
+            : false;
+        if (!hasEventDerived) return;
+      }
+
       const cur = typeof curRaw === 'number' && Number.isFinite(curRaw) ? curRaw : Number(curRaw);
       const curNum = Number.isFinite(cur) ? cur : undefined;
 

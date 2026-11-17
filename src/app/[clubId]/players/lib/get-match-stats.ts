@@ -1,6 +1,10 @@
 import { db } from "@/lib/firebase/admin";
 import { expandSeasonVariants } from "../[playerId]/design-test/lib/season";
-import { deriveEventPlayerCounts, buildNameToIdFromStats } from "@/lib/match-event-stats";
+import {
+  deriveEventPlayerCounts,
+  buildNameToIdFromStats,
+  resolvePlayerMatchStats,
+} from "@/lib/match-event-stats";
 
 export interface MatchRecord {
   season: string;
@@ -16,9 +20,11 @@ export interface MatchRecord {
   scoreAway: number | null;
   result: "W" | "D" | "L" | "-";
   minutesPlayed: number | null;
-  goals: number | null;
-  assists: number | null;
+  goals: number;
+  assists: number;
   rating: number | null;
+  isBench: boolean;
+  played: boolean;
 }
 
 export interface PlayerStatsWithRecords {
@@ -104,10 +110,6 @@ export async function getMatchStatsForPlayers(
           byPlayer.set(pid, s);
         }
 
-        // heal-on-read: playerStats 行の導出値が古い／イベント対象選手の行がない
-        // 既存データを救済するため、events から導出値を計算する。
-        // 格納値は一切書き換えず、表示集計では max(stored, derived) を使う
-        // （手入力値を減らさない）。
         const evs = Array.isArray(m?.events) ? (m.events as any[]) : [];
         const matchDuration = typeof m?.matchDuration === "number" ? m.matchDuration : 90;
         const evDerived =
@@ -115,19 +117,12 @@ export async function getMatchStatsForPlayers(
             ? deriveEventPlayerCounts(evs, buildNameToIdFromStats(ps), matchDuration)
             : null;
 
-        // playerStats 行を持たないがイベントに登場する対象選手（行なし選手）
         if (evDerived) {
           for (const pid of evDerived.involved) {
             if (pid.startsWith("custom_") || !idSet.has(pid) || byPlayer.has(pid)) continue;
             byPlayer.set(pid, {
               playerId: pid,
               teamId: evDerived.teamIdByPlayer.get(pid) || "",
-              minutesPlayed: evDerived.subMinutes.get(pid) ?? 0,
-              goals: evDerived.goals.get(pid) ?? 0,
-              assists: evDerived.assists.get(pid) ?? 0,
-              yellowCards: evDerived.yellowCards.get(pid) ?? 0,
-              redCards: evDerived.redCards.get(pid) ?? 0,
-              __healedFromEvents: true,
             });
           }
         }
@@ -136,6 +131,17 @@ export async function getMatchStatsForPlayers(
           activeVariants && activeVariants.has(compSeasonRaw);
 
         for (const [pid, s] of byPlayer.entries()) {
+          const resolved = resolvePlayerMatchStats(s, evDerived || {
+            goals: new Map(),
+            assists: new Map(),
+            yellowCards: new Map(),
+            redCards: new Map(),
+            involved: new Set(),
+            played: new Set(),
+            teamIdByPlayer: new Map(),
+            subMinutes: new Map(),
+          }, pid, matchDuration);
+
           const playerTeamId = typeof s?.teamId === "string" ? s.teamId : "";
           const isHome = Boolean(playerTeamId)
             ? playerTeamId === homeTeamId
@@ -173,49 +179,41 @@ export async function getMatchStatsForPlayers(
             else result = "L";
           }
 
-          const minutesPlayed = Number(s?.minutesPlayed);
-          const minutes = Number.isFinite(minutesPlayed) ? minutesPlayed : null;
-          const goals = Number(s?.goals);
-          const goalsVal = Number.isFinite(goals) ? goals : null;
-          const assists = Number(s?.assists);
-          const assistsVal = Number.isFinite(assists) ? assists : null;
           const rating = Number(s?.rating);
           const ratingVal = Number.isFinite(rating) && rating > 0 ? rating : null;
 
-          // heal-on-read: イベント導出値と格納値の大きい方を採用
-          // （手入力の上乗せ値を消さず、欠落したイベント分を補完する）
-          const effGoals = Math.max(goalsVal ?? 0, evDerived?.goals.get(pid) ?? 0);
-          const effAssists = Math.max(assistsVal ?? 0, evDerived?.assists.get(pid) ?? 0);
-          // minutes>0 またはイベント登場（得点/交代等）を出場とみなす
-          const played = (minutes ?? 0) > 0 || (evDerived?.involved.has(pid) ?? false);
-
-          const entry = stats.get(pid);
-          if (!entry) continue;
-
           if (isActiveSeason) {
-            if (played) entry.stats.appearances += 1;
-            entry.stats.goals += effGoals;
-            entry.stats.assists += effAssists;
+            const entry = stats.get(pid);
+            if (entry) {
+              if (resolved.played) entry.stats.appearances += 1;
+              entry.stats.goals += resolved.goals;
+              entry.stats.assists += resolved.assists;
+            }
           }
 
-          entry.matches.push({
-            season: compSeasonRaw,
-            competitionName: compName,
-            roundName,
-            matchDate,
-            matchTime,
-            opponentName,
-            opponentTeamId,
-            opponentTeamLogo,
-            ha,
-            scoreHome,
-            scoreAway,
-            result,
-            minutesPlayed: minutes,
-            goals: effGoals,
-            assists: effAssists,
-            rating: ratingVal,
-          });
+          const entry = stats.get(pid);
+          if (entry) {
+            entry.matches.push({
+              season: compSeasonRaw,
+              competitionName: compName,
+              roundName,
+              matchDate,
+              matchTime,
+              opponentName,
+              opponentTeamId,
+              opponentTeamLogo,
+              ha,
+              scoreHome,
+              scoreAway,
+              result,
+              minutesPlayed: resolved.minutesPlayed,
+              goals: resolved.goals,
+              assists: resolved.assists,
+              rating: ratingVal,
+              isBench: resolved.isBench,
+              played: resolved.played,
+            });
+          }
         }
       }
     }
@@ -250,9 +248,30 @@ export async function getMatchStatsForPlayers(
           typeof r?.goals === "number" && Number.isFinite(r.goals) ? r.goals : 0;
         const a =
           typeof r?.assists === "number" && Number.isFinite(r.assists) ? r.assists : 0;
+        const minutes =
+          typeof r?.minutes === "number" && Number.isFinite(r.minutes) ? r.minutes : null;
         entry.stats.appearances += m;
         entry.stats.goals += g;
         entry.stats.assists += a;
+        entry.matches.push({
+          season: activeSeason as string,
+          competitionName: r?.competitionName || r?.competitionId || "手入力",
+          roundName: "",
+          matchDate: "",
+          opponentName: "",
+          opponentTeamId: undefined,
+          opponentTeamLogo: undefined,
+          ha: "(-)",
+          scoreHome: null,
+          scoreAway: null,
+          result: "-",
+          minutesPlayed: minutes,
+          goals: g,
+          assists: a,
+          rating: null,
+          isBench: false,
+          played: m > 0,
+        });
       }
     }
   }

@@ -939,7 +939,7 @@ export function PlayerList({ players, staff, allSeasons, activeSeason, accentCol
                       const scoreText = typeof myScore === 'number' && typeof oppScore === 'number' ? `${myScore}-${oppScore}` : '-';
                       const resultColor = MATCH_RESULT_COLORS[r.result] ?? 'rgba(255,255,255,0.4)';
                       const resultLabel = r.result === 'W' ? '勝' : r.result === 'D' ? '分' : r.result === 'L' ? '負' : '−';
-                      const isBench = r.minutesPlayed === 0;
+                      const isBench = r.isBench;
                       const dateParts = String(r.matchDate || '').split(/[-/.]/).filter(Boolean);
                       const dateObj = dateParts.length >= 3 ? new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2])) : null;
                       const dow = dateObj && Number.isFinite(dateObj.getTime()) ? `（${'日月火水木金土'[dateObj.getDay()]}）` : '';

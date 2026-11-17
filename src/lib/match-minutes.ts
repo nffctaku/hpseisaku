@@ -23,7 +23,7 @@ interface PlayerStatLike {
   playerId?: string;
   teamId?: string;
   role?: string;
-  minutesPlayed?: number;
+  minutesPlayed?: number | null;
   [key: string]: unknown;
 }
 
@@ -154,7 +154,8 @@ export function healStaleTeamMinutes<T extends PlayerStatLike>(
 }
 
 // Recompute minutesPlayed for every player of a team given the current events.
-// starter: sub-out minute or full matchDuration; sub: sub-in minutes or 0.
+// 交代イベントから導出できる場合はそれを優先し、そうでない場合は既存値を保持する。
+// 明示的な出場時間がない場合は null（90分/0分で補完しない）。
 export function recomputeTeamMinutes<T extends PlayerStatLike>(
   playerStats: T[],
   events: MinuteEventLike[],
@@ -167,20 +168,23 @@ export function recomputeTeamMinutes<T extends PlayerStatLike>(
   return playerStats.map((ps) => {
     if (!ps || ps.teamId !== teamId || !ps.playerId) return ps;
     const role = ps.role ?? 'starter';
-    let desired: number | undefined;
-    if (role === 'starter') desired = outMap.get(ps.playerId) ?? matchDuration;
-    else if (role === 'sub') desired = inMap.get(ps.playerId) ?? 0;
-    if (desired === undefined || desired === ps.minutesPlayed) return ps;
+    const stored = typeof ps.minutesPlayed === 'number' && Number.isFinite(ps.minutesPlayed) ? ps.minutesPlayed : null;
+    let desired: number | null | undefined =
+      role === 'starter'
+        ? outMap.get(ps.playerId)
+        : role === 'sub'
+        ? inMap.get(ps.playerId)
+        : undefined;
+    if (desired === undefined) desired = stored;
+    if (desired === ps.minutesPlayed) return ps;
     return { ...ps, minutesPlayed: desired };
   });
 }
 
 // ロール変更（スタメン⇔ベンチ）があった選手だけ minutesPlayed を再導出する。
-// 新ロールと論理整合する交代イベント由来値のみ採用する:
-//   starter → OUTイベントの出場時間 or 試合時間
-//   sub     → INイベントの出場時間 or 0
-// 整合しないイベント（スタメンにIN／ベンチにOUT）は採用せず既定値へ。
-// ロール不変の選手・イベント未関与の値は一切変更しない（手入力値を保持）。
+// 新ロールと論理整合する交代イベント由来値のみ採用する。
+// イベント由来値がない場合は、ロール変更前と同じロールなら既存値を保持、
+// 異なるロールに変更した場合は「不明」を表す null とする（90分/0分で補完しない）。
 export function recomputeRoleChangedMinutes<T extends PlayerStatLike>(
   playerStats: T[],
   events: MinuteEventLike[],
@@ -196,10 +200,14 @@ export function recomputeRoleChangedMinutes<T extends PlayerStatLike>(
     const prevRole = prevRoleById.get(ps.playerId);
     const newRole = ps.role ?? 'starter';
     if (prevRole === undefined || prevRole === newRole) return ps;
-    const desired =
+    const eventValue =
       newRole === 'starter'
-        ? (outMap.get(ps.playerId) ?? matchDuration)
-        : (inMap.get(ps.playerId) ?? 0);
+        ? outMap.get(ps.playerId)
+        : inMap.get(ps.playerId);
+    const stored = typeof ps.minutesPlayed === 'number' && Number.isFinite(ps.minutesPlayed) ? ps.minutesPlayed : null;
+    // ロール変更した場合、既存の出場時間は旧ロールに基づくため採用しない。
+    // 整合するイベント由来値があればそれを、なければ null（不明）とする。
+    const desired = eventValue ?? null;
     return desired === ps.minutesPlayed ? ps : { ...ps, minutesPlayed: desired };
   });
 }
