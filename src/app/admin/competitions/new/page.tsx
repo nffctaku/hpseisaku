@@ -185,7 +185,9 @@ export default function NewCompetitionPage() {
     if (!user || !currentSeason) return;
     const fetchUsage = async () => {
       try {
-        const idToken = await user.getIdToken();
+        const currentUser = auth.currentUser;
+        if (!currentUser) return;
+        const idToken = await currentUser.getIdToken();
         const res = await fetch(`/api/club/competitions/usage?season=${encodeURIComponent(currentSeason)}`, {
           headers: { Authorization: `Bearer ${idToken}` },
         });
